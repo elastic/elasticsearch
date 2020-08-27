@@ -46,7 +46,7 @@ import static java.util.Collections.unmodifiableSet;
  */
 public final class IndicesPermission {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndicesPermission.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
@@ -287,7 +287,7 @@ public final class IndicesPermission {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
-                                        deprecationLogger.deprecatedAndMaybeLog("[" + indexOrAlias + "] mapping update for ingest " +
+                                        deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest " +
                                                 "privilege [" + privilegeName + "]", "the index privilege [" + privilegeName + "] allowed" +
                                                 " the update mapping action [" + action + "] on index [" + indexOrAlias + "], this " +
                                                 "privilege will not permit mapping updates in the next major release - users who require " +

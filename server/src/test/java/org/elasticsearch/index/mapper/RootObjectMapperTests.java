@@ -339,7 +339,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"foo\":\"bar\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"foo\":\"bar\",\"type\":\"keyword\"}}], caused by [Unused mapping attributes [{foo=bar}]]");
+            "\"foo\":\"bar\",\"type\":\"keyword\"}}], " +
+            "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]]");
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -367,7 +368,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] not found for field [__dummy__]]");
+            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] not found for field [__dynamic__my_template]]");
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {
@@ -436,11 +437,11 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             if (useMatchMappingType) {
                 assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"*\",\"mapping\":{" +
                     "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
-                    "caused by [unknown parameter [foo] on mapper [__dummy__] of type [null]]");
+                    "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]");
             } else {
                 assertWarnings("dynamic template [my_template] has invalid content [{\"match\":\"string_*\",\"mapping\":{" +
                     "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
-                    "caused by [unknown parameter [foo] on mapper [__dummy__] of type [null]]");
+                    "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]");
             }
         }
     }

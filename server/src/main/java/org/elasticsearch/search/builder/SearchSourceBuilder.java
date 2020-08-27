@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -80,8 +79,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(SearchSourceBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -1045,6 +1043,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.explain = explain;
         rewrittenBuilder.extBuilders = extBuilders;
         rewrittenBuilder.fetchSourceContext = fetchSourceContext;
+        rewrittenBuilder.fetchFields = fetchFields;
         rewrittenBuilder.docValueFields = docValueFields;
         rewrittenBuilder.storedFieldsContext = storedFieldsContext;
         rewrittenBuilder.from = from;
@@ -1146,7 +1145,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecatedAndMaybeLog("indices_boost_object_format",
+                    deprecationLogger.deprecate("indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -1603,10 +1602,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-                indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
-                sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
+        return Objects.hash(aggregations, explain, fetchSourceContext, fetchFields, docValueFields, storedFieldsContext, from,
+            highlightBuilder, indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
+            sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
+            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
     }
 
     @Override
@@ -1621,6 +1620,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.equals(aggregations, other.aggregations)
                 && Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
+                && Objects.equals(fetchFields, other.fetchFields)
                 && Objects.equals(docValueFields, other.docValueFields)
                 && Objects.equals(storedFieldsContext, other.storedFieldsContext)
                 && Objects.equals(from, other.from)

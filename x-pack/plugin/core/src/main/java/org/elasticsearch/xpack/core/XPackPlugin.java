@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
@@ -20,7 +18,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Binder;
@@ -45,6 +45,7 @@ import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -56,6 +57,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -80,20 +82,21 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
-
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
@@ -343,7 +346,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.deprecatedAndMaybeLog("config_file_path",
+                deprecationLogger.deprecate("config_file_path",
                     "Config file [" + name + "] is in a deprecated location. Move from " +
                     legacyConfig.toString() + " to " + config.toString());
                 return legacyConfig;
@@ -397,7 +400,27 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
         return settings;
+    }
+
+    @Override
+    public Set<DiscoveryNodeRole> getRoles() {
+        return new HashSet<>(Arrays.asList(
+            DataTier.DATA_HOT_NODE_ROLE,
+            DataTier.DATA_WARM_NODE_ROLE,
+            DataTier.DATA_COLD_NODE_ROLE,
+            DataTier.DATA_FROZEN_NODE_ROLE));
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return Collections.singleton(new DataTierAllocationDecider(clusterSettings));
     }
 
     /**

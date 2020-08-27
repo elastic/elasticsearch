@@ -1046,7 +1046,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * in an non green state
      * @param index index to test for
      **/
-    protected static void ensureGreen(String index) throws IOException {
+    public static void ensureGreen(String index) throws IOException {
         ensureHealth(index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
@@ -1261,6 +1261,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics":
             case "metrics-settings":
             case "metrics-mappings":
+            case ".snapshot-blob-cache":
                 return true;
             default:
                 return false;
@@ -1435,8 +1436,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
-            return warnings.stream().anyMatch(message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
-                PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+            if (warnings.size() > 0) {
+                boolean matches = warnings.stream().anyMatch(
+                    message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
+                    PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+                return matches == false;
+            } else {
+                return false;
+            }
         });
+        request.setOptions(options);
     }
 }

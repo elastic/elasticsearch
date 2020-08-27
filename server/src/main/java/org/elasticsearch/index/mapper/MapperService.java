@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -125,7 +124,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type")));
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
     static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no " +
         "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html" +
         "#default-mapping-not-allowed] for more information.";
@@ -452,7 +451,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecatedAndMaybeLog("default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
+                deprecationLogger.deprecate("default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);
             results.put(DEFAULT_MAPPING, defaultMapper);
@@ -631,7 +630,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappedFieldType unmappedFieldType(String type) {
         if (type.equals("string")) {
-            deprecationLogger.deprecatedAndMaybeLog("unmapped_type_string",
+            deprecationLogger.deprecate("unmapped_type_string",
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }

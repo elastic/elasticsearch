@@ -1022,6 +1022,8 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @Nullable
+    @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
             int key = readVInt();

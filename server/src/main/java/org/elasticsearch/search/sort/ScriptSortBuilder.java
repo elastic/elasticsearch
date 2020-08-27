@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
@@ -68,7 +67,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptSortBuilder.class);
 
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -281,12 +280,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecatedAndMaybeLog("script_nested_path",
+            deprecationLogger.deprecate("script_nested_path",
                 "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecatedAndMaybeLog("script_nested_filter",
+            deprecationLogger.deprecate("script_nested_filter",
                 "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);

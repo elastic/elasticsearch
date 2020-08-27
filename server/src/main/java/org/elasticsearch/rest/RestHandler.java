@@ -29,6 +29,7 @@ import java.util.List;
 /**
  * Handler for REST requests
  */
+@FunctionalInterface
 public interface RestHandler {
 
     /**

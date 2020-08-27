@@ -18,25 +18,37 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,9 +97,34 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String destIndex;
     private boolean analysisUsesExistingDestIndex;
 
+    @Before
+    public void setupLogging() {
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.dataframe.inference", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG"))
+            .get();
+    }
+
     @After
     public void cleanup() {
         cleanUp();
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe.inference")
+                .putNull("logger.org.elasticsearch.xpack.core.ml.inference"))
+            .get();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(entries);
     }
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
@@ -99,6 +136,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Classification(
                 KEYWORD_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -154,6 +192,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Classification(
                 KEYWORD_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -250,6 +289,76 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    public void testWithCustomFeatureProcessors() throws Exception {
+        initialize("classification_with_custom_feature_processors");
+        String predictedClassField = KEYWORD_FIELD + "_prediction";
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+
+        DataFrameAnalyticsConfig config =
+            buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Classification(
+                KEYWORD_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                Arrays.asList(
+                    new OneHotEncoding(TEXT_FIELD, Collections.singletonMap(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom"), true)
+                )));
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
+            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [classification]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+
+        GetTrainedModelsAction.Response response = client().execute(GetTrainedModelsAction.INSTANCE,
+            new GetTrainedModelsAction.Request(jobId + "*", true, Collections.emptyList())).actionGet();
+        assertThat(response.getResources().results().size(), equalTo(1));
+        TrainedModelConfig modelConfig = response.getResources().results().get(0);
+        modelConfig.ensureParsedDefinition(xContentRegistry());
+        assertThat(modelConfig.getModelDefinition().getPreProcessors().size(), greaterThan(0));
+        for (int i = 0; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+            PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
+            assertThat(preProcessor.isCustom(), equalTo(i == 0));
+        }
+    }
+
     public <T> void testWithOnlyTrainingRowsAndTrainingPercentIsFifty(String jobId,
                                                                       String dependentVariable,
                                                                       List<T> dependentVariableValues,
@@ -265,7 +374,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, null, numTopClasses, 50.0, null));
+                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, null, numTopClasses, 50.0, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -334,7 +443,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_integer", DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES, "integer");
     }
 
-    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsDouble() throws Exception {
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsDouble() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
@@ -342,7 +451,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), startsWith("invalid types [double] for required field [numerical-field];"));
     }
 
-    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsText() throws Exception {
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsText() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
@@ -531,7 +640,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null, null));
         putAnalytics(firstJob);
 
         String secondJobId = "classification_two_jobs_with_same_randomize_seed_2";
@@ -539,7 +648,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Classification) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed, null));
 
         putAnalytics(secondJob);
 
@@ -669,6 +778,22 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         updateAnalytics(new DataFrameAnalyticsConfigUpdate.Builder(jobId).setDescription("updated-description-2").build());
         assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-2")));
+    }
+
+    public void testTooLowConfiguredMemoryStillStarts() throws Exception {
+        initialize("low_memory_analysis");
+        indexData(sourceIndex, 10_000, 0, NESTED_FIELD);
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(
+            buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD)))
+            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.KB))
+            .build();
+        putAnalytics(config);
+        // Shouldn't throw
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsFailed(jobId);
+        forceStopAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
     }
 
     private static <T> T getOnlyElement(List<T> list) {

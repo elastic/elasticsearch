@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
 import org.elasticsearch.Version;
@@ -35,8 +34,7 @@ import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.MAX_
 
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(FingerprintTokenFilterFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(FingerprintTokenFilterFactory.class);
 
     private final char separator;
     private final int maxOutputSize;
@@ -60,7 +58,7 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         }
         else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+            DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
                 + "] will not be usable to parse synonyms after v7.0");
             return this;
         }

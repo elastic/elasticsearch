@@ -54,6 +54,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
             );
             indexService.mapperService().merge("_doc", new CompressedXContent(mappingDisabled), MergeReason.MAPPING_UPDATE);
+            assertEquals("{\"_doc\":{\"_all\":{\"enabled\":false}}}",
+                Strings.toString(indexService.mapperService().documentMapper()));
 
             String mappingEnabled = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("_all")

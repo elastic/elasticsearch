@@ -46,6 +46,7 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -61,6 +62,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -221,7 +223,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeType rangeType() { return rangeType; }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
         }
@@ -382,28 +384,34 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected Object parseSourceValue(Object value, String format) {
-        RangeType rangeType = fieldType().rangeType();
-        if (!(value instanceof Map)) {
-            assert rangeType == RangeType.IP;
-            Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
-            return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
-        }
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
+        DateFormatter formatter = format != null
+            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+            : defaultFormatter;
 
-        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
-        if (format != null) {
-            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
 
-        Map<String, Object> range = (Map<String, Object>) value;
-        Map<String, Object> parsedRange = new HashMap<>();
-        for (Map.Entry<String, Object> entry : range.entrySet()) {
-            Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
-            Object formattedValue = rangeType.formatValue(parsedValue, dateTimeFormatter);
-            parsedRange.put(entry.getKey(), formattedValue);
-        }
-        return parsedRange;
+            @Override
+            @SuppressWarnings("unchecked")
+            protected Object parseSourceValue(Object value) {
+                RangeType rangeType = fieldType().rangeType();
+                if (!(value instanceof Map)) {
+                    assert rangeType == RangeType.IP;
+                    Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                    return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                }
+
+                Map<String, Object> range = (Map<String, Object>) value;
+                Map<String, Object> parsedRange = new HashMap<>();
+                for (Map.Entry<String, Object> entry : range.entrySet()) {
+                    Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+                    Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                    parsedRange.put(entry.getKey(), formattedValue);
+                }
+                return parsedRange;
+            }
+        };
     }
 
     @Override

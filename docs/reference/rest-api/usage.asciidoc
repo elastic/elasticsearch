@@ -279,7 +279,16 @@ GET /_xpack/usage
   "analytics" : {
     "available" : true,
     "enabled" : true,
-    ...
+    "stats": {
+      "boxplot_usage" : 0,
+      "top_metrics_usage" : 0,
+      "normalize_usage" : 0,
+      "cumulative_cardinality_usage" : 0,
+      "t_test_usage" : 0,
+      "rate_usage" : 0,
+      "string_stats_usage" : 0,
+      "moving_percentiles_usage" : 0
+    }
   },
   "data_streams" : {
     "available" : true,
@@ -294,7 +303,6 @@ GET /_xpack/usage
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
 // TESTRESPONSE[s/"ilm" : \{[^\}]*\},/"ilm" : $body.$_path,/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
-// TESTRESPONSE[s/"analytics" : \{[^\}]*\}/"analytics" : $body.$_path/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]

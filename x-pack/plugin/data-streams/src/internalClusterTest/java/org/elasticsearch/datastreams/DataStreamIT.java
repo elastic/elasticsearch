@@ -230,13 +230,19 @@ public class DataStreamIT extends ESIntegTestCase {
             );
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
-            assertThat(bulkResponse.getItems()[0].getFailure().getMessage(), containsString("no such index [null]"));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
         }
         {
             BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest(dataStreamName, "_id"));
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
-            assertThat(bulkResponse.getItems()[0].getFailure().getMessage(), containsString("no such index [null]"));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
         }
         {
             BulkRequest bulkRequest = new BulkRequest().add(
@@ -244,22 +250,25 @@ public class DataStreamIT extends ESIntegTestCase {
             );
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
-            assertThat(bulkResponse.getItems()[0].getFailure().getMessage(), containsString("no such index [null]"));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
         }
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON);
-            Exception e = expectThrows(IndexNotFoundException.class, () -> client().index(indexRequest).actionGet());
-            assertThat(e.getMessage(), equalTo("no such index [null]"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
         }
         {
             UpdateRequest updateRequest = new UpdateRequest(dataStreamName, "_id").doc("{}", XContentType.JSON);
-            Exception e = expectThrows(IndexNotFoundException.class, () -> client().update(updateRequest).actionGet());
-            assertThat(e.getMessage(), equalTo("no such index [null]"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> client().update(updateRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
         }
         {
             DeleteRequest deleteRequest = new DeleteRequest(dataStreamName, "_id");
-            Exception e = expectThrows(IndexNotFoundException.class, () -> client().delete(deleteRequest).actionGet());
-            assertThat(e.getMessage(), equalTo("no such index [null]"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> client().delete(deleteRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
         }
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)

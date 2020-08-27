@@ -4,7 +4,7 @@
 A multi-bucket aggregation that works on `geo_point` fields and groups points into
 buckets that represent cells in a grid. The resulting grid can be sparse and only
 contains cells that have matching data. Each cell corresponds to a
-https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+{wikipedia}/Tiled_web_map[map tile] as used by many online map
 sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
 to the user-specified precision.
 

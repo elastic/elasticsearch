@@ -18,7 +18,7 @@ the same pattern:
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
-<<request-body-search-script-fields, scripted field>>:
+<<script-fields, scripted field>>:
 
 [source,console]
 -------------------------------------
@@ -98,10 +98,10 @@ second version is only compiled once.
 
 If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
-`circuit_breaking_exception` error. By default, up to 75 scripts per
-5 minutes will be compiled for most contexts and 375 scripts per 5 minutes
-for `ingest` contexts. You can change these settings dynamically by setting
-`script.context.$CONTEXT.max_compilations_rate` e.g.,
+`circuit_breaking_exception` error. For most contexts, you can compile up to 75
+scripts per 5 minutes by default. For ingest contexts, the default script
+compilation rate is unlimited. You can change these settings dynamically by
+setting `script.context.$CONTEXT.max_compilations_rate` eg.
 `script.context.field.max_compilations_rate=100/10m`.
 
 ========================================
@@ -116,7 +116,7 @@ Short form:
 
 [source,js]
 ----------------------
-  "script": "ctx._source.likes++"
+  "script": "ctx._source.my-int++"
 ----------------------
 // NOTCONSOLE
 
@@ -125,7 +125,7 @@ The same script in the normal form:
 [source,js]
 ----------------------
   "script": {
-    "source": "ctx._source.likes++"
+    "source": "ctx._source.my-int++"
   }
 ----------------------
 // NOTCONSOLE

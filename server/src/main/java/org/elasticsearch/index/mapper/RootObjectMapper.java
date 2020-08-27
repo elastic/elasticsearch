@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -47,9 +45,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
-
-    private static final Logger LOGGER = LogManager.getLogger(RootObjectMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
@@ -388,10 +384,11 @@ public class RootObjectMapper extends ObjectMapper {
                 continue;
             }
 
-            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
-            fieldTypeConfig.remove("type");
+            String templateName = "__dynamic__" + dynamicTemplate.name();
+            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
             try {
-                Mapper.Builder<?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
+                fieldTypeConfig.remove("type");
                 if (fieldTypeConfig.isEmpty()) {
                     Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
@@ -417,7 +414,7 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 deprecationMessage = message;
             }
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", deprecationMessage);
+                DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
         }
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -62,8 +61,8 @@ public class DateFormatters {
     // If LogManager.getLogger is called before logging config is loaded
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
-    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> new DeprecationLogger(LogManager.getLogger(FormatNames.class)));
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger =
+        new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")
@@ -1649,7 +1648,7 @@ public class DateFormatters {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             deprecationLogger.getOrCompute()
-                .deprecatedAndMaybeLog("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
         }
 
         if (FormatNames.ISO8601.matches(input)) {

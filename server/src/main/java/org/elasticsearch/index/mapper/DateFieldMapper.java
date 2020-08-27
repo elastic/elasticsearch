@@ -41,6 +41,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -63,6 +65,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
@@ -94,6 +97,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             public long parsePointAsMillis(byte[] value) {
                 return LongPoint.decodeDimension(value, 0);
             }
+
+            @Override
+            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
+            }
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
@@ -114,6 +122,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             public long parsePointAsMillis(byte[] value) {
                 return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
             }
         };
 
@@ -162,6 +175,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
         }
+
+        protected abstract Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot);
     }
 
     private static DateFieldMapper toType(FieldMapper in) {
@@ -371,6 +386,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
+            TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
+            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
+        }
+
+        @Override
         public Relation isFieldWithinQuery(IndexReader reader,
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
@@ -426,7 +448,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType());
         }
@@ -513,11 +535,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String nullValue() {
-        return nullValueAsString;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
@@ -540,7 +557,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         } else {
             try {
                 timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException e) {
+            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;
@@ -564,16 +581,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public String parseSourceValue(Object value, String format) {
-        String date = value.toString();
-        long timestamp = fieldType().parse(date);
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
+        DateFormatter formatter = format != null
+            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+            : defaultFormatter;
 
-        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
-        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
-        if (format != null) {
-            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
-        }
-        return dateTimeFormatter.format(dateTime);
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValueAsString) {
+            @Override
+            public String parseSourceValue(Object value) {
+                String date = value.toString();
+                long timestamp = fieldType().parse(date);
+                ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+                return formatter.format(dateTime);
+            }
+        };
     }
 
     public boolean getIgnoreMalformed() {

@@ -686,6 +686,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return refCounter.refCount();
     }
 
+    public void beforeClose() {
+        shardLock.setDetails("closing shard");
+    }
+
     static final class StoreDirectory extends FilterDirectory {
 
         private final Logger deletesLogger;

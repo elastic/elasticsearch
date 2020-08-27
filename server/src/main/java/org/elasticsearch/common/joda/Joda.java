@@ -19,14 +19,12 @@
 
 package org.elasticsearch.common.joda;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.common.time.FormatNames;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -60,7 +58,7 @@ public class Joda {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> new DeprecationLogger(LogManager.getLogger(FormatNames.class)));
+        =  new LazyInitializable(() -> DeprecationLogger.getLogger(Joda.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
@@ -77,7 +75,7 @@ public class Joda {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             getDeprecationLogger()
-                .deprecatedAndMaybeLog("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
         }
 
         DateTimeFormatter formatter;
@@ -286,7 +284,7 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String format) {
         if (JodaDeprecationPatterns.isDeprecatedPattern(format)) {
             String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
-            getDeprecationLogger().deprecatedAndMaybeLog("joda-pattern-deprecation",
+            getDeprecationLogger().deprecate("joda-pattern-deprecation",
                 suggestion + " " + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
     }
@@ -396,11 +394,11 @@ public class Joda {
                 long millis = new BigDecimal(text).longValue() * factor;
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
-                    getDeprecationLogger().deprecatedAndMaybeLog("epoch-negative", "Use of negative values" +
+                    getDeprecationLogger().deprecate("epoch-negative", "Use of negative values" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    getDeprecationLogger().deprecatedAndMaybeLog("epoch-scientific-notation", "Use of scientific notation" +
+                    getDeprecationLogger().deprecate("epoch-scientific-notation", "Use of scientific notation" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);

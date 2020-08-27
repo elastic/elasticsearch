@@ -214,14 +214,15 @@ public class TransportStartDataFrameAnalyticsAction
                 auditor.info(jobId,
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
+                // We will only warn the caller if the configured limit is too low.
                 if (startContext.config.getModelMemoryLimit()
                     .compareTo(expectedMemoryWithoutDisk) < 0) {
-                    ElasticsearchStatusException e =
-                        ExceptionsHelper.badRequestException(
-                            "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
-                            startContext.config.getModelMemoryLimit(), expectedMemoryWithoutDisk);
-                    listener.onFailure(e);
-                    return;
+                    String warning =  Messages.getMessage(
+                        Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED,
+                        startContext.config.getModelMemoryLimit(),
+                        expectedMemoryWithoutDisk);
+                    auditor.warning(jobId, warning);
+                    logger.warn("[{}] {}", jobId, warning);
                 }
                 // Refresh memory requirement for jobs
                 memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(

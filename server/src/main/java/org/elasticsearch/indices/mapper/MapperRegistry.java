@@ -48,7 +48,7 @@ public final class MapperRegistry {
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
         // add the _all field mapper for indices created in 6x
         Map<String, MetadataFieldMapper.TypeParser> metadata6x = new LinkedHashMap<>();
-        metadata6x.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
+        metadata6x.put(AllFieldMapper.NAME, AllFieldMapper.PARSER);
         metadata6x.putAll(metadataMapperParsers);
         this.metadataMapperParsers6x = Collections.unmodifiableMap(metadata6x);
         this.fieldFilter = fieldFilter;

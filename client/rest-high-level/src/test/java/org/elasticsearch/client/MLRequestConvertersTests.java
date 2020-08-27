@@ -159,14 +159,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/anomaly_detectors", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getJobRequest = new GetJobRequest("job1", "jobs*");
-        getJobRequest.setAllowNoJobs(true);
+        getJobRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getJob(getJobRequest);
 
         assertEquals("/_ml/anomaly_detectors/job1,jobs*", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testGetJobStats() {
@@ -176,14 +176,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/anomaly_detectors/_stats", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getJobStatsRequestRequest = new GetJobStatsRequest("job1", "jobs*");
-        getJobStatsRequestRequest.setAllowNoJobs(true);
+        getJobStatsRequestRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getJobStats(getJobStatsRequestRequest);
 
         assertEquals("/_ml/anomaly_detectors/job1,jobs*/_stats", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testOpenJob() throws Exception {
@@ -208,12 +208,12 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         closeJobRequest = new CloseJobRequest(jobId, "otherjobs*");
         closeJobRequest.setForce(true);
-        closeJobRequest.setAllowNoJobs(false);
+        closeJobRequest.setAllowNoMatch(false);
         closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
         request = MLRequestConverters.closeJob(closeJobRequest);
 
         assertEquals("/_ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
-        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
+        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_match\":false}",
             requestEntityToString(request));
     }
 
@@ -330,14 +330,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getDatafeedRequest = new GetDatafeedRequest("feed-1", "feed-*");
-        getDatafeedRequest.setAllowNoDatafeeds(true);
+        getDatafeedRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getDatafeed(getDatafeedRequest);
 
         assertEquals("/_ml/datafeeds/feed-1,feed-*", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testDeleteDatafeed() {
@@ -371,7 +371,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         StopDatafeedRequest datafeedRequest = new StopDatafeedRequest("datafeed_1", "datafeed_2");
         datafeedRequest.setForce(true);
         datafeedRequest.setTimeout(TimeValue.timeValueMinutes(10));
-        datafeedRequest.setAllowNoDatafeeds(true);
+        datafeedRequest.setAllowNoMatch(true);
         Request request = MLRequestConverters.stopDatafeed(datafeedRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds/" +
@@ -390,14 +390,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds/_stats", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getDatafeedStatsRequestRequest = new GetDatafeedStatsRequest("datafeed1", "datafeeds*");
-        getDatafeedStatsRequestRequest.setAllowNoDatafeeds(true);
+        getDatafeedStatsRequestRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getDatafeedStats(getDatafeedStatsRequestRequest);
 
         assertEquals("/_ml/datafeeds/datafeed1,datafeeds*/_stats", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testPreviewDatafeed() {

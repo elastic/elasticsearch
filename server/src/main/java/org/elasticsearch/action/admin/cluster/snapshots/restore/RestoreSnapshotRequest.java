@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -54,7 +53,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(RestoreSnapshotRequest.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
     private String snapshot;
     private String repository;
@@ -498,7 +497,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("RestoreSnapshotRequest#settings",
+                DEPRECATION_LOGGER.deprecate("RestoreSnapshotRequest#settings",
                     "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");

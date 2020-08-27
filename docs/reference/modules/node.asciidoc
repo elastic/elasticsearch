@@ -1,8 +1,8 @@
 [[modules-node]]
 === Node
 
-Any time that you start an instance of Elasticsearch, you are starting a _node_.
-A collection of connected nodes is called a <<modules-cluster,cluster>>. If you
+Any time that you start an instance of {es}, you are starting a _node_. A 
+collection of connected nodes is called a <<modules-cluster,cluster>>. If you
 are running a single node of {es}, then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
@@ -21,6 +21,15 @@ and (if available) machine learning. All data nodes are also transform nodes.
 TIP: As the cluster grows and in particular if you have large {ml} jobs or
 {ctransforms}, consider separating dedicated master-eligible nodes from
 dedicated data nodes, {ml} nodes, and {transform} nodes.
+
+[[node-roles]]
+==== Nore roles
+
+You can define the roles of a node by setting `node.roles`. If you don't 
+configure this setting, then the node has the following roles by default: 
+`master`, `data`, `ingest`, `ml`.
+
+If you set node.roles, the node is assigned only the roles you specify.
 
 <<master-node,Master-eligible node>>::
 
@@ -70,7 +79,7 @@ In the _scatter_ phase, the coordinating node forwards the request to the data
 nodes which hold the data.  Each data node executes the request locally and
 returns its results to the coordinating node. In the _gather_  phase, the
 coordinating node reduces each data node's results into a single global
-resultset.
+result set.
 
 Every node is implicitly a coordinating node. This means that a node that has
 an explicit empty list of roles via `node.roles` will only act as a coordinating
@@ -204,7 +213,9 @@ node.roles: [ ingest ]
 [[node-ingest-node-setting]]
 // tag::node-ingest-tag[]
 `node.ingest` {ess-icon}::
-Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply an ingest pipeline to transform and enrich a document before indexing. Default: `true`.
+Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply 
+an ingest pipeline to transform and enrich a document before indexing. Default: 
+`true`.
 // end::node-ingest-tag[]
 
 [[coordinating-only-node]]
@@ -260,9 +271,9 @@ xpack.ml.enabled: true <1>
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
-{transform-cap} nodes run {transforms} and handle {transform} API requests. By
-default, data nodes are also transform nodes. If you have the {oss-dist}, do not
-use these settings. For more information, see <<transform-settings>>.
+{transform-cap} nodes run {transforms} and handle {transform} API requests. If 
+you have the {oss-dist}, do not use these settings. For more information, see 
+<<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 
@@ -289,8 +300,9 @@ Each node checks the contents of its data path at startup. If it discovers
 unexpected data then it will refuse to start. This is to avoid importing
 unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
 to a red cluster health. To be more precise, nodes without the `data` role will
-refuse to start if they find any shard data on disk at startup, and nodes with
-without both the `master` and `data` roles will refuse to start if they have any index metadata on disk at startup.
+refuse to start if they find any shard data on disk at startup, and nodes 
+without both the `master` and `data` roles will refuse to start if they have any 
+index metadata on disk at startup.
 
 It is possible to change the roles of a node by adjusting its
 `elasticsearch.yml` file and restarting it. This is known as _repurposing_ a

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
@@ -38,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestForceMergeAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestForceMergeAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestForceMergeAction.class);
 
     @Override
     public List<Route> routes() {
@@ -60,7 +59,7 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
         if (mergeRequest.onlyExpungeDeletes() && mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
-            deprecationLogger.deprecatedAndMaybeLog("force_merge_expunge_deletes_and_max_num_segments_deprecation",
+            deprecationLogger.deprecate("force_merge_expunge_deletes_and_max_num_segments_deprecation",
                "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version");
         }
         return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));

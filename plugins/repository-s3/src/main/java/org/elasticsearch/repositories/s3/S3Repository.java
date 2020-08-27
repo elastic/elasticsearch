@@ -71,7 +71,7 @@ import java.util.function.Function;
  */
 class S3Repository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final String TYPE = "s3";
 
@@ -248,7 +248,7 @@ class S3Repository extends BlobStoreRepository {
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
-            deprecationLogger.deprecatedAndMaybeLog("s3_repository_secret_settings",
+            deprecationLogger.deprecate("s3_repository_secret_settings",
                     "Using s3 access/secret key from repository settings. Instead "
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
         }

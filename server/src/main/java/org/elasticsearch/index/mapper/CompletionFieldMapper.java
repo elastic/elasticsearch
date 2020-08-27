@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -140,7 +139,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 b.startArray(n);
                 c.toXContent(b, ToXContent.EMPTY_PARAMS);
                 b.endArray();
-            });
+            }, ContextMappings::toString);
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> toType(m).maxInputLength, Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
@@ -150,7 +149,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private final NamedAnalyzer defaultAnalyzer;
         private final Version indexVersionCreated;
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Builder.class));
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
@@ -209,7 +208,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
         private void checkCompletionContextsLimit(BuilderContext context) {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                deprecationLogger.deprecatedAndMaybeLog("excessive_completion_contexts",
+                deprecationLogger.deprecate("excessive_completion_contexts",
                     "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                         " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
                         "The maximum allowed number of completion contexts in a mapping will be limited to " +
@@ -534,16 +533,21 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected List<?> parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value instanceof List) {
-            return (List<?>) value;
-        } else {
-            return org.elasticsearch.common.collect.List.of(value);
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected List<?> parseSourceValue(Object value) {
+                if (value instanceof List) {
+                    return (List<?>) value;
+                } else {
+                    return org.elasticsearch.common.collect.List.of(value);
+                }
+            }
+        };
     }
 
     static class CompletionInputMetadata {

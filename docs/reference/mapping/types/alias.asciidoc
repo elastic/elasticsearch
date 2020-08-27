@@ -1,5 +1,5 @@
 [[alias]]
-=== Alias data type
+=== Alias field type
 ++++
 <titleabbrev>Alias</titleabbrev>
 ++++

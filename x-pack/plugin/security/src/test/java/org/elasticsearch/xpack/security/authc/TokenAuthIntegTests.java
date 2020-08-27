@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRespons
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -666,6 +667,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client.execute(AuthenticateAction.INSTANCE, request, authFuture);
         AuthenticateResponse response = authFuture.actionGet();
         assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.authentication().getUser().principal());
+        assertEquals(Authentication.AuthenticationType.REALM, response.authentication().getAuthenticationType());
 
         authFuture = new PlainActionFuture<>();
         request = new AuthenticateRequest();
@@ -674,6 +676,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
         assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
+        assertEquals(Authentication.AuthenticationType.TOKEN, response.authentication().getAuthenticationType());
 
         authFuture = new PlainActionFuture<>();
         request = new AuthenticateRequest();
@@ -682,6 +685,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
         assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
+        assertEquals(Authentication.AuthenticationType.TOKEN, response.authentication().getAuthenticationType());
     }
 
     public void testClientCredentialsGrant() throws Exception {
@@ -701,6 +705,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .execute(AuthenticateAction.INSTANCE, request, authFuture);
         AuthenticateResponse response = authFuture.get();
         assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.authentication().getUser().principal());
+        assertEquals(Authentication.AuthenticationType.TOKEN, response.authentication().getAuthenticationType());
 
         // invalidate
         PlainActionFuture<InvalidateTokenResponse> invalidateResponseFuture = new PlainActionFuture<>();

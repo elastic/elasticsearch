@@ -157,6 +157,10 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertBusy(() -> assertIsStopped(id), waitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
+    protected void waitUntilAnalyticsIsFailed(String id) throws Exception {
+        assertBusy(() -> assertIsFailed(id), TimeValue.timeValueSeconds(30).millis(), TimeUnit.MILLISECONDS);
+    }
+
     protected List<DataFrameAnalyticsConfig> getAnalytics(String id) {
         GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request(id);
         return client().execute(GetDataFrameAnalyticsAction.INSTANCE, request).actionGet().getResources().results();
@@ -205,6 +209,11 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat(stats.getId(), equalTo(id));
         assertThat(stats.getFailureReason(), is(nullValue()));
         assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+    }
+
+    protected void assertIsFailed(String id) {
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.FAILED));
     }
 
     protected void assertProgressIsZero(String id) {

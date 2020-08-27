@@ -53,7 +53,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Collections.singletonMap(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
+        return Collections.singletonMap(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
     }
 
     @Override

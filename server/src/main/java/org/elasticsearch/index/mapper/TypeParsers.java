@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -34,16 +33,15 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeParsers.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
@@ -214,10 +212,11 @@ public class TypeParsers {
                         value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
             }
         }
-        final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
-        final Function<Object, String> stringCast = String.class::cast;
-        return Collections.unmodifiableMap(meta.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast))));
+        Map<String, String> sortedMeta = new TreeMap<>();
+        for (Map.Entry<String, ?> entry : meta.entrySet()) {
+            sortedMeta.put(entry.getKey(), (String) entry.getValue());
+        }
+        return Collections.unmodifiableMap(sortedMeta);
     }
 
 
@@ -251,7 +250,7 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                deprecationLogger.deprecatedAndMaybeLog("similarity",
+                deprecationLogger.deprecate("similarity",
                     "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
                 iterator.remove();
             } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
@@ -276,7 +275,7 @@ public class TypeParsers {
                                           Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
-                deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "At least one multi-field, [" + name + "], was " +
+                deprecationLogger.deprecate("multifield_within_multifield", "At least one multi-field, [" + name + "], was " +
                     "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
                     "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
                     "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +

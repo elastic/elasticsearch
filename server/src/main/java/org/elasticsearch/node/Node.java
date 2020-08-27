@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -72,7 +73,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -105,12 +106,14 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -187,6 +190,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -342,8 +346,11 @@ public class Node implements Closeable {
             this.environment = new Environment(settings, initialEnvironment.configFile(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-            logger.info("node name [{}], node ID [{}], cluster name [{}]",
-                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value());
+            logger.info("node name [{}], node ID [{}], cluster name [{}], roles {}",
+                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
+                DiscoveryNode.getRolesFromSettings(settings).stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toCollection(LinkedHashSet::new)));
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
@@ -354,8 +361,8 @@ public class Node implements Closeable {
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
-            DeprecationLogger.setThreadContext(threadPool.getThreadContext());
-            resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
+            HeaderWarning.setThreadContext(threadPool.getThreadContext());
+            resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
@@ -483,11 +490,11 @@ public class Node implements Closeable {
                 .collect(Collectors.toMap(
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings))));
-            SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptorMap);
+            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
 
-            final List<SystemIndexDescriptor> systemIndexDescriptors = systemIndexDescriptorMap.values().stream()
-                .flatMap(Collection::stream)
-                .collect(Collectors.toList());
+            final RerouteService rerouteService
+                = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
+            clusterService.setRerouteService(rerouteService);
 
             final IndicesService indicesService =
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
@@ -510,7 +517,7 @@ public class Node implements Closeable {
                     settingsModule.getIndexScopedSettings(),
                     threadPool,
                     xContentRegistry,
-                    systemIndexDescriptors,
+                    systemIndices,
                     forbidPrivateIndexSettings
             );
 
@@ -540,7 +547,8 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(settings, xContentRegistry,
-                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings());
+                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices);
+            clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
@@ -571,8 +579,6 @@ public class Node implements Closeable {
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
                 metadataCreateIndexService, metadataIndexUpgradeService, clusterService.getClusterSettings(), shardLimitValidator);
 
-            final RerouteService rerouteService
-                = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);

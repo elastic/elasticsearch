@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -23,17 +22,22 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -41,13 +45,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a sparse vector of floats.
  */
 public class SparseVectorFieldMapper extends FieldMapper {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
+    public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
     public static final String CONTENT_TYPE = "sparse_vector";
     public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SparseVectorFieldMapper.class));
-    public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -78,7 +81,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            deprecationLogger.deprecatedAndMaybeLog("sparse_vector", DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("sparse_vector", DEPRECATION_MESSAGE);
             SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder(name);
             return builder;
         }
@@ -107,7 +110,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new VectorIndexFieldData.Builder(name(), false, CoreValuesSourceType.BYTES);
         }
 
@@ -204,11 +207,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value;
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

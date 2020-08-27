@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -54,8 +53,7 @@ import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            LogManager.getLogger(FetchDocValuesPhase.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -80,7 +78,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 .filter(USE_DEFAULT_FORMAT::equals)
                 .findAny()
                 .isPresent()) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("explicit_default_format",
+            DEPRECATION_LOGGER.deprecate("explicit_default_format",
                     "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
                     "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
         }

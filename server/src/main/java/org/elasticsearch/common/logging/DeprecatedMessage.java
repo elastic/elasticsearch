@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public class DeprecatedMessage extends ESLogMessage {
 
-    public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
+    public DeprecatedMessage(String xOpaqueId, String messagePattern, Object... args) {
         super(fieldMap(xOpaqueId), messagePattern, args);
     }
 

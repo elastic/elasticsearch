@@ -30,7 +30,6 @@ import org.apache.commons.codec.language.bm.Languages.LanguageSet;
 import org.apache.commons.codec.language.bm.NameType;
 import org.apache.commons.codec.language.bm.PhoneticEngine;
 import org.apache.commons.codec.language.bm.RuleType;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
@@ -51,8 +50,7 @@ import java.util.List;
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(PhoneticTokenFilterFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PhoneticTokenFilterFactory.class);
 
     private final Encoder encoder;
     private final boolean replace;
@@ -152,7 +150,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         }
         else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+            DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
                 + "] will not be usable to parse synonyms after v7.0");
             return this;
         }

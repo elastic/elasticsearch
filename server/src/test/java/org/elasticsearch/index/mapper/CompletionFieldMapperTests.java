@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -31,7 +32,6 @@ import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -61,6 +61,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT;
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -888,7 +889,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()
-                .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+                .regexpQuery(new BytesRef("co"), RegExp87.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
     }
 
@@ -940,20 +941,20 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
         CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
 
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), mapper.parseSourceValue("value", null));
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
 
         List<String> list = org.elasticsearch.common.collect.List.of("first", "second");
-        assertEquals(list, mapper.parseSourceValue(list, null));
+        assertEquals(list, fetchSourceValue(mapper, list));
 
-        Map<String, Object> object = org.elasticsearch.common.collect.Map.of("input",
-            org.elasticsearch.common.collect.List.of("first", "second"), "weight", "2.718");
-        assertEquals(org.elasticsearch.common.collect.List.of(object), mapper.parseSourceValue(object, null));
+        Map<String, Object> object = org.elasticsearch.common.collect.Map.of(
+            "input", org.elasticsearch.common.collect.List.of("first", "second"), "weight", "2.718");
+        assertEquals(org.elasticsearch.common.collect.List.of(object), fetchSourceValue(mapper, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

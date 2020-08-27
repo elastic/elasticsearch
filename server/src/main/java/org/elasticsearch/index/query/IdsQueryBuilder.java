@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -52,8 +51,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(IdsQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdsQueryBuilder.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [ids] queries.";
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
@@ -154,7 +152,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         try {
             IdsQueryBuilder builder = PARSER.apply(parser, null);
             if (builder.types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             return builder;
         } catch (IllegalArgumentException e) {

@@ -29,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -40,6 +39,8 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.io.IOException;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 
 public class SecurityActionFilter implements ActionFilter {
 
@@ -171,7 +172,7 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            threadContext.removeTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            threadContext.removeTransient(INDICES_PERMISSIONS_KEY);
             authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> listener.onResponse(null),
                 listener::onFailure));
         }

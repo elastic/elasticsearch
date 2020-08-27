@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+
 /**
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
@@ -105,9 +107,11 @@ final class ServerTransportFilter {
                     SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = securityContext.getAuthentication();
+                        threadContext.removeTransient(INDICES_PERMISSIONS_KEY);
                         authzService.authorize(replaced, securityAction, request, listener);
                     }, version);
                 } else {
+                    threadContext.removeTransient(INDICES_PERMISSIONS_KEY);
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
             } else if (licenseState.isSecurityEnabled() == false) {

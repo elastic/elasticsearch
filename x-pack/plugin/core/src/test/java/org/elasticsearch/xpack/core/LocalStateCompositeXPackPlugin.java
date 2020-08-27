@@ -376,10 +376,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
         Set<IndexSettingProvider> providers = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalSettingProviders()));
-        providers.addAll(super.getAdditionalSettingProviders());
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
+        providers.addAll(super.getAdditionalIndexSettingProviders());
         return providers;
 
     }

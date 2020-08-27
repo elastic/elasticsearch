@@ -504,7 +504,7 @@ public class Node implements Closeable {
                     forbidPrivateIndexSettings
             );
             pluginsService.filterPlugins(Plugin.class)
-                .forEach(p -> p.getAdditionalSettingProviders()
+                .forEach(p -> p.getAdditionalIndexSettingProviders()
                     .forEach(metadataCreateIndexService::addAdditionalIndexSettingProvider));
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =

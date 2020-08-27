@@ -520,6 +520,9 @@ public class Node implements Closeable {
                     systemIndices,
                     forbidPrivateIndexSettings
             );
+            pluginsService.filterPlugins(Plugin.class)
+                .forEach(p -> p.getAdditionalIndexSettingProviders()
+                    .forEach(metadataCreateIndexService::addAdditionalIndexSettingProvider));
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
                 new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);

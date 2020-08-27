@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -15,7 +16,6 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -44,13 +44,11 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
     }
 
     public void testCannotMountSystemIndex() {
-        final String systemIndexName = '.' + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        executeTest(systemIndexName, client());
+        executeTest(TestSystemIndexPlugin.INDEX_NAME, new OriginSettingClient(client(), ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN));
     }
 
-    public void testCannotMountSystemIndexWithDescriptor() {
-        // TODO replace STACK_ORIGIN with searchable snapshot origin
-        executeTest(TestSystemIndexPlugin.INDEX_NAME, new OriginSettingClient(client(), ClientHelper.STACK_ORIGIN));
+    public void testCannotMountSnapshotBlobCacheIndex() {
+        executeTest(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX, client());
     }
 
     private void executeTest(final String indexName, final Client client) {
@@ -107,12 +105,11 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             true
         );
 
-        final InvalidIndexNameException exception = expectThrows(
-            InvalidIndexNameException.class,
+        final ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
             () -> client.execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet()
         );
-        assertThat(exception.getIndex().getName(), equalTo(indexName));
-        assertThat(exception.getMessage(), containsString("system indices cannot be mounted as searchable snapshots"));
+        assertThat(exception.getMessage(), containsString("system index [" + indexName + "] cannot be mounted as searchable snapshots"));
     }
 
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {

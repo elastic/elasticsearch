@@ -24,7 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -64,6 +64,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     private final Client client;
     private final RepositoriesService repositoriesService;
     private final XPackLicenseState licenseState;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportMountSearchableSnapshotAction(
@@ -74,7 +75,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         RepositoriesService repositoriesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        SystemIndices systemIndices
     ) {
         super(
             MountSearchableSnapshotAction.NAME,
@@ -88,6 +90,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.licenseState = Objects.requireNonNull(licenseState);
+        this.systemIndices = Objects.requireNonNull(systemIndices);
     }
 
     @Override
@@ -134,8 +137,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         SearchableSnapshots.ensureValidLicense(licenseState);
 
         final String mountedIndexName = request.mountedIndexName();
-        if (mountedIndexName.charAt(0) == '.') {
-            throw new InvalidIndexNameException(mountedIndexName, "system indices cannot be mounted as searchable snapshots");
+        if (systemIndices.isSystemIndex(mountedIndexName)) {
+            throw new ElasticsearchException("system index [{}] cannot be mounted as searchable snapshots", mountedIndexName);
         }
 
         final String repoName = request.repositoryName();

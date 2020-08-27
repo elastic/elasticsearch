@@ -700,7 +700,7 @@ public class IngestServiceTests extends ESTestCase {
             new IndexRequest("_index", "_type", "_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
         IndexRequest indexRequest3 =
-            new IndexRequest("_index", "_type", "_id3").source(Collections.emptyMap()).setPipeline("does_not_exist").setFinalPipeline("_none");
+            new IndexRequest("_index", "_type", "_id3").source(emptyMap()).setPipeline("does_not_exist").setFinalPipeline("_none");
         bulkRequest.add(indexRequest3);
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);

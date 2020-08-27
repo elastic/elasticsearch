@@ -47,7 +47,8 @@ indices by using the following query string parameter:
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
 
 Using this parameter will prevent deprecation warnings in the current version,
-and maintain the current behavior in the next major version.
+and maintain the current behavior with deprecation warnings in the next major
+version.
 
 Some multi-target APIs that can target indices also support the following query
 string parameter:

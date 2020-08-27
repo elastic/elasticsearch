@@ -84,6 +84,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
++
+--
+Defaults to `false`.
+--
 
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
@@ -399,7 +403,7 @@ are supported.
 `<boost-value>` is the factor by which scores are multiplied.
 +
 A boost value greater than `1.0` increases the score. A boost value between
-`0` and `1.0` decreases the score. 
+`0` and `1.0` decreases the score.
 ====
 
 [[search-api-min-score]]

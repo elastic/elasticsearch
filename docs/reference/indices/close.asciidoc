@@ -51,6 +51,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
++
+--
+Defaults to `false`.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

@@ -233,7 +233,6 @@ tag::allow-system-index-access[]
 (Optional, boolean) If `true`, allows this request to access system indices
 directly. This option should be used with caution, as system indices are not
 intended to be accessed directly.
-Defaults to `false`.
 end::allow-system-index-access[]
 
 tag::exponential-avg-checkpoint-duration-ms[]

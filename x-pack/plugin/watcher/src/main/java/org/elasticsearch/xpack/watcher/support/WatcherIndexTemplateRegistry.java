@@ -71,19 +71,26 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0) == false) {
             return Arrays.asList(
                 ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
                 TEMPLATE_CONFIG_TRIGGERED_WATCHES,
                 TEMPLATE_CONFIG_WATCHES
             );
-        } else {
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0)) {
             return Arrays.asList(
-                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
+                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
                 TEMPLATE_CONFIG_TRIGGERED_WATCHES,
                 TEMPLATE_CONFIG_WATCHES
             );
         }
+        return Collections.empytList();
     }
 
     /**
@@ -103,11 +110,11 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
-            return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
+        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0)) {
+            return (state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
+                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
+                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
+                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
         } else {
             return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10) ||
                 state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10)) &&

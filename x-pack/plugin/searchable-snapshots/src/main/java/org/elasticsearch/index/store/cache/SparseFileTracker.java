@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -98,11 +97,13 @@ public class SparseFileTracker {
         }
 
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
-        final List<ProgressListenableActionFuture> pendingListeners = new ArrayList<>();
+        final List<Range> requiredRanges;
 
         final List<Gap> gaps = new ArrayList<>();
         synchronized (mutex) {
             assert invariant();
+
+            final List<Range> pendingRanges = new ArrayList<>();
 
             final Range targetRange = new Range(start, end, null);
             final SortedSet<Range> earlierRanges = ranges.headSet(targetRange, false); // ranges with strictly earlier starts
@@ -110,7 +111,7 @@ public class SparseFileTracker {
                 final Range lastEarlierRange = earlierRanges.last();
                 if (start < lastEarlierRange.end) {
                     if (lastEarlierRange.isPending()) {
-                        pendingListeners.add(lastEarlierRange.completionListener);
+                        pendingRanges.add(lastEarlierRange);
                     }
                     targetRange.start = Math.min(end, lastEarlierRange.end);
                 }
@@ -128,7 +129,7 @@ public class SparseFileTracker {
                         new ProgressListenableActionFuture(targetRange.start, end)
                     );
                     ranges.add(newPendingRange);
-                    pendingListeners.add(newPendingRange.completionListener);
+                    pendingRanges.add(newPendingRange);
                     gaps.add(new Gap(newPendingRange));
                     targetRange.start = end;
                 } else {
@@ -137,7 +138,7 @@ public class SparseFileTracker {
 
                     if (targetRange.start == firstExistingRange.start) {
                         if (firstExistingRange.isPending()) {
-                            pendingListeners.add(firstExistingRange.completionListener);
+                            pendingRanges.add(firstExistingRange);
                         }
                         targetRange.start = Math.min(end, firstExistingRange.end);
                     } else {
@@ -148,7 +149,7 @@ public class SparseFileTracker {
                             new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd)
                         );
                         ranges.add(newPendingRange);
-                        pendingListeners.add(newPendingRange.completionListener);
+                        pendingRanges.add(newPendingRange);
                         gaps.add(new Gap(newPendingRange));
                         targetRange.start = newPendingRange.end;
                     }
@@ -157,38 +158,44 @@ public class SparseFileTracker {
             assert targetRange.start == targetRange.end : targetRange;
             assert targetRange.start == end : targetRange;
             assert invariant();
+
+            assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
+            assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
+            assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
+
+            // Pending ranges that needs to be filled before executing the listener
+            requiredRanges = (start == subRange.v1() && end == subRange.v2())
+                ? pendingRanges
+                : pendingRanges.stream()
+                    .filter(pendingRange -> pendingRange.start < subRange.v2())
+                    .filter(pendingRange -> subRange.v1() < pendingRange.end)
+                    .sorted(Comparator.comparingLong(r -> r.start))
+                    .collect(Collectors.toList());
         }
 
-        assert pendingListeners.stream().allMatch(Objects::nonNull) : pendingListeners;
-        assert pendingListeners.size() != 1 || gaps.size() <= 1 : gaps;
+        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
+        // there is no risk of concurrent modification.
 
-        // Pending ranges that needs to be filled before executing the listener
-        final List<ProgressListenableActionFuture> requiredListeners = (start == subRange.v1() && end == subRange.v2())
-            ? pendingListeners
-            : pendingListeners.stream()
-                .filter(pendingRange -> pendingRange.start < subRange.v2())
-                .filter(pendingRange -> subRange.v1() < pendingRange.end)
-                .sorted(Comparator.comparingLong(r -> r.start))
-                .collect(Collectors.toList());
-
-        switch (requiredListeners.size()) {
+        switch (requiredRanges.size()) {
             case 0:
                 // no need to wait for the gaps to be filled, the listener can be executed immediately
                 wrappedListener.onResponse(null);
                 break;
             case 1:
-                final ProgressListenableActionFuture requiredListener = requiredListeners.get(0);
-                requiredListener.addListener(
+                final Range requiredRange = requiredRanges.get(0);
+                requiredRange.completionListener.addListener(
                     ActionListener.map(wrappedListener, progress -> null),
-                    Math.min(requiredListener.end, subRange.v2())
+                    Math.min(requiredRange.completionListener.end, subRange.v2())
                 );
                 break;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
                     ActionListener.map(wrappedListener, progress -> null),
-                    requiredListeners.size()
+                    requiredRanges.size()
                 );
-                requiredListeners.forEach(r -> r.addListener(groupedActionListener, Math.min(r.end, subRange.v2())));
+                requiredRanges.forEach(
+                    r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, subRange.v2()))
+                );
         }
 
         return Collections.unmodifiableList(gaps);
@@ -213,7 +220,7 @@ public class SparseFileTracker {
         }
 
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
-        final List<ProgressListenableActionFuture> pendingListeners = new ArrayList<>();
+        final List<Range> pendingRanges = new ArrayList<>();
 
         synchronized (mutex) {
             assert invariant();
@@ -224,7 +231,7 @@ public class SparseFileTracker {
                 final Range lastEarlierRange = earlierRanges.last();
                 if (start < lastEarlierRange.end) {
                     if (lastEarlierRange.isPending()) {
-                        pendingListeners.add(lastEarlierRange.completionListener);
+                        pendingRanges.add(lastEarlierRange);
                     }
                     targetRange.start = Math.min(end, lastEarlierRange.end);
                 }
@@ -243,7 +250,7 @@ public class SparseFileTracker {
 
                     if (targetRange.start == firstExistingRange.start) {
                         if (firstExistingRange.isPending()) {
-                            pendingListeners.add(firstExistingRange.completionListener);
+                            pendingRanges.add(firstExistingRange);
                         }
                         targetRange.start = Math.min(end, firstExistingRange.end);
                     } else {
@@ -254,23 +261,30 @@ public class SparseFileTracker {
             assert targetRange.start == targetRange.end : targetRange;
             assert targetRange.start == end : targetRange;
             assert invariant();
-
         }
 
-        switch (pendingListeners.size()) {
+        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
+        // there is no risk of concurrent modification.
+
+        switch (pendingRanges.size()) {
             case 0:
                 wrappedListener.onResponse(null);
                 break;
             case 1:
-                final ProgressListenableActionFuture pendingListener = pendingListeners.get(0);
-                pendingListener.addListener(ActionListener.map(wrappedListener, progress -> null), Math.min(pendingListener.end, end));
+                final Range pendingRange = pendingRanges.get(0);
+                pendingRange.completionListener.addListener(
+                    ActionListener.map(wrappedListener, progress -> null),
+                    Math.min(pendingRange.completionListener.end, end)
+                );
                 return true;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
                     ActionListener.map(wrappedListener, progress -> null),
-                    pendingListeners.size()
+                    pendingRanges.size()
                 );
-                pendingListeners.forEach(r -> r.addListener(groupedActionListener, Math.min(r.end, end)));
+                pendingRanges.forEach(
+                    r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, end))
+                );
                 return true;
         }
         return true;

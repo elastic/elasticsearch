@@ -98,27 +98,29 @@ final class GeoLineAggregator extends MetricsAggregator {
                     long[] bucketLine = paths.get(bucket);
                     double[] sortVals = sortValues.get(bucket);
                     if (bucketLine == null) {
-                        bucketLine = new long[10];
+                        bucketLine = new long[10000];
                     } else {
-                        bucketLine = ArrayUtil.grow(bucketLine, idx + 1);
+                        //bucketLine = ArrayUtil.grow(bucketLine, idx + 1);
                     }
 
 
                     if (sortVals == null) {
-                        sortVals = new double[10];
+                        sortVals = new double[10000];
                     } else {
-                        sortVals = ArrayUtil.grow(sortVals, idx + 1);
+                        //sortVals = ArrayUtil.grow(sortVals, idx + 1);
                     }
 
                     int encodedLat = GeoEncodingUtils.encodeLatitude(point.lat());
                     int encodedLon = GeoEncodingUtils.encodeLongitude(point.lon());
                     long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
 
-                    sortVals[idx] = sort;
-                    bucketLine[idx] = lonLat;
+                    if (idx < 10000) {
+                        sortVals[idx] = sort;
+                        bucketLine[idx] = lonLat;
 
-                    paths.set(bucket, bucketLine);
-                    sortValues.set(bucket, sortVals);
+                        paths.set(bucket, bucketLine);
+                        sortValues.set(bucket, sortVals);
+                    }
                     idxs.set(bucket, idx + 1);
                 }
             }
@@ -132,14 +134,14 @@ final class GeoLineAggregator extends MetricsAggregator {
         }
         long[] bucketLine = paths.get(bucket);
         double[] sortVals = sortValues.get(bucket);
-        int length = idxs.get(bucket);
+        int length = Math.min(10000, idxs.get(bucket));
         new PathArraySorter(bucketLine, sortVals, length).sort();
-        return new InternalGeoLine(name, bucketLine, sortVals, length, metadata());
+        return new InternalGeoLine(name, bucketLine, sortVals, length, metadata(), idxs.get(bucket) < 10000);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, null, null, 0, metadata());
+        return new InternalGeoLine(name, null, null, 0, metadata(), true);
     }
 
     @Override

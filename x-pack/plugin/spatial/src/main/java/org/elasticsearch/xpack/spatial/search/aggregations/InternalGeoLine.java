@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -28,12 +29,14 @@ public class InternalGeoLine extends InternalAggregation {
     private long[] line;
     private double[] sortVals;
     private int length;
+    private boolean complete;
 
-    InternalGeoLine(String name, long[] line, double[] sortVals, int length, Map<String, Object> metadata) {
+    InternalGeoLine(String name, long[] line, double[] sortVals, int length, Map<String, Object> metadata, boolean complete) {
         super(name, metadata);
         this.line = line;
         this.sortVals = sortVals;
         this.length = length;
+        this.complete = complete;
     }
 
     /**
@@ -43,21 +46,27 @@ public class InternalGeoLine extends InternalAggregation {
         super(in);
         this.line = in.readLongArray();
         this.length = in.readVInt();
+        this.complete = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeLongArray(line);
         out.writeVInt(length);
+        out.writeBoolean(complete);
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         int mergedSize = 0;
+        boolean complete = true;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
             mergedSize += geoLine.length;
+            complete &= geoLine.complete;
         }
+
+        complete &= mergedSize <= 10000;
 
         long[] finalList = new long[mergedSize];
         double[] finalSortVals = new double[mergedSize];
@@ -70,10 +79,12 @@ public class InternalGeoLine extends InternalAggregation {
             }
         }
 
-        new PathArraySorter(finalList, finalSortVals, length).sort();
+        new PathArraySorter(finalList, finalSortVals, mergedSize).sort();
+        long[] finalCappedList = Arrays.copyOf(finalList, Math.min(10000, mergedSize));
+        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(10000, mergedSize));
 
         // sort the final list
-        return new InternalGeoLine(name, finalList, finalSortVals, mergedSize, getMetadata());
+        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, mergedSize, getMetadata(), complete);
     }
 
     @Override
@@ -87,6 +98,10 @@ public class InternalGeoLine extends InternalAggregation {
 
     public int length() {
         return length;
+    }
+
+    public boolean isComplete() {
+        return complete;
     }
 
     @Override

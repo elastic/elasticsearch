@@ -66,7 +66,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         Map<Integer, long[]> indexedPoints = new HashMap<>(numGroups);
         Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
-            int numPoints = randomIntBetween(2, 10);
+            int numPoints = randomIntBetween(2, 20000);
+            boolean complete = numPoints <= 10000;
             int arrayLength = randomIntBetween(numPoints, numPoints);
             long[] points = new long[arrayLength];
             double[] sortValues = new double[arrayLength];
@@ -79,7 +80,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 sortValues[i] = i;
             }
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name",
-                Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength), numPoints, null));
+                Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength), numPoints, null, complete));
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);
@@ -115,7 +116,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 InternalGeoLine expectedGeoLine = lines.get(bucket.getKeyAsString());
                 assertThat(bucket.getDocCount(), equalTo((long) expectedGeoLine.length()));
                 InternalGeoLine geoLine = bucket.getAggregations().get("_name");
-                assertArrayEquals(expectedGeoLine.line(), geoLine.line());
+                assertThat(geoLine.isComplete(), equalTo(expectedGeoLine.isComplete()));
+                //assertArrayEquals(expectedGeoLine.line(), geoLine.line());
             }
         });
     }

@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -63,6 +64,8 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -177,6 +180,20 @@ public abstract class MapperTestCase extends ESTestCase {
         });
     }
 
+    QueryShardContext createQueryShardContext(MapperService mapperService) {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.getMapperService()).thenReturn(mapperService);
+        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
+        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
+        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
+        when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
+            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
+        );
+        return queryShardContext;
+    }
+
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     public final void testEmptyName() throws IOException {
@@ -211,35 +228,39 @@ public abstract class MapperTestCase extends ESTestCase {
         return true;
     }
 
+    protected void metaMapping(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+    }
+
     public final void testMeta() throws IOException {
         assumeTrue("Field doesn't support meta", supportsMeta());
         XContentBuilder mapping = fieldMapping(
             b -> {
-                minimalMapping(b);
+                metaMapping(b);
                 b.field("meta", Collections.singletonMap("foo", "bar"));
             }
         );
         MapperService mapperService = createMapperService(mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()),
-            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType())
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
 
-        mapping = fieldMapping(this::minimalMapping);
+        mapping = fieldMapping(this::metaMapping);
         merge(mapperService, mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()),
-            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType())
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
 
         mapping = fieldMapping(b -> {
-            minimalMapping(b);
+            metaMapping(b);
             b.field("meta", Collections.singletonMap("baz", "quux"));
         });
         merge(mapperService, mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()),
-            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType())
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
     }
 

@@ -275,6 +275,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = source.aggregations().validate(validationException);
             }
         }
+        if (pointInTimeBuilder() != null) {
+            if (scroll) {
+                validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with point in time", validationException);
+            }
+        }
         return validationException;
     }
 
@@ -427,6 +438,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public SearchSourceBuilder.PointInTimeBuilder pointInTimeBuilder() {
+        if (source != null) {
+            return source.pointInTimeBuilder();
+        }
+        return null;
     }
 
     /**

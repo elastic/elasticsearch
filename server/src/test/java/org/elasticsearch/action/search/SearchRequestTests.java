@@ -164,6 +164,39 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
+        {
+            // Reader context with scroll
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().pointInTimeBuilder(
+                    new SearchSourceBuilder.PointInTimeBuilder("id", TimeValue.timeValueMillis(randomIntBetween(1, 10)))))
+                .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Reader context with preference
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().
+                    pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder("id", TimeValue.timeValueMillis(between(1, 10)))))
+                .preference("test");
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[preference] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Reader context with routing
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder()
+                    .pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder("id", TimeValue.timeValueMillis(between(1, 10)))))
+                .routing("test");
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[routing] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
     }
 
     public void testCopyConstructor() throws IOException {

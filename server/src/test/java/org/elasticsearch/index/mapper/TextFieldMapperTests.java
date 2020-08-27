@@ -88,10 +88,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.Builder> {
 
@@ -425,12 +421,16 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", null)
+            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            })
         );
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test", null); // no exception this time
+        enabledMapper.fieldType("field").fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }); // no exception this time
 
         e = expectThrows(
             MapperParsingException.class,
@@ -612,16 +612,6 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
             assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }
-    }
-
-    private QueryShardContext createQueryShardContext(MapperService mapperService) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
-        return queryShardContext;
     }
 
     public void testFastPhraseMapping() throws IOException {

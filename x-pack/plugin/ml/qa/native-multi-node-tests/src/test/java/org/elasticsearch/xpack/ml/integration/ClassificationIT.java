@@ -19,6 +19,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -775,6 +777,23 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         updateAnalytics(new DataFrameAnalyticsConfigUpdate.Builder(jobId).setDescription("updated-description-2").build());
         assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-2")));
+    }
+
+    public void testTooLowConfiguredMemoryStillStarts() throws Exception {
+        initialize("low_memory_analysis");
+        indexData(sourceIndex, 10_000, 0, NESTED_FIELD);
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(
+            buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD)))
+            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.KB))
+            .build();
+        putAnalytics(config);
+        // Shouldn't throw
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsFailed(jobId);
+        // It could be marked as failed...
+        forceStopAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
     }
 
     private static <T> T getOnlyElement(List<T> list) {

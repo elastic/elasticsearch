@@ -6,19 +6,27 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
@@ -39,6 +47,7 @@ import org.elasticsearch.xpack.runtimefields.TestScriptEngine;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -233,7 +242,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
     }
 
-    public void testNonDateWithFormat() throws IOException {
+    public void testNonDateWithFormat() {
         String runtimeType = randomValueOtherThan("date", () -> randomFrom(runtimeTypes));
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -242,7 +251,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: format can not be specified for runtime_type [" + runtimeType + "]"));
     }
 
-    public void testNonDateWithLocale() throws IOException {
+    public void testNonDateWithLocale() {
         String runtimeType = randomValueOtherThan("date", () -> randomFrom(runtimeTypes));
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -276,11 +285,36 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private XContentBuilder mapping(String type) throws IOException {
+    public void testIndexSorting() {
+        Settings build = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put("index.sort.field", "runtime")
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(build).build(), Settings.EMPTY);
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> config.buildIndexSort(
+                field -> new ScriptKeywordMappedFieldType(field, new Script(""), null, Collections.emptyMap()),
+                (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
+            )
+        );
+        assertEquals("docvalues not found for index sort field:[runtime]", iae.getMessage());
+        assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));
+        assertEquals("index sorting not supported on runtime field [runtime]", iae.getCause().getMessage());
+    }
+
+    private static XContentBuilder mapping(String type) throws IOException {
         return mapping(type, builder -> {});
     }
 
-    private XContentBuilder mapping(String type, CheckedConsumer<XContentBuilder, IOException> extra) throws IOException {
+    private static XContentBuilder mapping(String type, CheckedConsumer<XContentBuilder, IOException> extra) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject();
         {
             mapping.startObject("_doc");
@@ -311,7 +345,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         return List.of(new RuntimeFields(), new TestScriptPlugin());
     }
 
-    private class TestScriptPlugin extends Plugin implements ScriptPlugin {
+    private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new TestScriptEngine() {

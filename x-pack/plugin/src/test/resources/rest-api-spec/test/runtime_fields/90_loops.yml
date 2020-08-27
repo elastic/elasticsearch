@@ -1,0 +1,105 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+              tight_loop:
+                type: runtime_script
+                runtime_type: keyword
+                script: value(doc['tight_loop'].value)
+              loose_loop:
+                type: runtime_script
+                runtime_type: keyword
+                script: value(doc['lla'].value)
+              lla:
+                type: runtime_script
+                runtime_type: keyword
+                script: value(doc['llb'].value)
+              llb:
+                type: runtime_script
+                runtime_type: keyword
+                script: value(doc['llc'].value)
+              llc:
+                type: runtime_script
+                runtime_type: keyword
+                script: value(doc['loose_loop'].value)
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+---
+"tight loop":
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: tight_loop -> tight_loop/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [tight_loop]
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: tight_loop -> tight_loop/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          aggs:
+            loop:
+             terms:
+               field: tight_loop
+---
+"loose loop":
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: loose_loop -> lla -> llb -> llc -> loose_loop/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          aggs:
+            loop:
+             terms:
+               field: loose_loop
+
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: loose_loop -> lla -> llb -> llc -> loose_loop/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [loose_loop]
+
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: lla -> llb -> llc -> loose_loop -> lla/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          aggs:
+            loop:
+             terms:
+               field: lla
+
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: lla -> llb -> llc -> loose_loop -> lla/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [lla]

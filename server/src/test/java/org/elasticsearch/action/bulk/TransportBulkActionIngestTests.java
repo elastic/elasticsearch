@@ -53,11 +53,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -144,7 +146,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     new IndexNameExpressionResolver()
-                ), new IndexingPressure(SETTINGS)
+                ), new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }
         @Override
@@ -274,7 +276,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
-            failureHandler.capture(), completionHandler.capture(), any());
+            failureHandler.capture(), completionHandler.capture(), any(), eq(Names.WRITE));
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
@@ -309,7 +311,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any());
+            completionHandler.capture(), any(), eq(Names.WRITE));
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
@@ -341,7 +343,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -385,7 +387,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -470,7 +472,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
-            failureHandler.capture(), completionHandler.capture(), any());
+            failureHandler.capture(), completionHandler.capture(), any(), eq(Names.WRITE));
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
         assertEquals(indexRequest3.getPipeline(), "default_pipeline");
@@ -509,7 +511,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any());
+            completionHandler.capture(), any(), eq(Names.WRITE));
         completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
         assertTrue(failureCalled.get());
@@ -574,7 +576,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         assertEquals("pipeline2", indexRequest.getPipeline());
         verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any());
+            completionHandler.capture(), any(), eq(Names.WRITE));
     }
 
     public void testFindDefaultPipelineFromV2TemplateMatch() {
@@ -604,7 +606,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         assertEquals("pipeline2", indexRequest.getPipeline());
         verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any());
+            completionHandler.capture(), any(), eq(Names.WRITE));
     }
 
     private void validateDefaultPipeline(IndexRequest indexRequest) {
@@ -627,7 +629,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any());
+            completionHandler.capture(), any(), eq(Names.WRITE));
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());

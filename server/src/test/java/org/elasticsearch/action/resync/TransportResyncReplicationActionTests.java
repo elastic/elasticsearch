@@ -20,6 +20,7 @@ package org.elasticsearch.action.resync;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -121,6 +122,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
 
                 final AtomicInteger acquiredPermits = new AtomicInteger();
                 final IndexShard indexShard = mock(IndexShard.class);
+                when(indexShard.indexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
                 when(indexShard.shardId()).thenReturn(shardId);
                 when(indexShard.routingEntry()).thenReturn(primaryShardRouting);
                 when(indexShard.getPendingPrimaryTerm()).thenReturn(primaryTerm);

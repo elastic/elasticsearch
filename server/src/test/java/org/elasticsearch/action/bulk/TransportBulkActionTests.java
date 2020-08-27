@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -52,6 +53,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
@@ -77,7 +79,7 @@ public class TransportBulkActionTests extends ESTestCase {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
-                    new IndexingPressure(Settings.EMPTY));
+                    new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of()));
         }
 
         @Override

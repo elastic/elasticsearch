@@ -62,15 +62,17 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -81,6 +83,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
@@ -110,20 +113,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure) {
+                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, SystemIndices systemIndices) {
         this(threadPool, transportService, clusterService, ingestService, client, actionFilters,
-            indexNameExpressionResolver, autoCreateIndex, indexingPressure, System::nanoTime);
+            indexNameExpressionResolver, autoCreateIndex, indexingPressure, systemIndices, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, LongSupplier relativeTimeProvider) {
+                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, SystemIndices systemIndices,
+                               LongSupplier relativeTimeProvider) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
@@ -135,6 +140,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
+        this.systemIndices = systemIndices;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -158,6 +164,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        // TODO should system indices bypass or have their own indexing pressure?
         long indexingBytes = bulkRequest.ramBytesUsed();
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
@@ -255,7 +262,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                final String executorName =
+                                    getExecutorName(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+                                threadPool.executor(executorName).execute(
                                     () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
                             }
                         }
@@ -272,10 +281,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                final String executorName =
+                                    getExecutorName(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+                                threadPool.executor(executorName).execute(() -> executeBulk(task, bulkRequest, startTime,
+                                    ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
-                                }), responses, indicesThatCannotBeCreated);
+                                }), responses, indicesThatCannotBeCreated));
                             }
                         }
                     });
@@ -334,6 +346,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
                 "routing. target the backing indices directly or remove the custom routing.");
         }
+    }
+
+    static String getExecutorName(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
+        final boolean onlySystem = request.getIndices().stream().allMatch(indexName -> {
+            final IndexAbstraction abstraction = indicesLookup.get(indexName);
+            if (abstraction != null) {
+                return abstraction.isSystem();
+            } else {
+                return systemIndices.isSystemIndex(indexName);
+            }
+        });
+        return onlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
     }
 
     boolean needToCheck() {
@@ -659,6 +683,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        final String executorName =
+            getExecutorName(original, clusterService.state().metadata().getIndicesLookup(), systemIndices);
         ingestService.executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
@@ -681,10 +707,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
-                            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
+                            assert Thread.currentThread().getName().contains(executorName);
                             doInternalExecute(task, bulkRequest, actionListener);
                         } else {
-                            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+                            threadPool.executor(executorName).execute(new AbstractRunnable() {
                                 @Override
                                 public void onFailure(Exception e) {
                                     listener.onFailure(e);
@@ -708,7 +734,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 }
             },
-            bulkRequestModifier::markItemAsDropped
+            bulkRequestModifier::markItemAsDropped,
+            executorName
         );
     }
 

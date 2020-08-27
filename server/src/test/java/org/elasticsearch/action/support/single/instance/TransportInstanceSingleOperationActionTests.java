@@ -111,7 +111,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected String executor() {
+        protected String executor(ShardId shardId) {
             return ThreadPool.Names.SAME;
         }
 

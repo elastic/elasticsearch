@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -46,7 +44,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
@@ -520,17 +517,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         putAnalytics(config);
         assertIsStopped(id);
-
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(id));
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            exception.getMessage(),
-            startsWith("Cannot start because the configured model memory limit [" + modelMemoryLimit +
-                "] is lower than the expected memory usage"));
-
-        assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be");
+        //should not throw
+        startAnalytics(id);
+        waitUntilAnalyticsIsFailed(id);
+        forceStopAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
     }
 
     public void testLazyAssignmentWithModelMemoryLimitTooHighForAssignment() throws Exception {

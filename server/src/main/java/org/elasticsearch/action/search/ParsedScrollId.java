@@ -29,9 +29,9 @@ class ParsedScrollId {
 
     private final String type;
 
-    private final ScrollIdForNode[] context;
+    private final SearchContextIdForNode[] context;
 
-    ParsedScrollId(String source, String type, ScrollIdForNode[] context) {
+    ParsedScrollId(String source, String type, SearchContextIdForNode[] context) {
         this.source = source;
         this.type = type;
         this.context = context;
@@ -45,7 +45,7 @@ class ParsedScrollId {
         return type;
     }
 
-    public ScrollIdForNode[] getContext() {
+    public SearchContextIdForNode[] getContext() {
         return context;
     }
 }

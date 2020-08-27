@@ -13,16 +13,13 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest.Item;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
-import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -46,7 +43,7 @@ public class BasicQueryClient implements QueryClient {
     }
 
     @Override
-    public void query(QueryRequest request, ActionListener<Payload> listener) {
+    public void query(QueryRequest request, ActionListener<SearchResponse> listener) {
         SearchSourceBuilder searchSource = request.searchSource();
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
@@ -63,7 +60,7 @@ public class BasicQueryClient implements QueryClient {
     }
 
     @Override
-    public void get(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+    public void get(Iterable<List<HitReference>> refs, ActionListener<List<List<GetResponse>>> listener) {
         MultiGetRequestBuilder requestBuilder = client.prepareMultiGet();
         // no need for real-time
         requestBuilder.setRealtime(false)
@@ -83,9 +80,9 @@ public class BasicQueryClient implements QueryClient {
         
         final int listSize = sz;
         client.multiGet(requestBuilder.request(), wrap(r -> {
-            List<List<SearchHit>> hits = new ArrayList<>(r.getResponses().length / listSize);
+            List<List<GetResponse>> hits = new ArrayList<>(r.getResponses().length / listSize);
             
-            List<SearchHit> sequence = new ArrayList<>(listSize);
+            List<GetResponse> sequence = new ArrayList<>(listSize);
 
             int counter = 0;
             for (MultiGetItemResponse mgr : r.getResponses()) {
@@ -94,17 +91,7 @@ public class BasicQueryClient implements QueryClient {
                     return;
                 }
 
-                GetResponse response = mgr.getResponse();
-                SearchHit hit = new SearchHit(-1, response.getId(), null, null);
-                hit.sourceRef(response.getSourceInternal());
-                // need to create these objects to set the index
-                hit.shard(new SearchShardTarget(null, new ShardId(response.getIndex(), "", -1), null, null));
-                hit.setSeqNo(response.getSeqNo());
-                hit.setPrimaryTerm(response.getPrimaryTerm());
-                hit.version(response.getVersion());
-
-
-                sequence.add(hit);
+                sequence.add(mgr.getResponse());
 
                 if (++counter == listSize) {
                     counter = 0;

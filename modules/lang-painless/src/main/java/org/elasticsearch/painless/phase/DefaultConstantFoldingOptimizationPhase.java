@@ -402,7 +402,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 }
 
                 scope.accept(irLeftConstantNode);
-            } else if (operation == Operation.OR) {
+            } else if (operation == Operation.BWOR) {
                 if (type == int.class) {
                     irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() | (int)irRightConstantNode.getConstant());
                 } else if (type == long.class) {
@@ -667,6 +667,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ConstantNode irConstantNode = (ConstantNode)irCastNode.getChildNode();
             irConstantNode.setConstant(
                     AnalyzerCaster.constCast(irCastNode.getLocation(), irConstantNode.getConstant(), irCastNode.getCast()));
+            irConstantNode.setExpressionType(irCastNode.getExpressionType());
             scope.accept(irConstantNode);
         }
     }

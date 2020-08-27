@@ -25,8 +25,10 @@ import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
 
 import java.lang.management.ManagementFactory
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 
-abstract class AbstractGradleFuncTest extends Specification{
+abstract class AbstractGradleFuncTest extends Specification {
 
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
@@ -42,20 +44,22 @@ abstract class AbstractGradleFuncTest extends Specification{
 
     GradleRunner gradleRunner(String... arguments) {
         GradleRunner.create()
-            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-            .withProjectDir(testProjectDir.root)
-            .withArguments(arguments)
-            .withPluginClasspath()
-            .forwardOutput()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+                .withProjectDir(testProjectDir.root)
+                .withArguments(arguments)
+                .withPluginClasspath()
+                .forwardOutput()
     }
 
     def assertOutputContains(String givenOutput, String expected) {
-        assert normalizedString(givenOutput).contains(normalizedString(expected))
+        assert normalizedOutput(givenOutput).contains(normalizedOutput(expected))
         true
     }
 
-    String normalizedString(String input) {
-        return input.readLines().join("\n")
+    String normalizedOutput(String input) {
+        return input.readLines()
+                .collect {it.replaceAll(testProjectDir.root.canonicalPath, ".") }
+                .join("\n")
     }
 
     File file(String path) {
@@ -64,4 +68,19 @@ abstract class AbstractGradleFuncTest extends Specification{
         newFile
     }
 
+    File someJar(String fileName = 'some.jar') {
+        File jarFolder = new File(testProjectDir.root, "jars");
+        jarFolder.mkdirs()
+        File jarFile = new File(jarFolder, fileName)
+        JarEntry entry = new JarEntry("foo.txt");
+
+        jarFile.withOutputStream {
+            JarOutputStream target = new JarOutputStream(it)
+            target.putNextEntry(entry);
+            target.closeEntry();
+            target.close();
+        }
+
+        return jarFile;
+    }
 }

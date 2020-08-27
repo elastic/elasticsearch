@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+
 /**
  * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
  * large Lucene file might be split into multiple parts during the snapshot, {@link DirectBlobContainerIndexInput} requires a
@@ -110,9 +112,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 int currentPart = Math.toIntExact(position / fileInfo.partSize().getBytes());
                 int remainingBytesInPart;
                 if (currentPart < (fileInfo.numberOfParts() - 1)) {
-                    remainingBytesInPart = Math.toIntExact(((currentPart + 1L) * fileInfo.partSize().getBytes()) - position);
+                    remainingBytesInPart = toIntBytes(((currentPart + 1L) * fileInfo.partSize().getBytes()) - position);
                 } else {
-                    remainingBytesInPart = Math.toIntExact(fileInfo.length() - position);
+                    remainingBytesInPart = toIntBytes(fileInfo.length() - position);
                 }
                 final int read = Math.min(b.remaining(), remainingBytesInPart);
                 readInternalBytes(currentPart, position % fileInfo.partSize().getBytes(), b, read);

@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +81,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final InputStream stream;
             if (fileInfo.numberOfParts() == 1L) {
                 assertThat("Unexpected blob name [" + name + "]", name, equalTo(fileInfo.name()));
-                stream = new ByteArrayInputStream(input, Math.toIntExact(position), Math.toIntExact(length));
+                stream = new ByteArrayInputStream(input, toIntBytes(position), toIntBytes(length));
 
             } else {
                 assertThat("Unexpected blob name [" + name + "]", name, allOf(startsWith(fileInfo.name()), containsString(".part")));
@@ -92,7 +93,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     allOf(greaterThanOrEqualTo(0L), lessThan(fileInfo.numberOfParts()))
                 );
 
-                stream = new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), Math.toIntExact(length));
+                stream = new ByteArrayInputStream(input, toIntBytes(partNumber * partSize + position), toIntBytes(length));
             }
 
             if (randomBoolean()) {

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.eql.session.Results.Type;
 
 import java.util.List;
 
@@ -43,7 +42,7 @@ public class EmptyPayload implements Payload {
     }
 
     @Override
-    public <V> List<V> values() {
+    public List<?> values() {
         return emptyList();
     }
 }

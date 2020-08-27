@@ -61,6 +61,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
    public abstract long find(long owningBucketOrd, long value);
 
     /**
+     * Returns the value currently associated with the bucket ordinal
+     */
+    public abstract long get(long ordinal);
+
+    /**
      * The number of collected buckets.
      */
     public abstract long size();
@@ -98,7 +103,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         long value();
 
         /**
-         * An {@linkplain BucketOrdsEnum} that is empty. 
+         * An {@linkplain BucketOrdsEnum} that is empty.
          */
         BucketOrdsEnum EMPTY = new BucketOrdsEnum() {
             @Override
@@ -131,6 +136,12 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         public long find(long owningBucketOrd, long value) {
             assert owningBucketOrd == 0;
             return ords.find(value);
+        }
+
+
+        @Override
+        public long get(long ordinal) {
+            return ords.get(ordinal);
         }
 
         @Override
@@ -203,6 +214,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long find(long owningBucketOrd, long value) {
             return ords.find(owningBucketOrd, value);
+        }
+
+        @Override
+        public long get(long ordinal) {
+            return ords.getKey2(ordinal);
         }
 
         @Override

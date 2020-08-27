@@ -12,6 +12,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -63,6 +65,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.integration.FieldLevelSecurityTests.openSearchContext;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -756,6 +759,46 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     client().prepareClearScroll().addScrollId(scrollId).get();
                 }
             }
+        }
+    }
+
+    public void testReaderId() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
+            .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
+        );
+        final int numVisible = scaledRandomIntBetween(2, 10);
+        final int numInvisible = scaledRandomIntBetween(2, 10);
+        int id = 1;
+        for (int i = 0; i < numVisible; i++) {
+            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
+        }
+
+        for (int i = 0; i < numInvisible; i++) {
+            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
+            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
+        }
+        refresh();
+
+        String readerId = openSearchContext("user1", TimeValue.timeValueMinutes(1), "test");
+        SearchResponse response = null;
+        try {
+            for (int from = 0; from < numVisible; from++) {
+                response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch()
+                    .setSize(1)
+                    .setFrom(from)
+                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1))
+                    .setQuery(termQuery("field1", "value1"))
+                    .get();
+                assertNoFailures(response);
+                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+            }
+        } finally {
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(response.pointInTimeId())).actionGet();
         }
     }
 

@@ -59,5 +59,9 @@
         }
     }
   },
+  "_meta": {
+    "description": "index template for watches indices",
+    "managed": true
+  },
   "version": ${xpack.watcher.template.version}
 }

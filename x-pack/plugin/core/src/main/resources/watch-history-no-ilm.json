@@ -613,5 +613,9 @@
       }
     }
   },
+  "_meta": {
+    "description": "index template for watcher history indices",
+    "managed": true
+  },
   "version": ${xpack.watcher.template.version}
 }

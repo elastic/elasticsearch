@@ -37,5 +37,9 @@
       }
     }
   },
+  "_meta": {
+    "description": "index template for triggered watches indices",
+    "managed": true
+  },
   "version": ${xpack.watcher.template.version}
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -121,7 +122,12 @@ public class CategorizerStats implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        return documentIdPrefix(jobId) + logTime.toEpochMilli();
+        StringBuilder idBuilder = new StringBuilder(documentIdPrefix(jobId));
+        idBuilder.append(logTime.toEpochMilli());
+        if (partitionFieldName != null) {
+            idBuilder.append('_').append(MachineLearningField.valuesToId(partitionFieldValue));
+        }
+        return idBuilder.toString();
     }
 
     public static String documentIdPrefix(String jobId) {

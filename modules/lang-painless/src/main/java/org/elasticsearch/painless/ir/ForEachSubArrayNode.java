@@ -23,8 +23,9 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -121,17 +122,30 @@ public class ForEachSubArrayNode extends LoopNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(indexedType);
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForEachSubArrayLoop(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getConditionNode().visit(irTreeVisitor, scope);
+        getBlockNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        Variable variable = scopeTable.defineVariable(variableType, variableName);
-        Variable array = scopeTable.defineInternalVariable(arrayType, arrayName);
-        Variable index = scopeTable.defineInternalVariable(indexType, indexName);
+        Variable variable = writeScope.defineVariable(variableType, variableName);
+        Variable array = writeScope.defineInternalVariable(arrayType, arrayName);
+        Variable index = writeScope.defineInternalVariable(indexType, indexName);
 
-        getConditionNode().write(classWriter, methodWriter, scopeTable);
+        getConditionNode().write(classWriter, methodWriter, writeScope);
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ISTORE), array.getSlot());
         methodWriter.push(-1);
         methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ISTORE), index.getSlot());
@@ -153,15 +167,15 @@ public class ForEachSubArrayNode extends LoopNode {
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        Variable loop = scopeTable.getInternalVariable("loop");
+        Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), getBlockNode().getStatementCount(), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
         }
 
         getBlockNode().continueLabel = begin;
         getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, scopeTable);
+        getBlockNode().write(classWriter, methodWriter, writeScope);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -31,7 +32,8 @@ import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -45,21 +47,19 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
-import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.CombinableMatcher;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -67,31 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFieldMapper.Builder> {
-
-    @Before
-    public void addModifiers() {
-        addBooleanModifier("preserve_separators", false, CompletionFieldMapper.Builder::preserveSeparators);
-        addBooleanModifier("preserve_position_increments", false, CompletionFieldMapper.Builder::preservePositionIncrements);
-        addModifier("context_mappings", false, (a, b) -> {
-            ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(),
-                ContextBuilder.geo("geo").build()));
-            a.contextMappings(contextMappings);
-        });
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("doc_values");
-    }
-
-    @Override
-    protected CompletionFieldMapper.Builder newBuilder() {
-        CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder("completion");
-        builder.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        builder.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        return builder;
-    }
+public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaultConfiguration() throws IOException {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
@@ -114,7 +90,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -147,13 +123,15 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
+        assertEquals("{\"completion\":{\"type\":\"completion\",\"analyzer\":\"simple\",\"search_analyzer\":\"standard\"," +
+            "\"preserve_separators\":false,\"preserve_position_increments\":true,\"max_input_length\":50}}", Strings.toString(fieldMapper));
     }
 
     public void testTypeParsing() throws Exception {
@@ -175,7 +153,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         XContentBuilder builder = jsonBuilder().startObject();
-        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        fieldMapper.toXContent(builder, new ToXContent.MapParams(Map.of("include_defaults", "true"))).endObject();
         builder.close();
         Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder)).map();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
@@ -908,7 +886,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()
-                .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+                .regexpQuery(new BytesRef("co"), RegExp87.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
     }
 
@@ -959,6 +937,21 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertTrue(e.getMessage(),
             e.getMessage().contains("Limit of completion field contexts [" +
                 CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"));
+    }
+
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
+        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
+
+        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
+
+        List<String> list = List.of("first", "second");
+        assertEquals(list, fetchSourceValue(mapper, list));
+
+        Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
+        assertEquals(List.of(object), fetchSourceValue(mapper, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

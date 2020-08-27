@@ -87,9 +87,11 @@ public class ReplicationResponse extends ActionResponse {
             total = in.readVInt();
             successful = in.readVInt();
             int size = in.readVInt();
-            failures = new Failure[size];
-            for (int i = 0; i < size; i++) {
-                failures[i] = new Failure(in);
+            if (size > 0) {
+                failures = new Failure[size];
+                for (int i = 0; i < size; i++) {
+                    failures[i] = new Failure(in);
+                }
             }
         }
 
@@ -223,9 +225,9 @@ public class ReplicationResponse extends ActionResponse {
             private static final String STATUS = "status";
             private static final String PRIMARY = "primary";
 
-            private ShardId shardId;
-            private String nodeId;
-            private boolean primary;
+            private final ShardId shardId;
+            private final String nodeId;
+            private final boolean primary;
 
             public Failure(StreamInput in) throws IOException {
                 shardId = new ShardId(in);
@@ -242,9 +244,6 @@ public class ReplicationResponse extends ActionResponse {
                 this.shardId = shardId;
                 this.nodeId = nodeId;
                 this.primary = primary;
-            }
-
-            Failure() {
             }
 
             public ShardId fullShardId() {

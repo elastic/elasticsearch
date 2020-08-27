@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -51,6 +53,7 @@ import java.net.UnknownHostException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -58,6 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -74,6 +78,7 @@ public class RangeFieldMapper extends FieldMapper {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -170,7 +175,7 @@ public class RangeFieldMapper extends FieldMapper {
                 } else if (propName.equals("format")) {
                     builder.format(propNode.toString());
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -184,13 +189,12 @@ public class RangeFieldMapper extends FieldMapper {
         protected final DateMathParser dateMathParser;
 
         public RangeFieldType(String name, RangeType type, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public RangeFieldType(String name, RangeType type) {
@@ -198,51 +202,23 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, boolean indexed, boolean hasDocValues, DateFormatter formatter, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
             this(name, true, true, formatter, Collections.emptyMap());
         }
 
-        RangeFieldType(RangeFieldType other) {
-            super(other);
-            this.rangeType = other.rangeType;
-            this.dateTimeFormatter = other.dateTimeFormatter;
-            this.dateMathParser = other.dateMathParser;
-        }
-
         public RangeType rangeType() { return rangeType; }
 
         @Override
-        public RangeFieldType clone() {
-            return new RangeFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            RangeFieldType that = (RangeFieldType) o;
-            return Objects.equals(rangeType, that.rangeType) &&
-            (rangeType == RangeType.DATE) ?
-                Objects.equals(dateTimeFormatter, that.dateTimeFormatter)
-                : dateTimeFormatter == null && that.dateTimeFormatter == null;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), rangeType, dateTimeFormatter);
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
         }
 
         @Override
@@ -398,6 +374,37 @@ public class RangeFieldMapper extends FieldMapper {
         if (docValued == false && (indexed || stored)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
+        DateFormatter formatter = format != null
+            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+            : defaultFormatter;
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+
+            @Override
+            @SuppressWarnings("unchecked")
+            protected Object parseSourceValue(Object value) {
+                RangeType rangeType = fieldType().rangeType();
+                if (!(value instanceof Map)) {
+                    assert rangeType == RangeType.IP;
+                    Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                    return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                }
+
+                Map<String, Object> range = (Map<String, Object>) value;
+                Map<String, Object> parsedRange = new HashMap<>();
+                for (Map.Entry<String, Object> entry : range.entrySet()) {
+                    Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+                    Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                    parsedRange.put(entry.getKey(), formattedValue);
+                }
+                return parsedRange;
+            }
+        };
     }
 
     @Override

@@ -34,14 +34,20 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class Murmur3FieldMapper extends FieldMapper {
 
@@ -92,11 +98,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
         public Murmur3FieldType(String name, Map<String, String> meta) {
-            super(name, false, true, meta);
-        }
-
-        protected Murmur3FieldType(Murmur3FieldType ref) {
-            super(ref);
+            super(name, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         @Override
@@ -105,14 +107,9 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public Murmur3FieldType clone() {
-            return new Murmur3FieldType(this);
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
 
         @Override
@@ -156,6 +153,19 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
+    }
+
+    @Override
     protected boolean indexedByDefault() {
         return false;
     }
@@ -164,5 +174,4 @@ public class Murmur3FieldMapper extends FieldMapper {
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }
-
 }

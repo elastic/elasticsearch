@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -40,20 +42,20 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static final String BACKING_INDEX_PREFIX = ".ds-";
 
     private final String name;
-    private final String timeStampField;
+    private final TimestampField timeStampField;
     private final List<Index> indices;
-    private long generation;
+    private final long generation;
 
-    public DataStream(String name, String timeStampField, List<Index> indices, long generation) {
+    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation) {
         this.name = name;
         this.timeStampField = timeStampField;
-        this.indices = indices;
+        this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
         assert indices.size() > 0;
         assert indices.get(indices.size() - 1).getName().equals(getDefaultBackingIndexName(name, generation));
     }
 
-    public DataStream(String name, String timeStampField, List<Index> indices) {
+    public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
         this(name, timeStampField, indices, indices.size());
     }
 
@@ -61,7 +63,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return name;
     }
 
-    public String getTimeStampField() {
+    public TimestampField getTimeStampField() {
         return timeStampField;
     }
 
@@ -140,7 +142,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public DataStream(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readList(Index::new), in.readVLong());
+        this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -150,7 +152,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(timeStampField);
+        timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
     }
@@ -162,11 +164,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> new DataStream((String) args[0], (String) args[1], (List<Index>) args[2], (Long) args[3]));
+        args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
     }
@@ -200,5 +202,65 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     @Override
     public int hashCode() {
         return Objects.hash(name, timeStampField, indices, generation);
+    }
+
+    public static final class TimestampField implements Writeable, ToXContentObject {
+
+        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
+
+        static ParseField NAME_FIELD = new ParseField("name");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
+            "timestamp_field",
+            args -> new TimestampField((String) args[0])
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        }
+
+        private final String name;
+
+        public TimestampField(String name) {
+            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
+            }
+            this.name = name;
+        }
+
+        public TimestampField(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.endObject();
+            return builder;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TimestampField that = (TimestampField) o;
+            return name.equals(that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name);
+        }
     }
 }

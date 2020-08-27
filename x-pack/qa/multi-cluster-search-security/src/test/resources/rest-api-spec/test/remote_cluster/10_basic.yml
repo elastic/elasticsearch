@@ -28,8 +28,84 @@ setup:
                 }
               ]
             }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "remote_ccs" ]
+            }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                {
+                  "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
+                  "field_caps_index_3"],
+                  "privileges": ["read", "read_cross_cluster"]
+                }
+              ]
+            }
 ---
 "Index data and search on the remote cluster":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream2"
+
+  - do:
+      indices.create:
+        index: closed_index
+        body:
+          aliases:
+            aliased_closed_index: {}
+
+  - do:
+      indices.close:
+        index: closed_index
 
   - do:
         indices.create:

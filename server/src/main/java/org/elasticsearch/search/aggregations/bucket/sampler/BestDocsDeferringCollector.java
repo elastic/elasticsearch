@@ -306,6 +306,9 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     public int getDocCount(long parentBucket) {
+        if (perBucketSamples.size() <= parentBucket) {
+            return 0;
+        }
         PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
         if (sampler == null) {
             // There are conditions where no docs are collected and the aggs

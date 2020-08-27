@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -21,12 +22,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -35,6 +38,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Extension of {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper} that supports docValues
@@ -60,13 +64,17 @@ import java.util.Map;
  */
 public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     public static final String CONTENT_TYPE = "geo_shape";
+    public static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+    }
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeWithDocValuesFieldType> {
 
         private boolean docValuesSet = false;
 
         public Builder(String name) {
-            super (name, new FieldType());
+            super (name, FIELD_TYPE);
             this.hasDocValues = true;
         }
 
@@ -85,7 +93,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
             // @todo check coerce
             GeometryParser geometryParser = new GeometryParser(ft.orientation().getAsBoolean(), coerce().value(),
                 ignoreZValue().value());
-            ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
+            ft.setGeometryParser(new GeoShapeParser(geometryParser));
             ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), ft.name()));
             ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
             ft.setOrientation(orientation().value());
@@ -125,18 +133,9 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
             super(name, indexed, hasDocValues, meta);
         }
 
-        protected GeoShapeWithDocValuesFieldType(GeoShapeWithDocValuesFieldType ref) {
-            super(ref);
-        }
-
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeIndexFieldData.Builder(GeoShapeValuesSourceType.instance());
-        }
-
-        @Override
-        public GeoShapeWithDocValuesFieldType clone() {
-            return new GeoShapeWithDocValuesFieldType(this);
+            return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance());
         }
     }
 

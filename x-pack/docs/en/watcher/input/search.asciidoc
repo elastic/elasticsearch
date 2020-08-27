@@ -9,7 +9,7 @@ into the execution context when the watch is triggered. See
 In the search input's `request` object, you specify:
 
 * The indices you want to search
-* The <<request-body-search-search-type,search type>>
+* The <<search-type,search type>>
 * The search request body
 
 The search request body supports the full Elasticsearch Query DSL--it's the
@@ -163,7 +163,7 @@ accurately.
 |======
 | Name                                          |Required   | Default             | Description
 
-| `request.search_type`                         | no        | `query_then_fetch`  | The <<request-body-search-search-type,type>>
+| `request.search_type`                         | no        | `query_then_fetch`  | The <<search-type,type>>
                                                                                     of search request to perform. Valid values are: `dfs_query_and_fetch`,
                                                                                     `dfs_query_then_fetch`, `query_and_fetch`, and `query_then_fetch`. The
                                                                                     Elasticsearch default is `query_then_fetch`.

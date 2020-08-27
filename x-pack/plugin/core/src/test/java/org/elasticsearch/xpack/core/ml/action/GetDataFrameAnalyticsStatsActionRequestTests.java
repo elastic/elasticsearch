@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GetDataFrameAnalyticsStatsActionRequestTests extends ESTestCase {
@@ -30,5 +31,12 @@ public class GetDataFrameAnalyticsStatsActionRequestTests extends ESTestCase {
         request.setId("foo");
 
         assertThat(request.getId(), equalTo("foo"));
+    }
+
+    public void testSetAllowNoMatch() {
+        GetDataFrameAnalyticsStatsAction.Request request = new GetDataFrameAnalyticsStatsAction.Request();
+        assertThat(request.isAllowNoMatch(), is(true));
+        request.setAllowNoMatch(false);
+        assertThat(request.isAllowNoMatch(), is(false));
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -60,6 +61,12 @@ import java.util.concurrent.TimeUnit;
  * mode the model is not cached. All other uses will cache the model
  *
  * If more than one processor references the same model, that model will only be cached once.
+ *
+ * LocalModels are created with a reference count of 1 accounting for the reference the
+ * cache holds. When models are evicted from the cache the reference count is decremented.
+ * The {@code getModelForX} methods automatically increment the model's reference count
+ * it is up to the consumer to call {@link LocalModel#release()} when the model is no
+ * longer used.
  */
 public class ModelLoadingService implements ClusterStateListener {
 
@@ -93,8 +100,8 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private static class ModelAndConsumer {
-        private LocalModel model;
-        private EnumSet<Consumer> consumers;
+        private final LocalModel model;
+        private final EnumSet<Consumer> consumers;
 
         private ModelAndConsumer(LocalModel model, Consumer consumer) {
             this.model = model;
@@ -107,7 +114,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private final TrainedModelStatsService modelStatsService;
     private final Cache<String, ModelAndConsumer> localModelCache;
     private final Set<String> referencedModels = new HashSet<>();
-    private final Map<String, Queue<ActionListener<Model>>> loadingListeners = new HashMap<>();
+    private final Map<String, Queue<ActionListener<LocalModel>>> loadingListeners = new HashMap<>();
     private final TrainedModelProvider provider;
     private final Set<String> shouldNotAudit;
     private final ThreadPool threadPool;
@@ -153,7 +160,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForPipeline(String modelId, ActionListener<Model> modelActionListener) {
+    public void getModelForPipeline(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.PIPELINE, modelActionListener);
     }
 
@@ -163,7 +170,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForSearch(String modelId, ActionListener<Model> modelActionListener) {
+    public void getModelForSearch(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.SEARCH, modelActionListener);
     }
 
@@ -193,10 +200,16 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param consumer            which feature is requesting the model
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
-    private void getModel(String modelId, Consumer consumer, ActionListener<Model> modelActionListener) {
+    private void getModel(String modelId, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
         ModelAndConsumer cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             cachedModel.consumers.add(consumer);
+            try {
+                cachedModel.model.acquire();
+            } catch (CircuitBreakingException e) {
+                modelActionListener.onFailure(e);
+                return;
+            }
             modelActionListener.onResponse(cachedModel.model);
             logger.trace(() -> new ParameterizedMessage("[{}] loaded from cache", modelId));
             return;
@@ -218,17 +231,23 @@ public class ModelLoadingService implements ClusterStateListener {
      * @return If the model is cached or currently being loaded true is returned. If a new load is started
      * false is returned to indicate a new load event
      */
-    private boolean loadModelIfNecessary(String modelId, Consumer consumer, ActionListener<Model> modelActionListener) {
+    private boolean loadModelIfNecessary(String modelId, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
         synchronized (loadingListeners) {
             ModelAndConsumer cachedModel = localModelCache.get(modelId);
             if (cachedModel != null) {
                 cachedModel.consumers.add(consumer);
+                try {
+                    cachedModel.model.acquire();
+                } catch (CircuitBreakingException e) {
+                    modelActionListener.onFailure(e);
+                    return true;
+                }
                 modelActionListener.onResponse(cachedModel.model);
                 return true;
             }
 
             // Add the listener to the queue if the model is loading
-            Queue<ActionListener<Model>> listeners = loadingListeners.computeIfPresent(modelId,
+            Queue<ActionListener<LocalModel>> listeners = loadingListeners.computeIfPresent(modelId,
                 (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener));
 
             // The cachedModel entry is null, but there are listeners present, that means it is being loaded
@@ -256,20 +275,16 @@ public class ModelLoadingService implements ClusterStateListener {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
                 provider.getTrainedModelForInference(modelId, ActionListener.wrap(
                     inferenceDefinition -> {
-                        // Since we have used the previously stored estimate to help guard against OOM we need to adjust the memory
-                        // So that the memory this model uses in the circuit breaker is the most accurate estimate.
-                        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
-                        if (estimateDiff < 0) {
-                            trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
-                        } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
-                            try {
-                                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
-                            } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
-                                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
-                                handleLoadFailure(modelId, ex);
-                                return;
-                            }
+                        try {
+                            // Since we have used the previously stored estimate to help guard against OOM we need
+                            // to adjust the memory so that the memory this model uses in the circuit breaker
+                            // is the most accurate estimate.
+                            updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
+                        } catch (CircuitBreakingException ex) {
+                            handleLoadFailure(modelId, ex);
+                            return;
                         }
+
                         handleLoadSuccess(modelId, consumer, trainedModelConfig, inferenceDefinition);
                     },
                     failure -> {
@@ -287,7 +302,7 @@ public class ModelLoadingService implements ClusterStateListener {
         ));
     }
 
-    private void loadWithoutCaching(String modelId, ActionListener<Model> modelActionListener) {
+    private void loadWithoutCaching(String modelId, ActionListener<LocalModel> modelActionListener) {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         logger.trace(() -> new ParameterizedMessage("[{}] not actively loading, eager loading without cache", modelId));
@@ -300,8 +315,14 @@ public class ModelLoadingService implements ClusterStateListener {
                         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
                             inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
                             trainedModelConfig.getInferenceConfig();
-                        // Remove the bytes as we cannot control how long the caller will keep the model in memory
-                        trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+
+                        try {
+                            updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
+                        } catch (CircuitBreakingException ex) {
+                            modelActionListener.onFailure(ex);
+                            return;
+                        }
+
                         modelActionListener.onResponse(new LocalModel(
                             trainedModelConfig.getModelId(),
                             localNode,
@@ -309,7 +330,9 @@ public class ModelLoadingService implements ClusterStateListener {
                             trainedModelConfig.getInput(),
                             trainedModelConfig.getDefaultFieldMap(),
                             inferenceConfig,
-                            modelStatsService));
+                            trainedModelConfig.getLicenseLevel(),
+                            modelStatsService,
+                            trainedModelCircuitBreaker));
                     },
                     // Failure getting the definition, remove the initial estimation value
                     e -> {
@@ -322,11 +345,26 @@ public class ModelLoadingService implements ClusterStateListener {
         ));
     }
 
+    private void updateCircuitBreakerEstimate(String modelId, InferenceDefinition inferenceDefinition,
+                                              TrainedModelConfig trainedModelConfig) throws CircuitBreakingException {
+        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
+        if (estimateDiff < 0) {
+            trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
+        } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
+            try {
+                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
+            } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
+                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                throw ex;
+            }
+        }
+    }
+
     private void handleLoadSuccess(String modelId,
                                    Consumer consumer,
                                    TrainedModelConfig trainedModelConfig,
                                    InferenceDefinition inferenceDefinition) {
-        Queue<ActionListener<Model>> listeners;
+        Queue<ActionListener<LocalModel>> listeners;
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
             inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
             trainedModelConfig.getInferenceConfig();
@@ -337,25 +375,35 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getInput(),
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
-            modelStatsService);
+            trainedModelConfig.getLicenseLevel(),
+            modelStatsService,
+            trainedModelCircuitBreaker);
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
             // Consequently, we should not store the retrieved model
             if (listeners == null) {
-                trainedModelCircuitBreaker.addWithoutBreaking(-inferenceDefinition.ramBytesUsed());
+                loadedModel.release();
                 return;
             }
+
+            // temporarily increase the reference count before adding to
+            // the cache in case the model is evicted before the listeners
+            // are called in which case acquire() would throw.
+            loadedModel.acquire();
             localModelCache.put(modelId, new ModelAndConsumer(loadedModel, consumer));
             shouldNotAudit.remove(modelId);
         } // synchronized (loadingListeners)
-        for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+        for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+            loadedModel.acquire();
             listener.onResponse(loadedModel);
         }
+        // account for the acquire in the synchronized block above
+        loadedModel.release();
     }
 
     private void handleLoadFailure(String modelId, Exception failure) {
-        Queue<ActionListener<Model>> listeners;
+        Queue<ActionListener<LocalModel>> listeners;
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             if (listeners == null) {
@@ -364,7 +412,7 @@ public class ModelLoadingService implements ClusterStateListener {
         } // synchronized (loadingListeners)
         // If we failed to load and there were listeners present, that means that this model is referenced by a processor
         // Alert the listeners to the failure
-        for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+        for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
             listener.onFailure(failure);
         }
     }
@@ -383,10 +431,14 @@ public class ModelLoadingService implements ClusterStateListener {
                     INFERENCE_MODEL_CACHE_TTL.getKey());
                 auditIfNecessary(notification.getKey(), msg);
             }
+
+            logger.trace(() -> new ParameterizedMessage("Persisting stats for evicted model [{}]",
+                notification.getValue().model.getModelId()));
+            
             // If the model is no longer referenced, flush the stats to persist as soon as possible
             notification.getValue().model.persistStats(referencedModels.contains(notification.getKey()) == false);
         } finally {
-            trainedModelCircuitBreaker.addWithoutBreaking(-notification.getValue().model.ramBytesUsed());
+            notification.getValue().model.release();
         }
     }
 
@@ -405,7 +457,7 @@ public class ModelLoadingService implements ClusterStateListener {
             return;
         }
         // The listeners still waiting for a model and we are canceling the load?
-        List<Tuple<String, List<ActionListener<Model>>>> drainWithFailure = new ArrayList<>();
+        List<Tuple<String, List<ActionListener<LocalModel>>>> drainWithFailure = new ArrayList<>();
         Set<String> referencedModelsBeforeClusterState = null;
         Set<String> loadingModelBeforeClusterState = null;
         Set<String> removedModels = null;
@@ -454,11 +506,11 @@ public class ModelLoadingService implements ClusterStateListener {
                     referencedModels);
             }
         }
-        for (Tuple<String, List<ActionListener<Model>>> modelAndListeners : drainWithFailure) {
+        for (Tuple<String, List<ActionListener<LocalModel>>> modelAndListeners : drainWithFailure) {
             final String msg = new ParameterizedMessage(
                 "Cancelling load of model [{}] as it is no longer referenced by a pipeline",
                 modelAndListeners.v1()).getFormat();
-            for (ActionListener<Model> listener : modelAndListeners.v2()) {
+            for (ActionListener<LocalModel> listener : modelAndListeners.v2()) {
                 listener.onFailure(new ElasticsearchException(msg));
             }
         }
@@ -514,7 +566,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     if (processor instanceof Map<?, ?>) {
                         Object processorConfig = ((Map<?, ?>) processor).get(InferenceProcessor.TYPE);
                         if (processorConfig instanceof Map<?, ?>) {
-                            Object modelId = ((Map<?, ?>) processorConfig).get(InferenceProcessor.MODEL_ID);
+                            Object modelId = ((Map<?, ?>) processorConfig).get(InferenceResults.MODEL_ID_RESULTS_FIELD);
                             if (modelId != null) {
                                 assert modelId instanceof String;
                                 allReferencedModelKeys.add(modelId.toString());
@@ -547,7 +599,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId             Model Id
      * @param modelLoadedListener To be notified
      */
-    void addModelLoadedListener(String modelId, ActionListener<Model> modelLoadedListener) {
+    void addModelLoadedListener(String modelId, ActionListener<LocalModel> modelLoadedListener) {
         synchronized (loadingListeners) {
             loadingListeners.compute(modelId, (modelKey, listenerQueue) -> {
                 if (listenerQueue == null) {

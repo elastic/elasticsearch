@@ -320,13 +320,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         ScrollContext scrollContext = new ScrollContext();
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
-        context.scrollContext(scrollContext);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         int size = randomIntBetween(2, 5);
         context.setSize(size);
@@ -443,6 +442,40 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(1));
         }
+
+        // tests with trackTotalHits and terminateAfter
+        context.terminateAfter(10);
+        context.setSize(0);
+        for (int trackTotalHits : new int[] { -1, 3, 76, 100}) {
+            context.trackTotalHitsUpTo(trackTotalHits);
+            TotalHitCountCollector collector = new TotalHitCountCollector();
+            context.queryCollectors().put(TotalHitCountCollector.class, collector);
+            QueryPhase.executeInternal(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            if (trackTotalHits == -1) {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
+            } else {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) Math.min(trackTotalHits, 10)));
+            }
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+            assertThat(collector.getTotalHits(), equalTo(10));
+        }
+
+        context.terminateAfter(7);
+        context.setSize(10);
+        for (int trackTotalHits : new int[] { -1, 3, 75, 100}) {
+            context.trackTotalHitsUpTo(trackTotalHits);
+            EarlyTerminatingCollector collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 1, false);
+            context.queryCollectors().put(EarlyTerminatingCollector.class, collector);
+            QueryPhase.executeInternal(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            if (trackTotalHits == -1) {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
+            } else {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(7L));
+            }
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
+        }
         reader.close();
         dir.close();
     }
@@ -549,13 +582,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         // search sort is a prefix of the index sort
         searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[]{DocValueFormat.RAW}));
         for (SortAndFormats searchSortAndFormat : searchSortAndFormats) {
-            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             ScrollContext scrollContext = new ScrollContext();
+            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             scrollContext.lastEmittedDoc = null;
             scrollContext.maxScore = Float.NaN;
             scrollContext.totalHits = null;
-            context.scrollContext(scrollContext);
             context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
             context.setSize(10);
             context.sort(searchSortAndFormat);

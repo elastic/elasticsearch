@@ -5,11 +5,17 @@
  */
 package org.elasticsearch.index.store.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
+import org.elasticsearch.blobstore.cache.CachedBlob;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.IndexInputStats;
@@ -25,18 +31,26 @@ import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public final class TestUtils {
     private TestUtils() {}
+
+    public static void noOpCacheCleaner() {}
+
+    public static CacheService createDefaultCacheService() {
+        return new CacheService(TestUtils::noOpCacheCleaner, Settings.EMPTY);
+    }
 
     public static CacheService createCacheService(final Random random) {
         final ByteSizeValue cacheSize = new ByteSizeValue(
             randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
         );
-        return new CacheService(cacheSize, randomCacheRangeSize(random));
+        return new CacheService(TestUtils::noOpCacheCleaner, cacheSize, randomCacheRangeSize(random));
     }
 
     public static ByteSizeValue randomCacheRangeSize(final Random random) {
@@ -47,7 +61,7 @@ public final class TestUtils {
     }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
-        return numberOfRanges(Math.toIntExact(fileSize), Math.toIntExact(rangeSize));
+        return numberOfRanges(toIntBytes(fileSize), toIntBytes(rangeSize));
     }
 
     static long numberOfRanges(int fileSize, int rangeSize) {
@@ -92,7 +106,7 @@ public final class TestUtils {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
                 return Streams.limitStream(
-                    new ByteArrayInputStream(blobContent, Math.toIntExact(position), blobContent.length - Math.toIntExact(position)),
+                    new ByteArrayInputStream(blobContent, toIntBytes(position), blobContent.length - toIntBytes(position)),
                     length
                 );
             }
@@ -118,7 +132,7 @@ public final class TestUtils {
                         + partSize
                         + "]";
                     final int partNumber = Integer.parseInt(name.substring(prefix.length()));
-                    final int positionInBlob = Math.toIntExact(position) + partSize * partNumber;
+                    final int positionInBlob = toIntBytes(position) + partSize * partNumber;
                     assert positionInBlob + length <= blobContent.length : "cannot read ["
                         + positionInBlob
                         + "-"
@@ -149,6 +163,11 @@ public final class TestUtils {
 
         @Override
         public BlobPath path() {
+            throw unsupportedException();
+        }
+
+        @Override
+        public boolean blobExists(String blobName) {
             throw unsupportedException();
         }
 
@@ -195,6 +214,30 @@ public final class TestUtils {
         private UnsupportedOperationException unsupportedException() {
             assert false : "this operation is not supported and should have not be called";
             return new UnsupportedOperationException("This operation is not supported");
+        }
+    }
+
+    public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
+
+        public NoopBlobStoreCacheService() {
+            super(null, null, mock(Client.class), null);
+        }
+
+        @Override
+        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+            listener.onResponse(CachedBlob.CACHE_NOT_READY);
+        }
+
+        @Override
+        public void putAsync(
+            String repository,
+            String name,
+            String path,
+            long offset,
+            BytesReference content,
+            ActionListener<Void> listener
+        ) {
+            listener.onResponse(null);
         }
     }
 }

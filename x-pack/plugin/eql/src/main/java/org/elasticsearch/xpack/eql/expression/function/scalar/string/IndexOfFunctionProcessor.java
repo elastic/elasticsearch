@@ -18,20 +18,20 @@ public class IndexOfFunctionProcessor implements Processor {
 
     public static final String NAME = "siof";
 
-    private final Processor source;
+    private final Processor input;
     private final Processor substring;
     private final Processor start;
     private final boolean isCaseSensitive;
 
-    public IndexOfFunctionProcessor(Processor source, Processor substring, Processor start, boolean isCaseSensitive) {
-        this.source = source;
+    public IndexOfFunctionProcessor(Processor input, Processor substring, Processor start, boolean isCaseSensitive) {
+        this.input = input;
         this.substring = substring;
         this.start = start;
         this.isCaseSensitive = isCaseSensitive;
     }
 
     public IndexOfFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         substring = in.readNamedWriteable(Processor.class);
         start = in.readNamedWriteable(Processor.class);
         isCaseSensitive = in.readBoolean();
@@ -39,23 +39,23 @@ public class IndexOfFunctionProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
         out.writeNamedWriteable(substring);
         out.writeNamedWriteable(start);
         out.writeBoolean(isCaseSensitive);
     }
 
     @Override
-    public Object process(Object input) {
-        return doProcess(source.process(input), substring.process(input), start.process(input), isCaseSensitive());
+    public Object process(Object o) {
+        return doProcess(input.process(o), substring.process(o), start.process(o), isCaseSensitive());
     }
 
-    public static Object doProcess(Object source, Object substring, Object start, boolean isCaseSensitive) {
-        if (source == null) {
+    public static Object doProcess(Object input, Object substring, Object start, boolean isCaseSensitive) {
+        if (input == null) {
             return null;
         }
-        if (source instanceof String == false && source instanceof Character == false) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (input instanceof String == false && input instanceof Character == false) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (substring == null) {
             return null;
@@ -72,16 +72,16 @@ public class IndexOfFunctionProcessor implements Processor {
         int result;
 
         if (isCaseSensitive) {
-            result =  source.toString().indexOf(substring.toString(), startIndex);
+            result =  input.toString().indexOf(substring.toString(), startIndex);
         } else {
-            result = source.toString().toLowerCase(Locale.ROOT).indexOf(substring.toString().toLowerCase(Locale.ROOT), startIndex);
+            result = input.toString().toLowerCase(Locale.ROOT).indexOf(substring.toString().toLowerCase(Locale.ROOT), startIndex);
         }
 
         return result < 0 ? null : result;
     }
     
-    protected Processor source() {
-        return source;
+    protected Processor input() {
+        return input;
     }
 
     protected Processor substring() {
@@ -107,7 +107,7 @@ public class IndexOfFunctionProcessor implements Processor {
         }
         
         IndexOfFunctionProcessor other = (IndexOfFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(substring(), other.substring())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
@@ -115,7 +115,7 @@ public class IndexOfFunctionProcessor implements Processor {
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), substring(), start(), isCaseSensitive());
+        return Objects.hash(input(), substring(), start(), isCaseSensitive());
     }
     
 

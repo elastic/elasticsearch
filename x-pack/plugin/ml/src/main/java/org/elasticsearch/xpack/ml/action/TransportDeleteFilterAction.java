@@ -82,7 +82,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     }
 
     private void deleteFilter(String filterId, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
+        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(deleteRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

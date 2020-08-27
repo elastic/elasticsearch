@@ -22,10 +22,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-
-import java.util.Map;
 
 /**
  * Create snapshot request builder
@@ -113,59 +109,6 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      */
     public CreateSnapshotRequestBuilder setPartial(boolean partial) {
         request.partial(partial);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific snapshot settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public CreateSnapshotRequestBuilder setSettings(Settings settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific snapshot settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public CreateSnapshotRequestBuilder setSettings(Settings.Builder settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific snapshot settings in YAML or JSON format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this builder
-     */
-    public CreateSnapshotRequestBuilder setSettings(String source, XContentType xContentType) {
-        request.settings(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific snapshot settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public CreateSnapshotRequestBuilder setSettings(Map<String, Object> settings) {
-        request.settings(settings);
         return this;
     }
 

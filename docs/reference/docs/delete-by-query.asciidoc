@@ -8,16 +8,16 @@ Deletes documents that match the specified query.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_delete_by_query
+POST /my-index-000001/_delete_by_query
 {
   "query": {
     "match": {
-      "message": "some message"
+      "user.id": "elkbee"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 ////
 
@@ -47,7 +47,7 @@ POST /twitter/_delete_by_query
 [[docs-delete-by-query-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_delete_by_query`
+`POST /<target>/_delete_by_query`
 
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}
@@ -55,7 +55,7 @@ POST /twitter/_delete_by_query
 You can specify the query criteria in the request URI or the request body
 using the same syntax as the  <<search-search,Search API>>. 
 
-When you submit a delete by query request, {es} gets a snapshot of the index
+When you submit a delete by query request, {es} gets a snapshot of the data stream or index
 when it begins processing the request and deletes matching documents using
 `internal` versioning. If a document changes between the time that the
 snapshot is taken and the delete operation is processed, it results in a version
@@ -130,16 +130,16 @@ This is "bursty" instead of "smooth".
 [[docs-delete-by-query-slice]]
 ===== Slicing
 
-Delete by query supports <<sliced-scroll, sliced scroll>> to parallelize the
+Delete by query supports <<slice-scroll, sliced scroll>> to parallelize the
 delete process. This can improve efficiency and provide a
 convenient way to break the request down into smaller parts.
 
-Setting `slices` to `auto` chooses a reasonable number for most indices. 
+Setting `slices` to `auto` chooses a reasonable number for most data streams and indices. 
 If you're slicing manually or otherwise tuning automatic slicing, keep in mind 
 that:
 
 * Query performance is most efficient when the number of `slices` is equal to 
-the number of shards in the index. If that number is large (for example,
+the number of shards in the index or backing index. If that number is large (for example,
 500), choose a lower number as too many `slices` hurts performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
@@ -153,9 +153,13 @@ documents being reindexed and cluster resources.
 [[docs-delete-by-query-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Optional, string) A comma-separated list of index names to search. Use `_all`
-or omit to search all indices.
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
++
+To search all data streams or indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[docs-delete-by-query-api-query-params]]
 ==== {api-query-parms-title}
@@ -200,7 +204,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<scroll-search-results>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
@@ -243,16 +250,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_delete_by_query
+POST /my-index-000001/_delete_by_query
 {
   "query": { <1>
     "match": {
-      "message": "some message"
+      "user.id": "elkbee"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 //////////////////////////
 
@@ -343,38 +350,38 @@ version conflicts.
 [[docs-delete-by-query-api-example]]
 ==== {api-examples-title}
 
-Delete all tweets from the `twitter` index:
+Delete all documents from the `my-index-000001` data stream or index:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?conflicts=proceed
+POST my-index-000001/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-Delete documents from multiple indices:
+Delete documents from multiple data streams or indices:
 
 [source,console]
 --------------------------------------------------
-POST /twitter,blog/_delete_by_query
+POST /my-index-000001,my-index-000002/_delete_by_query
 {
   "query": {
     "match_all": {}
   }
 }
 --------------------------------------------------
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 Limit the delete by query operation to shards that a particular routing
 value: 
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?routing=1
+POST my-index-000001/_delete_by_query?routing=1
 {
   "query": {
     "range" : {
@@ -385,25 +392,25 @@ POST twitter/_delete_by_query?routing=1
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default `_delete_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?scroll_size=5000
+POST my-index-000001/_delete_by_query?scroll_size=5000
 {
   "query": {
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[docs-delete-by-query-manual-slice]]
 ===== Slice manually
 
@@ -412,7 +419,7 @@ slices:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query
+POST my-index-000001/_delete_by_query
 {
   "slice": {
     "id": 0,
@@ -420,13 +427,13 @@ POST twitter/_delete_by_query
   },
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
-POST twitter/_delete_by_query
+POST my-index-000001/_delete_by_query
 {
   "slice": {
     "id": 1,
@@ -434,26 +441,26 @@ POST twitter/_delete_by_query
   },
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&filter_path=hits.total
+POST my-index-000001/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
@@ -475,39 +482,39 @@ Which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[docs-delete-by-query-automatic-slice]]
 ===== Use automatic slicing
 
 You can also let delete-by-query automatically parallelize using
-<<sliced-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
+<<slice-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
 the number of slices to use:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query?refresh&slices=5
+POST my-index-000001/_delete_by_query?refresh&slices=5
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you also can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&filter_path=hits.total
+POST my-index-000001/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
@@ -531,8 +538,8 @@ Which results in a sensible `total` like this one:
 
 Setting `slices` to `auto` will let {es} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
-there are multiple source indices, it will choose the number of slices based
-on the index with the smallest number of shards.
+there are multiple source data streams or indices, it will choose the number of slices based
+on the index or backing index with the smallest number of shards.
 
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
@@ -555,10 +562,10 @@ slices` are distributed proportionally to each sub-request. Combine that with
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being deleted.
-* Each sub-request gets a slightly different snapshot of the source index
+* Each sub-request gets a slightly different snapshot of the source data stream or index
 though these are all taken at approximately the same time.
 
-[float]
+[discrete]
 [[docs-delete-by-query-rethrottle]]
 ===== Change throttling for a request
 
@@ -650,7 +657,7 @@ and `wait_for_completion=false` was set on it then it'll come back with
 you to delete that document.
 
 
-[float]
+[discrete]
 [[docs-delete-by-query-cancel-task-api]]
 ===== Cancel a delete by query operation
 

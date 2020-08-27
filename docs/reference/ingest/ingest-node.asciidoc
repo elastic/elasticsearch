@@ -26,7 +26,7 @@ order.
 The processors in a pipeline have read and write access to documents that pass through the pipeline.
 The processors can access fields in the source of a document and the document's metadata fields.
 
-[float]
+[discrete]
 [[accessing-source-fields]]
 === Accessing Fields in the Source
 Accessing a field in the source is straightforward. You simply refer to fields by
@@ -56,12 +56,18 @@ On top of this, fields from the source are always accessible via the `_source` p
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[accessing-metadata-fields]]
 === Accessing Metadata Fields
 You can access metadata fields in the same way that you access fields in the source. This
 is possible because Elasticsearch doesn't allow fields in the source that have the
 same name as metadata fields.
+
+The following metadata fields are accessible by a processor:
+
+* `_index`
+* `_id`
+* `_routing`
 
 The following example sets the `_id` metadata field of a document to `1`:
 
@@ -76,9 +82,15 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following metadata fields are accessible by a processor: `_index`, `_id`, `_routing`.
+You can access a metadata field's value by surrounding it in double
+curly brackets `"{{ }}"`. For example, `{{_index}}` retrieves the name of a
+document's index.
 
-[float]
+WARNING: If you <<create-document-ids-automatically,automatically generate>>
+document IDs, you cannot use the `{{_id}}` value in an ingest processor. {es}
+assigns auto-generated `_id` values after ingest.
+
+[discrete]
 [[accessing-ingest-metadata]]
 === Accessing Ingest Metadata Fields
 Beyond metadata fields and source fields, ingest also adds ingest metadata to the documents that it processes.
@@ -106,7 +118,7 @@ Unlike Elasticsearch metadata fields, the ingest metadata field name `_ingest` c
 in the source of a document. Use `_source._ingest` to refer to the field in the source document. Otherwise, `_ingest`
 will be interpreted as an ingest metadata field.
 
-[float]
+[discrete]
 [[accessing-template-fields]]
 === Accessing Fields and Metafields in Templates
 A number of processor settings also support templating. Settings that support templating can have zero or more
@@ -401,7 +413,7 @@ support new line characters. However, Kibana's console supports
 a triple quote syntax to help with writing and debugging
 scripts like these.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/not_prod_dropper
 {
@@ -424,8 +436,43 @@ PUT _ingest/pipeline/not_prod_dropper
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
 // TEST[continued]
+
+or it can be built with a stored script:
+
+[source,console]
+--------------------------------------------------
+PUT _scripts/not_prod
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        Collection tags = ctx.tags;
+        if(tags != null){
+          for (String tag : tags) {
+              if (tag.toLowerCase().contains('prod')) {
+                  return false;
+              }
+          }
+        }
+        return true;
+    """
+  }
+}
+PUT _ingest/pipeline/not_prod_dropper
+{
+  "processors": [
+    {
+      "drop": {
+        "if": { "id": "not_prod" }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[continued]
+
+Either way, you can run it with:
 
 [source,console]
 --------------------------------------------------
@@ -655,7 +702,7 @@ Elasticsearch.
         "on_failure" : [
           {
             "set" : {
-              "field" : "error",
+              "field" : "error.message",
               "value" : "field \"foo\" does not exist, cannot rename to \"bar\""
             }
           }
@@ -712,7 +759,7 @@ continues to execute, which in this case means that the pipeline does nothing.
 
 The `ignore_failure` can be set on any processor and defaults to `false`.
 
-[float]
+[discrete]
 [[accessing-error-metadata]]
 === Accessing Error Metadata From Processors Handling Exceptions
 
@@ -738,7 +785,7 @@ metadata field to provide the error message.
         "on_failure" : [
           {
             "set" : {
-              "field" : "error",
+              "field" : "error.message",
               "value" : "{{ _ingest.on_failure_message }}"
             }
           }
@@ -814,7 +861,7 @@ A node will not start if this plugin is not available.
 The <<cluster-nodes-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
-[float]
+[discrete]
 === Ingest Processor Plugins
 
 Additional ingest processors can be implemented and installed as Elasticsearch {plugins}/intro.html[plugins].
@@ -848,8 +895,8 @@ include::processors/rename.asciidoc[]
 include::processors/script.asciidoc[]
 include::processors/set.asciidoc[]
 include::processors/set-security-user.asciidoc[]
-include::processors/split.asciidoc[]
 include::processors/sort.asciidoc[]
+include::processors/split.asciidoc[]
 include::processors/trim.asciidoc[]
 include::processors/uppercase.asciidoc[]
 include::processors/url-decode.asciidoc[]

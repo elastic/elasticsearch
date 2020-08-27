@@ -46,8 +46,7 @@
             "type" : "date"
         },
         "@timestamp" : {
-            "type" : "alias",
-            "path" : "timestamp"
+            "type" : "date"
         },
         "user" : {
             "type" : "keyword"

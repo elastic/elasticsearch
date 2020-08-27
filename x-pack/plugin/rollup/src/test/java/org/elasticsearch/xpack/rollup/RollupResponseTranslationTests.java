@@ -162,11 +162,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = new InternalAggregations(aggTree);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
@@ -186,8 +186,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
 
-        Aggregations mockAggsWithout = new InternalAggregations(Collections.emptyList());
-        when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
+        when(responseWithout.getAggregations()).thenReturn(InternalAggregations.EMPTY);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
                 new MultiSearchResponse.Item(responseWithout, null)};
@@ -258,11 +257,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = new InternalAggregations(aggTree);
+        Aggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
@@ -298,7 +297,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalMax protoMax = mock(InternalMax.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -307,7 +306,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalMax max = mock(InternalMax.class);
         when(max.getName()).thenReturn("bizzbuzz");
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = new InternalAggregations(aggTreeWithoutFilter);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -328,7 +327,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalMax protoMax = mock(InternalMax.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -336,7 +335,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
         InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = new InternalAggregations(aggTreeWithoutFilter);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -358,7 +357,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
         InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -386,11 +385,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = new InternalAggregations(aggTree);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -495,11 +494,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         // TODO SearchResponse.Clusters is not public, using null for now.  Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(new SearchResponse(
                 new InternalSearchResponse(null,
-                        new InternalAggregations(Collections.singletonList(responses.get(0))), null, null, false, false, 1),
+                        InternalAggregations.from(Collections.singletonList(responses.get(0))), null, null, false, false, 1),
                         null, 1, 1, 0, 10, null, null), null);
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(new SearchResponse(
                 new InternalSearchResponse(null,
-                        new InternalAggregations(Collections.singletonList(responses.get(1))), null, null, false, false, 1),
+                        InternalAggregations.from(Collections.singletonList(responses.get(1))), null, null, false, false, 1),
                         null, 1, 1, 0, 10, null, null), null);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledItem, rolledItem};

@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
   restApi {
@@ -12,7 +13,7 @@ restResources {
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ccr'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('ccr'))
 }
 
 task restTest(type: RestIntegTestTask) {

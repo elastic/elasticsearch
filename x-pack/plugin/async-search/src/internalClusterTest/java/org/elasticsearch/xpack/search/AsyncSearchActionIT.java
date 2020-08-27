@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -232,16 +234,17 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testInvalidId() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getMessage(), containsString("invalid id"));
-        while (it.hasNext()) {
-            response = it.next();
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
+            assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(exc.getMessage(), containsString("invalid id"));
+            while (it.hasNext()) {
+                response = it.next();
+            }
+            assertFalse(response.isRunning());
         }
-        assertFalse(response.isRunning());
     }
 
     public void testNoIndex() throws Exception {
@@ -259,7 +262,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
         Exception exc = response.getFailure();
-        assertThat(exc.getMessage(), containsString("no such index"));
+        assertThat(exc.getMessage(), containsString("error while executing search"));
+        assertThat(exc.getCause().getMessage(), containsString("no such index"));
     }
 
     public void testCancellation() throws Exception {
@@ -397,5 +401,21 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(newResp.getExpirationTime(), lessThan(expirationTime));
         ensureTaskNotRunning(newResp.getId());
         ensureTaskRemoval(newResp.getId());
+    }
+
+    public void testSearchPhaseFailureNoCause() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setKeepOnCompletion(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.getSearchRequest()
+            // AlreadyClosedException are ignored by the coordinating node
+            .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), 0)));
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        assertTrue(response.isPartial());
+        assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertNotNull(response.getFailure());
+        ensureTaskNotRunning(response.getId());
     }
 }

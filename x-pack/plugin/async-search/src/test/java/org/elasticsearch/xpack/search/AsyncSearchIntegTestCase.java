@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,6 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
@@ -36,7 +36,11 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -50,6 +54,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
@@ -64,7 +69,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return Collections.singletonList(new QuerySpec<>(BlockingQueryBuilder.NAME, in -> new BlockingQueryBuilder(in),
+            return Arrays.asList(
+                new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new,
+                    p -> {
+                    throw new IllegalStateException("not implemented");
+                }),
+                new QuerySpec<>(ThrowingQueryBuilder.NAME, ThrowingQueryBuilder::new,
                 p -> {
                     throw new IllegalStateException("not implemented");
                 }));
@@ -202,7 +212,22 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                                                             SearchSourceBuilder source,
                                                             int numFailures,
                                                             int progressStep) throws Exception {
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName);
+        final String pitId;
+        final SubmitAsyncSearchRequest request;
+        if (randomBoolean()) {
+            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(
+                new String[]{indexName},
+                OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
+                TimeValue.timeValueMinutes(between(1, 5)),
+                null,
+                null);
+            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();
+            source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pitId, TimeValue.timeValueMinutes(1)));
+            request = new SubmitAsyncSearchRequest(source);
+        } else {
+            pitId = null;
+            request = new SubmitAsyncSearchRequest(source, indexName);
+        }
         request.setBatchedReduceSize(progressStep);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         BlockingQueryBuilder.QueryLatch queryLatch = BlockingQueryBuilder.acquireQueryLatch(numFailures);
@@ -218,6 +243,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
             private boolean isFirst = true;
+            private final AtomicBoolean closed = new AtomicBoolean();
 
             @Override
             public boolean hasNext() {
@@ -278,7 +304,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
             @Override
             public void close() {
-                queryLatch.close();
+                if (closed.compareAndSet(false, true)) {
+                    if (pitId != null) {
+                        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+                    }
+                    queryLatch.close();
+                }
             }
         };
     }

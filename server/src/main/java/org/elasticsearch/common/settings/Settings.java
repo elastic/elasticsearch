@@ -20,7 +20,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -319,7 +318,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);
     }
 
     /**
@@ -545,12 +544,7 @@ public final class Settings implements ToXContentFragment {
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
-        out.writeVInt(entries.size());
-        for (Map.Entry<String, Object> entry : entries) {
-            out.writeString(entry.getKey());
-            out.writeGenericValue(entry.getValue());
-        }
+        out.writeMap(settings.settings, StreamOutput::writeString, StreamOutput::writeGenericValue);
     }
 
     /**

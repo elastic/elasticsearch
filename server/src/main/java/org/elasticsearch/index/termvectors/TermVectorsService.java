@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -199,7 +200,7 @@ public class TermVectorsService  {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
-            if (indexShard.mapperService().getLuceneFieldType(field).storeTermVectors() &&
+            if (fieldType.getTextSearchInfo().termVectors() != TextSearchInfo.TermVector.NONE &&
                     (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
                 continue;
             }

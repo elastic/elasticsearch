@@ -48,12 +48,11 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
+public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
     protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
@@ -65,17 +64,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
         nowInMillis = randomNonNegativeLong();
     }
 
-    @Override
-    protected RangeFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+    protected RangeFieldType createDefaultFieldType(String name) {
         if (type == RangeType.DATE) {
-            return new RangeFieldType(name, true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, meta);
+            return new RangeFieldType(name, true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         }
-        return new RangeFieldType(name, type, true, true, meta);
+        return new RangeFieldType(name, type, true, true, Collections.emptyMap());
     }
 
     public void testRangeQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
 
         ShapeRelation relation = randomFrom(ShapeRelation.values());
         boolean includeLower = randomBoolean();
@@ -97,7 +95,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         QueryShardContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
 
         Object from = null;
         Object to = null;
@@ -154,7 +152,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
      */
     public void testFromLargerToErrors() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
 
         final Object from;
         final Object to;
@@ -239,13 +237,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
         RangeFieldType fieldType = new RangeFieldType(FIELDNAME, true, true, formatter, Collections.emptyMap());
-        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType
             = new DateFieldType(FIELDNAME, true, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
-        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
 
@@ -466,15 +464,15 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
     }
 
     public void testParseIp() {
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse("::1", randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue(InetAddresses.forString("::1"), randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue("::1", randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue(new BytesRef("::1"), randomBoolean(), null));
     }
 
     public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
 
         Object value = nextFrom();
         ShapeRelation relation = ShapeRelation.INTERSECTS;

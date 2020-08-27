@@ -27,12 +27,18 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -41,24 +47,24 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
-public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMapper.Builder> {
+public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
+
     private IndexService indexService;
     private DocumentMapperParser parser;
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
-    }
 
     @Before
     public void setup() {
@@ -285,9 +291,28 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    @Override
-    protected BooleanFieldMapper.Builder newBuilder() {
-        return new BooleanFieldMapper.Builder("boolean");
+    public void testBoosts() throws Exception {
+        String mapping = "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"boolean\",\"boost\":2.0}}}}";
+        DocumentMapper mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        MappedFieldType ft = indexService.mapperService().fieldType("field");
+        assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
     }
 
+    public void testFetchSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
+        assertEquals(List.of(true), fetchSourceValue(mapper, true));
+        assertEquals(List.of(false), fetchSourceValue(mapper, "false"));
+        assertEquals(List.of(false), fetchSourceValue(mapper, ""));
+
+        Map<String, Object> mapping = Map.of("type", "boolean", "null_value", true);
+        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder("field");
+        builder.parse("field", null, new HashMap<>(mapping));
+        BooleanFieldMapper nullValueMapper = builder.build(context);
+        assertEquals(List.of(true), fetchSourceValue(nullValueMapper, null));
+    }
 }

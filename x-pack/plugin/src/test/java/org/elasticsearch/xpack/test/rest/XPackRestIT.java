@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -53,7 +54,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /** Runs rest tests against external cluster */
 // TODO: Remove this timeout increase once this test suite is broken up
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private static final String BASIC_AUTH_VALUE =
             basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
@@ -90,10 +91,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             templates.addAll(
                 Arrays.asList(
                     NotificationsIndex.NOTIFICATIONS_INDEX,
-                    MlMetaIndex.INDEX_NAME,
+                    MlMetaIndex.indexName(),
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     TransformInternalIndexConstants.AUDIT_INDEX,
                     TransformInternalIndexConstants.LATEST_INDEX_NAME
                 ));

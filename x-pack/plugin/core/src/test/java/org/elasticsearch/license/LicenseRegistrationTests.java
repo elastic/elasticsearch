@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
     public void testSelfGeneratedTrialLicense() throws Exception {
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "trial");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
@@ -42,7 +42,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
     }
 
     public void testSelfGeneratedBasicLicense() throws Exception {
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "basic");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
@@ -74,7 +74,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
                 .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
@@ -106,7 +106,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
                 .expiryDate(dateMath("now-2h", now));
         License license = SelfGeneratedLicense.create(builder, License.VERSION_CURRENT);
 
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();

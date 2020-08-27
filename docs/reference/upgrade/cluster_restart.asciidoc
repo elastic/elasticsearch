@@ -11,7 +11,7 @@ and reindex your old indices or bring up a new {version} cluster and
 
 include::preparing_to_upgrade.asciidoc[]
 
-[float]
+[discrete]
 === Upgrading your cluster
 
 To perform a full cluster restart upgrade to {version}:

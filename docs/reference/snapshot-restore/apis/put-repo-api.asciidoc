@@ -176,7 +176,8 @@ nodes in the cluster.
 
 `max_restore_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)
-Maximum snapshot restore rate per node. Defaults to `40mb` per second.
+Maximum snapshot restore rate per node. Defaults to unlimited. Note
+that restores are also throttled through <<recovery,recovery settings>>.
 
 `max_snapshot_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)

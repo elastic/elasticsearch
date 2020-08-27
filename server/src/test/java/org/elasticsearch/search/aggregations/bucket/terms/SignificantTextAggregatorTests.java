@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -29,6 +30,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -102,7 +104,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            indexDocuments(w, textFieldType);
+            indexDocuments(w);
 
             SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").filterDuplicateText(true);
             if(randomBoolean()){
@@ -150,7 +152,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            indexDocuments(w, textFieldType);
+            indexDocuments(w);
 
             SignificantTextAggregationBuilder agg = significantText("sig_text", "text")
                 .filterDuplicateText(true);
@@ -193,14 +195,50 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private void indexDocuments(IndexWriter writer, TextFieldType textFieldType) throws IOException {
+    public void testInsideTermsAgg() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            indexDocuments(w);
+
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").filterDuplicateText(true);
+            TermsAggregationBuilder aggBuilder = new TermsAggregationBuilder("terms").field("kwd").subAggregation(sigAgg);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                StringTerms terms = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, textFieldType, keywordField("kwd"));
+                SignificantTerms sigOdd = terms.getBucketByKey("odd").getAggregations().get("sig_text");
+                assertNull(sigOdd.getBucketByKey("even"));
+                assertNull(sigOdd.getBucketByKey("duplicate"));
+                assertNull(sigOdd.getBucketByKey("common"));
+                assertNotNull(sigOdd.getBucketByKey("odd"));
+
+                SignificantStringTerms sigEven = terms.getBucketByKey("even").getAggregations().get("sig_text");
+                assertNull(sigEven.getBucketByKey("odd"));
+                assertNull(sigEven.getBucketByKey("duplicate"));
+                assertNull(sigEven.getBucketByKey("common"));
+                assertNull(sigEven.getBucketByKey("separator2"));
+                assertNull(sigEven.getBucketByKey("separator4"));
+                assertNull(sigEven.getBucketByKey("separator6"));
+                assertNotNull(sigEven.getBucketByKey("even"));
+            }
+        }
+    }
+
+    private void indexDocuments(IndexWriter writer) throws IOException {
         for (int i = 0; i < 10; i++) {
             Document doc = new Document();
             StringBuilder text = new StringBuilder("common ");
             if (i % 2 == 0) {
-                text.append("odd ");
-            } else {
                 text.append("even separator" + i + " duplicate duplicate duplicate duplicate duplicate duplicate ");
+            } else {
+                text.append("odd ");
             }
 
             doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
@@ -208,6 +246,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 " \"json_only_field\" : \"" + text.toString() + "\"" +
                 " }";
             doc.add(new StoredField("_source", new BytesRef(json)));
+            doc.add(new SortedSetDocValuesField("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd")));
             writer.addDocument(doc);
         }
     }

@@ -31,22 +31,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
     public void unpack(File tarFile, File targetDir) throws IOException {
         Logging.getLogger(SymbolicLinkPreservingUntarTransform.class)
             .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
+        Function<String, Path> pathModifier = pathResolver();
 
         TarArchiveInputStream tar = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile)));
         final Path destinationPath = targetDir.toPath();
         TarArchiveEntry entry = tar.getNextTarEntry();
         while (entry != null) {
-            final Path relativePath = UnpackTransform.trimArchiveExtractPath(entry.getName());
+            final Path relativePath = pathModifier.apply(entry.getName());
             if (relativePath == null) {
                 entry = tar.getNextTarEntry();
                 continue;
@@ -70,41 +70,10 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
             }
             if (entry.isSymbolicLink() == false) {
                 // check if the underlying file system supports POSIX permissions
-                final PosixFileAttributeView view = Files.getFileAttributeView(destination, PosixFileAttributeView.class);
-                if (view != null) {
-                    final Set<PosixFilePermission> permissions = PosixFilePermissions.fromString(
-                        permissions((entry.getMode() >> 6) & 07) + permissions((entry.getMode() >> 3) & 07) + permissions(
-                            (entry.getMode() >> 0) & 07
-                        )
-                    );
-                    Files.setPosixFilePermissions(destination, permissions);
-                }
+                chmod(destination, entry.getMode());
             }
             entry = tar.getNextTarEntry();
         }
 
-    }
-
-    private static String permissions(final int permissions) {
-        if (permissions < 0 || permissions > 7) {
-            throw new IllegalArgumentException("permissions [" + permissions + "] out of range");
-        }
-        final StringBuilder sb = new StringBuilder(3);
-        if ((permissions & 4) == 4) {
-            sb.append('r');
-        } else {
-            sb.append('-');
-        }
-        if ((permissions & 2) == 2) {
-            sb.append('w');
-        } else {
-            sb.append('-');
-        }
-        if ((permissions & 1) == 1) {
-            sb.append('x');
-        } else {
-            sb.append('-');
-        }
-        return sb.toString();
     }
 }

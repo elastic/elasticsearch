@@ -1367,7 +1367,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
                     failed.set(true);
                 });
-            cluster.runFor(DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
+            cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 
             cluster.stabilise();

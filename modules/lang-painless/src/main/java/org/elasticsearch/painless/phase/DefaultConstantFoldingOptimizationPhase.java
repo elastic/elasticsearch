@@ -402,7 +402,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 }
 
                 scope.accept(irLeftConstantNode);
-            } else if (operation == Operation.OR) {
+            } else if (operation == Operation.BWOR) {
                 if (type == int.class) {
                     irLeftConstantNode.setConstant((int)irLeftConstantNode.getConstant() | (int)irRightConstantNode.getConstant());
                 } else if (type == long.class) {

@@ -63,3 +63,10 @@ server. It contains an encrypted authenticator.
 ==== Configuring a Kerberos realm
 
 include::configuring-kerberos-realm.asciidoc[]
+
+[[kerberos-realm-kibana]]
+===== Configure Kibana for Kerberos
+
+If you want to use Kerberos to authenticate via your browser and {kib}, you
+need to enable the relevant authentication provider in {kib} configuration. See
+{kibana-ref}/kibana-authentication.html#kerberos[kerberos single sign-on]

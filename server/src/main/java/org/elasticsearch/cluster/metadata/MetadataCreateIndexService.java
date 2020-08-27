@@ -396,7 +396,7 @@ public class MetadataCreateIndexService {
                 updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO,
-                    "failed on parsing mappings on index creation [{}]: {}", request.index(), e.getMessage());
+                    "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
             }
 

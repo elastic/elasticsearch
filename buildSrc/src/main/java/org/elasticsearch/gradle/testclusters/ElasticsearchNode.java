@@ -1202,7 +1202,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             String content = new String(Files.readAllBytes(jvmOptions));
             Map<String, String> expansions = jvmOptionExpansions();
             for (String origin : expansions.keySet()) {
-                System.out.println("key = " + origin);
                 if (!content.contains(origin)) {
                     throw new IOException("template property " + origin + " not found in template.");
                 }

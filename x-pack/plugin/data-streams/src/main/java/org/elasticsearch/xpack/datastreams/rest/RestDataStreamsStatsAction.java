@@ -30,6 +30,12 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        // Does not actually access system indices, but does resolve `_all`, which can cause confusing deprecation warnings.
+        return true;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DataStreamsStatsAction.Request dataStreamsStatsRequest = new DataStreamsStatsAction.Request();
         dataStreamsStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));

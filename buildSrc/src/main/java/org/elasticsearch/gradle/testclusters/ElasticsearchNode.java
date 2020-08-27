@@ -1197,29 +1197,34 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void tweakJvmOptions(Path configFileRoot) {
         LOGGER.info("Tweak jvm options {}.", configFileRoot.resolve("jvm.options"));
-        Map<String, String> expansions = Map.of(
-            "-XX:HeapDumpPath=data",
-            "-XX:HeapDumpPath=" + confPathLogs.toString(),
-            "-XX:ErrorFile=logs/hs_err_pid%p.log",
-            "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString(),
-            "logs/gc.log",
-            confPathLogs.resolve("gc.log").toString()
-        );
-
         Path jvmOptions = configFileRoot.resolve("jvm.options");
         try {
             String content = new String(Files.readAllBytes(jvmOptions));
-            Set<String> keys = expansions.keySet();
-            for (String key : keys) {
-                if (!content.contains(key)) {
-                    throw new IOException("template property " + key + " not found in template.");
+            Map<String, String> expansions = jvmOptionExpansions();
+            for (String origin : expansions.keySet()) {
+                System.out.println("key = " + origin);
+                if (!content.contains(origin)) {
+                    throw new IOException("template property " + origin + " not found in template.");
                 }
-                content = content.replaceAll(key, expansions.get(key));
+                content = content.replaceAll(origin, expansions.get(origin));
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
         }
+    }
+
+    private Map<String, String> jvmOptionExpansions() {
+        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
+        Map<String, String> expansions = new HashMap<>();
+        expansions.putAll(
+            Map.of(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString(), "logs/gc.log", confPathLogs.resolve("gc.log").toString())
+        );
+        if (getVersion().getMajor() >= 7) {
+            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());
+
+        }
+        return expansions;
     }
 
     private void checkFrozen() {

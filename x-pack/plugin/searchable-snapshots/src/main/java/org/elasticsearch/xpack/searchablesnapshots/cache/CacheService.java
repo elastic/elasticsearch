@@ -24,6 +24,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (
  * see {@link org.elasticsearch.index.store.SearchableSnapshotDirectory})
@@ -107,7 +109,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @return the cache range size (in bytes)
      */
     public int getRangeSize() {
-        return Math.toIntExact(rangeSize.getBytes());
+        return toIntBytes(rangeSize.getBytes());
     }
 
     public CacheFile get(final CacheKey cacheKey, final long fileLength, final Path cacheDir) throws Exception {

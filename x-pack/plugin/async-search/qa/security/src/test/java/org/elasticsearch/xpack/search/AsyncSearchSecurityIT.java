@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.hamcrest.CustomMatcher;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -75,14 +77,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     public void testWithDlsAndFls() throws Exception {
         Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user_dls");
         assertOK(submitResp);
-        String id = extractResponseId(submitResp);
-        Response getResp = getAsyncSearch(id, "user_dls");
-        AsyncSearchResponse searchResponse = AsyncSearchResponse.fromXContent(XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                new BytesArray(EntityUtils.toByteArray(getResp.getEntity())),
-                XContentType.JSON));
-        SearchHit[] hits = searchResponse.getSearchResponse().getHits().getHits();
-
+        SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user_dls");
         assertThat(hits, arrayContainingInAnyOrder(
                 new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
                     @Override
@@ -149,6 +144,139 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             () -> submitAsyncSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(exc.getMessage(), containsString("unauthorized"));
+    }
+
+    private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
+        final Response resp = getAsyncSearch(asyncId, user);
+        assertOK(resp);
+        AsyncSearchResponse searchResponse = AsyncSearchResponse.fromXContent(XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            new BytesArray(EntityUtils.toByteArray(resp.getEntity())),
+            XContentType.JSON));
+        return searchResponse.getSearchResponse().getHits().getHits();
+    }
+
+    public void testAuthorizationOfPointInTime() throws Exception {
+        String authorizedUser = randomFrom("user1", "user2");
+        final Matcher<SearchHit> hitMatcher = new CustomMatcher<>("hit") {
+            @Override
+            public boolean matches(Object actual) {
+                SearchHit hit = (SearchHit) actual;
+                return hit.getIndex().equals("index-" + authorizedUser) && hit.getId().equals("0");
+            }
+        };
+        final String pitId = openPointInTime(new String[]{"index-" + authorizedUser}, authorizedUser);
+        try {
+            Response submit = submitAsyncSearchWithPIT(pitId, "foo:bar", TimeValue.timeValueSeconds(10), authorizedUser);
+            assertOK(submit);
+            final Response resp = getAsyncSearch(extractResponseId(submit), authorizedUser);
+            assertOK(resp);
+            assertThat(getSearchHits(extractResponseId(resp), authorizedUser), arrayContainingInAnyOrder(hitMatcher));
+
+            String unauthorizedUser = randomValueOtherThan(authorizedUser, () -> randomFrom("user1", "user2"));
+            ResponseException exc = expectThrows(ResponseException.class,
+                () -> submitAsyncSearchWithPIT(pitId, "*:*", TimeValue.timeValueSeconds(10), unauthorizedUser));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(exc.getMessage(), containsString("unauthorized"));
+
+        } finally {
+            closePointInTime(pitId, authorizedUser);
+        }
+    }
+
+    public void testRejectPointInTimeWithIndices() throws Exception {
+        String authorizedUser = randomFrom("user1", "user2");
+        final String pitId = openPointInTime(new String[]{"index-" + authorizedUser}, authorizedUser);
+        try {
+            final Request request = new Request("POST", "/_async_search");
+            setRunAsHeader(request, authorizedUser);
+            request.addParameter("wait_for_completion_timeout", "true");
+            request.addParameter("keep_on_completion", "true");
+            if (randomBoolean()) {
+                request.addParameter("index", "index-" + authorizedUser);
+            } else {
+                request.addParameter("index", "*");
+            }
+            final XContentBuilder requestBody = JsonXContent.contentBuilder()
+                .startObject()
+                .startObject("pit")
+                .field("id", pitId)
+                .field("keep_alive", "1m")
+                .endObject()
+                .endObject();
+            request.setJsonEntity(Strings.toString(requestBody));
+            final ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(exc.getMessage(), containsString("[indices] cannot be used with point in time"));
+        } finally {
+            closePointInTime(pitId, authorizedUser);
+        }
+    }
+
+    public void testSharingPointInTime() throws Exception {
+        final Matcher<SearchHit> hitMatcher = new CustomMatcher<>("index") {
+            @Override
+            public boolean matches(Object actual) {
+                SearchHit hit = (SearchHit) actual;
+                return hit.getIndex().equals("index") && hit.getId().equals("0");
+            }
+        };
+        String firstUser = randomFrom("user1", "user2");
+        final String pitId = openPointInTime(new String[]{"index"}, firstUser);
+        try {
+            {
+                Response firstSubmit = submitAsyncSearchWithPIT(pitId, "foo:bar", TimeValue.timeValueSeconds(10), firstUser);
+                assertOK(firstSubmit);
+                final Response firstResp = getAsyncSearch(extractResponseId(firstSubmit), firstUser);
+                assertOK(firstResp);
+                final SearchHit[] firstHits = getSearchHits(extractResponseId(firstResp), firstUser);
+                assertThat(firstHits, arrayContainingInAnyOrder(hitMatcher));
+            }
+            {
+                String secondUser = randomValueOtherThan(firstUser, () -> randomFrom("user1", "user2"));
+                Response secondSubmit = submitAsyncSearchWithPIT(pitId, "foo:bar", TimeValue.timeValueSeconds(10), secondUser);
+                assertOK(secondSubmit);
+                final Response secondResp = getAsyncSearch(extractResponseId(secondSubmit), secondUser);
+                assertOK(secondResp);
+                final SearchHit[] secondHits = getSearchHits(extractResponseId(secondResp), secondUser);
+                assertThat(secondHits, arrayContainingInAnyOrder(hitMatcher));
+            }
+        } finally {
+            closePointInTime(pitId, firstUser);
+        }
+    }
+
+    public void testWithDLSPointInTime() throws Exception {
+        final String pitId = openPointInTime(new String[]{"index"}, "user1");
+        try {
+            Response userResp = submitAsyncSearchWithPIT(pitId, "*", TimeValue.timeValueSeconds(10), "user1");
+            assertOK(userResp);
+            assertThat(getSearchHits(extractResponseId(userResp), "user1"), arrayWithSize(3));
+
+            Response dlsResp = submitAsyncSearchWithPIT(pitId, "*", TimeValue.timeValueSeconds(10), "user_dls");
+            assertOK(dlsResp);
+            assertThat(getSearchHits(extractResponseId(dlsResp), "user_dls"), arrayContainingInAnyOrder(
+                new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
+                    @Override
+                    public boolean matches(Object actual) {
+                        SearchHit hit = (SearchHit) actual;
+                        return "index".equals(hit.getIndex()) &&
+                            "1".equals(hit.getId()) &&
+                            hit.getSourceAsMap().isEmpty();
+                    }
+                },
+                new CustomMatcher<SearchHit>("\"index\" doc 2 matcher") {
+                    @Override
+                    public boolean matches(Object actual) {
+                        SearchHit hit = (SearchHit) actual;
+                        return "index".equals(hit.getIndex()) &&
+                            "2".equals(hit.getId()) &&
+                            "boo".equals(hit.getSourceAsMap().get("baz"));
+                    }
+                }));
+        } finally {
+            closePointInTime(pitId, "user1");
+        }
     }
 
     static String extractResponseId(Response response) throws IOException {
@@ -218,5 +346,43 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.addHeader(RUN_AS_USER_HEADER, user);
         request.setOptions(builder);
+    }
+
+    private String openPointInTime(String[] indexNames, String user) throws IOException {
+        final Request request = new Request("POST", "/_pit");
+        request.addParameter("index", String.join(",", indexNames));
+        setRunAsHeader(request, user);
+        request.addParameter("keep_alive", between(1, 5) + "m");
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        return (String) toMap(response).get("id");
+    }
+
+    static Response submitAsyncSearchWithPIT(String pit, String query, TimeValue waitForCompletion, String user) throws IOException {
+        final Request request = new Request("POST", "/_async_search");
+        setRunAsHeader(request, user);
+        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
+        request.addParameter("q", query);
+        request.addParameter("keep_on_completion", "true");
+        final XContentBuilder requestBody = JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("pit")
+                    .field("id", pit)
+                    .field("keep_alive", "1m")
+                .endObject()
+            .endObject();
+        request.setJsonEntity(Strings.toString(requestBody));
+        return client().performRequest(request);
+    }
+
+    private void closePointInTime(String pitId, String user) throws IOException {
+        final Request request = new Request("DELETE", "/_pit");
+        setRunAsHeader(request, user);
+        final XContentBuilder requestBody = JsonXContent.contentBuilder()
+            .startObject()
+                .field("id", pitId)
+            .endObject();
+        request.setJsonEntity(Strings.toString(requestBody));
+        assertOK(client().performRequest(request));
     }
 }

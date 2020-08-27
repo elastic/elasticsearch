@@ -102,14 +102,12 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
     void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
         if (licenseState.isSecurityEnabled() && searchContext.scrollContext() != null) {
-            IndicesAccessControl scrollIndicesAccessControl =
-                    searchContext.scrollContext().getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl threadIndicesAccessControl =
                     securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            if (scrollIndicesAccessControl != threadIndicesAccessControl) {
-                throw new ElasticsearchSecurityException("[" + searchContext.id() + "] expected scroll indices access control [" +
-                        scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +
-                        "context");
+            if (null == threadIndicesAccessControl) {
+                throw new ElasticsearchSecurityException("Unexpected null indices access control for search context [" +
+                        searchContext.id() + "] for request [" + searchContext.request().getDescription() + "] with source [" +
+                        searchContext.source() + "]");
             }
         }
     }
@@ -130,7 +128,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
         if (original.getUser().isRunAs()) {
             if (current.getUser().isRunAs()) {
                 sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
-            }  else {
+            } else {
                 sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
             }
         } else if (current.getUser().isRunAs()) {

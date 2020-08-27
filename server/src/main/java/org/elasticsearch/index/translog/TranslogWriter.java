@@ -21,6 +21,8 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.procedures.LongProcedure;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -61,6 +64,8 @@ import java.util.function.LongSupplier;
 
 @SuppressForbidden(reason = "Channel#write")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(TranslogWriter.class);
 
     private static final long FORCE_WRITE_THRESHOLD = 1024 * 1024 * 4;
 
@@ -136,11 +141,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
                                         final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer)
         throws IOException {
+        final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
         final FileChannel channel = channelFactory.open(file);
         boolean checkpointChannelOpened = false;
         try {
-            Path parent = file.getParent();
-            Path checkpointFile = parent.resolve(Translog.CHECKPOINT_FILE_NAME);
             final FileChannel checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             checkpointChannelOpened = true;
 
@@ -149,7 +153,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 header.write(channel);
                 final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(header.sizeInBytes(), fileGeneration,
                     initialGlobalCheckpoint, initialMinTranslogGen);
-                writeCheckpoint(checkpointChannel, parent, checkpoint);
+                writeCheckpoint(checkpointChannel, checkpointFile, checkpoint);
                 final LongSupplier writerGlobalCheckpointSupplier;
                 if (Assertions.ENABLED) {
                     writerGlobalCheckpointSupplier = () -> {
@@ -409,7 +413,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // we can continue writing to the buffer etc.
                     try {
                         channel.force(false);
-                        writeCheckpoint(checkPointChannel, path.getParent(), checkpointToSync);
+                        writeCheckpoint(checkPointChannel, path.getParent().resolve(Translog.CHECKPOINT_FILE_NAME), checkpointToSync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -544,15 +548,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
-        Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
+        try {
+            Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
+        } catch (Exception e) {
+            logger.error("Tried to read position: " + position + ", current total offset: " + totalOffset.get());
+            throw e;
+        }
     }
 
     private static void writeCheckpoint(
         final FileChannel fileChannel,
-        final Path translogFile,
+        final Path checkpointFile,
         final Checkpoint checkpoint) throws IOException {
         fileChannel.position(0);
-        Checkpoint.write(fileChannel, translogFile.resolve(Translog.CHECKPOINT_FILE_NAME), checkpoint);
+        Checkpoint.write(fileChannel, checkpointFile, checkpoint);
     }
 
     /**

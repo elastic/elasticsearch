@@ -100,7 +100,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             if (null == threadIndicesAccessControl) {
                 throw new ElasticsearchSecurityException("Unexpected null indices access control for search context [" +
-                        searchContext.id() + "] for request [" + searchContext.request().getDescription() + "] with source [" +
+                        searchContext.id() + "] for request [" + searchContext.request().shardId() + "] with source [" +
                         searchContext.source() + "]");
             }
         }

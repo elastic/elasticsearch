@@ -192,7 +192,7 @@ public final class IndexSortConfig {
             try {
                 fieldData = fieldDataLookup.apply(ft);
             } catch (Exception e) {
-                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
+                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");

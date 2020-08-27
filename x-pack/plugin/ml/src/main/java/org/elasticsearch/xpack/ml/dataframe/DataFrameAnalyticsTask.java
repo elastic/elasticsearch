@@ -32,8 +32,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -104,6 +106,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     public StatsHolder getStatsHolder() {
         return statsHolder;
+    }
+
+    @Override
+    protected void init(PersistentTasksService persistentTasksService,
+                        TaskManager taskManager,
+                        String persistentTaskId,
+                        long allocationId) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 
     @Override
@@ -200,10 +210,16 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void setFailed(Exception error) {
+        if (analyticsManager.isNodeShuttingDown()) {
+            LOGGER.warn(
+                new ParameterizedMessage("[{}] *Not* setting task to failed because the node is being shutdown", taskParams.getId()),
+                error);
+            return;
+        }
         LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
         String reason = ExceptionsHelper.unwrapCause(error).getMessage();
-        DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED,
-                getAllocationId(), reason);
+        DataFrameAnalyticsTaskState newTaskState =
+            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, getAllocationId(), reason);
         updatePersistentTaskState(
             newTaskState,
             ActionListener.wrap(
@@ -371,5 +387,4 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
         return StartingState.RESUMING_ANALYZING;
     }
-
 }

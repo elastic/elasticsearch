@@ -53,7 +53,7 @@ Defaults to `all`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
 +
 --
-Defaults to `false`.
+Defaults to `true`.
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]

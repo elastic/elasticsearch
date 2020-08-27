@@ -72,8 +72,15 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return "get_aliases_action";
     }
 
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        // If not given an index (only an alias), resolves `_all`, which causes deprecation warnings.
+        return true;
+    }
+
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
-            ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap, XContentBuilder builder) throws Exception {
+                                          ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+                                          XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {

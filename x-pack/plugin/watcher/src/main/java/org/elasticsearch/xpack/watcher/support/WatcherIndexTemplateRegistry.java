@@ -73,7 +73,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
         if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0) == false) {
             return Arrays.asList(
-                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
+                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
                 TEMPLATE_CONFIG_TRIGGERED_WATCHES,
                 TEMPLATE_CONFIG_WATCHES
             );
@@ -90,7 +90,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_CONFIG_WATCHES
             );
         }
-        return Collections.empytList();
+        return Collections.emptyList();
     }
 
     /**

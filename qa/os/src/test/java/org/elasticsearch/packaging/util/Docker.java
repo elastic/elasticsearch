@@ -446,7 +446,7 @@ public class Docker {
 
         args.add("cd " + containerBasePath.toAbsolutePath());
         args.add("&&");
-        args.add("rm -r " + localPath.getFileName());
+        args.add("rm -rf " + localPath.getFileName());
         final String command = String.join(" ", args);
         executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
     }

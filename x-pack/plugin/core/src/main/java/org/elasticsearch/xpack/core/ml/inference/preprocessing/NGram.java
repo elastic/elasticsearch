@@ -38,6 +38,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
 
     private static final int DEFAULT_START = 0;
     private static final int DEFAULT_LENGTH = 50;
+    private static final int MAX_LENGTH = 100;
     private static final int MIN_GRAM = 1;
     private static final int MAX_GRAM = 5;
 
@@ -128,7 +129,10 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         }
         this.length = length;
         if (length <= 0) {
-            throw ExceptionsHelper.badRequestException("[length] must be a positive integer");
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", LENGTH.getPreferredName());
+        }
+        if (length > MAX_LENGTH) {
+            throw ExceptionsHelper.badRequestException("[{}] must be not be greater than [{}]", LENGTH.getPreferredName(), MAX_LENGTH);
         }
         this.custom = custom;
     }

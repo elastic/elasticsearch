@@ -63,7 +63,6 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     private String jobId;
     private String sourceIndex;
     private String destIndex;
-    private boolean analysisUsesExistingDestIndex;
 
     @Before
     public void setupLogging() {
@@ -148,7 +147,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
         this.destIndex = sourceIndex + "_results";
-        this.analysisUsesExistingDestIndex = randomBoolean();
+        boolean analysisUsesExistingDestIndex = randomBoolean();
         createIndex(sourceIndex, isDatastream);
         if (analysisUsesExistingDestIndex) {
             createIndex(destIndex, false);
@@ -261,11 +260,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     }
 
     private String stateDocId() {
-        return jobId + "_classification_state#1";
-    }
-
-    private String expectedDestIndexAuditMessage() {
-        return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
+        return jobId + "_regression_state#1";
     }
 
     @Override

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -60,6 +61,15 @@ public class PointInTimeIT extends ESIntegTestCase {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(LocalStateCompositeXPackPlugin.class);
         return plugins;
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            // If shards are relocated to new nodes, then searches with point-in-time will fail
+            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            .build();
     }
 
     public void testBasic() {

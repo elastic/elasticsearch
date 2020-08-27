@@ -43,7 +43,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -56,7 +56,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.IndexSettingsProviderPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -377,10 +376,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Collection<ExplicitIndexSettingProvider> getExplicitSettingProviders() {
-        Set<ExplicitIndexSettingProvider> providers = new HashSet<>();
-        filterPlugins(IndexSettingsProviderPlugin.class).stream().forEach(p -> providers.addAll(p.getExplicitSettingProviders()));
-        providers.addAll(super.getExplicitSettingProviders());
+    public Collection<IndexSettingProvider> getAdditionalSettingProviders() {
+        Set<IndexSettingProvider> providers = new HashSet<>();
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalSettingProviders()));
+        providers.addAll(super.getAdditionalSettingProviders());
         return providers;
 
     }

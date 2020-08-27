@@ -17,21 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.index.shard;
 
-import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
-
-import java.util.Collection;
-import java.util.Collections;
+import org.elasticsearch.common.settings.Settings;
 
 /**
- * An {@link IndexSettingsProviderPlugin} is a plugin that allows hooking in to parts of an index
- * lifecycle to provide explicit default settings for newly created indices. Rather than changing
- * the default values for an index-level setting, these act as though the setting has been set
- * explicitly, but still allow the setting to be overridden by a template or creation request body.
+ * An {@link IndexSettingProvider} is a provider for index level settings that can be set
+ * explicitly as a default value (so they show up as "set" for newly created indices)
  */
-public interface IndexSettingsProviderPlugin {
-    default Collection<ExplicitIndexSettingProvider> getExplicitSettingProviders() {
-        return Collections.emptyList();
+public interface IndexSettingProvider {
+    /**
+     * Returns explicitly set default index {@link Settings} for the given index. This should not
+     * return null.
+     */
+    default Settings getAdditionalIndexSettings(String indexName, Settings templateAndRequestSettings) {
+        return Settings.EMPTY;
     }
 }

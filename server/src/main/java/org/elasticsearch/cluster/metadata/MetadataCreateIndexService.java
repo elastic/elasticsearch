@@ -68,7 +68,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -129,7 +129,7 @@ public class MetadataCreateIndexService {
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
-    private final Set<ExplicitIndexSettingProvider> explicitIndexSettingProviders = new HashSet<>();
+    private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -159,16 +159,16 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Add a provider to be invoked to get explicit index settings prior to an index being created
+     * Add a provider to be invoked to get additional index settings prior to an index being created
      */
-    public void addExplicitIndexSettingProvider(ExplicitIndexSettingProvider provider) {
+    public void addAdditionalIndexSettingProvider(IndexSettingProvider provider) {
         if (provider == null) {
             throw new IllegalArgumentException("provider must not be null");
         }
-        if (explicitIndexSettingProviders.contains(provider)) {
+        if (indexSettingProviders.contains(provider)) {
             throw new IllegalArgumentException("provider already added");
         }
-        this.explicitIndexSettingProviders.add(provider);
+        this.indexSettingProviders.add(provider);
     }
 
     /**
@@ -480,7 +480,7 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates),
-                null, settings, indexScopedSettings, shardLimitValidator, explicitIndexSettingProviders);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -506,7 +506,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
-                null, settings, indexScopedSettings, shardLimitValidator, explicitIndexSettingProviders);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -552,7 +552,7 @@ public class MetadataCreateIndexService {
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
-            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, explicitIndexSettingProviders);
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -613,7 +613,7 @@ public class MetadataCreateIndexService {
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
                                            Settings combinedTemplateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
                                            IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator,
-                                           Set<ExplicitIndexSettingProvider> explicitIndexSettingProviders) {
+                                           Set<IndexSettingProvider> indexSettingProviders) {
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
         // index (see more comments below)
@@ -622,16 +622,16 @@ public class MetadataCreateIndexService {
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Settings.Builder explicitDefaultSettings = Settings.builder();
+            final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder()
                 .put(combinedTemplateSettings)
                 .put(request.settings())
                 .build();
 
             // Loop through all the explicit index setting providers, adding them to the
-            // explicitDefaultSettings map
-            for (ExplicitIndexSettingProvider provider : explicitIndexSettingProviders) {
-                explicitDefaultSettings.put(provider.getExplicitIndexSettings(request.index(), templateAndRequestSettings));
+            // additionalIndexSettings map
+            for (IndexSettingProvider provider : indexSettingProviders) {
+                additionalIndexSettings.put(provider.getAdditionalIndexSettings(request.index(), templateAndRequestSettings));
             }
 
             // For all the explicit settings, we go through the template and request level settings
@@ -644,17 +644,17 @@ public class MetadataCreateIndexService {
             // also from the template and request settings, so that from the newly create index's
             // perspective it is as though the setting has not been set at all (using the default
             // value).
-            for (String explicitSetting : explicitDefaultSettings.keys()) {
+            for (String explicitSetting : additionalIndexSettings.keys()) {
                 if (templateSettings.keys().contains(explicitSetting) && templateSettings.get(explicitSetting) == null) {
                     logger.debug("removing default [{}] setting as it in set to null in a template for [{}] creation",
                         explicitSetting, request.index());
-                    explicitDefaultSettings.remove(explicitSetting);
+                    additionalIndexSettings.remove(explicitSetting);
                     templateSettings.remove(explicitSetting);
                 }
                 if (requestSettings.keys().contains(explicitSetting) && requestSettings.get(explicitSetting) == null) {
                     logger.debug("removing default [{}] setting as it in set to null in the request for [{}] creation",
                         explicitSetting, request.index());
-                    explicitDefaultSettings.remove(explicitSetting);
+                    additionalIndexSettings.remove(explicitSetting);
                     requestSettings.remove(explicitSetting);
                 }
             }
@@ -662,7 +662,7 @@ public class MetadataCreateIndexService {
             // Finally, we actually add the explicit defaults prior to the template settings and the
             // request settings, so that the precedence goes:
             // Explicit Defaults -> Template -> Request -> Necessary Settings (# of shards, uuid, etc)
-            indexSettingsBuilder.put(explicitDefaultSettings.build());
+            indexSettingsBuilder.put(additionalIndexSettings.build());
             indexSettingsBuilder.put(templateSettings.build());
         }
 

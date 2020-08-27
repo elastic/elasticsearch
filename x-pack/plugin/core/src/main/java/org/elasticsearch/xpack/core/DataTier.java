@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ExplicitIndexSettingProvider;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Set;
@@ -150,11 +150,11 @@ public class DataTier {
      * {@code index.routing.allocation.include._tier: "data_hot"} unless the user overrides the
      * setting while the index is being created (in a create index request for instance)
      */
-    public static class DefaultHotAllocationSettingProvider implements ExplicitIndexSettingProvider {
+    public static class DefaultHotAllocationSettingProvider implements IndexSettingProvider {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public Settings getExplicitIndexSettings(String indexName, Settings indexSettings) {
+        public Settings getAdditionalIndexSettings(String indexName, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
             if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)) {
                 // It's okay to put it, it will be removed or overridden by the template/request settings

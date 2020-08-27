@@ -134,7 +134,6 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.IndexSettingsProviderPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -504,9 +503,9 @@ public class Node implements Closeable {
                     systemIndices,
                     forbidPrivateIndexSettings
             );
-            pluginsService.filterPlugins(IndexSettingsProviderPlugin.class)
-                .forEach(ilp -> ilp.getExplicitSettingProviders()
-                    .forEach(metadataCreateIndexService::addExplicitIndexSettingProvider));
+            pluginsService.filterPlugins(Plugin.class)
+                .forEach(p -> p.getAdditionalSettingProviders()
+                    .forEach(metadataCreateIndexService::addAdditionalIndexSettingProvider));
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
                 new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);

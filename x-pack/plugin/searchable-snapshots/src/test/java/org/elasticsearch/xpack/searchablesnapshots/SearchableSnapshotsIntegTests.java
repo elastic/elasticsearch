@@ -11,7 +11,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -425,6 +424,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(restoredIndexName);
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
     }
 
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
@@ -507,6 +508,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 );
             }
         }
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
     }
 
     private Map<String, Long> getMaxShardSizeByNodeInBytes(String indexName) {
@@ -707,11 +710,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {
-                ByteSizeValue cacheSize = getCacheSizeForShard(recoveryState.getShardId());
+                ByteSizeValue cacheSize = getCacheSizeForNode(recoveryState.getTargetNode().getName());
                 boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
                 RecoveryState.Index index = recoveryState.getIndex();
                 assertThat(
-                    Strings.toString(recoveryState),
+                    Strings.toString(recoveryState, true, true),
                     index.recoveredFileCount(),
                     preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
                 );
@@ -784,18 +787,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     if (cacheEnabled == false || nonCachedExtensions.contains(IndexFileNames.getExtension(fileName))) {
                         assertThat(
                             "Expected at least 1 optimized or direct read for " + fileName + " of shard " + shardRouting,
-                            Math.max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
+                            max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
                             greaterThan(0L)
                         );
                         assertThat(
                             "Expected no cache read or write for " + fileName + " of shard " + shardRouting,
-                            Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
+                            max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
                             equalTo(0L)
                         );
                     } else if (nodeIdsWithLargeEnoughCache.contains(stats.getShardRouting().currentNodeId())) {
                         assertThat(
                             "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
-                            Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
+                            max(
+                                indexInputStats.getCachedBytesRead().getCount(),
+                                indexInputStats.getCachedBytesWritten().getCount(),
+                                indexInputStats.getIndexCacheBytesRead().getCount()
+                            ),
                             greaterThan(0L)
                         );
                         assertThat(
@@ -811,15 +818,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     } else {
                         assertThat(
                             "Expected at least 1 read or write of any kind for " + fileName + " of shard " + shardRouting,
-                            Math.max(
-                                Math.max(
-                                    indexInputStats.getCachedBytesRead().getCount(),
-                                    indexInputStats.getCachedBytesWritten().getCount()
-                                ),
-                                Math.max(
-                                    indexInputStats.getOptimizedBytesRead().getCount(),
-                                    indexInputStats.getDirectBytesRead().getCount()
-                                )
+                            max(
+                                indexInputStats.getCachedBytesRead().getCount(),
+                                indexInputStats.getCachedBytesWritten().getCount(),
+                                indexInputStats.getOptimizedBytesRead().getCount(),
+                                indexInputStats.getDirectBytesRead().getCount(),
+                                indexInputStats.getIndexCacheBytesRead().getCount()
                             ),
                             greaterThan(0L)
                         );
@@ -829,13 +833,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
     }
 
-    private ByteSizeValue getCacheSizeForShard(ShardId shardId) {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setRoutingTable(true).setNodes(true).get();
-        ClusterState clusterStateResponseState = clusterStateResponse.getState();
-        String nodeId = clusterStateResponseState.getRoutingTable().shardRoutingTable(shardId).primaryShard().currentNodeId();
-        DiscoveryNode discoveryNode = clusterStateResponseState.nodes().get(nodeId);
+    private static long max(long... values) {
+        return Arrays.stream(values).max().orElseThrow(() -> new AssertionError("no values"));
+    }
 
-        final Settings nodeSettings = internalCluster().getInstance(Environment.class, discoveryNode.getName()).settings();
-        return CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(nodeSettings);
+    private ByteSizeValue getCacheSizeForNode(String nodeName) {
+        return CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(internalCluster().getInstance(Environment.class, nodeName).settings());
     }
 }

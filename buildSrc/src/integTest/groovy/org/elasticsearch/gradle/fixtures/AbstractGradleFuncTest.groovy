@@ -58,7 +58,11 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     String normalizedOutput(String input) {
         return input.readLines()
-                .collect {it.replaceAll(testProjectDir.root.canonicalPath, ".") }
+                .collect { it.replaceAll("\\\\", "/") }
+                .collect {
+                    it.replaceAll(
+                            testProjectDir.root.canonicalPath.replaceAll('\\\\', '/'), ".")
+                }
                 .join("\n")
     }
 

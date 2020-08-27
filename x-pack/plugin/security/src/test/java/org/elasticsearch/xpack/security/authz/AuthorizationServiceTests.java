@@ -262,9 +262,11 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizationService.authorize(authentication, action, request, future);
-        future.actionGet();
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            authorizationService.authorize(authentication, action, request, future);
+            future.actionGet();
+        }
     }
 
     public void testActionsForSystemUserIsAuthorized() throws IOException {
@@ -290,7 +292,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (String action : actions) {
             authorize(authentication, action, request);
             verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
-                authzInfoRoles(new String[] { SystemUser.ROLE_NAME }));
+                    authzInfoRoles(new String[]{SystemUser.ROLE_NAME}));
         }
 
         verifyNoMoreInteractions(auditTrail);

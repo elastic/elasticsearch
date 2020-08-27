@@ -177,10 +177,10 @@ public class SparseFileTracker {
                 wrappedListener.onResponse(null);
                 break;
             case 1:
-                final ProgressListenableActionFuture requiredRange = requiredListeners.get(0);
-                requiredRange.addListener(
+                final ProgressListenableActionFuture requiredListener = requiredListeners.get(0);
+                requiredListener.addListener(
                     ActionListener.map(wrappedListener, progress -> null),
-                    Math.min(requiredRange.end, subRange.v2())
+                    Math.min(requiredListener.end, subRange.v2())
                 );
                 break;
             default:

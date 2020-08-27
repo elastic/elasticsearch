@@ -137,7 +137,6 @@ public class NodeLoadDetector {
         }
     }
 
-
     public static class NodeLoad {
         private final long maxMemory;
         private final int maxJobs;

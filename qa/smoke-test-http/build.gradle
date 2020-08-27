@@ -34,4 +34,9 @@ integTest {
    * other if we allow them to set the number of available processors as it's set-once in Netty.
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+  /* We need to set this here to prevent release builds from failing while the default is different between snapshot and release builds.
+  * Specifically, this is needed for SystemIndexRestIT, which assumes the value is `deprecated`.
+  */
+  systemProperty 'es.system_index_access_behavior', 'deprecated'
 }

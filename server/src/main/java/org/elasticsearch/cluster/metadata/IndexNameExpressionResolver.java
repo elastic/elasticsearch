@@ -41,6 +41,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -61,6 +62,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR;
 
 public class IndexNameExpressionResolver {
     public static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
@@ -298,6 +301,11 @@ public class IndexNameExpressionResolver {
             }
             throw infe;
         }
+        checkSystemIndexAccess(context, metadata, concreteIndices);
+        return concreteIndices.toArray(new Index[concreteIndices.size()]);
+    }
+
+    private static void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices) {
         if (context.isSystemIndexAccessAllowed() == false) {
             final List<String> resolvedSystemIndices = concreteIndices.stream()
                 .map(metadata::index)
@@ -306,15 +314,31 @@ public class IndexNameExpressionResolver {
                 .sorted() // reliable order for testing
                 .collect(Collectors.toList());
             if (resolvedSystemIndices.isEmpty() == false) {
-                deprecationLogger.deprecate("open_system_index_access", "this request accesses system indices: {}, but in a future" +
-                    " major version, direct access to system indices will be prevented by default", resolvedSystemIndices);
+                switch (SYSTEM_INDEX_ACCESS_BEHAVIOR) {
+                    case ALLOWED:
+                        // If access is allowed in all cases, then there's nothing to do here.
+                        break;
+                    case DEPRECATED:
+                        deprecationLogger.deprecate("open_system_index_access",
+                            "this request accesses system indices: {}, but in a future major version, direct access to system " +
+                                "indices will be prevented by default", resolvedSystemIndices);
+                        break;
+                    case RESTRICTED:
+                        final String errorMsg = "while resolving indices, resolved system indices [" + resolvedSystemIndices +
+                            "] when access to system indices is restricted";
+                        assert false : errorMsg;
+                        throw new IllegalArgumentException(errorMsg);
+                }
+                ;
             }
         }
-        return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
-
+        if (SYSTEM_INDEX_ACCESS_BEHAVIOR == SystemIndices.AccessBehavior.RESTRICTED
+                && context.isSystemIndexAccessAllowed() == false && index.isSystem()) {
+            return false;
+        }
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index.getIndex());
@@ -865,6 +889,9 @@ public class IndexNameExpressionResolver {
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                             context.includeDataStreams() == false) {
                             throw indexNotFoundException(expression);
+                        } else if (SYSTEM_INDEX_ACCESS_BEHAVIOR == SystemIndices.AccessBehavior.RESTRICTED
+                                    && context.isSystemIndexAccessAllowed() == false && indexAbstraction.isSystem()) {
+                            throw indexNotFoundException(expression);
                         }
                     }
                     if (add) {
@@ -998,6 +1025,10 @@ public class IndexNameExpressionResolver {
             for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
                 String aliasOrIndexName = entry.getKey();
                 IndexAbstraction indexAbstraction = entry.getValue();
+                if (SYSTEM_INDEX_ACCESS_BEHAVIOR == SystemIndices.AccessBehavior.RESTRICTED
+                    && context.isSystemIndexAccessAllowed() == false && indexAbstraction.isSystem()) {
+                    continue;
+                }
 
                 if (indexAbstraction.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

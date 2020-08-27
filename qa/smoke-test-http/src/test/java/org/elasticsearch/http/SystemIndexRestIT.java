@@ -112,7 +112,9 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
     private void assertDeprecationWarningOnAccess(String queryPattern, String warningIndexName) throws IOException {
         String expectedWarning = "this request accesses system indices: [" + warningIndexName + "], but in a " +
             "future major version, direct access to system indices will be prevented by default";
-        RequestOptions expectWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(expectedWarning::equals).build();
+        RequestOptions expectWarningOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(w -> w.contains(expectedWarning) == false || w.size() != 1)
+            .build();
         Request searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search"));
         searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
         // Disallow no indices to cause an exception if this resolves to zero indices (as we expect)

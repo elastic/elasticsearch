@@ -139,34 +139,43 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                         final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer)
         throws IOException {
         final FileChannel channel = channelFactory.open(file);
-        // TODO: Exception handling
-        final FileChannel checkpointChannel = channelFactory.open(file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME),
-            StandardOpenOption.WRITE);
+        boolean checkpointChannelOpened = false;
         try {
-            final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
-            header.write(channel);
-            final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(header.sizeInBytes(), fileGeneration,
-                initialGlobalCheckpoint, initialMinTranslogGen);
-            writeCheckpoint(checkpointChannel, file.getParent(), checkpoint);
-            final LongSupplier writerGlobalCheckpointSupplier;
-            if (Assertions.ENABLED) {
-                writerGlobalCheckpointSupplier = () -> {
-                    long gcp = globalCheckpointSupplier.getAsLong();
-                    assert gcp >= initialGlobalCheckpoint :
-                        "global checkpoint [" + gcp + "] lower than initial gcp [" + initialGlobalCheckpoint + "]";
-                    return gcp;
-                };
-            } else {
-                writerGlobalCheckpointSupplier = globalCheckpointSupplier;
+            Path parent = file.getParent();
+            Path checkpointFile = parent.resolve(Translog.CHECKPOINT_FILE_NAME);
+            final FileChannel checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
+            checkpointChannelOpened = true;
+
+            try {
+                final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
+                header.write(channel);
+                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(header.sizeInBytes(), fileGeneration,
+                    initialGlobalCheckpoint, initialMinTranslogGen);
+                writeCheckpoint(checkpointChannel, parent, checkpoint);
+                final LongSupplier writerGlobalCheckpointSupplier;
+                if (Assertions.ENABLED) {
+                    writerGlobalCheckpointSupplier = () -> {
+                        long gcp = globalCheckpointSupplier.getAsLong();
+                        assert gcp >= initialGlobalCheckpoint :
+                            "global checkpoint [" + gcp + "] lower than initial gcp [" + initialGlobalCheckpoint + "]";
+                        return gcp;
+                    };
+                } else {
+                    writerGlobalCheckpointSupplier = globalCheckpointSupplier;
+                }
+                return new TranslogWriter(channelFactory, shardId, checkpoint, channel, checkpointChannel, file,
+                    writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer);
+            } catch (Exception exception) {
+                // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
+                // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation
+                // is an error condition
+                IOUtils.closeWhileHandlingException(channel, checkpointChannel);
+                throw exception;
             }
-            return new TranslogWriter(channelFactory, shardId, checkpoint, channel, checkpointChannel, file,
-                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer);
-        } catch (Exception exception) {
-            // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
-            // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation
-            // is an error condition
-            IOUtils.closeWhileHandlingException(channel, checkpointChannel);
-            throw exception;
+        } finally {
+            if (checkpointChannelOpened == false) {
+                IOUtils.closeWhileHandlingException(channel);
+            }
         }
     }
 

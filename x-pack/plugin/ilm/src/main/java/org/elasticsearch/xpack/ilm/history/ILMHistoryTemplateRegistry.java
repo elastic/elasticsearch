@@ -28,7 +28,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
     // version 2: convert to hidden index
-    // version 2: templates moved to composable templates
+    // version 3: templates moved to composable templates
     public static final int INDEX_TEMPLATE_VERSION = 3;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";

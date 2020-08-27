@@ -197,7 +197,7 @@ public class NodeLoadDetector {
         }
 
         /**
-         * @return Returns a comma delimited string of errors if any where encountered.
+         * @return Returns a comma delimited string of errors if any were encountered.
          */
         @Nullable
         public String getError() {

@@ -1214,14 +1214,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Map<String, String> jvmOptionExpansions() {
-        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
         Map<String, String> expansions = new HashMap<>();
-        expansions.putAll(
-            Map.of(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString(), "logs/gc.log", confPathLogs.resolve("gc.log").toString())
-        );
+        Version version = getVersion();
+        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString());
+        if (version.onOrAfter("6.2.0")) {
+            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+        }
         if (getVersion().getMajor() >= 7) {
             expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());
-
         }
         return expansions;
     }

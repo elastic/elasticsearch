@@ -196,6 +196,31 @@ final class Checkpoint {
         }
     }
 
+    public static void write(FileChannel channel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V3_FILE_SIZE) {
+            @Override
+            public synchronized byte[] toByteArray() {
+                // don't clone
+                return buf;
+            }
+        };
+        final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
+        try (OutputStreamIndexOutput indexOutput =
+                 new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, V3_FILE_SIZE)) {
+            CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, CURRENT_VERSION);
+            checkpoint.write(indexOutput);
+            CodecUtil.writeFooter(indexOutput);
+
+            assert indexOutput.getFilePointer() == V3_FILE_SIZE :
+                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
+            assert indexOutput.getFilePointer() < 512 :
+                "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
+
+        }
+        Channels.writeToChannel(byteOutputStream.toByteArray(), channel);
+        channel.force(false);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

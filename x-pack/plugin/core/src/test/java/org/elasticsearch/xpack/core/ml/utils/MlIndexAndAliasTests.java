@@ -120,7 +120,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         verifyNoMoreInteractions(indicesAdminClient, listener);
     }
 
-    public void testInstallIndexTemplateIfRequired_TemplateExist() {
+    public void testInstallIndexTemplateIfRequired_GivenTemplateExists() {
         ClusterState clusterState = createClusterState(Collections.emptyMap(),
             Collections.singletonMap(InferenceIndexConstants.LATEST_INDEX_NAME,
                 createIndexTemplateMetaData(InferenceIndexConstants.LATEST_INDEX_NAME,

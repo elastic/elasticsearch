@@ -1197,24 +1197,29 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void tweakJvmOptions(Path configFileRoot) {
         LOGGER.info("Tweak jvm options {}.", configFileRoot.resolve("jvm.options"));
+        String heapDumpOrigin = (getVersion().getMajor() == 6) ? "-XX:HeapDumpPath=/heap/dump/path" : "-XX:HeapDumpPath=data";
+
         Map<String, String> expansions = Map.of(
-            "-XX:HeapDumpPath=data",
+            heapDumpOrigin,
             "-XX:HeapDumpPath=" + confPathLogs.toString(),
-            "-XX:ErrorFile=logs/hs_err_pid%p.log",
-            "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString(),
             "logs/gc.log",
             confPathLogs.resolve("gc.log").toString()
         );
+        if (getVersion().getMajor() >= 7) {
+            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());
 
+        }
         Path jvmOptions = configFileRoot.resolve("jvm.options");
         try {
             String content = new String(Files.readAllBytes(jvmOptions));
-            Set<String> keys = expansions.keySet();
-            for (String key : keys) {
-                if (!content.contains(key)) {
-                    throw new IOException("template property " + key + " not found in template.");
+            Set<String> origins = expansions.keySet();
+
+            for (String origin : origins) {
+                System.out.println("key = " + origin);
+                if (!content.contains(origin)) {
+                    throw new IOException("template property " + origin + " not found in template.");
                 }
-                content = content.replaceAll(key, expansions.get(key));
+                content = content.replaceAll(origin, expansions.get(origin));
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {

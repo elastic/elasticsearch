@@ -75,6 +75,8 @@ final class GeoLineAggregator extends MetricsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 paths = bigArrays.grow(paths, bucket + 1);
+                sortValues = bigArrays.grow(sortValues, bucket + 1);
+                idxs = bigArrays.grow(idxs, bucket + 1);
                 if (docGeoPointValues.advanceExact(doc) && docSortValues.advanceExact(doc)) {
                     if (docSortValues.docValueCount() > 1) {
                         throw new AggregationExecutionException("Encountered more than one sort value for a " +

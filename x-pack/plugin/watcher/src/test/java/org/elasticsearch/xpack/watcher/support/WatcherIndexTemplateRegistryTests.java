@@ -56,11 +56,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -68,6 +70,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -296,8 +299,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
 
         argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client.admin().indices(), times(2)).putTemplate(argumentCaptor.capture(), anyObject());
-        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME));
+        verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
+        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
+        ArgumentCaptor<PutComposableIndexTemplateAction.Request> captor =
+            ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
+        verify(client, atLeastOnce()).execute(same(PutComposableIndexTemplateAction.INSTANCE), captor.capture(), anyObject());
+        Set<String> templateNames =
+            captor.getAllValues().stream().map(PutComposableIndexTemplateAction.Request::name).collect(Collectors.toSet());
+        assertTrue(templateNames.contains(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME));
+        assertFalse(templateNames.contains(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
     }
 
     public void testThatTemplatesAreNotAppliedOnSameVersionNodes() {

@@ -46,6 +46,7 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -61,6 +62,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -221,7 +223,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeType rangeType() { return rangeType; }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
         }

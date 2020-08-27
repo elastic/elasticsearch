@@ -49,6 +49,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -118,6 +119,7 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
@@ -132,9 +134,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -318,8 +320,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
             }), circuitBreakerService, mapperService);
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
-            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
-        
+            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0],
+                indexSettings.getIndex().getName(),
+                () -> {
+                    throw new UnsupportedOperationException("search lookup not available");
+                }));
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
@@ -386,11 +391,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Sub-tests that need a more complex index field data provider can override this
      */
-    protected BiFunction<MappedFieldType, String, IndexFieldData<?>> getIndexFieldDataLookup(MapperService mapperService,
-                                                                                             CircuitBreakerService circuitBreakerService) {
-        return (fieldType, s) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName())
+    protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
+        MapperService mapperService, CircuitBreakerService circuitBreakerService) {
+        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(
+            mapperService.getIndexSettings().getIndex().getName(), searchLookup)
             .build(new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
-
     }
 
     /**
@@ -712,7 +717,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("").build(null, null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder("", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null, null).getValuesSourceType();
     }
 
     /**

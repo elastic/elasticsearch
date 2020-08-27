@@ -71,7 +71,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0) == false) {
+        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_10_0)) {
             return Arrays.asList(
                 ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
                 TEMPLATE_CONFIG_TRIGGERED_WATCHES,

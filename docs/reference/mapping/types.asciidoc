@@ -176,7 +176,3 @@ include::types/text.asciidoc[]
 include::types/token-count.asciidoc[]
 
 include::types/shape.asciidoc[]
-
-include::types/constant-keyword.asciidoc[]
-
-include::types/wildcard.asciidoc[]

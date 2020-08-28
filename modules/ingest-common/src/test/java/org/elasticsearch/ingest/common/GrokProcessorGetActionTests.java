@@ -28,17 +28,19 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.nullValue;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
-    private static final Map<String, String> TEST_PATTERNS = Collections.singletonMap("PATTERN", "foo");
+    private static final Map<String, String> TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
 
     public void testRequest() throws Exception {
-        GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request();
+        GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -56,6 +58,13 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         assertThat(response.getGrokPatterns(), equalTo(otherResponse.getGrokPatterns()));
     }
 
+    public void testResponseSorting() {
+        Map<String, String> sorted = GrokProcessorGetAction.TransportAction.getGrokPatternsResponse(TEST_PATTERNS, true);
+        List<String> sortedKeys = new ArrayList<>(TEST_PATTERNS.keySet());
+        Collections.sort(sortedKeys);
+        assertThat(new ArrayList<>(sorted.keySet()), equalTo(sortedKeys));
+    }
+
     @SuppressWarnings("unchecked")
     public void testResponseToXContent() throws Exception {
         GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(TEST_PATTERNS);
@@ -63,8 +72,9 @@ public class GrokProcessorGetActionTests extends ESTestCase {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
             Map<String, String> patterns = (Map<String, String>) converted.get("patterns");
-            assertThat(patterns.size(), equalTo(1));
-            assertThat(patterns.get("PATTERN"), equalTo("foo"));
+            assertThat(patterns.size(), equalTo(2));
+            assertThat(patterns.get("PATTERN1"), equalTo("foo1"));
+            assertThat(patterns.get("PATTERN2"), equalTo("foo2"));
         }
     }
 }

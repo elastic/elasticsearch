@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -55,15 +56,30 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
     public static class Request extends ActionRequest {
 
-        public Request() {}
+        private final boolean sorted;
+
+        public Request(boolean sorted) {
+            this.sorted = sorted;
+        }
 
         Request(StreamInput in) throws IOException {
             super(in);
+            this.sorted = in.readBoolean();
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(sorted);
+        }
+
+        public boolean sorted() {
+            return sorted;
         }
     }
 
@@ -108,10 +124,14 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
-                listener.onResponse(new Response(GROK_PATTERNS));
+                listener.onResponse(new Response(getGrokPatternsResponse(GROK_PATTERNS, request.sorted())));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        static Map<String, String> getGrokPatternsResponse(Map<String, String> patterns, boolean sorted) {
+            return sorted ? new TreeMap<>(patterns) : patterns;
         }
     }
 
@@ -129,7 +149,9 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> client.executeLocally(INSTANCE, new Request(), new RestToXContentListener<>(channel));
+            boolean sorted = request.paramAsBoolean("s", false);
+            Request grokPatternsRequest = new Request(sorted);
+            return channel -> client.executeLocally(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
         }
     }
 }

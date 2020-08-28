@@ -18,12 +18,18 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
@@ -33,11 +39,14 @@ public class ClientYamlSuiteRestApi {
 
     private final String location;
     private final String name;
-    private List<String> methods = new ArrayList<>();
-    private List<String> paths = new ArrayList<>();
-    private List<String> pathParts = new ArrayList<>();
-    private List<String> params = new ArrayList<>();
+    private Set<Path>  paths = new LinkedHashSet<>();
+    private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
+    private Stability stability;
+
+    public enum Stability {
+        EXPERIMENTAL, BETA, STABLE
+    }
 
     public enum Body {
         NOT_SUPPORTED, OPTIONAL, REQUIRED
@@ -56,62 +65,38 @@ public class ClientYamlSuiteRestApi {
         return location;
     }
 
-    public List<String> getMethods() {
-        return methods;
-    }
-
-    /**
-     * Returns the supported http methods given the rest parameters provided
-     */
-    public List<String> getSupportedMethods(Set<String> restParams) {
-        //we try to avoid hardcoded mappings but the index api is the exception
-        if ("index".equals(name) || "create".equals(name)) {
-            List<String> indexMethods = new ArrayList<>();
-            for (String method : methods) {
-                if (restParams.contains("id")) {
-                    //PUT when the id is provided
-                    if (HttpPut.METHOD_NAME.equals(method)) {
-                        indexMethods.add(method);
-                    }
-                } else {
-                    //POST without id
-                    if (HttpPost.METHOD_NAME.equals(method)) {
-                        indexMethods.add(method);
-                    }
-                }
-            }
-            return indexMethods;
+    void addPath(String path, String[] methods, Set<String> parts) {
+        Objects.requireNonNull(path, name + " API: path must not be null");
+        Objects.requireNonNull(methods, name + " API: methods must not be null");
+        if (methods.length == 0) {
+            throw new IllegalArgumentException(name + " API: methods is empty, at least one method is required");
         }
-
-        return methods;
+        Objects.requireNonNull(parts, name + " API: parts must not be null");
+        for (String part : parts) {
+            if (path.contains("{" + part + "}") == false) {
+                throw new IllegalArgumentException(name + " API: part [" + part + "] not contained in path [" + path + "]");
+            }
+        }
+        boolean add = this.paths.add(new Path(path, methods, parts));
+        if (add == false) {
+            throw new IllegalArgumentException(name + " API: found duplicate path [" + path + "]");
+        }
     }
 
-    void addMethod(String method) {
-        this.methods.add(method);
-    }
-
-    public List<String> getPaths() {
+    public Collection<Path> getPaths() {
         return paths;
     }
 
-    void addPath(String path) {
-        this.paths.add(path);
-    }
-
-    public List<String> getPathParts() {
-        return pathParts;
-    }
-
-    void addPathPart(String pathPart) {
-        this.pathParts.add(pathPart);
-    }
-
-    public List<String> getParams() {
+    /**
+     * Gets all parameters supported by the api. For every parameter defines if it
+     * is required or optional.
+     */
+    public Map<String, Boolean> getParams() {
         return params;
     }
 
-    void addParam(String param) {
-        this.params.add(param);
+    void addParam(String param, boolean required) {
+        this.params.put(param, required);
     }
 
     void setBodyOptional() {
@@ -130,47 +115,85 @@ public class ClientYamlSuiteRestApi {
         return body == Body.REQUIRED;
     }
 
-    /**
-     * Finds the best matching rest path given the current parameters and replaces
-     * placeholders with their corresponding values received as arguments
-     */
-    public ClientYamlSuiteRestPath[] getFinalPaths(Map<String, String> pathParams) {
-        List<ClientYamlSuiteRestPath> matchingRestPaths = findMatchingRestPaths(pathParams.keySet());
-        if (matchingRestPaths == null || matchingRestPaths.isEmpty()) {
-            throw new IllegalArgumentException("unable to find matching rest path for api [" + name + "] and path params " + pathParams);
-        }
-
-        ClientYamlSuiteRestPath[] restPaths = new ClientYamlSuiteRestPath[matchingRestPaths.size()];
-        for (int i = 0; i < matchingRestPaths.size(); i++) {
-            ClientYamlSuiteRestPath restPath = matchingRestPaths.get(i);
-            restPaths[i] = restPath.replacePlaceholders(pathParams);
-        }
-        return restPaths;
+    public void setStability(String stability) {
+        this.stability = Stability.valueOf(stability.toUpperCase(Locale.ROOT));
     }
 
+    public Stability getStability() { return this.stability; }
+
     /**
-     * Finds the matching rest paths out of the available ones with the current api (based on REST spec).
-     *
+     * Returns the best matching paths based on the provided parameters, which may include either path parts or query_string parameters.
      * The best path is the one that has exactly the same number of placeholders to replace
      * (e.g. /{index}/{type}/{id} when the path params are exactly index, type and id).
+     * It returns a list instead of a single path as there are cases where there is more than one best matching path:
+     * - /{index}/_alias/{name}, /{index}/_aliases/{name}
+     * - /{index}/{type}/_mapping, /{index}/{type}/_mappings, /{index}/_mappings/{type}, /{index}/_mapping/{type}
      */
-    private List<ClientYamlSuiteRestPath> findMatchingRestPaths(Set<String> restParams) {
-
-        List<ClientYamlSuiteRestPath> matchingRestPaths = new ArrayList<>();
-        ClientYamlSuiteRestPath[] restPaths = buildRestPaths();
-        for (ClientYamlSuiteRestPath restPath : restPaths) {
-            if (restPath.matches(restParams)) {
-                matchingRestPaths.add(restPath);
+    public List<ClientYamlSuiteRestApi.Path> getBestMatchingPaths(Set<String> params) {
+        PriorityQueue<Tuple<Integer, Path>> queue = new PriorityQueue<>(Comparator.comparing(Tuple::v1, (a, b) -> Integer.compare(b, a)));
+        for (ClientYamlSuiteRestApi.Path path : paths) {
+            int matches = 0;
+            for (String actualParameter : params) {
+                if (path.getParts().contains(actualParameter)) {
+                    matches++;
+                }
+            }
+            if (matches == path.parts.size()) {
+                queue.add(Tuple.tuple(matches, path));
             }
         }
-        return matchingRestPaths;
+        if (queue.isEmpty()) {
+            throw new IllegalStateException("Unable to find a matching path for api [" + name + "]" + params);
+        }
+        List<Path> paths = new ArrayList<>();
+        Tuple<Integer, Path> poll = queue.poll();
+        int maxMatches = poll.v1();
+        do {
+            paths.add(poll.v2());
+            poll = queue.poll();
+        } while (poll != null && poll.v1() == maxMatches);
+
+        return paths;
     }
 
-    private ClientYamlSuiteRestPath[] buildRestPaths() {
-        ClientYamlSuiteRestPath[] restPaths = new ClientYamlSuiteRestPath[paths.size()];
-        for (int i = 0; i < restPaths.length; i++) {
-            restPaths[i] = new ClientYamlSuiteRestPath(paths.get(i));
+    public static class Path {
+        private final String path;
+        private final String[] methods;
+        private final Set<String> parts;
+
+        private Path(String path, String[] methods, Set<String> parts) {
+            this.path = path;
+            this.methods = methods;
+            this.parts = parts;
         }
-        return restPaths;
+
+        public String getPath() {
+            return path;
+        }
+
+        public String[] getMethods() {
+            return methods;
+        }
+
+        public Set<String> getParts() {
+            return parts;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Path path = (Path) o;
+            return this.path.equals(path.path);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(path);
+        }
     }
 }

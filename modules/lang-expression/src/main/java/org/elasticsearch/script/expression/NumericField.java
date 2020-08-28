@@ -19,7 +19,7 @@ package org.elasticsearch.script.expression;
  * under the License.
  */
 
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -29,12 +29,12 @@ import org.elasticsearch.search.MultiValueMode;
 final class NumericField {
     // no instance
     private NumericField() {}
-    
+
     // supported variables
     static final String VALUE_VARIABLE          = "value";
     static final String EMPTY_VARIABLE          = "empty";
     static final String LENGTH_VARIABLE         = "length";
-    
+
     // supported methods
     static final String GETVALUE_METHOD         = "getValue";
     static final String ISEMPTY_METHOD          = "isEmpty";
@@ -45,8 +45,8 @@ final class NumericField {
     static final String MEDIAN_METHOD           = "median";
     static final String SUM_METHOD              = "sum";
     static final String COUNT_METHOD            = "count";
-    
-    static ValueSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
+
+    static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case VALUE_VARIABLE:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
@@ -55,12 +55,12 @@ final class NumericField {
             case LENGTH_VARIABLE:
                 return new CountMethodValueSource(fieldData);
             default:
-                throw new IllegalArgumentException("Member variable [" + variable + "] does not exist for " + 
+                throw new IllegalArgumentException("Member variable [" + variable + "] does not exist for " +
                                                    "numeric field [" + fieldName + "].");
         }
     }
-    
-    static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
+
+    static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
             case GETVALUE_METHOD:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);

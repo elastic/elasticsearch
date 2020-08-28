@@ -19,12 +19,16 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -33,7 +37,6 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Transport;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,30 +46,18 @@ import java.util.function.Supplier;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
-    static {
-        Netty4Utils.setup();
-    }
-
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
+
+    private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
             Netty4Transport.WORKER_COUNT,
-            Netty4Transport.NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
-            Netty4Transport.NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MAX,
@@ -85,22 +76,34 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
-        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, threadPool, networkService, bigArrays,
-            namedWriteableRegistry, circuitBreakerService));
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, Version.CURRENT, threadPool,
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, getSharedGroupFactory(settings)));
     }
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher) {
+                                                                        HttpServerTransport.Dispatcher dispatcher,
+                                                                        ClusterSettings clusterSettings) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
+            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher,
+                clusterSettings, getSharedGroupFactory(settings)));
+    }
+
+    private SharedGroupFactory getSharedGroupFactory(Settings settings) {
+        SharedGroupFactory groupFactory = this.groupFactory.get();
+        if (groupFactory != null) {
+            assert groupFactory.getSettings().equals(settings) : "Different settings than originally provided";
+            return groupFactory;
+        } else {
+            this.groupFactory.set(new SharedGroupFactory(settings));
+            return this.groupFactory.get();
+        }
     }
 }

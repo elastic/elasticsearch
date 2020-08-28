@@ -19,7 +19,32 @@
 
 package org.elasticsearch.cloud.gce;
 
-import java.io.Closeable;
+import com.google.api.client.googleapis.compute.ComputeCredential;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestFactory;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceList;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
+
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -28,27 +53,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.Instance;
-import com.google.api.services.compute.model.InstanceList;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
-
-public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService, Closeable {
+public class GceInstancesServiceImpl implements GceInstancesService {
+    
+    private static final Logger logger = LogManager.getLogger(GceInstancesServiceImpl.class);
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
@@ -91,6 +98,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         return instances;
     }
 
+    private final Settings settings;
     private Compute client;
     private TimeValue refreshInterval = null;
     private long lastRefresh;
@@ -104,10 +112,59 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
     private final boolean validateCerts;
 
     public GceInstancesServiceImpl(Settings settings) {
-        super(settings);
-        this.project = PROJECT_SETTING.get(settings);
-        this.zones = ZONE_SETTING.get(settings);
+        this.settings = settings;
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
+        this.project = resolveProject();
+        this.zones = resolveZones();
+    }
+
+    private String resolveProject() {
+        if (PROJECT_SETTING.exists(settings)) {
+            return PROJECT_SETTING.get(settings);
+        }
+
+        try {
+            // this code is based on a private GCE method: {@link com.google.cloud.ServiceOptions#getAppEngineProjectIdFromMetadataServer()}
+            return getAppEngineValueFromMetadataServer("/computeMetadata/v1/project/project-id");
+        } catch (Exception e) {
+            logger.warn("unable to resolve project from metadata server for GCE discovery service", e);
+        }
+        return null;
+    }
+
+    private List<String> resolveZones() {
+        if (ZONE_SETTING.exists(settings)) {
+            return ZONE_SETTING.get(settings);
+        }
+
+        try {
+            final String defaultZone =
+                getAppEngineValueFromMetadataServer("/computeMetadata/v1/project/attributes/google-compute-default-zone");
+            return Collections.singletonList(defaultZone);
+        } catch (Exception e) {
+            logger.warn("unable to resolve default zone from metadata server for GCE discovery service", e);
+        }
+        return null;
+    }
+
+    String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
+        String metadata = GceMetadataService.GCE_HOST.get(settings);
+        GenericUrl url = Access.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
+
+        HttpTransport httpTransport = getGceHttpTransport();
+        HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
+        HttpRequest request = requestFactory.buildGetRequest(url)
+            .setConnectTimeout(500)
+            .setReadTimeout(500)
+            .setHeaders(new HttpHeaders().set("Metadata-Flavor", "Google"));
+        HttpResponse response = Access.doPrivilegedIOException(() -> request.execute());
+        return headerContainsMetadataFlavor(response) ? response.parseAsString() : null;
+    }
+
+    private static boolean headerContainsMetadataFlavor(HttpResponse response) {
+        // com.google.cloud.ServiceOptions#headerContainsMetadataFlavor(HttpResponse)}
+        String metadataFlavorValue = response.getHeaders().getFirstHeaderStringValue("Metadata-Flavor");
+        return "Google".equals(metadataFlavorValue);
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
@@ -180,6 +237,16 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         }
 
         return this.client;
+    }
+
+    @Override
+    public String projectId() {
+        return project;
+    }
+
+    @Override
+    public List<String> zones() {
+        return zones;
     }
 
     @Override

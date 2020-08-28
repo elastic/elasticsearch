@@ -1,0 +1,237 @@
+--
+:api: update
+:request: UpdateRequest
+:response: UpdateResponse
+--
+
+[id="{upid}-{api}"]
+=== Update API
+
+[id="{upid}-{api}-request"]
+==== Update Request
+
+An +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Index
+<2> Document id
+
+The Update API allows to update an existing document by using a script
+or by passing a partial document.
+
+==== Updates with a script
+The script can be provided as an inline script:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-with-inline-script]
+--------------------------------------------------
+<1> Script parameters provided as a `Map` of objects
+<2> Create an inline script using the `painless` language and the previous parameters
+<3> Sets the script to the update request
+
+Or as a stored script:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-with-stored-script]
+--------------------------------------------------
+<1> Reference to a script stored under the name `increment-field` in the `painless` language
+<2> Sets the script in the update request
+
+==== Updates with a partial document
+When using updates with a partial document, the partial document will be merged with the
+existing document.
+
+The partial document can be provided in different ways:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-with-doc-as-string]
+--------------------------------------------------
+<1> Partial document source provided as a `String` in JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-with-doc-as-map]
+--------------------------------------------------
+<1> Partial document source provided as a `Map` which gets automatically converted
+to JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-with-doc-as-xcontent]
+--------------------------------------------------
+<1> Partial document source provided as an `XContentBuilder` object, the Elasticsearch
+built-in helpers to generate JSON content
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-shortcut]
+--------------------------------------------------
+<1> Partial document source provided as `Object` key-pairs, which gets converted to
+JSON format
+
+==== Upserts
+If the document does not already exist, it is possible to define some content that
+will be inserted as a new document using the `upsert` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-upsert]
+--------------------------------------------------
+<1> Upsert document source provided as a `String`
+
+Similarly to the partial document updates, the content of the `upsert` document
+can be defined using methods that accept `String`, `Map`, `XContentBuilder` or
+`Object` key-pairs.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-routing]
+--------------------------------------------------
+<1> Routing value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for primary shard to become available as a `TimeValue`
+<2> Timeout to wait for primary shard to become available as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-refresh]
+--------------------------------------------------
+<1> Refresh policy as a `WriteRequest.RefreshPolicy` instance
+<2> Refresh policy as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-retry]
+--------------------------------------------------
+<1> How many times to retry the update operation if the document to update has
+been changed by another operation between the get and indexing phases of the
+update operation
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-no-source]
+--------------------------------------------------
+<1> Enable source retrieval, disabled by default
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-source-include]
+--------------------------------------------------
+<1> Configure source inclusion for specific fields
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-source-exclude]
+--------------------------------------------------
+<1> Configure source exclusion for specific fields
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-cas]
+--------------------------------------------------
+<1> ifSeqNo
+<2> ifPrimaryTerm
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-detect-noop]
+--------------------------------------------------
+<1> Disable the noop detection
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-scripted-upsert]
+--------------------------------------------------
+<1> Indicate that the script must run regardless of whether the document exists or not,
+ie the script takes care of creating the document if it does not already exist.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-doc-upsert]
+--------------------------------------------------
+<1> Indicate that the partial document must be used as the upsert document if it
+does not exist yet.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-active-shards]
+--------------------------------------------------
+<1> Sets the number of shard copies that must be active before proceeding with
+the update operation.
+<2> Number of shard copies provided as a `ActiveShardCount`: can be `ActiveShardCount.ALL`,
+`ActiveShardCount.ONE` or `ActiveShardCount.DEFAULT` (default)
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Update Response
+
+The returned +{response}+ allows to retrieve information about the executed
+operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Handle the case where the document was created for the first time (upsert)
+<2> Handle the case where the document was updated
+<3> Handle the case where the document was deleted
+<4> Handle the case where the document was not impacted by the update,
+ie no operation (noop) was executed on the document
+
+When the source retrieval is enabled in the `UpdateRequest`
+through the fetchSource method, the response contains the
+source of the updated document:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-getresult]
+--------------------------------------------------
+<1> Retrieve the updated document as a `GetResult`
+<2> Retrieve the source of the updated document as a `String`
+<3> Retrieve the source of the updated document as a `Map<String, Object>`
+<4> Retrieve the source of the updated document as a `byte[]`
+<5> Handle the scenario where the source of the document is not present in
+the response (this is the case by default)
+
+It is also possible to check for shard failures:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-failure]
+--------------------------------------------------
+<1> Handle the situation where number of successful shards is less than
+total shards
+<2> Handle the potential failures
+
+When a `UpdateRequest` is performed against a document that does not exist,
+the response has `404` status code, an `ElasticsearchException` gets thrown
+which needs to be handled as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-docnotfound]
+--------------------------------------------------
+<1> Handle the exception thrown because the document not exist
+
+If there is a version conflict, an `ElasticsearchException` will
+be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-conflict]
+--------------------------------------------------
+<1> The raised exception indicates that a version conflict error was returned.

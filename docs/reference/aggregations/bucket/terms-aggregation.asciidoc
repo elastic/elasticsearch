@@ -3,56 +3,110 @@
 
 A multi-bucket value source based aggregation where buckets are dynamically built - one per unique value.
 
-Example:
+//////////////////////////
 
 [source,js]
 --------------------------------------------------
+PUT /products
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : { "field" : "genre" }
-        }
+  "mappings": {
+    "properties": {
+      "genre": {
+        "type": "keyword"
+      },
+      "product": {
+        "type": "keyword"
+      }
     }
+  }
+}
+
+POST /products/_bulk?refresh
+{"index":{"_id":0}}
+{"genre": "rock", "product": "Product A"}
+{"index":{"_id":1}}
+{"genre": "rock"}
+{"index":{"_id":2}}
+{"genre": "rock"}
+{"index":{"_id":3}}
+{"genre": "jazz", "product": "Product Z"}
+{"index":{"_id":4}}
+{"genre": "jazz"}
+{"index":{"_id":5}}
+{"genre": "electronic"}
+{"index":{"_id":6}}
+{"genre": "electronic"}
+{"index":{"_id":7}}
+{"genre": "electronic"}
+{"index":{"_id":8}}
+{"genre": "electronic"}
+{"index":{"_id":9}}
+{"genre": "electronic"}
+{"index":{"_id":10}}
+{"genre": "electronic"}
+
+-------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
+Example:
+
+[source,console,id=terms-aggregation-example]
+--------------------------------------------------
+GET /_search
+{
+  "aggs": {
+    "genres": {
+      "terms": { "field": "genre" } <1>
+    }
+  }
 }
 --------------------------------------------------
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable
+<<fielddata, fielddata>>.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-
-    "aggregations" : {
-        "genres" : {
-            "doc_count_error_upper_bound": 0, <1>
-            "sum_other_doc_count": 0, <2>
-            "buckets" : [ <3>
-                {
-                    "key" : "jazz",
-                    "doc_count" : 10
-                },
-                {
-                    "key" : "rock",
-                    "doc_count" : 10
-                },
-                {
-                    "key" : "electronic",
-                    "doc_count" : 10
-                },
-            ]
+  ...
+  "aggregations": {
+    "genres": {
+      "doc_count_error_upper_bound": 0,   <1>
+      "sum_other_doc_count": 0,           <2>
+      "buckets": [                        <3>
+        {
+          "key": "electronic",
+          "doc_count": 6
+        },
+        {
+          "key": "rock",
+          "doc_count": 3
+        },
+        {
+          "key": "jazz",
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
 
 <1> an upper bound of the error on the document counts for each term, see <<search-aggregations-bucket-terms-aggregation-approximate-counts,below>>
-<2> when there are lots of unique terms, elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
+<2> when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
 <3> the list of the top buckets, the meaning of `top` being defined by the <<search-aggregations-bucket-terms-aggregation-order,order>>
 
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
 
+[[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -62,86 +116,18 @@ This means that if the number of unique terms is greater than `size`, the return
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
 
+NOTE: If you want to retrieve **all** terms or all combinations of terms in a nested `terms` aggregation
+      you should use the <<search-aggregations-bucket-composite-aggregation,Composite>> aggregation which
+      allows to paginate over all possible terms rather than setting a size greater than the cardinality of the field in the
+      `terms` aggregation. The `terms` aggregation is meant to return the `top` terms and does not allow pagination.
+
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
 
-As described above, the document counts (and the results of any sub aggregations) in the terms aggregation are not always
-accurate.  This is because each shard provides its own view of what the ordered list of terms should be and these are
-combined to give a final view. Consider the following scenario:
-
-A request is made to obtain the top 5 terms in the field product, ordered by descending document count from an index with
-3 shards. In this case each shard is asked to give its top 5 terms.
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "products" : {
-            "terms" : {
-                "field" : "product",
-                "size" : 5
-            }
-        }
-    }
-}
---------------------------------------------------
-
-The terms for each of the three shards are shown below with their
-respective document counts in brackets:
-
-[width="100%",cols="^2,^2,^2,^2",options="header"]
-|=========================================================
-|    | Shard A        | Shard B        | Shard C
-
-| 1  | Product A (25) | Product A (30) | Product A (45)
-| 2  | Product B (18) | Product B (25) | Product C (44)
-| 3  | Product C (6)  | Product F (17) | Product Z (36)
-| 4  | Product D (3)  | Product Z (16) | Product G (30)
-| 5  | Product E (2)  | Product G (15) | Product E (29)
-| 6  | Product F (2)  | Product H (14) | Product H (28)
-| 7  | Product G (2)  | Product I (10) | Product Q (2)
-| 8  | Product H (2)  | Product Q (6)  | Product D (1)
-| 9  | Product I (1)  | Product J (8)  |
-| 10 | Product J (1)  | Product C (4)  |
-
-|=========================================================
-
-The shards will return their top 5 terms so the results from the shards will be:
-
-
-[width="100%",cols="^2,^2,^2,^2",options="header"]
-|=========================================================
-|    | Shard A        | Shard B        | Shard C
-
-| 1  | Product A (25) | Product A (30) | Product A (45)
-| 2  | Product B (18) | Product B (25) | Product C (44)
-| 3  | Product C (6)  | Product F (17) | Product Z (36)
-| 4  | Product D (3)  | Product Z (16) | Product G (30)
-| 5  | Product E (2)  | Product G (15) | Product E (29)
-
-|=========================================================
-
-Taking the top 5 results from each of the shards (as requested) and combining them to make a final top 5 list produces
-the following:
-
-[width="40%",cols="^2,^2"]
-|=========================================================
-
-| 1  | Product A (100)
-| 2  | Product Z (52)
-| 3  | Product C (50)
-| 4  | Product G (45)
-| 5  | Product B (43)
-
-|=========================================================
-
-Because Product A was returned from all shards we know that its document count value is accurate. Product C was only
-returned by shards A and C so its document count is shown as 50 but this is not an accurate count. Product C exists on
-shard B, but its count of 4 was not high enough to put Product C into the top 5 list for that shard. Product Z was also
-returned only by 2 shards but the third shard does not contain the term. There is no way of knowing, at the point of
-combining the results to produce the final list of terms, that there is an error in the document count for Product C and
-not for Product Z. Product H has a document count of 44 across all 3 shards but was not included in the final list of
-terms because it did not make it into the top five terms on any of the shards.
+Document counts (and the results of any sub aggregations) in the terms
+aggregation are not always accurate. Each shard provides its own view of what
+the ordered list of terms should be. These views are combined to give a final
+view.
 
 ==== Shard Size
 
@@ -156,83 +142,43 @@ one can increase the accuracy of the returned terms and avoid the overhead of st
 the client.
 
 
-NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
+NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.
 
 
-The default `shard_size` will be `size` if the search request needs to go to a single shard, and `(size * 1.5 + 10)`
-otherwise.
+The default `shard_size` is `(size * 1.5 + 10)`.
 
 ==== Calculating Document Count Error
 
-There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as
+There are two error values which can be shown on the terms aggregation. The first gives a value for the aggregation as
 a whole which represents the maximum potential document count for a term which did not make it into the final list of
-terms. This is calculated as the sum of the document count from the last term returned from each shard .For the example
-given above the value would be 46 (2 + 15 + 29). This means that in the worst case scenario a term which was not returned
-could have the 4th highest document count.
-
-[source,js]
---------------------------------------------------
-{
-    ...
-
-    "aggregations" : {
-        "products" : {
-            "doc_count_error_upper_bound" : 46,
-            "buckets" : [
-                {
-                    "key" : "Product A",
-                    "doc_count" : 100
-                },
-                {
-                    "key" : "Product Z",
-                    "doc_count" : 52
-                },
-                ...
-            ]
-        }
-    }
-}
---------------------------------------------------
+terms. This is calculated as the sum of the document count from the last term returned from each shard.
 
 ==== Per bucket document count error
 
-experimental[]
+The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true:
 
-The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true. This shows an error value
-for each term returned by the aggregation which represents the 'worst case' error in the document count and can be useful when
-deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for the last term returned
-by all shards which did not return the term. In the example above the error in the document count for Product C would be 15 as
-Shard B was the only shard not to return the term and the document count of the last term it did return was 15. The actual document
-count of Product C was 54 so the document count was only actually off by 4 even though the worst case was that it would be off by
-15.  Product A, however has an error of 0 for its document count, since every shard returned it we can be confident that the count
-returned is accurate.
-
-[source,js]
+[source,console,id=terms-aggregation-doc-count-error-example]
 --------------------------------------------------
+GET /_search
 {
-    ...
-
-    "aggregations" : {
-        "products" : {
-            "doc_count_error_upper_bound" : 46,
-            "buckets" : [
-                {
-                    "key" : "Product A",
-                    "doc_count" : 100,
-                    "doc_count_error_upper_bound" : 0
-                },
-                {
-                    "key" : "Product Z",
-                    "doc_count" : 52,
-                    "doc_count_error_upper_bound" : 2
-                },
-                ...
-            ]
-        }
+  "aggs": {
+    "products": {
+      "terms": {
+        "field": "product",
+        "size": 5,
+        "show_term_doc_count_error": true
+      }
     }
+  }
 }
 --------------------------------------------------
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+
+This shows an error value for each term returned by the aggregation which represents the 'worst case' error in the document count
+and can be useful when deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for
+the last term returned by all shards which did not return the term.
 
 These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is
 ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard
@@ -257,72 +203,77 @@ but at least the top buckets will be correctly picked.
 
 Ordering the buckets by their doc `_count` in an ascending manner:
 
-[source,js]
+[source,console,id=terms-aggregation-count-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "_count" : "asc" }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "_count": "asc" }
+      }
     }
+  }
 }
 --------------------------------------------------
 
 Ordering the buckets alphabetically by their terms in an ascending manner:
 
-[source,js]
+[source,console,id=terms-aggregation-asc-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "_term" : "asc" }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "_key": "asc" }
+      }
     }
+  }
 }
 --------------------------------------------------
 
+deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 
-[source,js]
+[source,console,id=terms-aggregation-subaggregation-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "max_play_count" : "desc" }
-            },
-            "aggs" : {
-                "max_play_count" : { "max" : { "field" : "play_count" } }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "max_play_count": "desc" }
+      },
+      "aggs": {
+        "max_play_count": { "max": { "field": "play_count" } }
+      }
     }
+  }
 }
 --------------------------------------------------
 
 Ordering the buckets by multi value metrics sub-aggregation (identified by the aggregation name):
 
-[source,js]
+[source,console,id=terms-aggregation-multivalue-subaggregation-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "playback_stats.max" : "desc" }
-            },
-            "aggs" : {
-                "playback_stats" : { "stats" : { "field" : "play_count" } }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "playback_stats.max": "desc" }
+      },
+      "aggs": {
+        "playback_stats": { "stats": { "field": "play_count" } }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -344,7 +295,7 @@ a multi-value metrics aggregation, and in case of a single-value metrics aggrega
 
 The path must be defined in the following form:
 
-// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+// {wikipedia}/Extended_Backus%E2%80%93Naur_Form
 [source,ebnf]
 --------------------------------------------------
 AGG_SEPARATOR       =  '>' ;
@@ -354,25 +305,26 @@ METRIC              =  <the name of the metric (in case of multi-value metrics a
 PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
-[source,js]
+[source,console,id=terms-aggregation-hierarchy-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "countries" : {
-            "terms" : {
-                "field" : "artist.country",
-                "order" : { "rock>playback_stats.avg" : "desc" }
-            },
-            "aggs" : {
-                "rock" : {
-                    "filter" : { "term" : { "genre" :  "rock" }},
-                    "aggs" : {
-                        "playback_stats" : { "stats" : { "field" : "play_count" }}
-                    }
-                }
-            }
+  "aggs": {
+    "countries": {
+      "terms": {
+        "field": "artist.country",
+        "order": { "rock>playback_stats.avg": "desc" }
+      },
+      "aggs": {
+        "rock": {
+          "filter": { "term": { "genre": "rock" } },
+          "aggs": {
+            "playback_stats": { "stats": { "field": "play_count" } }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -380,25 +332,26 @@ The above will sort the artist's countries buckets based on the average play cou
 
 Multiple criteria can be used to order the buckets by providing an array of order criteria such as the following:
 
-[source,js]
+[source,console,id=terms-aggregation-multicriteria-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "countries" : {
-            "terms" : {
-                "field" : "artist.country",
-                "order" : [ { "rock>playback_stats.avg" : "desc" }, { "_count" : "desc" } ]
-            },
-            "aggs" : {
-                "rock" : {
-                    "filter" : { "term" : { "genre" : { "rock" }}},
-                    "aggs" : {
-                        "playback_stats" : { "stats" : { "field" : "play_count" }}
-                    }
-                }
-            }
+  "aggs": {
+    "countries": {
+      "terms": {
+        "field": "artist.country",
+        "order": [ { "rock>playback_stats.avg": "desc" }, { "_count": "desc" } ]
+      },
+      "aggs": {
+        "rock": { 
+          "filter": { "term": { "genre": "rock" } },
+          "aggs": {
+            "playback_stats": { "stats": { "field": "play_count" } } 
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -412,17 +365,18 @@ tie-breaker in ascending alphabetical order to prevent non-deterministic orderin
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,js]
+[source,console,id=terms-aggregation-min-doc-count-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "tags" : {
-            "terms" : {
-                "field" : "tags",
-                "min_doc_count": 10
-            }
-        }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "min_doc_count": 10
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -452,64 +406,79 @@ WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_cou
 
 Generating the terms using a script:
 
-[source,js]
+[source,console,id=terms-aggregation-script-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "script" : {
-                    "inline": "doc['genre'].value",
-                    "lang": "painless"
-                }
-            }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "script": {
+          "source": "doc['genre'].value",
+          "lang": "painless"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a stored script use the following syntax:
 
-[source,js]
+//////////////////////////
+
+[source,console,id=terms-aggregation-stored-example]
 --------------------------------------------------
+POST /_scripts/my_script
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "script" : {
-                    "file": "my_script",
-                    "params": {
-                        "field": "genre"
-                    }
-                }
-            }
-        }
-    }
+  "script": {
+    "lang": "painless",
+    "source": "doc[params.field].value"
+  }
 }
 --------------------------------------------------
 
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
+//////////////////////////
 
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "aggs": {
+    "genres": {
+      "terms": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "genre"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
 
 ==== Value Script
 
-[source,js]
+[source,console,id=terms-aggregation-value-script-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "gender",
-                "script" : {
-                    "inline" : "'Genre: ' +_value"
-                    "lang" : "painless"
-                }
-            }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "script": {
+          "source": "'Genre: ' +_value",
+          "lang": "painless"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-
 
 ==== Filtering Values
 
@@ -519,23 +488,24 @@ It is possible to filter the values for which buckets will be created. This can 
 
 ===== Filtering Values with regular expressions
 
-[source,js]
+[source,console,id=terms-aggregation-regex-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "tags" : {
-            "terms" : {
-                "field" : "tags",
-                "include" : ".*sport.*",
-                "exclude" : "water_.*"
-            }
-        }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "include": ".*sport.*",
+        "exclude": "water_.*"
+      }
     }
+  }
 }
 --------------------------------------------------
 
 In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
-with `water_` (so the tag `water_sports` will no be aggregated). The `include` regular expression will determine what
+with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what
 values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
 both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 
@@ -546,36 +516,38 @@ The syntax is the same as <<regexp-syntax,regexp queries>>.
 For matching based on exact values the `include` and `exclude` parameters can simply take an array of
 strings that represent the terms as they are found in the index:
 
-[source,js]
+[source,console,id=terms-aggregation-exact-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "JapaneseCars" : {
-             "terms" : {
-                 "field" : "make",
-                 "include" : ["mazda", "honda"]
-             }
-         },
-        "ActiveCarManufacturers" : {
-             "terms" : {
-                 "field" : "make",
-                 "exclude" : ["rover", "jensen"]
-             }
-         }
+  "aggs": {
+    "JapaneseCars": {
+      "terms": {
+        "field": "make",
+        "include": [ "mazda", "honda" ]
+      }
+    },
+    "ActiveCarManufacturers": {
+      "terms": {
+        "field": "make",
+        "exclude": [ "rover", "jensen" ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
 ===== Filtering Values with partitions
 
-Sometimes there are too many unique terms to process in a single request/response pair so 
+Sometimes there are too many unique terms to process in a single request/response pair so
 it can be useful to break the analysis up into multiple requests.
 This can be achieved by grouping the field's values into a number of partitions at query-time and processing
 only one partition in each request.
 Consider this request which is looking for accounts that have not logged any access recently:
 
-[source,js]
+[source,console,id=terms-aggregation-partitions-example]
 --------------------------------------------------
+GET /_search
 {
    "size": 0,
    "aggs": {
@@ -606,10 +578,10 @@ Consider this request which is looking for accounts that have not logged any acc
 This request is finding the last logged access date for a subset of customer accounts because we
 might want to expire some customer accounts who haven't been seen for a long while.
 The `num_partitions` setting has requested that the unique account_ids are organized evenly into twenty
-partitions (0 to 19). and the `partition` setting in this request filters to only consider account_ids falling 
+partitions (0 to 19). and the `partition` setting in this request filters to only consider account_ids falling
 into partition 0. Subsequent requests should ask for partitions 1 then 2 etc to complete the expired-account analysis.
 
-Note that the `size` setting for the number of results returned needs to be tuned with the `num_partitions`. 
+Note that the `size` setting for the number of results returned needs to be tuned with the `num_partitions`.
 For this particular account-expiration example the process for balancing values for `size` and `num_partitions` would be as follows:
 
 1. Use the `cardinality` aggregation to estimate the total number of unique account_id values
@@ -618,13 +590,13 @@ For this particular account-expiration example the process for balancing values 
 4. Run a test request
 
 If we have a circuit-breaker error we are trying to do too much in one request and must increase `num_partitions`.
-If the request was successful but the last account ID in the date-sorted test response was still an account we might want to 
-expire then we may be missing accounts of interest and have set our numbers too low. We must either 
+If the request was successful but the last account ID in the date-sorted test response was still an account we might want to
+expire then we may be missing accounts of interest and have set our numbers too low. We must either
 
 * increase the `size` parameter to return more results per partition (could be heavy on memory) or
 * increase the `num_partitions` to consider less accounts per request (could increase overall processing time as we need to make more requests)
 
-Ultimately this is a balancing act between managing the elasticsearch resources required to process a single request and the volume
+Ultimately this is a balancing act between managing the Elasticsearch resources required to process a single request and the volume
 of requests that the client application must issue to complete a task.
 
 ==== Multi-field terms aggregation
@@ -654,6 +626,7 @@ fields, then use `copy_to` in your mapping to create a new dedicated field at
 index time which contains the values from both fields.  You can aggregate on
 this single field, which will benefit from the global ordinals optimization.
 
+[[search-aggregations-bucket-terms-aggregation-collect]]
 ==== Collect mode
 
 Deferring calculation of child aggregations
@@ -664,25 +637,26 @@ are expanded in one depth-first pass and only then any pruning occurs.
 In some scenarios this can be very wasteful and can hit memory constraints.
 An example problem scenario is querying a movie database for the 10 most popular actors and their 5 most common co-stars:
 
-[source,js]
+[source,console,id=terms-aggregation-collect-mode-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "actors" : {
-             "terms" : {
-                 "field" : "actors",
-                 "size" : 10
-             },
-            "aggs" : {
-                "costars" : {
-                     "terms" : {
-                         "field" : "actors",
-                         "size" : 5
-                     }
-                 }
-            }
-         }
+  "aggs": {
+    "actors": {
+      "terms": {
+        "field": "actors",
+        "size": 10
+      },
+      "aggs": {
+        "costars": {
+          "terms": {
+            "field": "actors",
+            "size": 5
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -694,26 +668,27 @@ mode as opposed to the `depth_first` mode.
 NOTE: The `breadth_first` is the default mode for fields with a cardinality bigger than the requested size or when the cardinality is unknown (numeric fields or scripts for instance).
 It is possible to override the default heuristic and to provide a collect mode directly in the request:
 
-[source,js]
+[source,console,id=terms-aggregation-breadth-first-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "actors" : {
-             "terms" : {
-                 "field" : "actors",
-                 "size" : 10,
-                 "collect_mode" : "breadth_first" <1>
-             },
-            "aggs" : {
-                "costars" : {
-                     "terms" : {
-                         "field" : "actors",
-                         "size" : 5
-                     }
-                 }
-            }
-         }
+  "aggs": {
+    "actors": {
+      "terms": {
+        "field": "actors",
+        "size": 10,
+        "collect_mode": "breadth_first" <1>
+      },
+      "aggs": {
+        "costars": {
+          "terms": {
+            "field": "actors",
+            "size": 5
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -730,46 +705,36 @@ collection mode need to replay the query on the second pass but only for the doc
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-experimental[The automated execution optimization is experimental, so this parameter is provided temporarily as a way to override the default behaviour]
-
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
- - by using ordinals of the field and preemptively allocating one bucket per ordinal value (`global_ordinals`)
- - by using ordinals of the field and dynamically allocating one bucket per ordinal value (`global_ordinals_hash`)
- - by using per-segment ordinals to compute counts and remap these counts to global counts using global ordinals (`global_ordinals_low_cardinality`)
+ - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 
-`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution modes
-are significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
+`global_ordinals` is the default option for `keyword` field, it uses global ordinals to allocates buckets dynamically
+so memory usage is linear to the number of values of the documents that are part of the aggregation scope.
+
+`map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution mode
+is significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
 ordinals.
 
-`global_ordinals_low_cardinality` only works for leaf terms aggregations but is usually the fastest execution mode. Memory
-usage is linear with the number of unique values in the field, so it is only enabled by default on low-cardinality fields.
-
-`global_ordinals` is the second fastest option, but the fact that it preemptively allocates buckets can be memory-intensive,
-especially if you have one or more sub aggregations. It is used by default on top-level terms aggregations.
-
-`global_ordinals_hash` on the contrary to `global_ordinals` and `global_ordinals_low_cardinality` allocates buckets dynamically
-so memory usage is linear to the number of values of the documents that are part of the aggregation scope. It is used by default
-in inner aggregations.
-
-[source,js]
+[source,console,id=terms-aggregation-execution-hint-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "tags" : {
-             "terms" : {
-                 "field" : "tags",
-                 "execution_hint": "map" <1>
-             }
-         }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "execution_hint": "map" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 
-<1> experimental[] the possible values are `map`, `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality`
+<1> The possible values are `map`, `global_ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
 
@@ -779,17 +744,18 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console,id=terms-aggregation-missing-example]
 --------------------------------------------------
+GET /_search
 {
-    "aggs" : {
-        "tags" : {
-             "terms" : {
-                 "field" : "tags",
-                 "missing": "N/A" <1>
-             }
-         }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "missing": "N/A" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 

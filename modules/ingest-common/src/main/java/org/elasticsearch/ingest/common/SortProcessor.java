@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ public final class SortProcessor extends AbstractProcessor {
             this.direction = direction;
         }
 
+        @Override
         public String toString() {
             return this.direction;
         }
@@ -69,11 +71,13 @@ public final class SortProcessor extends AbstractProcessor {
 
     private final String field;
     private final SortOrder order;
+    private final String targetField;
 
-    SortProcessor(String tag, String field, SortOrder order) {
-        super(tag);
+    SortProcessor(String tag, String description, String field, SortOrder order, String targetField) {
+        super(tag, description);
         this.field = field;
         this.order = order;
+        this.targetField = targetField;
     }
 
     String getField() {
@@ -84,26 +88,29 @@ public final class SortProcessor extends AbstractProcessor {
         return order;
     }
 
+    String getTargetField() {
+        return targetField;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
-    public void execute(IngestDocument document) {
-        List<? extends Comparable> list = document.getFieldValue(field, List.class);
+    public IngestDocument execute(IngestDocument document) {
+        List<? extends Comparable<Object>> list = document.getFieldValue(field, List.class);
 
         if (list == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot sort.");
         }
 
-        if (list.size() <= 1) {
-            return;
-        }
+        List<? extends Comparable<Object>> copy = new ArrayList<>(list);
 
         if (order.equals(SortOrder.ASCENDING)) {
-            Collections.sort(list);
+            Collections.sort(copy);
         } else {
-            Collections.sort(list, Collections.reverseOrder());
+            Collections.sort(copy, Collections.reverseOrder());
         }
 
-        document.setFieldValue(field, list);
+        document.setFieldValue(targetField, copy);
+        return document;
     }
 
     @Override
@@ -115,8 +122,9 @@ public final class SortProcessor extends AbstractProcessor {
 
         @Override
         public SortProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             try {
                 SortOrder direction = SortOrder.fromString(
                     ConfigurationUtils.readStringProperty(
@@ -125,7 +133,7 @@ public final class SortProcessor extends AbstractProcessor {
                         config,
                         ORDER,
                         DEFAULT_ORDER));
-                return new SortProcessor(processorTag, field, direction);
+                return new SortProcessor(processorTag, description, field, direction, targetField);
             } catch (IllegalArgumentException e) {
                 throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, ORDER, e.getMessage());
             }

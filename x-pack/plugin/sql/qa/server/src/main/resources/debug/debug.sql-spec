@@ -1,0 +1,6 @@
+//
+// Spec used for debugging a certain test (without having to alter the spec suite of which it might be part of)
+//
+
+debug
+SELECT 5 + 2 AS a;

@@ -1,0 +1,61 @@
+// This file is auto-generated. Do not edit.
+
+[cols="<3,^3,^3"]
+|====
+|Aggregation Selector | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggregation-selector, Specialized API>>
+|Aggs | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs, Specialized API>>
+|Aggs Combine | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-combine, Specialized API>>
+|Aggs Init | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-init, Specialized API>>
+|Aggs Map | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-map, Specialized API>>
+|Aggs Reduce | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-reduce, Specialized API>>
+|Analysis | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-analysis, Specialized API>>
+|Bucket Aggregation | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-bucket-aggregation, Specialized API>>
+|Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-field, Specialized API>>
+|Filter | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-filter, Specialized API>>
+|Ingest | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-ingest, Specialized API>>
+|Interval | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-interval, Specialized API>>
+|Moving Function | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-moving-function, Specialized API>>
+|Number Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-number-sort, Specialized API>>
+|Painless Test | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-painless-test, Specialized API>>
+|Processor Conditional | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-processor-conditional, Specialized API>>
+|Score | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-score, Specialized API>>
+|Script Heuristic | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-script-heuristic, Specialized API>>
+|Similarity | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-similarity, Specialized API>>
+|Similarity Weight | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-similarity-weight, Specialized API>>
+|String Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-string-sort, Specialized API>>
+|Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-template, Specialized API>>
+|Terms Set | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-terms-set, Specialized API>>
+|Update | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-update, Specialized API>>
+|Watcher Condition | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-watcher-condition, Specialized API>>
+|Watcher Transform | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-watcher-transform, Specialized API>>
+|Xpack Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-xpack-template, Specialized API>>
+|====
+
+include::painless-api-reference-shared/index.asciidoc[]
+include::painless-api-reference-aggregation-selector/index.asciidoc[]
+include::painless-api-reference-aggs/index.asciidoc[]
+include::painless-api-reference-aggs-combine/index.asciidoc[]
+include::painless-api-reference-aggs-init/index.asciidoc[]
+include::painless-api-reference-aggs-map/index.asciidoc[]
+include::painless-api-reference-aggs-reduce/index.asciidoc[]
+include::painless-api-reference-analysis/index.asciidoc[]
+include::painless-api-reference-bucket-aggregation/index.asciidoc[]
+include::painless-api-reference-field/index.asciidoc[]
+include::painless-api-reference-filter/index.asciidoc[]
+include::painless-api-reference-ingest/index.asciidoc[]
+include::painless-api-reference-interval/index.asciidoc[]
+include::painless-api-reference-moving-function/index.asciidoc[]
+include::painless-api-reference-number-sort/index.asciidoc[]
+include::painless-api-reference-painless-test/index.asciidoc[]
+include::painless-api-reference-processor-conditional/index.asciidoc[]
+include::painless-api-reference-score/index.asciidoc[]
+include::painless-api-reference-script-heuristic/index.asciidoc[]
+include::painless-api-reference-similarity/index.asciidoc[]
+include::painless-api-reference-similarity-weight/index.asciidoc[]
+include::painless-api-reference-string-sort/index.asciidoc[]
+include::painless-api-reference-template/index.asciidoc[]
+include::painless-api-reference-terms-set/index.asciidoc[]
+include::painless-api-reference-update/index.asciidoc[]
+include::painless-api-reference-watcher-condition/index.asciidoc[]
+include::painless-api-reference-watcher-transform/index.asciidoc[]
+include::painless-api-reference-xpack-template/index.asciidoc[]

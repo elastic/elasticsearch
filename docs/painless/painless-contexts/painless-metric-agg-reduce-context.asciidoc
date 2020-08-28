@@ -1,0 +1,28 @@
+[[painless-metric-agg-reduce-context]]
+=== Metric aggregation reduce context
+
+Use a Painless script to
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[reduce]
+values to produce the result of a scripted metric aggregation. A reduce script
+is run once on the coordinating node following a
+<<painless-metric-agg-combine-context, combine script>> (or a
+<<painless-metric-agg-map-context, map script>> if no combine script is
+specified) and is optional as part of a full metric aggregation.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`states` (`Map`)::
+        `Map` with values available from the prior combine script (or a map
+        script if no combine script is specified).
+
+*Return*
+
+`List`, `Map`, `String`, or primitive::
+        A value used as the result.
+
+*API*
+
+The standard <<painless-api-reference-shared, Painless API>> is available.

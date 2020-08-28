@@ -1,30 +1,27 @@
 [[mapping-id-field]]
 === `_id` field
 
-Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
-<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_id` field is not
-indexed as its value can be derived automatically from the
-<<mapping-uid-field,`_uid`>> field.
+Each document has an `_id` that uniquely identifies it, which is indexed
+so that documents can be looked up either with the <<docs-get,GET API>> or the
+<<query-dsl-ids-query,`ids` query>>.
 
 The value of the `_id` field is accessible in certain queries (`term`,
-`terms`, `match`, `query_string`, `simple_query_string`), but
-_not_ in aggregations, scripts or when sorting, where the <<mapping-uid-field,`_uid`>>
-field should be used instead:
+`terms`, `match`, `query_string`, `simple_query_string`).
 
-[source,js]
+[source,console]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my-index-000001/_doc/1
 {
   "text": "Document with ID 1"
 }
 
-PUT my_index/my_type/2&refresh=true
+PUT my-index-000001/_doc/2?refresh=true
 {
   "text": "Document with ID 2"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "terms": {
@@ -33,6 +30,17 @@ GET my_index/_search
   }
 }
 --------------------------
-// CONSOLE
 
 <1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
+
+The value of the `_id` field is also accessible in aggregations or for sorting,
+but doing so is discouraged as it requires to load a lot of data in memory. In
+case sorting or aggregating on the `_id` field is required, it is advised to
+duplicate the content of the `_id` field in another field that has `doc_values`
+enabled.
+
+
+[NOTE]
+==================================================
+`_id` is limited to 512 bytes in size and larger values will be rejected.
+==================================================

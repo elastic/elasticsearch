@@ -1,0 +1,66 @@
+--
+:api: get-calendar-events
+:request: GetCalendarEventsRequest
+:response: GetCalendarEventsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get calendar events API
+Retrieves a calendar's events.
+It accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get calendars request
+
+A +{request}+ requires a non-null calendar ID.
+Using the literal `_all` returns the events for all calendars.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request for the specified calendarId.
+
+==== Optional arguments
+The following arguments are optional:
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of events to skip.
+`size` specifies the maximum number of events to get. Defaults to `0` and `100` respectively.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-start]
+--------------------------------------------------
+<1> Specifies to get events with timestamps after this time.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-end]
+--------------------------------------------------
+<1> Specifies to get events with timestamps earlier than this time.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-jobid]
+--------------------------------------------------
+<1> Get events for the job. When this option is used calendar_id must be `_all`.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get calendars response
+
+The returned +{response}+ contains the requested events:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of events that were matched.
+<2> The events retrieved.

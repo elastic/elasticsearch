@@ -1,0 +1,16 @@
+[discrete]
+[[breaking_80_breaker_changes]]
+=== Circuit breaker changes
+
+//tag::notable-breaking-changes[]
+.The `in_flight_requests` stat has been renamed `inflight_requests` in logs and diagnostic APIs.
+[%collapsible]
+====
+*Details* +
+The name of the in flight requests circuit breaker in log output and diagnostic APIs (such as the node stats API) changes from `in_flight_requests` to `inflight_requests` to align it with the name of the corresponding settings.
+
+*Impact* +
+Update your workflow and applications to use the `inflight_requests` stat in
+place of `in_flight_requests`.
+====
+//end::notable-breaking-changes[]

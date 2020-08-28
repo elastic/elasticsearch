@@ -1,0 +1,107 @@
+---
+"Test activate watch api":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: true }
+
+  - do:
+      watcher.deactivate_watch:
+        watch_id: "my_watch"
+
+  - match: { status.state.active : false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .watches
+        body: { "query": { "term": { "_id": "my_watch" } } }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.status.state.active: false }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: false }
+
+  - do:
+      watcher.activate_watch:
+        watch_id: "my_watch"
+
+  - match: { status.state.active : true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .watches
+        body: { "query": { "term": { "_id": "my_watch" } } }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.status.state.active: true }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: true }
+
+  - do:
+      watcher.delete_watch:
+        id: "my_watch"
+
+  - match: { found: true }
+
+---
+"Non existent watch returns 404":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.activate_watch:
+        watch_id: "non-existent-watch"
+      catch: missing
+
+  - do:
+      watcher.deactivate_watch:
+        watch_id: "non-existent-watch"
+      catch: missing

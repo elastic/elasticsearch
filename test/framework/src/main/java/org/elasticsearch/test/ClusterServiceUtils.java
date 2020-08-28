@@ -18,82 +18,68 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
 
-    public static ClusterService createClusterService(ThreadPool threadPool) {
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                                                           new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT);
-        return createClusterService(threadPool, discoveryNode);
-    }
-
-    public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        return createClusterService(Settings.EMPTY, threadPool, localNode);
-    }
-
-    public static ClusterService createClusterService(Settings settings, ThreadPool threadPool, DiscoveryNode localNode) {
-        ClusterService clusterService = new ClusterService(
-            Settings.builder().put("cluster.name", "ClusterServiceTests").put(settings).build(),
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool, () -> localNode);
-        clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
-            @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                // skip
-            }
-
-            @Override
-            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
-                // skip
-            }
-        });
-        clusterService.setClusterStatePublisher((event, ackListener) -> {
-        });
-        clusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
-        clusterService.start();
-        final DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes());
-        nodes.masterNodeId(clusterService.localNode().getId());
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
-        return clusterService;
-    }
-
-    public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {
-        ClusterService clusterService = createClusterService(threadPool);
-        setState(clusterService, initialState);
-        return clusterService;
-    }
-
-    public static void setState(ClusterService clusterService, ClusterState.Builder clusterStateBuilder) {
-        setState(clusterService, clusterStateBuilder.build());
-    }
-
-    public static void setState(ClusterService clusterService, ClusterState clusterState) {
+    public static void setState(ClusterApplierService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test setting state", new LocalClusterUpdateTask() {
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        executor.onNewClusterState("test setting state",
+            () -> ClusterState.builder(clusterState).version(clusterState.version() + 1).build(), new ClusterApplyListener() {
+                @Override
+                public void onSuccess(String source) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    exception.set(e);
+                    latch.countDown();
+                }
+            });
+        try {
+            latch.await();
+            if (exception.get() != null) {
+                Throwables.rethrow(exception.get());
+            }
+        } catch (InterruptedException e) {
+            throw new ElasticsearchException("unexpected exception", e);
+        }
+    }
+
+    public static void setState(MasterService executor, ClusterState clusterState) {
+        CountDownLatch latch = new CountDownLatch(1);
+        executor.submitStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 // make sure we increment versions as listener may depend on it for change
-                return newState(ClusterState.builder(clusterState).version(currentState.version() + 1).build());
+                return ClusterState.builder(clusterState).build();
             }
 
             @Override
@@ -111,5 +97,85 @@ public class ClusterServiceUtils {
         } catch (InterruptedException e) {
             throw new ElasticsearchException("unexpected interruption", e);
         }
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool) {
+        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        return createClusterService(threadPool, discoveryNode);
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
+        return createClusterService(threadPool, localNode, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
+        Settings settings = Settings.builder()
+                .put("node.name", "test")
+                .put("cluster.name", "ClusterServiceTests")
+                .build();
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
+        clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
+        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder()
+                .add(localNode)
+                .localNodeId(localNode.getId())
+                .masterNodeId(localNode.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+        clusterService.getClusterApplierService().setInitialState(initialClusterState);
+        clusterService.getMasterService().setClusterStatePublisher(
+            createClusterStatePublisher(clusterService.getClusterApplierService()));
+        clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.start();
+        return clusterService;
+    }
+
+    public static NodeConnectionsService createNoOpNodeConnectionsService() {
+        return new NodeConnectionsService(Settings.EMPTY, null, null) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                // don't do anything
+                onCompletion.run();
+            }
+
+            @Override
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
+                // don't do anything
+            }
+        };
+    }
+
+    public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
+        return (event, publishListener, ackListener) ->
+            clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
+                new ClusterApplyListener() {
+                    @Override
+                    public void onSuccess(String source) {
+                        publishListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        publishListener.onFailure(e);
+                    }
+                }
+        );
+    }
+
+    public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {
+        ClusterService clusterService = createClusterService(threadPool);
+        setState(clusterService, initialState);
+        return clusterService;
+    }
+
+    public static void setState(ClusterService clusterService, ClusterState.Builder clusterStateBuilder) {
+        setState(clusterService, clusterStateBuilder.build());
+    }
+
+    /**
+     * Sets the state on the cluster applier service
+     */
+    public static void setState(ClusterService clusterService, ClusterState clusterState) {
+        setState(clusterService.getClusterApplierService(), clusterState);
     }
 }

@@ -1,51 +1,81 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-include::../Versions.asciidoc[]
+:include-xpack:         true
+:es-test-dir:           {elasticsearch-root}/docs/src/test
+:plugins-examples-dir:  {elasticsearch-root}/plugins/examples
+:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
+:es-repo-dir:           {elasticsearch-root}/docs/reference
 
+include::../Versions.asciidoc[]
+include::links.asciidoc[]
+
+include::intro.asciidoc[]
+
+include::release-notes/highlights.asciidoc[]
 
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::migration/index.asciidoc[]
+include::upgrade.asciidoc[]
 
-include::api-conventions.asciidoc[]
-
-include::docs.asciidoc[]
-
-include::search.asciidoc[]
-
-include::aggregations.asciidoc[]
-
-include::indices.asciidoc[]
-
-include::cat.asciidoc[]
-
-include::cluster.asciidoc[]
-
-include::query-dsl.asciidoc[]
+include::index-modules.asciidoc[]
 
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::modules.asciidoc[]
+include::indices/index-templates.asciidoc[]
 
-include::index-modules.asciidoc[]
+include::data-streams/data-streams.asciidoc[]
 
 include::ingest.asciidoc[]
 
-include::how-to.asciidoc[]
+include::search/search-your-data/search-your-data.asciidoc[]
 
-include::testing.asciidoc[]
+include::query-dsl.asciidoc[]
+
+include::aggregations.asciidoc[]
+
+include::eql/eql.asciidoc[]
+
+include::sql/index.asciidoc[]
+
+include::scripting.asciidoc[]
+
+include::ilm/index.asciidoc[]
+
+ifdef::permanently-unreleased-branch[]
+
+include::autoscaling/index.asciidoc[]
+
+endif::[]
+
+include::monitoring/index.asciidoc[]
+
+include::frozen-indices.asciidoc[]
+
+include::data-rollup-transform.asciidoc[]
+
+include::high-availability.asciidoc[]
+
+include::snapshot-restore/index.asciidoc[]
+
+include::{xes-repo-dir}/security/index.asciidoc[]
+
+include::{xes-repo-dir}/watcher/index.asciidoc[]
+
+include::commands/index.asciidoc[]
+
+include::how-to.asciidoc[]
 
 include::glossary.asciidoc[]
 
-//////
- include::release-notes.asciidoc[]
-//////
+include::rest-api/index.asciidoc[]
 
-include::painless-api-reference.asciidoc[]
+include::migration/index.asciidoc[]
+
+include::release-notes.asciidoc[]
 
 include::redirects.asciidoc[]

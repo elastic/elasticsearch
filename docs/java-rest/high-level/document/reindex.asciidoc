@@ -1,0 +1,186 @@
+--
+:api: reindex
+:request: ReindexRequest
+:response: BulkByScrollResponse
+--
+
+[id="{upid}-{api}"]
+=== Reindex API
+
+[id="{upid}-{api}-request"]
+==== Reindex Request
+
+A +{request}+ can be used to copy documents from one or more indexes into a
+destination index.
+
+It requires an existing source index and a target index which may or may not exist pre-request. Reindex does not attempt
+to set up the destination index. It does not copy the settings of the source index. You should set up the destination
+index prior to running a _reindex action, including setting up mappings, shard counts, replicas, etc.
+
+The simplest form of a +{request}+ looks like this:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Creates the +{request}+
+<2> Adds a list of sources to copy from
+<3> Adds the destination index
+
+The `dest` element can be configured like the index API to control optimistic concurrency control. Just leaving out
+`versionType` (as above) or setting it to internal will cause Elasticsearch to blindly dump documents into the target.
+Setting `versionType` to external will cause Elasticsearch to preserve the version from the source, create any documents
+that are missing, and update any documents that have an older version in the destination index than they do in the
+source index.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-versionType]
+--------------------------------------------------
+<1> Set the versionType to `EXTERNAL`
+
+Setting `opType` to `create` will cause `_reindex` to only create missing documents in the target index. All existing
+documents will cause a version conflict. The default `opType` is `index`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-opType]
+--------------------------------------------------
+<1> Set the opType to `create`
+
+By default version conflicts abort the `_reindex` process but you can just count
+them instead with:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-conflicts]
+--------------------------------------------------
+<1> Set `proceed` on version conflict
+
+You can limit the documents by adding a query.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-query]
+--------------------------------------------------
+<1> Only copy documents which have field `user` set to `kimchy`
+
+It’s also possible to limit the number of processed documents by setting `maxDocs`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-maxDocs]
+--------------------------------------------------
+<1> Only copy 10 documents
+
+By default `_reindex` uses batches of 1000. You can change the batch size with `sourceBatchSize`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-sourceSize]
+--------------------------------------------------
+<1> Use batches of 100 documents
+
+Reindex can also use the ingest feature by specifying a `pipeline`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-pipeline]
+--------------------------------------------------
+<1> set pipeline to `my_pipeline`
+
++{request}+ also supports a `script` that modifies the document. It allows you to
+also change the document's metadata. The following example illustrates that.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-script]
+--------------------------------------------------
+<1> `setScript` to increment the `likes` field on all documents with user `kimchy`.
+
++{request}+ supports reindexing from a remote Elasticsearch cluster. When using a remote cluster the query should be
+specified inside the `RemoteInfo` object and not using `setSourceQuery`. If both the remote info and the source query are
+set it results in a validation error during the request. The reason for this is that the remote Elasticsearch may not
+understand queries built by the modern query builders. The remote cluster support works all the way back to Elasticsearch
+0.90 and the query language has changed since then. When reaching older versions, it is safer to write the query by hand
+in JSON.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-remote]
+--------------------------------------------------
+<1> set remote elastic cluster
+
++{request}+ also helps in automatically parallelizing using `sliced-scroll` to
+slice on `_id`. Use `setSlices` to specify the number of slices to use.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-slices]
+--------------------------------------------------
+<1> set number of slices to use
+
++{request}+ uses the `scroll` parameter to control how long it keeps the
+"search context" alive.
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-scroll]
+--------------------------------------------------
+<1> set scroll time
+
+
+==== Optional arguments
+In addition to the options above the following arguments can optionally be also provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the reindex request to be performed as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-refresh]
+--------------------------------------------------
+<1> Refresh index after calling reindex
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-task-submission"]
+==== Reindex task submission
+It is also possible to submit a +{request}+ and not wait for it completion with the use of Task API. This is an equivalent of a REST request
+with wait_for_completion flag set to false.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{hlrc-tests}/ReindexIT.java[submit-reindex-task]
+--------------------------------------------------
+<1> A +{request}+ is constructed the same way as for the synchronous method
+<2> A submit method returns a `TaskSubmissionResponse` which contains a task identifier.
+<3> The task identifier can be used to get `response` from a completed task.
+
+[id="{upid}-{api}-response"]
+==== Reindex Response
+
+The returned +{response}+ contains information about the executed operations and
+allows to iterate over each result as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Get total time taken
+<2> Check if the request timed out
+<3> Get total number of docs processed
+<4> Number of docs that were updated
+<5> Number of docs that were created
+<6> Number of docs that were deleted
+<7> Number of batches that were executed
+<8> Number of skipped docs
+<9> Number of version conflicts
+<10> Number of times request had to retry bulk index operations
+<11> Number of times request had to retry search operations
+<12> The total time this request has throttled itself not including the current throttle time if it is currently sleeping
+<13> Remaining delay of any current throttle sleep or 0 if not sleeping
+<14> Failures during search phase
+<15> Failures during bulk index operation

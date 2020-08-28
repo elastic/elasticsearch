@@ -1,0 +1,77 @@
+--
+:api: get-model-snapshots
+:request: GetModelSnapshotsRequest
+:response: GetModelSnapshotsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get model snapshots API
+
+Retrieves one or more model snapshot results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get model snapshots request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`.
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-snapshot-id]
+--------------------------------------------------
+<1> The ID of the snapshot to get. Otherwise, it will return all snapshots.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-desc]
+--------------------------------------------------
+<1> If `true`, the snapshots are sorted in descending order. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-end]
+--------------------------------------------------
+<1> Snapshots with timestamps earlier than this time will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-sort]
+--------------------------------------------------
+<1> The field to sort snapshots on. Defaults to `timestamp`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-start]
+--------------------------------------------------
+<1> Snapshots with timestamps on or after this time will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of
+snapshots to skip. `size` specifies the maximum number of snapshots to retrieve.
+Defaults to `0` and `100` respectively.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get model snapshots response
+
+The returned +{response}+ contains the requested snapshots:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of snapshots that were matched.
+<2> The snapshots retrieved.

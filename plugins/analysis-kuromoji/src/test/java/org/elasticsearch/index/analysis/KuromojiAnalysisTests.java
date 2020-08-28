@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -39,6 +40,8 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -93,6 +96,21 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public void testPartOfSpeechFilter() throws IOException {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_part_of_speech");
+
+        assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
+
+        String source = "寿司がおいしいね";
+        String[] expected_tokens = new String[]{"寿司", "おいしい"};
+
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+    }
+
     public void testReadingFormFilterFactory() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_rf");
@@ -124,7 +142,8 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         // パーティー should be stemmed by default
         // (min len) コピー should not be stemmed
-        String[] expected_tokens_katakana = new String[]{"明後日", "パーティ", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+        String[] expected_tokens_katakana = new String[] {
+                "明後日", "パーティ", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
 
         tokenFilter = analysis.tokenFilter.get("kuromoji_ks");
@@ -134,7 +153,8 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         // パーティー should not be stemmed since min len == 6
         // コピー should not be stemmed
-        expected_tokens_katakana = new String[]{"明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+        expected_tokens_katakana = new String[] {
+                "明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
 
@@ -193,8 +213,8 @@ public class KuromojiAnalysisTests extends ESTestCase {
         String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
 
         Settings settings = Settings.builder()
-            .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json))
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
@@ -208,7 +228,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         int i = 0;
         while (stream.incrementToken()) {
             assertThat(expected.length, greaterThan(i));
-            assertThat( "expected different term at index " + i, expected[i++], equalTo(termAttr.toString()));
+            assertThat("expected different term at index " + i, termAttr.toString(), equalTo(expected[i++]));
         }
         assertThat("not all tokens produced", i, equalTo(expected.length));
     }
@@ -289,5 +309,67 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testKuromojiAnalyzerUserDict() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "制限スピード")) {
+            assertTokenStreamContents(stream, new String[]{"制限スピード"});
+        }
+
+        try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
+            assertTokenStreamContents(stream, new String[]{"c++", "world"});
+        }
+    }
+
+    public void testKuromojiAnalyzerInvalidUserDictOption() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .put("index.analysis.analyzer.my_analyzer.user_dictionary", "user_dict.txt")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("It is not allowed to use [user_dictionary] in conjunction " +
+            "with [user_dictionary_rules]"));
+    }
+
+    public void testKuromojiAnalyzerDuplicateUserDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules",
+                "c++,c++,w,w", "#comment", "制限スピード,制限スピード,セイゲンスピード,テスト名詞", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+    }
+
+    public void testDiscardCompoundToken() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_discard_compound_token");
+        String source = "株式会社";
+        String[] expected = new String[] {"株式", "会社"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+    }
+
+    private TestAnalysis createTestAnalysis(Settings analysisSettings) throws IOException {
+        InputStream dict = KuromojiAnalysisTests.class.getResourceAsStream("user_dict.txt");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(dict, config.resolve("user_dict.txt"));
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .put(analysisSettings)
+            .build();
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new AnalysisKuromojiPlugin());
     }
 }

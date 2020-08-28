@@ -1,0 +1,39 @@
+--
+:api: stop-datafeed
+:request: StopDatafeedRequest
+:response: StopDatafeedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Stop Datafeed API
+
+The Stop Datafeed API provides the ability to stop a {ml} datafeed in the cluster.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Stop Datafeed Request
+
+A +{request}+ object is created referencing any number of non-null `datafeedId` entries.
+Wildcards and `_all` are also accepted.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing `datafeedId` entries.
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string)
+<2> If true, the datafeed is stopped forcefully.
+<3> Controls the amount of time to wait until a datafeed stops. The default value is 20 seconds.
+
+include::../execution.asciidoc[]

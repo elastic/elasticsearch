@@ -1,0 +1,46 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('transform'))
+}
+
+// location for keys and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+File nodeKey = file("$keystoreDir/testnode.pem")
+File nodeCert = file("$keystoreDir/testnode.crt")
+// Add key and certs to test classpath: it expects it there
+tasks.register("copyKeyCerts", Copy) {
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
+  }
+  into keystoreDir
+}
+// Add keys and cets to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+tasks.named("processTestResources").configure { dependsOn("copyKeyCerts") }
+
+tasks.named("integTest").configure { dependsOn "copyKeyCerts" }
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.key', nodeKey.name
+  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.audit.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+  numberOfNodes = 3
+
+  extraConfigFile nodeKey.name, nodeKey
+  extraConfigFile nodeCert.name, nodeCert
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+}

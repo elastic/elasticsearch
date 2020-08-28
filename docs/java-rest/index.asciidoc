@@ -9,4 +9,4 @@ include::low-level/index.asciidoc[]
 
 include::high-level/index.asciidoc[]
 
-include::license.asciidoc[]
+include::redirects.asciidoc[]

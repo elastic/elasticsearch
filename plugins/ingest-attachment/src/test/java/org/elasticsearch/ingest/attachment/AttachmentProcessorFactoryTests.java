@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -45,9 +44,9 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
 
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
 
-        AttachmentProcessor processor = factory.create(null, processorTag, config);
+        AttachmentProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
@@ -61,8 +60,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("indexed_chars", indexedChars);
 
-        String processorTag = randomAsciiOfLength(10);
-        AttachmentProcessor processor = factory.create(null, processorTag, config);
+        String processorTag = randomAlphaOfLength(10);
+        AttachmentProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getIndexedChars(), is(indexedChars));
         assertFalse(processor.isIgnoreMissing());
@@ -72,7 +71,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("target_field", "_field");
-        AttachmentProcessor processor = factory.create(null, null, config);
+        AttachmentProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
         assertFalse(processor.isIgnoreMissing());
@@ -90,7 +89,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", fieldNames);
-        AttachmentProcessor processor = factory.create(null, null, config);
+        AttachmentProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
@@ -101,7 +100,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", Collections.singletonList("invalid"));
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[properties] illegal field option [invalid]"));
@@ -115,7 +114,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", "invalid");
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
@@ -127,9 +126,9 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("ignore_missing", true);
 
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
 
-        AttachmentProcessor processor = factory.create(null, processorTag, config);
+        AttachmentProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));

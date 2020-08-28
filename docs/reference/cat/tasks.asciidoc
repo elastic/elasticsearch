@@ -1,0 +1,71 @@
+[[cat-tasks]]
+=== cat task management API
+++++
+<titleabbrev>cat task management</titleabbrev>
+++++
+
+beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
+
+Returns information about tasks currently executing in the cluster,
+similar to the <<tasks,task management>> API.
+
+
+[[cat-tasks-api-request]]
+==== {api-request-title}
+
+`GET /_cat/tasks`
+
+
+[[cat-tasks-api-desc]]
+==== {api-description-title}
+
+The cat task management API returns information
+about tasks currently executing
+on one or more nodes in the cluster.
+It is a more compact view
+of the JSON <<tasks,task management>> API.
+
+
+[[cat-tasks-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-tasks-api-response-codes]]
+==== {api-response-codes-title}
+
+include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
+
+
+[[cat-tasks-api-examples]]
+==== {api-examples-title}
+
+[source,console]
+----
+GET _cat/tasks?v
+----
+// TEST[skip:No tasks to retrieve]
+
+The API returns the following response:
+
+[source,console-result]
+----
+action                         task_id                    parent_task_id             type      start_time    timestamp running_time ip             node
+cluster:monitor/tasks/lists[n] oTUltX4IQMOUUVeiohTt8A:124 oTUltX4IQMOUUVeiohTt8A:123 direct    1458585884904 01:48:24  44.1micros   127.0.0.1:9300 oTUltX4IQMOUUVeiohTt8A
+cluster:monitor/tasks/lists    oTUltX4IQMOUUVeiohTt8A:123 -                          transport 1458585884904 01:48:24  186.2micros  127.0.0.1:9300 oTUltX4IQMOUUVeiohTt8A
+----
+// TESTRESPONSE[skip:No tasks to retrieve]
+// TESTRESPONSE[non_json]

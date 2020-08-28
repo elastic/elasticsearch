@@ -1,0 +1,30 @@
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-enrich'
+  description 'Elasticsearch Expanded Pack Plugin - Enrich'
+  classname 'org.elasticsearch.xpack.enrich.EnrichPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-enrich'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: ':modules:lang-mustache')
+  testImplementation project(path: ':modules:geo')
+  testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
+}
+
+// No real integ tests in the module:
+integTest.enabled = false
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
+}

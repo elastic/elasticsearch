@@ -1,0 +1,81 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+}
+
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+  String baseName = "v${bwcVersion}"
+
+  testClusters {
+    "${baseName}" {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 3
+
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'basic'
+    }
+  }
+
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
+
+  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
+  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'true'
+    systemProperty 'tests.upgrade_from_version', oldVersion
+  }
+
+  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oneThirdUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'false'
+    systemProperty 'tests.upgrade_from_version', oldVersion
+  }
+
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#twoThirdsUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#upgradedClusterTest"
+  }
+}

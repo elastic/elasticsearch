@@ -1,0 +1,55 @@
+--
+:api: get-calendars 
+:request: GetCalendarsRequest
+:response: GetCalendarsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get calendars API
+Retrieves one or more calendar objects.
+It accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get calendars request
+
+By default, a +{request}+ with no calendar ID set will return all
+calendars. Using the literal `_all` also returns all calendars.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request for all calendars. 
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-id]
+--------------------------------------------------
+<1> Construct a request for the single calendar `holidays`.
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of
+calendars to skip. `size` specifies the maximum number of calendars to get.
+Defaults to `0` and `100` respectively.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get calendars response
+
+The returned +{response}+ contains the requested calendars:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of calendars that were matched.
+<2> The calendars retrieved.

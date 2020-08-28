@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 public class SmartChineseTokenizerTokenizerFactory extends AbstractTokenizerFactory {
 
     public SmartChineseTokenizerTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings, name);
     }
 
     @Override

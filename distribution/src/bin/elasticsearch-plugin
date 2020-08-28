@@ -1,0 +1,7 @@
+#!/bin/bash
+
+ES_JAVA_OPTS="--add-opens java.base/sun.security.provider=ALL-UNNAMED $ES_JAVA_OPTS" \
+  ES_MAIN_CLASS=org.elasticsearch.plugins.PluginCli \
+  ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/plugin-cli \
+  "`dirname "$0"`"/elasticsearch-cli \
+  "$@"

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.node.SFunction;
-
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,7 +27,6 @@ import java.util.Map;
  * Program-wide globals (initializers, synthetic methods, etc)
  */
 public class Globals {
-    private final Map<String,SFunction> syntheticMethods = new HashMap<>();
     private final Map<String,Constant> constantInitializers = new HashMap<>();
     private final BitSet statements;
     
@@ -38,33 +35,18 @@ public class Globals {
         this.statements = statements;
     }
     
-    /** Adds a new synthetic method to be written. It must be analyzed! */
-    public void addSyntheticMethod(SFunction function) {
-        if (!function.synthetic) {
-            throw new IllegalStateException("method: " + function.name + " is not synthetic");
-        }
-        if (syntheticMethods.put(function.name, function) != null) {
-            throw new IllegalStateException("synthetic method: " + function.name + " already exists");
-        }
-    }
-    
     /** Adds a new constant initializer to be written */
     public void addConstantInitializer(Constant constant) {
         if (constantInitializers.put(constant.name, constant) != null) {
             throw new IllegalStateException("constant initializer: " + constant.name + " already exists");
         }
     }
-    
-    /** Returns the current synthetic methods */
-    public Map<String,SFunction> getSyntheticMethods() {
-        return syntheticMethods;
-    }
-    
+
     /** Returns the current initializers */
     public Map<String,Constant> getConstantInitializers() {
         return constantInitializers;
     }
-    
+
     /** Returns the set of statement boundaries */
     public BitSet getStatements() {
         return statements;

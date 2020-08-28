@@ -1,0 +1,265 @@
+[role="xpack"]
+[testenv="basic"]
+[[ecommerce-transforms]]
+= Tutorial: Transforming the eCommerce sample data
+
+<<transforms,{transforms-cap}>> enable you to retrieve information
+from an {es} index, transform it, and store it in another index. Let's use the
+{kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
+pivot and summarize your data with {transforms}.
+
+. Verify that your environment is set up properly to use {transforms}. If the
+{es} {security-features} are enabled, to complete this tutorial you need a user
+that has authority to preview and create {transforms}. You must also have
+specific index privileges for the source and destination indices. See
+<<transform-setup>>.
+
+. Choose your _source index_.
++
+--
+In this example, we'll use the eCommerce orders sample data. If you're not
+already familiar with the `kibana_sample_data_ecommerce` index, use the
+*Revenue* dashboard in {kib} to explore the data. Consider what insights you
+might want to derive from this eCommerce data.
+--
+
+. Play with various options for grouping and aggregating the data. 
++
+--
+_Pivoting_ your data involves using at least one field to group it and applying
+at least one aggregation. You can preview what the transformed data will look
+like, so go ahead and play with it! You can also enable histogram charts to get
+a better understanding of the distribution of values in your data.
+
+For example, you might want to group the data by product ID and calculate the
+total number of sales for each product and its average price. Alternatively, you
+might want to look at the behavior of individual customers and calculate how
+much each customer spent in total and how many different categories of products
+they purchased. Or you might want to take the currencies or geographies into
+consideration. What are the most interesting ways you can transform and
+interpret this data?
+
+Go to *Management* > *Stack Management* > *Data* > *Transforms* in {kib} and use
+the wizard to create a {transform}:
+
+[role="screenshot"]
+image::images/ecommerce-pivot1.png["Creating a simple {transform} in {kib}"]
+
+In this case, we grouped the data by customer ID and calculated the sum of
+products each customer purchased.
+
+Let's add some more aggregations to learn more about our customers' orders. For
+example, let's calculate the total sum of their purchases, the maximum number of
+products that they purchased in a single order, and their total number of orders.
+We'll accomplish this by using the
+<<search-aggregations-metrics-sum-aggregation,`sum` aggregation>> on the
+`taxless_total_price` field, the
+<<search-aggregations-metrics-max-aggregation,`max` aggregation>> on the
+`total_quantity` field, and the
+<<search-aggregations-metrics-cardinality-aggregation,`cardinality` aggregation>>
+on the `order_id` field:
+
+[role="screenshot"]
+image::images/ecommerce-pivot2.png["Adding multiple aggregations to a {transform} in {kib}"]
+
+TIP: If you're interested in a subset of the data, you can optionally include a
+<<request-body-search-query,query>> element. In this
+example, we've filtered the data so that we're only looking at orders with a
+`currency` of `EUR`. Alternatively, we could group the data by that field too.
+If you want to use more complex queries, you can create your {dataframe} from a
+{kibana-ref}/save-open-search.html[saved search].
+
+If you prefer, you can use the
+<<preview-transform,preview {transforms} API>>.
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "bool": {
+        "filter": {
+          "term": {"currency": "EUR"}
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "total_quantity.sum": {
+        "sum": {
+          "field": "total_quantity"
+        }
+      },
+      "taxless_total_price.sum": {
+        "sum": {
+          "field": "taxless_total_price"
+        }
+      },
+      "total_quantity.max": {
+        "max": {
+          "field": "total_quantity"
+        }
+      },
+      "order_id.cardinality": {
+        "cardinality": {
+          "field": "order_id"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:set up sample data]
+====
+--
+
+. When you are satisfied with what you see in the preview, create the
+{transform}. 
++
+--
+.. Supply a job ID and the name of the target (or _destination_) index. If the
+target index does not exist, it will be created automatically.
+
+.. Decide whether you want the {transform} to run once or continuously.
+--
++
+--
+Since this sample data index is unchanging, let's use the default behavior and
+just run the {transform} once.
+
+If you want to try it out, however, go ahead and click on *Continuous mode*. 
+You must choose a field that the {transform} can use to check which
+entities have changed. In general, it's a good idea to use the ingest timestamp
+field. In this example, however, you can use the `order_date` field.
+
+If you prefer, you can use the
+<<put-transform,create {transforms} API>>.
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+PUT _transform/ecommerce-customer-transform
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_ecommerce"
+    ],
+    "query": {
+      "bool": {
+        "filter": {
+          "term": {
+            "currency": "EUR"
+          }
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "total_quantity.sum": {
+        "sum": {
+          "field": "total_quantity"
+        }
+      },
+      "taxless_total_price.sum": {
+        "sum": {
+          "field": "taxless_total_price"
+        }
+      },
+      "total_quantity.max": {
+        "max": {
+          "field": "total_quantity"
+        }
+      },
+      "order_id.cardinality": {
+        "cardinality": {
+          "field": "order_id"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "ecommerce-customers"
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+====
+--
+
+. Start the {transform}.
++
+--
+
+TIP: Even though resource utilization is automatically adjusted based on the
+cluster load, a {transform} increases search and indexing load on your
+cluster while it runs. If you're experiencing an excessive load, however, you
+can stop it.
+
+You can start, stop, and manage {transforms} in {kib}:
+
+[role="screenshot"]
+image::images/manage-transforms.png["Managing {transforms} in {kib}"]
+
+Alternatively, you can use the
+<<start-transform,start {transforms}>> and
+<<stop-transform,stop {transforms}>> APIs.
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+POST _transform/ecommerce-customer-transform/_start
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+====
+
+TIP: If you chose a batch {transform}, it is a single operation that has a
+single checkpoint. You cannot restart it when it's complete. {ctransforms-cap}
+differ in that they continually increment and process checkpoints as new source
+data is ingested.
+
+--
+
+. Explore the data in your new index.
++
+--
+For example, use the *Discover* application in {kib}:
+
+[role="screenshot"]
+image::images/ecommerce-results.png["Exploring the new index in {kib}"]
+
+--
+
+TIP: If you do not want to keep the {transform}, you can delete it in
+{kib} or use the
+<<delete-transform,delete {transform} API>>. When
+you delete a {transform}, its destination index and {kib} index
+patterns remain.
+
+Now that you've created a simple {transform} for {kib} sample data, consider
+possible use cases for your own data. For more ideas, see
+<<transform-usage>> and <<transform-examples>>.

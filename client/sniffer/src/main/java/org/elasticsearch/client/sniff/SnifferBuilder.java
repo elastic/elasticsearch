@@ -34,7 +34,7 @@ public final class SnifferBuilder {
     private final RestClient restClient;
     private long sniffIntervalMillis = DEFAULT_SNIFF_INTERVAL;
     private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
-    private HostsSniffer hostsSniffer;
+    private NodesSniffer nodesSniffer;
 
     /**
      * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch
@@ -69,13 +69,13 @@ public final class SnifferBuilder {
     }
 
     /**
-     * Sets the {@link HostsSniffer} to be used to read hosts. A default instance of {@link ElasticsearchHostsSniffer}
-     * is created when not provided. This method can be used to change the configuration of the {@link ElasticsearchHostsSniffer},
+     * Sets the {@link NodesSniffer} to be used to read hosts. A default instance of {@link ElasticsearchNodesSniffer}
+     * is created when not provided. This method can be used to change the configuration of the {@link ElasticsearchNodesSniffer},
      * or to provide a different implementation (e.g. in case hosts need to taken from a different source).
      */
-    public SnifferBuilder setHostsSniffer(HostsSniffer hostsSniffer) {
-        Objects.requireNonNull(hostsSniffer, "hostsSniffer cannot be null");
-        this.hostsSniffer = hostsSniffer;
+    public SnifferBuilder setNodesSniffer(NodesSniffer nodesSniffer) {
+        Objects.requireNonNull(nodesSniffer, "nodesSniffer cannot be null");
+        this.nodesSniffer = nodesSniffer;
         return this;
     }
 
@@ -83,9 +83,9 @@ public final class SnifferBuilder {
      * Creates the {@link Sniffer} based on the provided configuration.
      */
     public Sniffer build() {
-        if (hostsSniffer == null) {
-            this.hostsSniffer = new ElasticsearchHostsSniffer(restClient);
+        if (nodesSniffer == null) {
+            this.nodesSniffer = new ElasticsearchNodesSniffer(restClient);
         }
-        return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
+        return new Sniffer(restClient, nodesSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
     }
 }

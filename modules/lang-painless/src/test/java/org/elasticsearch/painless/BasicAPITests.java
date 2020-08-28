@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class BasicAPITests extends ScriptTestCase {
 
@@ -67,7 +68,8 @@ public class BasicAPITests extends ScriptTestCase {
         ctx.put("_source", _source);
         params.put("ctx", ctx);
 
-        assertEquals("testvalue", exec("ctx._source['load'].5 = ctx._source['load'].remove('load5')", params, true));
+        assertEquals("testvalue", exec("params.ctx._source['load'].5 = params.ctx._source['load'].remove('load5')",
+            params, true));
     }
 
     /** Test loads and stores with a list */
@@ -123,5 +125,45 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(5, exec("int x = 5; return x.intValue();"));
         assertEquals("5", exec("int x = 5; return x.toString();"));
         assertEquals(0, exec("int x = 5; return x.compareTo(5);"));
+    }
+
+    public void testPublicMemberAccess() {
+        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
+            "ft.z = 5; return ft.z;"));
+    }
+
+    public void testNoSemicolon() {
+        assertEquals(true, exec("def x = true; if (x) return x"));
+    }
+
+    public void testStatic() {
+        assertEquals(10, exec("staticAddIntsTest(7, 3)"));
+        assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
+    }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public void testJCZDTToZonedDateTime() {
+        assertEquals(0L, exec(
+                "Instant instant = Instant.ofEpochMilli(434931330000L);" +
+                "JodaCompatibleZonedDateTime d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
+                "ZonedDateTime t = d;" +
+                "return ChronoUnit.MILLIS.between(d, t);"
+        ));
+    }
+
+    public void testRandomUUID() {
+        assertTrue(
+                Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}").matcher(
+                    (String)exec(
+                            "UUID a = UUID.randomUUID();" +
+                            "String s = a.toString(); " +
+                            "UUID b = UUID.fromString(s);" +
+                            "if (a.equals(b) == false) {" +
+                            "   throw new RuntimeException('uuids did not match');" +
+                            "}" +
+                            "return s;"
+                    )
+                ).matches()
+        );
     }
 }

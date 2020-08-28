@@ -1,0 +1,42 @@
+[role="xpack"]
+[[trigger-schedule]]
+=== Schedule trigger
+
+Schedule <<trigger,triggers>> define when the watch execution should start based
+on date and time. All times are specified in UTC time.
+
+{watcher} uses the system clock to determine the current time. To ensure schedules
+are triggered when expected, you should synchronize the clocks of all nodes in the
+cluster using a time service such as http://www.ntp.org/[NTP].
+
+Keep in mind that the throttle period can affect when a watch is actually executed.
+The default throttle period is five seconds (5000 ms). If you configure a schedule
+that's more frequent than the throttle period, the throttle period overrides the
+schedule. For example, if you set the throttle period to one minute (60000 ms)
+and set the schedule to every 10 seconds, the watch is executed no more than
+once per minute. For more information about throttling, see
+<<actions-ack-throttle>>.
+
+{watcher} provides several types of schedule triggers:
+
+* <<schedule-hourly, `hourly`>>
+* <<schedule-daily, `daily`>>
+* <<schedule-weekly, `weekly`>>
+* <<schedule-monthly, `monthly`>>
+* <<schedule-yearly, `yearly`>>
+* <<schedule-cron, `cron`>>
+* <<schedule-interval, `interval`>>
+
+include::schedule/hourly.asciidoc[]
+
+include::schedule/daily.asciidoc[]
+
+include::schedule/weekly.asciidoc[]
+
+include::schedule/monthly.asciidoc[]
+
+include::schedule/yearly.asciidoc[]
+
+include::schedule/cron.asciidoc[]
+
+include::schedule/interval.asciidoc[]

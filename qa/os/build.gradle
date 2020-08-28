@@ -1,0 +1,76 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+plugins {
+  id 'elasticsearch.distro-test'
+}
+
+dependencies {
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-jcl:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+
+  api project(':libs:elasticsearch-core')
+
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+}
+
+tasks.named('forbiddenApisTest').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// we don't have additional tests for the tests themselves
+tasks.test.enabled = false
+// Tests are destructive and meant to run in a VM, they don't adhere to general conventions
+testingConventions.enabled = false
+
+// this project doesn't get published
+tasks.named("dependencyLicenses").configure { it.enabled = false }
+tasks.dependenciesInfo.enabled = false
+
+tasks.thirdPartyAudit.ignoreMissingClasses()
+
+tasks.register('destructivePackagingTest') {
+  dependsOn 'destructiveDistroTest'
+}
+
+processTestResources {
+  from project(":test:framework").file("src/main/resources/log4j2-test.properties")
+}
+
+subprojects { Project platformProject ->
+  tasks.register('packagingTest') {
+    dependsOn 'distroTest'
+  }
+
+  vagrant {
+    hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
+  }
+}

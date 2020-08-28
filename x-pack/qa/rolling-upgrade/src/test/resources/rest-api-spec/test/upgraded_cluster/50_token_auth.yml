@@ -1,0 +1,92 @@
+---
+"Get the indexed token and use if to authenticate":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      get:
+        index: token_index
+        id:    "6"
+
+  - match: { _index:   token_index }
+  - match: { _id:      "6"      }
+  - is_true: _source.token
+  - set: { _source.token : token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }
+
+  # counter example that we are really checking this
+  - do:
+      headers:
+        Authorization: Bearer boom
+      catch: /missing authentication credentials/
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+---
+"Get the indexed refresh token and use if to get another access token and authenticate":
+  - skip:
+      features: headers
+
+  - do:
+      get:
+        index: token_index
+        id:    "8"
+
+  - match: { _index:   token_index }
+  - match: { _id:      "8"      }
+  - is_true: _source.token
+  - set: { _source.token : refresh_token }
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "refresh_token"
+          refresh_token: "${refresh_token}"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - is_true: refresh_token
+  - set: { refresh_token: refresh_token }
+  - match: { expires_in: 3600 }
+  - is_false: scope
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 8 }

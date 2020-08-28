@@ -19,55 +19,35 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Objects;
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 /**
  * Represents a return statement.
  */
-public final class SReturn extends AStatement {
+public class SReturn extends AStatement {
 
-    private AExpression expression;
+    private final AExpression valueNode;
 
-    public SReturn(Location location, AExpression expression) {
-        super(location);
+    public SReturn(int identifier, Location location, AExpression valueNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.valueNode = valueNode;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitReturn(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        expression.expected = locals.getReturnType();
-        expression.internal = true;
-        expression.analyze(locals);
-        expression = expression.cast(locals);
-
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
-
-        statementCount = 1;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
-        writer.returnValue();
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(expression); 
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (valueNode != null) {
+            valueNode.visit(userTreeVisitor, scope);
+        }
     }
 }

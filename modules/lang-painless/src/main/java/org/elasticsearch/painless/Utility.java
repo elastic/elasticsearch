@@ -19,6 +19,10 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+
+import java.time.ZonedDateTime;
+
 /**
  * A set of methods for non-native boxing and non-native
  * exact math operations used at both compile-time and runtime.
@@ -30,11 +34,22 @@ public class Utility {
     }
 
     public static char StringTochar(final String value) {
+        if (value == null) {
+            throw new ClassCastException("cannot cast " +
+                    "null " + String.class.getCanonicalName() +  " to " + char.class.getCanonicalName());
+        }
+
         if (value.length() != 1) {
-            throw new ClassCastException("Cannot cast [String] with length greater than one to [char].");
+            throw new ClassCastException("cannot cast " +
+                    String.class.getCanonicalName() +  " with length not equal to one to " + char.class.getCanonicalName());
         }
 
         return value.charAt(0);
+    }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static ZonedDateTime JCZDTToZonedDateTime(final JodaCompatibleZonedDateTime jczdt) {
+        return jczdt.getZonedDateTime();
     }
 
     private Utility() {}

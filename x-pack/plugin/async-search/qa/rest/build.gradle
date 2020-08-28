@@ -1,0 +1,28 @@
+import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
+
+esplugin {
+  description 'Deprecated query plugin'
+  classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index'
+    includeXpack 'async_search'
+  }
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  // add the deprecated query plugin
+  plugin file(project(':x-pack:plugin:async-search:qa:rest').tasks.bundlePlugin.archiveFile)
+  setting 'xpack.security.enabled', 'false'
+}
+
+test.enabled = false
+
+check.dependsOn integTest

@@ -1,0 +1,92 @@
+[[painless-update-by-query-context]]
+=== Update by query context
+
+Use a Painless script in an
+{ref}/docs-update-by-query.html[update by query] operation to add,
+modify, or delete fields within each of a set of documents collected as the
+result of query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`ctx['op']` (`String`)::
+        The name of the operation.
+
+{ref}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
+        The value used to select a shard for document storage.
+
+{ref}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
+        The name of the index.
+
+{ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
+        The unique document id.
+
+`ctx['_version']` (`int`, read-only)::
+        The current version of the document.
+
+{ref}/mapping-source-field.html[`ctx['_source']`] (`Map`)::
+        Contains extracted JSON in a `Map` and `List` structure for the fields
+        existing in a stored document.
+
+*Side Effects*
+
+`ctx['op']`::
+        Use the default of `index` to update a document. Set to `none` to
+        specify no operation or `delete` to delete the current document from
+        the index.
+
+{ref}/mapping-source-field.html[`ctx['_source']`]::
+        Modify the values in the `Map/List` structure to add, modify, or delete
+        the fields of a document.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+The standard <<painless-api-reference-shared, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+The following query finds all seats in a specific section that have not been
+sold and lowers the price by 2:
+
+[source,console]
+--------------------------------------------------
+POST /seats/_update_by_query
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "row": {
+              "lte": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "sold": false
+          }
+        }
+      ]
+    }
+  },
+  "script": {
+    "source": "ctx._source.cost -= params.discount",
+    "lang": "painless",
+    "params": {
+      "discount": 2
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:seats]

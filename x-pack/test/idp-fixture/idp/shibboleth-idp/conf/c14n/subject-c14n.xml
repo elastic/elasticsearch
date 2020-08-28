@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+    
+    <!-- ========================= Java Subject -> Principal Mapping ========================= -->
+
+    <!--
+    These are lists of Subject Canonicalization flows that turn complex Subject data into a string-based
+    principal name that the rest of the IdP can operate on. They're used both after authentication and
+    during operations like SAML attribute queries, to map the SAML Subject into a principal name. 
+    Flows are identified with an ID that corresponds to a Spring Web Flow subflow name.
+    -->
+
+    <!-- Flows used after authentication to produce canonical principal name. -->
+    <util:list id="shibboleth.PostLoginSubjectCanonicalizationFlows">
+        <!--
+        This is an advanced post-login step that performs attribute resolution and then produces a username
+        from an attribute value. Most of this configuration is handled by attribute-sourced-c14n-config.xml.
+        To enable universally, just uncomment, but if you want it to run under more specific conditions,
+        set an activationCondition property to a condition function to use to control when it should run. 
+        -->
+        <!-- <bean id="c14n/attribute" parent="shibboleth.PostLoginSubjectCanonicalizationFlow" /> -->
+
+        <!--
+        This is an alternative that handles Subjects containing an X500Principal object and
+        allows extraction from the DN.
+        -->
+        <ref bean="c14n/x500" />
+
+        <!--
+        This is the standard post-login step that returns a username derived from the login process. If you
+        have more complex needs such as mapping a certificate DN into a principal name, an alternative may
+        be required such as that above, but you can configure simple transforms in simple-subject-c14n-config.xml
+        -->
+        <ref bean="c14n/simple" />
+    </util:list>
+    
+    <!--
+    Flows used during SAML requests to reverse-map NameIdentifiers/NameIDs. The actual beans defining these
+    flows are in a system file. Below the list are some settings that might be useful to adjust.
+    -->
+    <util:list id="shibboleth.SAMLSubjectCanonicalizationFlows">
+
+        <!--
+        This is installed to support the old mechanism of using PrincipalConnectors in the attribute resolver
+        to map SAML Subjects back into principals. If you don't use those (or this is a new install) you can
+        remove this.
+        -->
+        <ref bean="c14n/LegacyPrincipalConnector" />
+        
+        <!-- The next four are for handling transient IDs (in-storage and stateless variants). -->
+        <ref bean="c14n/SAML2Transient" />
+        <ref bean="c14n/SAML2CryptoTransient" />
+        <ref bean="c14n/SAML1Transient" /> 
+        <ref bean="c14n/SAML1CryptoTransient" /> 
+        
+        <!-- Handle a SAML 2 persistent ID, provided a stored strategy is in use. -->
+        <!-- <ref bean="c14n/SAML2Persistent" /> -->
+        
+        <!--
+        Finally we have beans for decoding arbitrary SAML formats directly. By default, these are turned off,
+        having *no* circumstances for which they apply (see shibboleth.TransformNamePredicate below).
+        -->
+        <ref bean="c14n/SAML2Transform" />
+        <ref bean="c14n/SAML1Transform" />
+    </util:list>
+    
+    <!-- What SAML NameID formats do you want to support direct transformations for? -->
+    <util:list id="shibboleth.NameTransformFormats">
+        <value>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</value>
+        <value>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</value>
+        <value>urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName</value>
+        <value>urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName</value>
+        <value>urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos</value>
+    </util:list>
+
+    <!--
+    Under what conditions should direct NameID mapping be allowed? By default, never.
+    Any condition can be used here; the example is suitable for enumerating a number of SPs to allow.
+    -->
+    <bean id="shibboleth.NameTransformPredicate" parent="shibboleth.Conditions.RelyingPartyId">
+        <constructor-arg name="candidates">
+            <list>
+                <!-- <value>https://sp.example.org</value> -->
+            </list>
+        </constructor-arg>
+    </bean>
+    
+    <!--
+    Regular expression transforms to apply to incoming subject names. The default empty list just
+    echoes the name through unmodified.
+    -->
+    <util:list id="shibboleth.NameTransforms">
+        <!--
+        <bean parent="shibboleth.Pair" p:first="^(.+)@example\.edu$" p:second="$1" />
+        -->
+    </util:list>
+    
+</beans>

@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.reindex.remote;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.BasicHit;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Response;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -35,6 +33,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.List;
@@ -59,14 +62,12 @@ final class RemoteResponseParsers {
             new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
-                String type = (String) a[i++];
                 String id = (String) a[i++];
                 Long version = (Long) a[i++];
-                return new BasicHit(index, type, id, version == null ? -1 : version);
+                return new BasicHit(index, id, version == null ? -1 : version);
             });
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
-        HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
         HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
         HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, s) -> {
@@ -78,30 +79,27 @@ final class RemoteResponseParsers {
                 try (XContentBuilder b = XContentBuilder.builder(s.xContent())) {
                     b.copyCurrentStructure(p);
                     // a hack but this lets us get the right xcontent type to go with the source
-                    return new Tuple<>(b.bytes(), s);
+                    return new Tuple<>(BytesReference.bytes(b), s);
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);
             }
         }, new ParseField("_source"));
         ParseField routingField = new ParseField("_routing");
-        ParseField parentField = new ParseField("_parent");
         ParseField ttlField = new ParseField("_ttl");
+        ParseField parentField = new ParseField("_parent");
         HIT_PARSER.declareString(BasicHit::setRouting, routingField);
-        HIT_PARSER.declareString(BasicHit::setParent, parentField);
-        // Pre-2.0.0 parent and routing come back in "fields"
+        // Pre-2.0.0 routing come back in "fields"
         class Fields {
             String routing;
-            String parent;
         }
         ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> {
             hit.setRouting(fields.routing);
-            hit.setParent(fields.parent);
         }, fieldsParser, new ParseField("fields"));
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
-        fieldsParser.declareString((fields, parent) -> fields.parent = parent, parentField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
+        fieldsParser.declareString((fields, parent) -> {}, parentField); // ignore parents since they have been removed
     }
 
     /**
@@ -110,14 +108,23 @@ final class RemoteResponseParsers {
     public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER =
             new ConstructingObjectParser<>("hits", true, a -> a);
     static {
-        HITS_PARSER.declareLong(constructorArg(), new ParseField("total"));
+        HITS_PARSER.declareField(constructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
+                assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
+                return totalHits.value;
+            } else {
+                // For BWC with nodes pre 7.0
+                return p.longValue();
+            }
+        }, new ParseField("total"), ValueType.OBJECT_OR_LONG);
         HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
     }
 
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, XContentType> SEARCH_FAILURE_PARSER =
+    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER =
             new ConstructingObjectParser<>("failure", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -134,12 +141,12 @@ final class RemoteResponseParsers {
                 return new SearchFailure(reasonThrowable, index, shardId, nodeId);
             });
     static {
-        SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("index"));
+        SEARCH_FAILURE_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index"));
         SEARCH_FAILURE_PARSER.declareInt(optionalConstructorArg(), new ParseField("shard"));
         SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("node"));
         SEARCH_FAILURE_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return ThrowableBuilder.PARSER.apply(p, c);
+                return ThrowableBuilder.PARSER.apply(p, null);
             } else {
                 return p.text();
             }
@@ -150,7 +157,7 @@ final class RemoteResponseParsers {
      * Parser for the {@code _shards} element. Throws everything out except the errors array if there is one. If there isn't one then it
      * parses to an empty list.
      */
-    public static final ConstructingObjectParser<List<Throwable>, XContentType> SHARDS_PARSER =
+    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER =
             new ConstructingObjectParser<>("_shards", true, a -> {
                 @SuppressWarnings("unchecked")
                 List<Throwable> failures = (List<Throwable>) a[0];
@@ -189,20 +196,20 @@ final class RemoteResponseParsers {
                 return new Response(timedOut, failures, totalHits, hits, scroll);
             });
     static {
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), ThrowableBuilder.PARSER::apply, new ParseField("error"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> ThrowableBuilder.PARSER.apply(p, null), new ParseField("error"));
         RESPONSE_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("timed_out"));
         RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("_scroll_id"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), HITS_PARSER, new ParseField("hits"));
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), SHARDS_PARSER, new ParseField("_shards"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> SHARDS_PARSER.apply(p, null), new ParseField("_shards"));
     }
 
     /**
      * Collects stuff about Throwables and attempts to rebuild them.
      */
     public static class ThrowableBuilder {
-        public static final BiFunction<XContentParser, XContentType, Throwable> PARSER;
+        public static final BiFunction<XContentParser, Void, Throwable> PARSER;
         static {
-            ObjectParser<ThrowableBuilder, XContentType> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
+            ObjectParser<ThrowableBuilder, Void> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));
@@ -270,7 +277,11 @@ final class RemoteResponseParsers {
             "/", true, a -> (Version) a[0]);
     static {
         ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
-                "version", true, a -> Version.fromString((String) a[0]));
+                "version", true, a -> Version.fromString(
+                    ((String) a[0])
+                        .replace("-SNAPSHOT", "")
+                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+        ));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }

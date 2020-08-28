@@ -23,7 +23,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,7 +33,7 @@ import java.net.URL;
 /**
  * Read-only URL-based blob store
  */
-public class URLBlobStore extends AbstractComponent implements BlobStore {
+public class URLBlobStore implements BlobStore {
 
     private final URL path;
 
@@ -53,15 +52,11 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
      * @param path     base URL
      */
     public URLBlobStore(Settings settings, URL path) {
-        super(settings);
         this.path = path;
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
             new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String toString() {
         return path.toString();
@@ -85,9 +80,6 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
         return this.bufferSizeInBytes;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         try {
@@ -97,17 +89,6 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
         }
     }
 
-    /**
-     * This operation is not supported by URL Blob Store
-     */
-    @Override
-    public void delete(BlobPath path) {
-        throw new UnsupportedOperationException("URL repository is read only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void close() {
         // nothing to do here...

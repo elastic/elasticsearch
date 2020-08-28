@@ -32,7 +32,7 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
     public UkrainianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new UkrainianMorfologikAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);

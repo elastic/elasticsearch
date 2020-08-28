@@ -1,0 +1,63 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-start-job]]
+=== Start {rollup-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Start {rollup-jobs}</titleabbrev>
+++++
+
+Starts an existing, stopped {rollup-job}.
+
+experimental[]
+
+[[rollup-start-job-request]]
+==== {api-request-title}
+
+`POST _rollup/job/<job_id>/_start`
+
+[[rollup-start-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage` or
+`manage_rollup` cluster privileges to use this API. For more information, see
+<<security-privileges>>.
+
+[[rollup-start-job-desc]]
+==== {api-description-title}
+
+If you try to start a job that does not exist, an exception occurs. If you try
+to start a job that is already started, nothing happens.
+
+[[rollup-start-job-path-params]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {rollup-job}.
+  
+[[rollup-start-job-response-codes]]
+==== {api-response-codes-title}
+
+ `404` (Missing resources)::
+ This code indicates that there are no resources that match the request. It
+ occurs if you try to start a job that doesn't exist.
+
+[[rollup-start-job-examples]]
+==== {api-examples-title}
+
+If we have already created a {rollup-job} named `sensor`, it can be started with:
+
+[source,console]
+--------------------------------------------------
+POST _rollup/job/sensor/_start
+--------------------------------------------------
+// TEST[setup:sensor_rollup_job]
+
+Which will return the response:
+
+[source,console-result]
+----
+{
+  "started": true
+}
+----

@@ -1,0 +1,26 @@
+[[drop-processor]]
+=== Drop processor
+++++
+<titleabbrev>Drop</titleabbrev>
+++++
+
+Drops the document without raising any errors. This is useful to prevent the document from
+getting indexed based on some condition.
+
+[[drop-options]]
+.Drop Options
+[options="header"]
+|======
+| Name              | Required  | Default  | Description
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "drop": {
+    "if" : "ctx.network_name == 'Guest'"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

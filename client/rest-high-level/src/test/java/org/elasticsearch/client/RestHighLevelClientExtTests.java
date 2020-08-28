@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +36,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
- * This test works against a {@link RestHighLevelClient} subclass that simulats how custom response sections returned by
+ * This test works against a {@link RestHighLevelClient} subclass that simulates how custom response sections returned by
  * Elasticsearch plugins can be parsed using the high level client.
  */
 public class RestHighLevelClientExtTests extends ESTestCase {
@@ -44,21 +44,21 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private RestHighLevelClient restHighLevelClient;
 
     @Before
-    public void initClient() throws IOException {
+    public void initClient() {
         RestClient restClient = mock(RestClient.class);
         restHighLevelClient = new RestHighLevelClientExt(restClient);
     }
 
     public void testParseEntityCustomResponseSection() throws IOException {
         {
-            HttpEntity jsonEntity = new StringEntity("{\"custom1\":{ \"field\":\"value\"}}", ContentType.APPLICATION_JSON);
+            HttpEntity jsonEntity = new NStringEntity("{\"custom1\":{ \"field\":\"value\"}}", ContentType.APPLICATION_JSON);
             BaseCustomResponseSection customSection = restHighLevelClient.parseEntity(jsonEntity, BaseCustomResponseSection::fromXContent);
             assertThat(customSection, instanceOf(CustomResponseSection1.class));
             CustomResponseSection1 customResponseSection1 = (CustomResponseSection1) customSection;
             assertEquals("value", customResponseSection1.value);
         }
         {
-            HttpEntity jsonEntity = new StringEntity("{\"custom2\":{ \"array\": [\"item1\", \"item2\"]}}", ContentType.APPLICATION_JSON);
+            HttpEntity jsonEntity = new NStringEntity("{\"custom2\":{ \"array\": [\"item1\", \"item2\"]}}", ContentType.APPLICATION_JSON);
             BaseCustomResponseSection customSection = restHighLevelClient.parseEntity(jsonEntity, BaseCustomResponseSection::fromXContent);
             assertThat(customSection, instanceOf(CustomResponseSection2.class));
             CustomResponseSection2 customResponseSection2 = (CustomResponseSection2) customSection;
@@ -69,7 +69,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private static class RestHighLevelClientExt extends RestHighLevelClient {
 
         private RestHighLevelClientExt(RestClient restClient) {
-            super(restClient, getNamedXContentsExt());
+            super(restClient, RestClient::close, getNamedXContentsExt());
         }
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {

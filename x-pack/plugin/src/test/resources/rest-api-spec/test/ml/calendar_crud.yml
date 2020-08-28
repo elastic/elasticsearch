@@ -1,0 +1,816 @@
+---
+"Test calendar CRUD":
+
+  - do:
+      ml.put_job:
+        job_id: cal-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "cal-job" }
+
+  - do:
+      ml.put_job:
+        job_id: cal-job2
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "cal-job2" }
+
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "advent"
+        body:  >
+          {
+            "job_ids": ["cal-job", "cal-job2"],
+            "description": "This is a calendar about..."
+          }
+  - match: { calendar_id: advent }
+  - match: { job_ids.0: cal-job }
+  - match: { job_ids.1: cal-job2 }
+  - match: { description: "This is a calendar about..."}
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "advent"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "advent"
+        job_ids: ["cal-job", "cal-job2"]
+        description: "This is a calendar about..."
+  - is_false: type
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "dogs_of_the_year"
+        body:  >
+          {
+            "job_ids": ["cal-job"]
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "cats_of_the_year"
+
+  - do:
+      ml.get_calendars: {}
+  - match: { count: 3 }
+
+  - do:
+      ml.delete_calendar:
+        calendar_id: "dogs_of_the_year"
+
+  - do:
+      ml.get_calendars: {}
+  - match: { count: 2 }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: _all
+  - match: { count: 2 }
+
+  - do:
+      catch: missing
+      ml.get_calendars:
+        calendar_id: "dogs_of_the_year"
+
+---
+"Test get calendar given missing":
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      ml.get_calendars:
+        calendar_id: "unknown"
+
+---
+"Test put calendar given id contains invalid chars":
+  - do:
+      catch: bad_request
+      ml.put_calendar:
+        calendar_id: "Mayas"
+
+---
+"Test PageParams":
+  - do:
+      ml.put_calendar:
+        calendar_id: "calendar1"
+  - do:
+      ml.put_calendar:
+        calendar_id: "calendar2"
+  - do:
+      ml.put_calendar:
+        calendar_id: "calendar3"
+
+  - do:
+      ml.get_calendars:
+        from: 2
+  - match: { count: 3 }
+  - length: { calendars: 1}
+  - match: { calendars.0.calendar_id: calendar3 }
+
+  - do:
+      ml.get_calendars:
+        from: 1
+        size: 1
+  - match: { count: 3 }
+  - length: { calendars: 1}
+  - match: { calendars.0.calendar_id: calendar2 }
+
+  - do:
+      ml.get_calendars:
+        body: >
+          {
+            "page": {
+              "from": 1,
+              "size": 2
+            }
+          }
+  - match: { count: 3 }
+  - length: { calendars: 2}
+  - match: { calendars.0.calendar_id: calendar2 }
+  - match: { calendars.1.calendar_id: calendar3 }
+
+---
+"Test PageParams with ID is invalid":
+  - do:
+      catch: bad_request
+      ml.get_calendars:
+        calendar_id: tides
+        size: 10
+
+---
+"Test cannot overwrite an exisiting calendar":
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "mayan"
+
+  - do:
+      catch: bad_request
+      ml.put_calendar:
+        calendar_id: "mayan"
+
+---
+"Test cannot create calendar with name _all":
+  - do:
+      catch: bad_request
+      ml.put_calendar:
+        calendar_id: "_all"
+
+---
+"Test deleted job is removed from calendar":
+
+  - do:
+      ml.put_job:
+        job_id: cal-crud-test-delete
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "cal-crud-test-delete" }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "delete-test"
+        body:  >
+          {
+            "job_ids": ["cal-crud-test-delete"]
+          }
+
+  - do:
+      ml.delete_job:
+        job_id: cal-crud-test-delete
+  - match: { acknowledged: true }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "delete-test"
+  - match: { count: 1 }
+  - match: { calendars.0.job_ids: [] }
+
+---
+"Test update calendar job ids":
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "wildlife"
+
+  - do:
+      ml.put_job:
+        job_id: tiger
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "tiger" }
+
+  - do:
+      ml.put_job:
+        job_id: otter
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "otter" }
+
+  - do:
+      ml.put_calendar_job:
+        calendar_id: "wildlife"
+        job_id: "tiger"
+  - match: { calendar_id: "wildlife" }
+  - match: { job_ids.0: "tiger" }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "wildlife"
+  - match: { count: 1 }
+  - match: { calendars.0.calendar_id: "wildlife" }
+  - length: { calendars.0.job_ids: 1 }
+  - match: { calendars.0.job_ids.0: "tiger" }
+
+  - do:
+      ml.delete_calendar_job:
+        calendar_id: "wildlife"
+        job_id: "tiger"
+  - match: { calendar_id: "wildlife" }
+  - length: { job_ids: 0 }
+
+  - do:
+      catch: /Cannot remove \[otter\] as it is not present in calendar \[wildlife\]/
+      ml.delete_calendar_job:
+        calendar_id: "wildlife"
+        job_id: "otter"
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "wildlife"
+  - match: { count: 1 }
+  - match: { calendars.0.calendar_id: "wildlife" }
+  - length: { calendars.0.job_ids: 0 }
+
+  - do:
+      catch: /Cannot remove \[missing_job\] as it is not present in calendar \[wildlife\]/
+      ml.delete_calendar_job:
+        calendar_id: "wildlife"
+        job_id: "missing_job"
+---
+"Test calendar get events":
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "events"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "events"
+        body:  >
+          {
+            "events" : [
+              { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "events" },
+              { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z", "calendar_id": "events" },
+              { "description": "event 3", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-13T00:00:00Z", "calendar_id": "events" },
+              { "description": "event 4", "start_time": "2017-12-12T00:00:00Z", "end_time": "2017-12-15T00:00:00Z", "calendar_id": "events" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "events"
+  - length: { events: 4 }
+  - match: { events.0.description: "event 1" }
+  - match: { events.1.description: "event 2" }
+  - match: { events.2.description: "event 3" }
+  - match: { events.3.description: "event 4" }
+  - is_true: events.0.event_id
+  - set: { events.0.event_id: event_1_id }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "events"
+        from: 1
+        size: 2
+  - length: { events: 2 }
+  - match: { events.0.description: "event 2" }
+  - match: { events.1.description: "event 3" }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "events"
+        end: "2017-12-12T00:00:00Z"
+  - length: { events: 2 }
+  - match: { events.0.description: "event 1" }
+  - match: { events.1.description: "event 2" }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "events"
+        start: "2017-12-05T03:00:00Z"
+  - length: { events: 3 }
+  - match: { events.0.description: "event 2" }
+  - match: { events.1.description: "event 3" }
+  - match: { events.2.description: "event 4" }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "events"
+        start: "2017-12-02T00:00:00Z"
+        end: "2017-12-12T00:00:00Z"
+  - length: { events: 1 }
+  - match: { events.0.description: "event 2" }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "events-2"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "events-2"
+        body: >
+          {
+            "events" : [
+              { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-02T05:00:00Z"},
+              { "description": "event 22", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z"}]
+          }
+
+  - do:
+      catch: bad_request
+      ml.post_calendar_events:
+        calendar_id: "events-2"
+        body: >
+          {
+            "events" : [
+              { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-03T00:00:00Z", "calendar_id": "events"}]
+          }
+
+# Event is not in calendar events-2
+  - do:
+      catch: bad_request
+      ml.delete_calendar_event:
+        calendar_id: "events-2"
+        event_id: $event_1_id
+
+  - do:
+      ml.delete_calendar_event:
+        calendar_id: "events"
+        event_id: $event_1_id
+
+  - do:
+      catch: missing
+      ml.delete_calendar_event:
+        calendar_id: "events"
+        event_id: "missing event"
+
+
+---
+"Test delete calendar deletes events":
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "cal-foo"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "cal-foo"
+        body: >
+          {
+            "events" : [
+              { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z" },
+              { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z" },
+              { "description": "event 2", "start_time": "2017-12-05T00:00:00Z", "end_time": "2017-12-06T00:00:00Z" }]
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "cal-bar"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "cal-bar"
+        body: >
+          {
+            "events" : [
+              { "description": "event 21", "start_time": "2017-12-02T00:00:00Z", "end_time": "2017-12-02T05:00:00Z"},
+              { "description": "event 22", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z"}]
+          }
+
+  - do:
+      ml.delete_calendar:
+        calendar_id: "cal-foo"
+
+# Check the event from calendar 1 is deleted
+  - do:
+      count:
+        index: .ml-meta
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  type: scheduled_event
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: .ml-meta
+        body:
+          query:
+            bool:
+              must:
+                - term:
+                    type: scheduled_event
+                - term:
+                    calendar_id: cal-foo
+  - match: { count: 0 }
+
+---
+"Test get all calendar events":
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "dave-holidays"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "dave-holidays"
+        body: >
+          {
+            "events" : [
+              { "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+              { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }]
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "tom-holidays"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "tom-holidays"
+        body: >
+          {
+            "events" : [
+              { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+              { "description": "other", "start_time": "2017-12-27T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "_all"
+  - length: { events: 4 }
+
+---
+"Test get calendar events for job":
+
+  - do:
+      ml.put_job:
+        job_id: cal-crud-job-with-events
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "dave-holidays"
+        body: >
+          {
+            "job_ids": ["cal-crud-job-with-events"]
+          }
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "dave-holidays"
+        body: >
+          {
+            "events" : [{ "description": "xmas", "start_time": "2017-12-25T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+                        { "description": "ny", "start_time": "2018-01-01T00:00:00Z", "end_time": "2018-01-02T00:00:00Z" }]
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "tom-holidays"
+        body: >
+          {
+            "job_ids": ["cal-crud-job-with-events"]
+          }
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "tom-holidays"
+        body: >
+          {
+            "events" : [
+              { "description": "xmas", "start_time": "2017-12-20T00:00:00Z", "end_time": "2017-12-26T00:00:00Z" },
+              { "description": "other", "start_time": "2018-01-15T00:00:00Z", "end_time": "2018-01-16T00:00:00Z" }]
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "not-used-by-job"
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "not-used-by-job"
+        body: >
+          {
+            "events" : [
+              { "description": "random", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-26T00:00:00Z" },
+              { "description": "random2", "start_time": "2018-02-20T00:00:00Z", "end_time": "2018-02-26T00:00:00Z" }]
+          }
+
+
+# Calendar Id must be _all if a job id is used
+  - do:
+      catch: /action_request_validation_exception/
+      ml.get_calendar_events:
+        calendar_id: "dave-holiday"
+        job_id: cal-crud-job-with-events
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: _all
+        job_id: cal-crud-job-with-events
+  - match: { count: 4 }
+  - length: { events: 4 }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: _all
+        start: "2018-01-01T00:00:00Z"
+        job_id: cal-crud-job-with-events
+  - match: { count: 2 }
+  - length: { events: 2 }
+  - match: { events.0.description: ny }
+  - match: { events.1.description: other }
+
+---
+"Test get calendar events with job groups":
+# Test job group
+  - do:
+      ml.put_job:
+        job_id: cal-crud-job-with-events-group
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            },
+            "groups" : ["ben-holidays-group"]
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "ben-holidays"
+        body: >
+          {
+            "job_ids": ["ben-holidays-group"]
+          }
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "ben-holidays"
+        body: >
+          {
+            "events" : [
+              { "description": "ski", "start_time": "2018-01-20T00:00:00Z", "end_time": "2018-01-27T00:00:00Z" },
+              { "description": "snow", "start_time": "2018-01-30T00:00:00Z", "end_time": "2018-02-01T00:00:00Z" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: _all
+        job_id: "cal-crud-job-with-events-group"
+  - match: { count: 2 }
+  - length: { events: 2 }
+  - match: { events.0.description: ski }
+  - match: { events.1.description: snow }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: _all
+        job_id: "ben-holidays-group"
+  - match: { count: 2 }
+  - length: { events: 2 }
+  - match: { events.0.description: ski }
+  - match: { events.1.description: snow }
+
+---
+"Test post calendar events given empty events":
+
+  - do:
+      catch: /At least 1 event is required/
+      ml.post_calendar_events:
+        calendar_id: "foo"
+        body: >
+          {
+            "events": []
+          }
+
+---
+"Test delete event from non existing calendar":
+
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      ml.delete_calendar_event:
+        calendar_id: "unknown"
+        event_id: "event_1"
+
+---
+"Test delete job from non existing calendar":
+
+  - do:
+      catch: /No calendar with id \[unknown\]/
+      ml.delete_calendar_job:
+        calendar_id: "unknown"
+        job_id: "missing_calendar"
+
+---
+"Test list of job Ids":
+  - do:
+      ml.put_job:
+        job_id: foo-a
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      ml.put_job:
+        job_id: foo-b
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      ml.put_job:
+        job_id: bar-a
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "expression"
+        body: >
+          {
+            "job_ids": ["bar-a"]
+          }
+
+  - do:
+      ml.put_calendar_job:
+        calendar_id: "expression"
+        job_id: "foo-a,foo-b"
+  - match: { calendar_id: "expression" }
+  - length: { job_ids: 3 }
+
+  - do:
+      ml.delete_calendar_job:
+        calendar_id: "expression"
+        job_id: "foo-a,foo-b"
+  - match: { calendar_id: "expression" }
+  - length: { job_ids: 1 }
+  - match: { job_ids.0: "bar-a" }
+
+---
+"Test calendar actions with new job group":
+  - do:
+      ml.put_job:
+        job_id: calendar-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "cal_with_new_job_group"
+        body:  >
+          {
+            "job_ids": ["calendar-job", "new-job-group"]
+          }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "cal_with_new_job_group"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "cal_with_new_job_group"
+        job_ids: ["calendar-job", "new-job-group"]
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "cal_with_new_job_group"
+        body: >
+          {
+            "events" : [{ "description": "beach", "start_time": "2018-05-01T00:00:00Z", "end_time": "2018-05-06T00:00:00Z" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: cal_with_new_job_group
+  - length: { events: 1 }
+  - match: { events.0.description: beach }
+
+  - do:
+      ml.delete_calendar:
+        calendar_id: "cal_with_new_job_group"
+
+  - do:
+      ml.put_calendar:
+        calendar_id: "started_empty_calendar"
+
+  - do:
+      ml.put_calendar_job:
+        calendar_id: "started_empty_calendar"
+        job_id: "new-group"
+  - match: { calendar_id: "started_empty_calendar" }
+  - length: { job_ids: 1 }
+
+  - do:
+      ml.get_calendars:
+        calendar_id: "started_empty_calendar"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "started_empty_calendar"
+        job_ids: ["new-group"]
+
+  - do:
+      ml.post_calendar_events:
+        calendar_id: "started_empty_calendar"
+        body: >
+          {
+            "events" : [{ "description": "beach", "start_time": "2018-05-01T00:00:00Z", "end_time": "2018-05-06T00:00:00Z" }]
+          }
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "started_empty_calendar"
+  - length: { events: 1 }
+  - match: { events.0.description: beach }
+  - set: { events.0.event_id: beach_event_id }
+
+  - do:
+      ml.delete_calendar_event:
+        calendar_id: "started_empty_calendar"
+        event_id: $beach_event_id
+
+  - do:
+      ml.get_calendar_events:
+        calendar_id: "started_empty_calendar"
+  - length: { events: 0 }
+
+  - do:
+      ml.delete_calendar:
+        calendar_id: "started_empty_calendar"
+
+  - do:
+      catch: missing
+      ml.get_calendars:
+        calendar_id: "started_empty_calendar"

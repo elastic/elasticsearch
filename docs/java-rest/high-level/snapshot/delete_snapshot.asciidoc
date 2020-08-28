@@ -1,0 +1,73 @@
+[[java-rest-high-snapshot-delete-snapshot]]
+=== Delete Snapshot API
+
+The Delete Snapshot API allows to delete a snapshot.
+
+[[java-rest-high-snapshot-delete-snapshot-request]]
+==== Delete Snapshot Request
+
+A `DeleteSnapshotRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-request]
+--------------------------------------------------
+
+==== Optional Arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-snapshot-delete-snapshot-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-delete-snapshot-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a delete snapshot  request requires both the
+`DeleteSnapshotRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-execute-async]
+--------------------------------------------------
+<1> The `DeleteSnapshotRequest` to execute and the `ActionListener`
+to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteSnapshotResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of a failure. The raised exception is provided as an argument
+
+[[java-rest-high-cluster-delete-snapshot-response]]
+==== Delete Snapshot Response
+
+The returned `DeleteSnapshotResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-response]
+--------------------------------------------------
+<1> Indicates the node has acknowledged the request

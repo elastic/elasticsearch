@@ -1,0 +1,4 @@
+user:
+  cluster: ALL
+  indices:
+    '*': ALL

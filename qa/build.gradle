@@ -1,0 +1,17 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+
+subprojects { Project subproj ->
+  subproj.tasks.withType(RestIntegTestTask) {
+    if (subproj.extensions.findByName("${it.name}Cluster")) {
+      subproj.extensions.configure("${it.name}Cluster") { cluster ->
+        cluster.distribution = System.getProperty('tests.distribution', 'oss')
+      }
+    }
+  }
+  plugins.withType(TestClustersPlugin).whenPluginAdded {
+    testClusters.all {
+      testDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
+    }
+  }
+}

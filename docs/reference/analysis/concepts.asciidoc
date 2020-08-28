@@ -1,0 +1,17 @@
+[[analysis-concepts]]
+== Text analysis concepts
+++++
+<titleabbrev>Concepts</titleabbrev>
+++++
+
+This section explains the fundamental concepts of text analysis in {es}.
+
+* <<analyzer-anatomy>>
+* <<analysis-index-search-time>>
+* <<stemming>>
+* <<token-graphs>>
+
+include::anatomy.asciidoc[]
+include::index-search-time.asciidoc[]
+include::stemming.asciidoc[]
+include::token-graphs.asciidoc[]

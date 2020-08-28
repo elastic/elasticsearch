@@ -1,0 +1,35 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test date index name processor with defaults":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "date_index_name" : {
+                  "field" : "date",
+                  "index_name_prefix": "events-",
+                  "date_rounding": "d"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: events
+        id: 1
+        pipeline: "1"
+        body: {
+          date: "2016-04-22T16:32:14.968Z"
+        }
+  - match: { _index: "events-2016-04-22"}

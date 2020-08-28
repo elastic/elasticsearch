@@ -26,24 +26,25 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.ReferenceCounted;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,16 +52,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
@@ -72,9 +68,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     @After
@@ -84,9 +80,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
     }
 
-    public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
+    public void testThatHttpPipeliningWorks() throws Exception {
         final Settings settings = Settings.builder()
-            .put("http.pipelining", true)
             .put("http.port", "0")
             .build();
         try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
@@ -105,50 +100,12 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
-                Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
-                assertThat(responseBodies, contains(requests.toArray()));
-            }
-        }
-    }
-
-    public void testThatHttpPipeliningCanBeDisabled() throws Exception {
-        final Settings settings = Settings.builder()
-            .put("http.pipelining", false)
-            .put("http.port", "0")
-            .build();
-        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
-            httpServerTransport.start();
-            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
-
-            final int numberOfRequests = randomIntBetween(4, 16);
-            final Set<Integer> slowIds = new HashSet<>();
-            final List<String> requests = new ArrayList<>(numberOfRequests);
-            for (int i = 0; i < numberOfRequests; i++) {
-                if (rarely()) {
-                    requests.add("/slow/" + i);
-                    slowIds.add(i);
-                } else {
-                    requests.add("/" + i);
+                try {
+                    Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
+                    assertThat(responseBodies, contains(requests.toArray()));
+                } finally {
+                    responses.forEach(ReferenceCounted::release);
                 }
-            }
-
-            try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
-                Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
-                List<String> responseBodies = new ArrayList<>(Netty4HttpClient.returnHttpResponseBodies(responses));
-                // we can not be sure about the order of the responses, but the slow ones should come last
-                assertThat(responseBodies, hasSize(numberOfRequests));
-                for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
-                    assertThat(responseBodies.get(i), matches("/\\d+"));
-                }
-
-                final Set<Integer> ids = new HashSet<>();
-                for (int i = 0; i < slowIds.size(); i++) {
-                    final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
-                    assertThat(response, matches("/slow/\\d+" ));
-                    assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
-                }
-
-                assertThat(slowIds, equalTo(ids));
             }
         }
     }
@@ -162,12 +119,13 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,
-                xContentRegistry(), new NullDispatcher());
+                xContentRegistry(), new NullDispatcher(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new SharedGroupFactory(settings));
         }
 
         @Override
         public ChannelHandler configureServerChannelHandler() {
-            return new CustomHttpChannelHandler(this, executorService, Netty4HttpServerPipeliningTests.this.threadPool.getThreadContext());
+            return new CustomHttpChannelHandler(this, executorService);
         }
 
         @Override
@@ -182,8 +140,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService, ThreadContext threadContext) {
-            super(transport, randomBoolean(), threadContext);
+        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService) {
+            super(transport, transport.handlingSettings);
             this.executorService = executorService;
         }
 
@@ -195,7 +153,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     }
 
-    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<Object> {
+    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
         private final ExecutorService executorService;
 
@@ -204,7 +162,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) throws Exception {
             executorService.submit(new PossiblySlowRunnable(ctx, msg));
         }
 
@@ -220,50 +178,39 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         private ChannelHandlerContext ctx;
         private HttpPipelinedRequest pipelinedRequest;
-        private FullHttpRequest fullHttpRequest;
 
-        PossiblySlowRunnable(ChannelHandlerContext ctx, Object msg) {
+        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
             this.ctx = ctx;
-            if (msg instanceof HttpPipelinedRequest) {
-                this.pipelinedRequest = (HttpPipelinedRequest) msg;
-            } else if (msg instanceof FullHttpRequest) {
-                this.fullHttpRequest = (FullHttpRequest) msg;
-            }
+            this.pipelinedRequest = msg;
         }
 
         @Override
         public void run() {
-            final String uri;
-            if (pipelinedRequest != null && pipelinedRequest.last() instanceof FullHttpRequest) {
-                uri = ((FullHttpRequest) pipelinedRequest.last()).uri();
-            } else {
-                uri = fullHttpRequest.uri();
-            }
+            try {
+                final String uri = pipelinedRequest.uri();
 
-            final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
+                final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
-            httpResponse.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
+                HttpResponse response =
+                    pipelinedRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
+                response.addHeader("content-length", Integer.toString(buffer.readableBytes()));
 
-            final boolean slow = uri.matches("/slow/\\d+");
-            if (slow) {
-                try {
-                    Thread.sleep(scaledRandomIntBetween(500, 1000));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                final boolean slow = uri.matches("/slow/\\d+");
+                if (slow) {
+                    try {
+                        Thread.sleep(scaledRandomIntBetween(500, 1000));
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    assert uri.matches("/\\d+");
                 }
-            } else {
-                assert uri.matches("/\\d+");
-            }
 
-            final ChannelPromise promise = ctx.newPromise();
-            final Object msg;
-            if (pipelinedRequest != null) {
-                msg = pipelinedRequest.createHttpResponse(httpResponse, promise);
-            } else {
-                msg = httpResponse;
+                final ChannelPromise promise = ctx.newPromise();
+                ctx.writeAndFlush(response, promise);
+            } finally {
+                pipelinedRequest.release();
             }
-            ctx.writeAndFlush(msg, promise);
         }
 
     }

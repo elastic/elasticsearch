@@ -19,17 +19,18 @@
 
 package org.elasticsearch.script.expression;
 
+import java.util.Collection;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 
 public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
-        return new ExpressionScriptEngineService(settings);
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+        return new ExpressionScriptEngine();
     }
 }

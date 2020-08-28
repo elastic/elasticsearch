@@ -24,6 +24,7 @@ import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.pl.PolishAnalyzerProvider;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
+import org.elasticsearch.index.analysis.pl.PolishStopTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -35,7 +36,8 @@ import static java.util.Collections.singletonMap;
 public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-        return singletonMap("polish_stem", PolishStemTokenFilterFactory::new);
+        return Map.of("polish_stem", PolishStemTokenFilterFactory::new,
+                      "polish_stop", PolishStopTokenFilterFactory::new);
     }
 
     @Override

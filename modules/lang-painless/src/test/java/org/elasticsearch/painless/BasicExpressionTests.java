@@ -115,12 +115,12 @@ public class BasicExpressionTests extends ScriptTestCase {
         Exception exception = expectScriptThrows(ClassCastException.class, () -> {
             exec("def x = 1.0; int y = x; return y;");
         });
-        assertTrue(exception.getMessage().contains("cannot be cast"));
+        assertTrue(exception.getMessage().contains("cannot implicitly cast"));
 
         exception = expectScriptThrows(ClassCastException.class, () -> {
             exec("def x = (short)1; byte y = x; return y;");
         });
-        assertTrue(exception.getMessage().contains("cannot be cast"));
+        assertTrue(exception.getMessage().contains("cannot implicitly cast"));
     }
 
     public void testCat() {
@@ -186,16 +186,16 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertNull(         exec("def    a = null;  return a?.toString()"));
         assertEquals("foo", exec("def    a = 'foo'; return a?.toString()"));
         //   Call with primitive result
-        assertMustBeNullable(    "String a = null; return a?.length()");
+        assertMustBeNullable(    "String a = null;  return a?.length()");
         assertMustBeNullable(    "String a = 'foo'; return a?.length()");
         assertNull(         exec("def    a = null;  return a?.length()"));
         assertEquals(3,     exec("def    a = 'foo'; return a?.length()"));
         //   Read shortcut
-        assertMustBeNullable(    "org.elasticsearch.painless.FeatureTest a = null; return a?.x");
+        assertMustBeNullable(    "org.elasticsearch.painless.FeatureTestObject a = null; return a?.x");
         assertMustBeNullable(
-                "org.elasticsearch.painless.FeatureTest a = new org.elasticsearch.painless.FeatureTest(); return a?.x");
+                "org.elasticsearch.painless.FeatureTestObject a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x");
         assertNull(         exec("def    a = null;  return a?.x"));
-        assertEquals(0,     exec("def    a = new org.elasticsearch.painless.FeatureTest(); return a?.x"));
+        assertEquals(0,     exec("def    a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x"));
 
         // Maps
         //   Call
@@ -222,7 +222,7 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(2, exec("def a = new int[] {2, 3};   return a?.length"));
 
         // Results from maps (should just work but let's test anyway)
-        FeatureTest t = new FeatureTest();
+        FeatureTestObject t = new FeatureTestObject();
         assertNull(     exec("Map a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
         assertNull(     exec("Map a = ['thing': params.t]; return a.other?.x",      singletonMap("t", t), true));
         assertNull(     exec("def a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
@@ -254,8 +254,8 @@ public class BasicExpressionTests extends ScriptTestCase {
                   + "return a.missing_length", true));
 
         // Writes, all unsupported at this point
-//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTest a = null; return a?.x"));            // Read field
-//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTest a = null; a?.x = 7; return a?.x"));  // Write field
+//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; return a?.x"));            // Read field
+//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; a?.x = 7; return a?.x"));  // Write field
 //        assertEquals(null, exec("Map a = null; a?.other = 'wow'; return a?.other")); // Write shortcut
 //        assertEquals(null, exec("def a = null; a?.other = 'cat'; return a?.other")); // Write shortcut
 //        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
@@ -264,8 +264,13 @@ public class BasicExpressionTests extends ScriptTestCase {
 //        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
     }
 
+    // test to ensure static interface methods are called correctly
+    public void testStaticInterfaceMethod() {
+        assertEquals(4, exec("def values = [1, 4, 3, 2]; values.sort(Comparator.comparing(p -> p)); return values[3]"));
+    }
+
     private void assertMustBeNullable(String script) {
-        Exception e = expectScriptThrows(IllegalArgumentException.class , () -> exec(script));
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () -> exec(script));
         assertEquals("Result of null safe operator must be nullable", e.getMessage());
     }
 }

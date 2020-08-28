@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.script.ScriptService;
+import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -45,20 +44,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             applyScript((Map<String, Object> ctx) -> ctx.put("_index", null));
         } catch (NullPointerException e) {
             assertThat(e.getMessage(), containsString("Can't reindex without a destination index!"));
-        }
-    }
-
-    public void testSetType() throws Exception {
-        Object type = randomFrom(new Object[] {234, 234L, "pancake"});
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_type", type));
-        assertEquals(type.toString(), index.type());
-    }
-
-    public void testSettingTypeToNullIsError() throws Exception {
-        try {
-            applyScript((Map<String, Object> ctx) -> ctx.put("_type", null));
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), containsString("Can't reindex without a destination type!"));
         }
     }
 
@@ -92,12 +77,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         }
     }
 
-    public void testSetParent() throws Exception {
-        String parent = randomRealisticUnicodeOfLengthBetween(5, 20);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_parent", parent));
-        assertEquals(parent, index.parent());
-    }
-
     public void testSetRouting() throws Exception {
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
@@ -106,12 +85,12 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest(new SearchRequest(), new IndexRequest());
+        return new ReindexRequest();
     }
 
     @Override
-    protected TransportReindexAction.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService, null,
-                listener());
+    protected Reindexer.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
+        ReindexSslConfig sslConfig = Mockito.mock(ReindexSslConfig.class);
+        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, threadPool, scriptService, sslConfig, request, listener());
     }
 }

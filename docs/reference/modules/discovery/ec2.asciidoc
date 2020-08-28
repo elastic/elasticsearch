@@ -1,4 +1,0 @@
-[[modules-discovery-ec2]]
-=== EC2 Discovery
-
-EC2 discovery is available as a plugin. See {plugins}/discovery-ec2.html[discovery-ec2] for more information.

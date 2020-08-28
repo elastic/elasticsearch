@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'search-business-rules'
+  description 'A plugin for applying business rules to search result rankings'
+  classname 'org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-searchbusinessrules'
+
+integTest.enabled = false
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(":test:framework")
+}
+

@@ -19,7 +19,11 @@
 
 package org.elasticsearch.repositories.url;
 
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
@@ -28,10 +32,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -50,6 +54,7 @@ import java.util.function.Function;
  * </dl>
  */
 public class URLRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(URLRepository.class);
 
     public static final String TYPE = "url";
 
@@ -71,38 +76,42 @@ public class URLRepository extends BlobStoreRepository {
 
     private final Environment environment;
 
-    private final URLBlobStore blobStore;
-
-    private final BlobPath basePath;
+    private final URL url;
 
     /**
      * Constructs a read-only URL-based repository
      */
-    public URLRepository(RepositoryMetaData metadata, Environment environment,
-                         NamedXContentRegistry namedXContentRegistry) throws IOException {
-        super(metadata, environment.settings(), namedXContentRegistry);
+    public URLRepository(RepositoryMetadata metadata, Environment environment,
+                         NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                         RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, BlobPath.cleanPath());
 
-        if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
+        if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");
         }
-        supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(settings);
-        urlWhiteList = ALLOWED_URLS_SETTING.get(settings).toArray(new URIPattern[]{});
         this.environment = environment;
+        supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(environment.settings());
+        urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[]{});
+        url = URL_SETTING.exists(metadata.settings())
+            ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(environment.settings());
+    }
 
-        URL url = URL_SETTING.exists(metadata.settings()) ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(settings);
+    @Override
+    protected BlobStore createBlobStore() {
         URL normalizedURL = checkURL(url);
-        blobStore = new URLBlobStore(settings, normalizedURL);
-        basePath = BlobPath.cleanPath();
+        return new URLBlobStore(environment.settings(), normalizedURL);
     }
 
+    // only use for testing
     @Override
-    protected BlobStore blobStore() {
-        return blobStore;
+    protected BlobContainer blobContainer() {
+        return super.blobContainer();
     }
 
+    // only use for testing
     @Override
-    protected BlobPath basePath() {
-        return basePath;
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
     }
 
     /**

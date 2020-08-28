@@ -1,0 +1,95 @@
+--
+:api: get-buckets 
+:request: GetBucketsRequest
+:response: GetBucketsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get buckets API
+
+Retrieves one or more bucket results.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get buckets request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`.
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-timestamp]
+--------------------------------------------------
+<1> The timestamp of the bucket to get. Otherwise it will return all buckets.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-anomaly-score]
+--------------------------------------------------
+<1> Buckets with anomaly scores greater or equal than this value will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-desc]
+--------------------------------------------------
+<1> If `true`, the buckets are sorted in descending order. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-end]
+--------------------------------------------------
+<1> Buckets with timestamps earlier than this time will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-exclude-interim]
+--------------------------------------------------
+<1> If `true`, interim results will be excluded. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-expand]
+--------------------------------------------------
+<1> If `true`, buckets will include their anomaly records. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of buckets to skip.
+`size` specifies the maximum number of buckets to get. Defaults to `0` and `100` respectively.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-sort]
+--------------------------------------------------
+<1> The field to sort buckets on. Defaults to `timestamp`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-start]
+--------------------------------------------------
+<1> Buckets with timestamps on or after this time will be returned.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get buckets response
+
+The returned +{response}+ contains the requested buckets:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of buckets that were matched.
+<2> The buckets retrieved.

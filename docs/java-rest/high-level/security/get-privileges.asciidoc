@@ -1,0 +1,47 @@
+
+--
+:api: get-privileges
+:request: GetPrivilegesRequest
+:response: GetPrivilegesResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get Privileges API
+
+[id="{upid}-{api}-request"]
+==== Get Privileges Request
+
+The +{request}+ supports getting privilege(s) for all or for specific applications.
+
+===== Specific privilege of a specific application
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+===== All privileges of a specific application
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-all-application-privileges-request]
+--------------------------------------------------
+
+===== All privileges of all applications
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-all-privileges-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Privileges Response
+
+The returned +{response}+ allows to get information about the retrieved privileges as follows.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

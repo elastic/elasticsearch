@@ -19,14 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.util.Arrays;
-import java.util.HashSet;
-
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
 import org.apache.commons.codec.language.ColognePhonetic;
-import org.apache.commons.codec.language.DaitchMokotoffSoundex;
 import org.apache.commons.codec.language.Metaphone;
 import org.apache.commons.codec.language.RefinedSoundex;
 import org.apache.commons.codec.language.Soundex;
@@ -36,6 +32,7 @@ import org.apache.commons.codec.language.bm.PhoneticEngine;
 import org.apache.commons.codec.language.bm.RuleType;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
+import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
 import org.elasticsearch.common.settings.Settings;
@@ -45,14 +42,18 @@ import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
 
+import java.util.HashSet;
+import java.util.List;
+
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
-    private String[] languageset;
+    private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
+    private boolean isDaitchMokotoff;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -60,7 +61,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
-        this.replace = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "replace", true, deprecationLogger);
+        this.isDaitchMokotoff = false;
+        this.replace = settings.getAsBoolean("replace", true);
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
         String encodername = settings.get("encoder", "metaphone");
         if ("metaphone".equalsIgnoreCase(encodername)) {
@@ -80,9 +82,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("double_metaphone".equalsIgnoreCase(encodername) || "doubleMetaphone".equalsIgnoreCase(encodername)) {
             this.encoder = null;
             this.maxcodelength = settings.getAsInt("max_code_len", 4);
-        } else if ("bm".equalsIgnoreCase(encodername) || "beider_morse".equalsIgnoreCase(encodername) || "beidermorse".equalsIgnoreCase(encodername)) {
+        } else if ("bm".equalsIgnoreCase(encodername)
+                || "beider_morse".equalsIgnoreCase(encodername)
+                || "beidermorse".equalsIgnoreCase(encodername)) {
             this.encoder = null;
-            this.languageset = settings.getAsArray("languageset");
+            this.languageset = settings.getAsList("languageset");
             String ruleType = settings.get("rule_type", "approx");
             if ("approx".equalsIgnoreCase(ruleType)) {
                 ruletype = RuleType.APPROX;
@@ -106,7 +110,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("nysiis".equalsIgnoreCase(encodername)) {
             this.encoder = new Nysiis();
         } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
-            this.encoder = new DaitchMokotoffSoundex();
+            this.encoder = null;
+            this.isDaitchMokotoff = true;
         } else {
             throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
         }
@@ -115,12 +120,15 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (encoder == null) {
+            if (isDaitchMokotoff) {
+                return new DaitchMokotoffSoundexFilter(tokenStream, !replace);
+            }
             if (ruletype != null && nametype != null) {
-                if (languageset != null) {
-                    final LanguageSet languages = LanguageSet.from(new HashSet<>(Arrays.asList(languageset)));
-                    return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), languages);
+                LanguageSet langset = null;
+                if (languageset != null && languageset.size() > 0) {
+                    langset = LanguageSet.from(new HashSet<>(languageset));
                 }
-                return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true));
+                return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), langset);
             }
             if (maxcodelength > 0) {
                 return new DoubleMetaphoneFilter(tokenStream, maxcodelength, !replace);
@@ -129,5 +137,10 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             return new PhoneticFilter(tokenStream, encoder, !replace);
         }
         throw new IllegalArgumentException("encoder error");
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }

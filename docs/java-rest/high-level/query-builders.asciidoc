@@ -1,0 +1,102 @@
+[[java-rest-high-query-builders]]
+=== Building Queries
+
+This page lists all the available search queries with their corresponding `QueryBuilder` class name and helper method name in the
+`QueryBuilders` utility class.
+
+:query-ref:             {elasticsearch-javadoc}/org/elasticsearch/index/query
+:mapper-extras-ref:     {mapper-extras-client-javadoc}/org/elasticsearch/index/query
+:parentjoin-ref:        {parent-join-client-javadoc}/org/elasticsearch/join/query
+:percolate-ref:         {percolator-client-javadoc}/org/elasticsearch/percolator
+
+==== Match All Query
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-match-all-query.html[Match All]                     | {query-ref}/MatchAllQueryBuilder.html[MatchAllQueryBuilder]                         | {query-ref}/QueryBuilders.html#matchAllQuery--[QueryBuilders.matchAllQuery()]
+|======
+
+==== Full Text Queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-match-query.html[Match]                             | {query-ref}/MatchQueryBuilder.html[MatchQueryBuilder]                               | {query-ref}/QueryBuilders.html#matchQuery-java.lang.String-java.lang.Object-[QueryBuilders.matchQuery()]
+| {ref}/query-dsl-match-query-phrase.html[Match Phrase]               | {query-ref}/MatchPhraseQueryBuilder.html[MatchPhraseQueryBuilder]                   | {query-ref}/QueryBuilders.html#matchPhraseQuery-java.lang.String-java.lang.Object-[QueryBuilders.matchPhraseQuery()]
+| {ref}/query-dsl-match-query-phrase-prefix.html[Match Phrase Prefix] | {query-ref}/MatchPhrasePrefixQueryBuilder.html[MatchPhrasePrefixQueryBuilder]       | {query-ref}/QueryBuilders.html#matchPhrasePrefixQuery-java.lang.String-java.lang.Object-[QueryBuilders.matchPhrasePrefixQuery()]
+| {ref}/query-dsl-multi-match-query.html[Multi Match]                 | {query-ref}/MultiMatchQueryBuilder.html[MultiMatchQueryBuilder]                     | {query-ref}/QueryBuilders.html#multiMatchQuery-java.lang.Object-java.lang.String\…-[QueryBuilders.multiMatchQuery()]
+| {ref}/query-dsl-query-string-query.html[Query String]               | {query-ref}/QueryStringQueryBuilder.html[QueryStringQueryBuilder]                   | {query-ref}/QueryBuilders.html#queryStringQuery-java.lang.String-[QueryBuilders.queryStringQuery()]
+| {ref}/query-dsl-simple-query-string-query.html[Simple Query String] | {query-ref}/SimpleQueryStringBuilder.html[SimpleQueryStringBuilder]                 | {query-ref}/QueryBuilders.html#simpleQueryStringQuery-java.lang.String-[QueryBuilders.simpleQueryStringQuery()]
+|======
+
+==== Term-level queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-term-query.html[Term]                               | {query-ref}/TermQueryBuilder.html[TermQueryBuilder]                                 | {query-ref}/QueryBuilders.html#termQuery-java.lang.String-java.lang.String-[QueryBuilders.termQuery()]
+| {ref}/query-dsl-terms-query.html[Terms]                             | {query-ref}/TermsQueryBuilder.html[TermsQueryBuilder]                               | {query-ref}/QueryBuilders.html#termsQuery-java.lang.String-java.util.Collection-[QueryBuilders.termsQuery()]
+| {ref}/query-dsl-range-query.html[Range]                             | {query-ref}/RangeQueryBuilder.html[RangeQueryBuilder]                               | {query-ref}/QueryBuilders.html#rangeQuery-java.lang.String-[QueryBuilders.rangeQuery()]
+| {ref}/query-dsl-exists-query.html[Exists]                           | {query-ref}/ExistsQueryBuilder.html[ExistsQueryBuilder]                             | {query-ref}/QueryBuilders.html#existsQuery-java.lang.String-[QueryBuilders.existsQuery()]
+| {ref}/query-dsl-prefix-query.html[Prefix]                           | {query-ref}/PrefixQueryBuilder.html[PrefixQueryBuilder]                             | {query-ref}/QueryBuilders.html#prefixQuery-java.lang.String-java.lang.String-[QueryBuilders.prefixQuery()]
+| {ref}/query-dsl-wildcard-query.html[Wildcard]                       | {query-ref}/WildcardQueryBuilder.html[WildcardQueryBuilder]                         | {query-ref}/QueryBuilders.html#wildcardQuery-java.lang.String-java.lang.String-[QueryBuilders.wildcardQuery()]
+| {ref}/query-dsl-regexp-query.html[Regexp]                           | {query-ref}/RegexpQueryBuilder.html[RegexpQueryBuilder]                             | {query-ref}/QueryBuilders.html#regexpQuery-java.lang.String-java.lang.String-[QueryBuilders.regexpQuery()]
+| {ref}/query-dsl-fuzzy-query.html[Fuzzy]                             | {query-ref}/FuzzyQueryBuilder.html[FuzzyQueryBuilder]                               | {query-ref}/QueryBuilders.html#fuzzyQuery-java.lang.String-java.lang.String-[QueryBuilders.fuzzyQuery()]
+| {ref}/query-dsl-ids-query.html[Ids]                                 | {query-ref}/IdsQueryBuilder.html[IdsQueryBuilder]                                   | {query-ref}/QueryBuilders.html#idsQuery--[QueryBuilders.idsQuery()]
+|======
+
+==== Compound queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-constant-score-query.html[Constant Score]           | {query-ref}/ConstantScoreQueryBuilder.html[ConstantScoreQueryBuilder]               | {query-ref}/QueryBuilders.html#constantScoreQuery-org.elasticsearch.index.query.QueryBuilder-[QueryBuilders.constantScoreQuery()]
+| {ref}/query-dsl-bool-query.html[Bool]                               | {query-ref}/BoolQueryBuilder.html[BoolQueryBuilder]                                 | {query-ref}/QueryBuilders.html#boolQuery--[QueryBuilders.boolQuery()]
+| {ref}/query-dsl-dis-max-query.html[Dis Max]                         | {query-ref}/DisMaxQueryBuilder.html[DisMaxQueryBuilder]                             | {query-ref}/QueryBuilders.html#disMaxQuery--[QueryBuilders.disMaxQuery()]
+| {ref}/query-dsl-function-score-query.html[Function Score]           | {query-ref}/functionscore/FunctionScoreQueryBuilder.html[FunctionScoreQueryBuilder] | {query-ref}/QueryBuilders.html#functionScoreQuery-org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder:A-[QueryBuilders.functionScoreQuery()]
+| {ref}/query-dsl-boosting-query.html[Boosting]                       | {query-ref}/BoostingQueryBuilder.html[BoostingQueryBuilder]                         | {query-ref}/QueryBuilders.html#boostingQuery-org.elasticsearch.index.query.QueryBuilder-org.elasticsearch.index.query.QueryBuilder-[QueryBuilders.boostingQuery()]
+|======
+
+==== Joining queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-nested-query.html[Nested]                           | {query-ref}/NestedQueryBuilder.html[NestedQueryBuilder]                             | {query-ref}/QueryBuilders.html#nestedQuery-java.lang.String-org.elasticsearch.index.query.QueryBuilder-org.apache.lucene.search.join.ScoreMode-[QueryBuilders.nestedQuery()]
+| {ref}/query-dsl-has-child-query.html[Has Child]                     | {parentjoin-ref}/HasChildQueryBuilder.html[HasChildQueryBuilder]                    |
+| {ref}/query-dsl-has-parent-query.html[Has Parent]                   | {parentjoin-ref}/HasParentQueryBuilder.html[HasParentQueryBuilder]                  |
+| {ref}/query-dsl-parent-id-query.html[Parent Id]                     | {parentjoin-ref}/ParentIdQueryBuilder.html[ParentIdQueryBuilder]                    |
+|======
+
+==== Geo queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-geo-shape-query.html[GeoShape]                      | {query-ref}/GeoShapeQueryBuilder.html[GeoShapeQueryBuilder]                         | {query-ref}/QueryBuilders.html#geoShapeQuery-java.lang.String-java.lang.String-java.lang.String-[QueryBuilders.geoShapeQuery()]
+| {ref}/query-dsl-geo-bounding-box-query.html[Geo Bounding Box]       | {query-ref}/GeoBoundingBoxQueryBuilder.html[GeoBoundingBoxQueryBuilder]             | {query-ref}/QueryBuilders.html#geoBoundingBoxQuery-java.lang.String-[QueryBuilders.geoBoundingBoxQuery()]
+| {ref}/query-dsl-geo-distance-query.html[Geo Distance]               | {query-ref}/GeoDistanceQueryBuilder.html[GeoDistanceQueryBuilder]                   | {query-ref}/QueryBuilders.html#geoDistanceQuery-java.lang.String-[QueryBuilders.geoDistanceQuery()]
+| {ref}/query-dsl-geo-polygon-query.html[Geo Polygon]                 | {query-ref}/GeoPolygonQueryBuilder.html[GeoPolygonQueryBuilder]                     | {query-ref}/QueryBuilders.html#geoPolygonQuery-java.lang.String-java.util.List-[QueryBuilders.geoPolygonQuery()]
+|======
+
+==== Specialized queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-mlt-query.html[More Like This]                      | {query-ref}/MoreLikeThisQueryBuilder.html[MoreLikeThisQueryBuilder]                 | {query-ref}/QueryBuilders.html#moreLikeThisQuery-org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item:A-[QueryBuilders.moreLikeThisQuery()]
+| {ref}/query-dsl-script-query.html[Script]                           | {query-ref}/ScriptQueryBuilder.html[ScriptQueryBuilder]                             | {query-ref}/QueryBuilders.html#scriptQuery-org.elasticsearch.script.Script-[QueryBuilders.scriptQuery()]
+| {ref}/query-dsl-percolate-query.html[Percolate]                     | {percolate-ref}/PercolateQueryBuilder.html[PercolateQueryBuilder]                   |
+| {ref}/query-dsl-wrapper-query.html[Wrapper]                         | {query-ref}/WrapperQueryBuilder.html[WrapperQueryBuilder]                           | {query-ref}/QueryBuilders.html#wrapperQuery-java.lang.String-[QueryBuilders.wrapperQuery()]
+| {ref}/query-dsl-rank-feature-query.html[Rank Feature]               | {mapper-extras-ref}/RankFeatureQuery.html[RankFeatureQueryBuilder]                  |
+| {ref}/query-dsl-pinned-query.html[Pinned Query]                     | The PinnedQueryBuilder is packaged as part of the xpack-core module                 |
+|======
+
+==== Span queries
+[options="header"]
+|======
+| Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
+| {ref}/query-dsl-span-term-query.html[Span Term]                     | {query-ref}/SpanTermQueryBuilder.html[SpanTermQueryBuilder]                         | {query-ref}/QueryBuilders.html#spanTermQuery-java.lang.String-double-[QueryBuilders.spanTermQuery()]
+| {ref}/query-dsl-span-multi-term-query.html[Span Multi Term]         | {query-ref}/SpanMultiTermQueryBuilder.html[SpanMultiTermQueryBuilder]               | {query-ref}/QueryBuilders.html#spanMultiTermQueryBuilder-org.elasticsearch.index.query.MultiTermQueryBuilder-[QueryBuilders.spanMultiTermQueryBuilder()]
+| {ref}/query-dsl-span-first-query.html[Span First]                   | {query-ref}/SpanFirstQueryBuilder.html[SpanFirstQueryBuilder]                       | {query-ref}/QueryBuilders.html#spanFirstQuery-org.elasticsearch.index.query.SpanQueryBuilder-int-[QueryBuilders.spanFirstQuery()]
+| {ref}/query-dsl-span-near-query.html[Span Near]                     | {query-ref}/SpanNearQueryBuilder.html[SpanNearQueryBuilder]                         | {query-ref}/QueryBuilders.html#spanNearQuery-org.elasticsearch.index.query.SpanQueryBuilder-int-[QueryBuilders.spanNearQuery()]
+| {ref}/query-dsl-span-or-query.html[Span Or]                         | {query-ref}/SpanOrQueryBuilder.html[SpanOrQueryBuilder]                             | {query-ref}/QueryBuilders.html#spanOrQuery-org.elasticsearch.index.query.SpanQueryBuilder-[QueryBuilders.spanOrQuery()]
+| {ref}/query-dsl-span-not-query.html[Span Not]                       | {query-ref}/SpanNotQueryBuilder.html[SpanNotQueryBuilder]                           | {query-ref}/QueryBuilders.html#spanNotQuery-org.elasticsearch.index.query.SpanQueryBuilder-org.elasticsearch.index.query.SpanQueryBuilder-[QueryBuilders.spanNotQuery()]
+| {ref}/query-dsl-span-containing-query.html[Span Containing]         | {query-ref}/SpanContainingQueryBuilder.html[SpanContainingQueryBuilder]             | {query-ref}/QueryBuilders.html#spanContainingQuery-org.elasticsearch.index.query.SpanQueryBuilder-org.elasticsearch.index.query.SpanQueryBuilder-[QueryBuilders.spanContainingQuery()]
+| {ref}/query-dsl-span-within-query.html[Span Within]                 | {query-ref}/SpanWithinQueryBuilder.html[SpanWithinQueryBuilder]                     | {query-ref}/QueryBuilders.html#spanWithinQuery-org.elasticsearch.index.query.SpanQueryBuilder-org.elasticsearch.index.query.SpanQueryBuilder-[QueryBuilders.spanWithinQuery()]
+| {ref}/query-dsl-span-field-masking-query.html[Span Field Masking]   | {query-ref}/FieldMaskingSpanQueryBuilder.html[FieldMaskingSpanQueryBuilder]         | {query-ref}/QueryBuilders.html#fieldMaskingSpanQuery-org.elasticsearch.index.query.SpanQueryBuilder-java.lang.String-[QueryBuilders.fieldMaskingSpanQuery()]
+|======

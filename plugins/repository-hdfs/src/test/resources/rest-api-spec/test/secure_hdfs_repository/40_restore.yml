@@ -1,0 +1,81 @@
+# Integration tests for HDFS Repository plugin
+#
+# Actually perform a snapshot to hdfs, then restore it
+#
+---
+"Create a snapshot and then restore it":
+
+  # Create repository
+  - do:
+      snapshot.create_repository:
+        repository: test_restore_repository
+        body:
+          type: hdfs
+          settings:
+            uri: "hdfs://localhost:9998"
+            path: "/user/elasticsearch/test/restore"
+            security:
+              principal: "elasticsearch@BUILD.ELASTIC.CO"
+
+  # Create index
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  # Wait for green
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  # Take snapshot
+  - do:
+      snapshot.create:
+        repository: test_restore_repository
+        snapshot: test_restore
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: test_restore }
+  - match: { snapshot.state : SUCCESS }
+  - match: { snapshot.shards.successful: 1 }
+  - match: { snapshot.shards.failed : 0 }
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}
+
+  # Close index
+  - do:
+      indices.close:
+        index : test_index
+
+  # Restore index
+  - do:
+      snapshot.restore:
+        repository: test_restore_repository
+        snapshot: test_restore
+        wait_for_completion: true
+
+  # Check recovery stats
+  - do:
+      indices.recovery:
+        index: test_index
+
+  - match: { test_index.shards.0.type: SNAPSHOT }
+  - match: { test_index.shards.0.stage: DONE }
+  - match: { test_index.shards.0.index.files.recovered: 1}
+  - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
+  - match: { test_index.shards.0.index.files.reused: 0}
+  - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
+
+  # Remove our snapshot
+  - do:
+      snapshot.delete:
+        repository: test_restore_repository
+        snapshot: test_restore
+
+  # Remove our repository
+  - do:
+     snapshot.delete_repository:
+       repository: test_restore_repository

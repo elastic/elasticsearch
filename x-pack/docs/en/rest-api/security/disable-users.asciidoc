@@ -1,0 +1,48 @@
+[role="xpack"]
+[[security-api-disable-user]]
+=== Disable users API
+++++
+<titleabbrev>Disable users</titleabbrev>
+++++
+
+Disables users in the native realm. 
+
+
+[[security-api-disable-user-request]]
+==== {api-request-title}
+
+`PUT /_security/user/<username>/_disable` 
+
+
+[[security-api-disable-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-disable-user-desc]]
+==== {api-description-title}
+
+By default, when you create users, they are enabled. You can use this API to 
+revoke a user's access to {es}. To re-enable a user, there is an 
+<<security-api-enable-user,enable users API>>. 
+
+For more information about the native realm, see 
+<<realms>> and <<native-realm>>. 
+
+[[security-api-disable-user-path-params]]
+==== {api-path-parms-title}
+
+`username`::
+  (Required, string) An identifier for the user.
+
+
+[[security-api-disable-user-example]]
+==== {api-examples-title}
+
+The following example disables the user `jacknich`:
+
+[source,console]
+--------------------------------------------------
+PUT /_security/user/jacknich/_disable
+--------------------------------------------------
+// TEST[setup:jacknich_user]

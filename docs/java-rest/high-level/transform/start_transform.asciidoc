@@ -1,0 +1,40 @@
+--
+:api: start-transform
+:request: StartTransformRequest
+:response: StartTransformResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start {transform} API
+
+Starts a {transform}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Start {transform} request
+
+A +{request}+ object requires a non-null `id`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new start request referencing an existing
+{transform}
+
+==== Optional arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Controls the amount of time to wait until the {transform} starts.
+
+include::../execution.asciidoc[]
+
+==== Response
+
+The returned +{response}+ object acknowledges the {transform} has
+started.

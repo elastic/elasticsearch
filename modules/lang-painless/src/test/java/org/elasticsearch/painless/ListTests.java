@@ -25,9 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /** Tests for working with lists. */
 public class ListTests extends ArrayLikeObjectTestCase {
@@ -61,10 +59,7 @@ public class ListTests extends ArrayLikeObjectTestCase {
             if (index > size) {
                 return equalTo("Index: " + index + ", Size: " + size);
             }
-            Matcher<String> matcher = equalTo(Integer.toString(index));
-            // If we set -XX:-OmitStackTraceInFastThrow we wouldn't need this
-            matcher = anyOf(matcher, nullValue());
-            return matcher;
+            return equalTo(Integer.toString(index));
         } else {
             // This exception is locale dependent so we attempt to reproduce it
             List<Object> list = new ArrayList<>();

@@ -1,0 +1,83 @@
+--
+:api: get-api-key
+:request: GetApiKeyRequest
+:response: GetApiKeyResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get API Key information API
+
+API Key(s) information can be retrieved using this API.
+
+[id="{upid}-{api}-request"]
+==== Get API Key Request
+The +{request}+ supports retrieving API key information for
+
+. A specific API key
+
+. All API keys for a specific realm
+
+. All API keys for a specific user
+
+. All API keys for a specific user in a specific realm
+
+. A specific key or all API keys owned by the current authenticated user
+
+. All API keys if the user is authorized to do so
+
+===== Retrieve a specific API key by its id
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-key-id-request]
+--------------------------------------------------
+
+===== Retrieve a specific API key by its name
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-key-name-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for given realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-realm-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for a given user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-user-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for given user in a realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-user-realm-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for the current authenticated user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-keys-owned-by-authenticated-user-request]
+--------------------------------------------------
+
+===== Retrieve all API keys if the user is authorized to do so
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-all-api-keys-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get API Key information API Response
+
+The returned +{response}+ contains the information regarding the API keys that were
+requested.
+
+`api_keys`:: Available using `getApiKeyInfos`, contains list of API keys that were retrieved for this request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

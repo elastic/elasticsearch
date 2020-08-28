@@ -1,34 +1,36 @@
 [[binary]]
-=== Binary datatype
+=== Binary field type
+++++
+<titleabbrev>Binary</titleabbrev>
+++++
 
 The `binary` type accepts a binary value as a
-https://en.wikipedia.org/wiki/Base64[Base64] encoded string. The field is not
+{wikipedia}/Base64[Base64] encoded string. The field is not
 stored by default and is not searchable:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "name": {
-          "type": "text"
-        },
-        "blob": {
-          "type": "binary"
-        }
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "blob": {
+        "type": "binary"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my-index-000001/_doc/1
 {
   "name": "Some binary blob",
   "blob": "U29tZSBiaW5hcnkgYmxvYg==" <1>
 }
 --------------------------------------------------
+
 <1> The Base64 encoded binary value must not have embedded newlines `\n`.
 
 [[binary-params]]
@@ -42,12 +44,10 @@ The following parameters are accepted by `binary` fields:
 
     Should the field be stored on disk in a column-stride fashion, so that it
     can later be used for sorting, aggregations, or scripting? Accepts `true`
-    (default) or `false`.
+    or `false` (default).
 
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
-
-

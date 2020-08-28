@@ -1,0 +1,153 @@
+setup:
+  - do:
+      indices.create:
+          index:  test_1
+  - do:
+      indices.create:
+          index:  test_2
+
+  - do:
+      indices.put_alias:
+        index: test_1
+        name: alias_1
+
+  - do:
+      indices.put_alias:
+        index: test_2
+        name: alias_2
+
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test_2
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test_1, test_2]
+
+---
+"Basic indices boost":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{test_1: 2.0}, {test_2: 1.0}]
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{test_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost with alias":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{alias_1: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{alias_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost with wildcard":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{"*_1": 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{"*_2": 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost multiple match":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          # First match (3.0) is used for test_1
+          indices_boost: [{"*_1": 3.0}, {alias_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          # First match (1.0) is used for test_1
+          indices_boost: [{"*_1": 1.0}, {test_2: 2.0}, {alias_1: 3.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost for nonexistent index/alias":
+  - do:
+      catch: /no such index/
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        ignore_unavailable: true
+        body:
+          indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }

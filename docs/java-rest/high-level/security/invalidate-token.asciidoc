@@ -1,0 +1,73 @@
+--
+:api: invalidate-token
+:request: InvalidateTokenRequest
+:response: InvalidateTokenResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Invalidate Token API
+
+[id="{upid}-{api}-request"]
+==== Invalidate Token Request
+The +{request}+ supports invalidating
+
+. A specific token, that can be either an _access token_ or a _refresh token_
+
+. All tokens (both _access tokens_ and _refresh tokens_) for a specific realm
+
+. All tokens (both _access tokens_ and _refresh tokens_) for a specific user
+
+. All tokens (both _access tokens_ and _refresh tokens_) for a specific user in a specific realm
+
+===== Specific access token
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-access-token-request]
+--------------------------------------------------
+
+===== Specific refresh token
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-refresh-token-request]
+--------------------------------------------------
+
+===== All tokens for realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-realm-tokens-request]
+--------------------------------------------------
+
+===== All tokens for user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-user-tokens-request]
+--------------------------------------------------
+
+===== All tokens for user in realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-user-realm-tokens-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Invalidate Token Response
+
+The returned +{response}+ contains the information regarding the tokens that the request
+invalidated.
+
+`invalidatedTokens`:: Available using `getInvalidatedTokens` denotes the number of tokens
+                      that this request invalidated.
+
+`previouslyInvalidatedTokens`:: Available using `getPreviouslyInvalidatedTokens` denotes
+                                the number of tokens that this request attempted to invalidate
+                                but were already invalid.
+
+`errors`:: Available using `getErrors` contains possible errors that were encountered while
+           attempting to invalidate specific tokens.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

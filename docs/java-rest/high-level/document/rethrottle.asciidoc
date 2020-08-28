@@ -1,0 +1,79 @@
+--
+:api: rethrottle
+:request: RethrottleRequest
+:response: ListTasksResponse
+--
+
+[id="{upid}-{api}"]
+=== Rethrottle API
+
+[id="{upid}-{api}-request"]
+==== Rethrottle Request
+
+A +{request}+ can be used to change the current throttling on a running
+reindex, update-by-query or delete-by-query task or to disable throttling of
+the task entirely. It requires the task Id of the task to change.
+
+In its simplest form, you can use it to disable throttling of a running
+task using the following:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-disable-request]
+--------------------------------------------------
+<1> Create a +{request}+ that disables throttling for a specific task id
+
+By providing a `requestsPerSecond` argument, the request will change the
+existing task throttling to the specified value:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Request to change the throttling of a task to 100 requests per second
+
+The rethrottling request can be executed by using one of the three appropriate
+methods depending on whether a reindex, update-by-query or delete-by-query task
+should be rethrottled:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-execution]
+--------------------------------------------------
+<1> Execute reindex rethrottling request
+<2> The same for update-by-query
+<3> The same for delete-by-query
+
+[id="{upid}-{api}-async"]
+==== Asynchronous Execution
+
+The asynchronous execution of a rethrottle request requires both the +{request}+
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute-async]
+--------------------------------------------------
+<1> Execute reindex rethrottling asynchronously
+<2> The same for update-by-query
+<3> The same for delete-by-query
+
+The asynchronous method does not block and returns immediately.
+Once it is completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed. A typical listener looks like this:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-async-listener]
+--------------------------------------------------
+<1> Code executed when the request is successfully completed
+<2> Code executed when the request fails with an exception
+
+[id="{upid}-{api}-response"]
+==== Rethrottle Response
+
+Rethrottling returns the task that has been rethrottled in the form of a
++{response}+. The structure of this response object is described in detail
+in <<java-rest-high-cluster-list-tasks-response,this section>>.

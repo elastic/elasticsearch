@@ -19,26 +19,29 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
+import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
-import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
-import static org.elasticsearch.script.ScriptType.FILE;
-import static org.elasticsearch.script.ScriptType.INLINE;
-import static org.elasticsearch.script.ScriptType.STORED;
 
 /**
  * Processor that evaluates a script with an ingest document in its context.
@@ -49,17 +52,21 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
+    private final IngestScript precompiledIngestScript;
 
     /**
      * Processor that evaluates a script with an ingest document in its context
-     *
-     * @param tag The processor's tag.
+     *  @param tag The processor's tag.
+     * @param description The processor's description.
      * @param script The {@link Script} to execute.
+     * @param precompiledIngestScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(String tag, Script script, ScriptService scriptService)  {
-        super(tag);
+    ScriptProcessor(String tag, String description, Script script, @Nullable IngestScript precompiledIngestScript,
+                    ScriptService scriptService) {
+        super(tag, description);
         this.script = script;
+        this.precompiledIngestScript = precompiledIngestScript;
         this.scriptService = scriptService;
     }
 
@@ -69,10 +76,17 @@ public final class ScriptProcessor extends AbstractProcessor {
      * @param document The Ingest document passed into the script context under the "ctx" object.
      */
     @Override
-    public void execute(IngestDocument document) {
-        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST);
-        executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
-        executableScript.run();
+    public IngestDocument execute(IngestDocument document) {
+        final IngestScript ingestScript;
+        if (precompiledIngestScript == null) {
+            IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+            ingestScript = factory.newInstance(script.getParams());
+        } else {
+            ingestScript = precompiledIngestScript;
+        }
+        ingestScript.execute(document.getSourceAndMetadata());
+        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
+        return document;
     }
 
     @Override
@@ -84,8 +98,11 @@ public final class ScriptProcessor extends AbstractProcessor {
         return script;
     }
 
-    public static final class Factory implements Processor.Factory {
+    IngestScript getPrecompiledIngestScript() {
+        return precompiledIngestScript;
+    }
 
+    public static final class Factory implements Processor.Factory {
         private final ScriptService scriptService;
 
         public Factory(ScriptService scriptService) {
@@ -93,57 +110,28 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
-            String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
-            String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
-            String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
-            String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
-            Map<String, ?> params = readOptionalMap(TYPE, processorTag, config, "params");
+                                      String description, Map<String, Object> config) throws Exception {
+            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                 InputStream stream = BytesReference.bytes(builder).streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                Script script = Script.parse(parser);
 
-            boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(inline);
-            if (containsNoScript) {
-                throw newConfigurationException(TYPE, processorTag, null, "Need [file], [id], or [inline] parameter to refer to scripts");
+                Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
+
+                // verify script is able to be compiled before successfully creating processor.
+                IngestScript ingestScript = null;
+                try {
+                    final IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+                    if (ScriptType.INLINE.equals(script.getType())) {
+                        ingestScript = factory.newInstance(script.getParams());
+                    }
+                } catch (ScriptException e) {
+                    throw newConfigurationException(TYPE, processorTag, null, e);
+                }
+                return new ScriptProcessor(processorTag, description, script, ingestScript, scriptService);
             }
-
-            boolean moreThanOneConfigured = (Strings.hasLength(file) && Strings.hasLength(id)) ||
-                (Strings.hasLength(file) && Strings.hasLength(inline)) || (Strings.hasLength(id) && Strings.hasLength(inline));
-            if (moreThanOneConfigured) {
-                throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
-            }
-
-            if (lang == null) {
-                lang = Script.DEFAULT_SCRIPT_LANG;
-            }
-
-            if (params == null) {
-                params = emptyMap();
-            }
-
-            final Script script;
-            String scriptPropertyUsed;
-            if (Strings.hasLength(file)) {
-                script = new Script(FILE, lang, file, (Map<String, Object>)params);
-                scriptPropertyUsed = "file";
-            } else if (Strings.hasLength(inline)) {
-                script = new Script(INLINE, lang, inline, (Map<String, Object>)params);
-                scriptPropertyUsed = "inline";
-            } else if (Strings.hasLength(id)) {
-                script = new Script(STORED, lang, id, (Map<String, Object>)params);
-                scriptPropertyUsed = "id";
-            } else {
-                throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
-            }
-
-            // verify script is able to be compiled before successfully creating processor.
-            try {
-                scriptService.compile(script, ScriptContext.Standard.INGEST);
-            } catch (ScriptException e) {
-                throw newConfigurationException(TYPE, processorTag, scriptPropertyUsed, e);
-            }
-
-            return new ScriptProcessor(processorTag, script, scriptService);
         }
     }
 }

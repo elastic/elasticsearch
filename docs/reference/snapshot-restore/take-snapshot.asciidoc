@@ -1,0 +1,127 @@
+[[snapshots-take-snapshot]]
+== Create a snapshot
+
+A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
+cluster.
+
+Use the <<put-snapshot-repo-api,put snapshot repository API>> to register or update a snapshot repository, and then use the <<create-snapshot-api,create snapshot API>> to create a snapshot in a repository.
+
+The following request creates a snapshot with the name `snapshot_1` in the repository `my_backup`:
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TESTSETUP
+////
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+-----------------------------------
+
+The `wait_for_completion` parameter specifies whether or not the request should return immediately after snapshot
+initialization (default) or wait for snapshot completion. During snapshot initialization, information about all
+previous snapshots is loaded into memory, which means that in large repositories it may take several seconds (or
+even minutes) for this request to return even if the `wait_for_completion` parameter is set to `false`.
+
+By default, a snapshot backs up all data streams and open indices in the cluster. You can change this behavior by
+specifying the list of data streams and indices in the body of the snapshot request:
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
+{
+  "indices": "data_stream_1,index_1,index_2",
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "kimchy",
+    "taken_because": "backup before upgrading"
+  }
+}
+-----------------------------------
+// TEST[skip:cannot complete subsequent snapshot]
+
+Use the `indices` parameter to list the data streams and indices that should be included in the snapshot. This parameter supports
+<<multi-index,multi-target syntax>>, although the options that control the behavior of multi-index syntax
+must be supplied in the body of the request, rather than as request parameters.
+
+Data stream backups include the stream's backing indices and metadata, such as
+the current <<data-streams-generation,generation>> and timestamp field.
+
+You can also choose to include only specific backing indices in a snapshot.
+However, these backups do not include the associated data stream's
+metadata or its other backing indices.
+
+[discrete]
+[[create-snapshot-process-details]]
+=== Snapshot process details
+The snapshot process is incremental. In the process of making the snapshot, {es} analyses
+the list of the data stream and index files that are already stored in the repository and copies only files that were created or
+changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
+
+The snapshot process is executed in non-blocking fashion. All indexing and searching operations can continue to run against the data stream or index
+that is being snapshotted. However, a snapshot represents a point-in-time view
+at the moment when snapshot was created, so no records that were added to the data stream or index after the snapshot process was started
+will be included in the snapshot.
+
+The snapshot process starts immediately for the primary shards that have been started and are not relocating at the moment. {es} waits for
+relocation or initialization of shards to complete before snapshotting them.
+
+Besides creating a copy of each data stream and index, the snapshot process can also store global cluster metadata, which includes persistent
+cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of
+the snapshot.
+
+Only one snapshot process can be started in the cluster at any time. While a
+snapshot of a particular shard is being
+created, this shard cannot be moved to another node, which can interfere with rebalancing and allocation
+filtering. {es} can only move a shard to another node (according to the current allocation
+filtering settings and rebalancing algorithm) after the snapshot process
+is finished.
+
+After a snapshot is created, use the <<get-snapshot-api,Get snapshot API>> to retrieve information about a snapshot. See <<snapshots-monitor-snapshot-restore,Monitor snapshot and restore progress>> to learn more about retrieving snapshot status.
+
+[discrete]
+[[create-snapshot-options]]
+=== Options for creating a snapshot
+The create snapshot request supports the
+`ignore_unavailable` option. Setting it to `true` will cause data streams and indices that do not exist to be ignored during snapshot
+creation. By default, when the `ignore_unavailable` option is not set and a data stream or index is missing, the snapshot request will fail.
+
+By setting `include_global_state` to `false` it's possible to prevent the cluster global state to be stored as part of
+the snapshot.
+
+IMPORTANT: The global cluster state includes the cluster's index
+templates, such as those <<create-a-data-stream-template,matching a data
+stream>>. If your snapshot includes data streams, we recommend storing the
+cluster state as part of the snapshot. This lets you later restored any
+templates required for a data stream.
+
+By default, the entire snapshot will fail if one or more indices participating in the snapshot do not have
+all primary shards available. You can change this behaviour by setting `partial` to `true`. The `expand_wildcards`
+option can be used to control whether hidden and closed indices will be included in the snapshot, and defaults to `all`.
+
+Use the `metadata` field to attach arbitrary metadata to the snapshot,
+such as who took the snapshot,
+why it was taken, or any other data that might be useful.
+
+Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
+new indices. Special characters must be URI encoded.
+
+For example, use the <<create-snapshot-api,create snapshot API>> to create
+a snapshot with the current day in the name, such as `snapshot-2020.07.11`:
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup/<snapshot-{now/d}>
+PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
+-----------------------------------
+// TEST[continued]

@@ -1,0 +1,154 @@
+[[analysis-hyp-decomp-tokenfilter]]
+=== Hyphenation decompounder token filter
+++++
+<titleabbrev>Hyphenation decompounder</titleabbrev>
+++++
+
+Uses XML-based hyphenation patterns to find potential subwords in compound
+words. These subwords are then checked against the specified word list. Subwords not
+in the list are excluded from the token output.
+
+This filter uses Lucene's
+{lucene-analysis-docs}/compound/HyphenationCompoundWordTokenFilter.html[HyphenationCompoundWordTokenFilter],
+which was built for Germanic languages.
+
+[[analysis-hyp-decomp-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the
+`hyphenation_decompounder` filter to find subwords in `Kaffeetasse` based on
+German hyphenation patterns in the `analysis/hyphenation_patterns.xml` file. The
+filter then checks these subwords against a list of specified words: `kaffee`,
+`zucker`, and `tasse`.
+
+[source,console]
+--------------------------------------------------
+GET _analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "hyphenation_decompounder",
+      "hyphenation_patterns_path": "analysis/hyphenation_patterns.xml",
+      "word_list": ["Kaffee", "zucker", "tasse"]
+    }
+  ],
+  "text": "Kaffeetasse"
+}
+--------------------------------------------------
+// TEST[skip: requires a valid hyphenation_patterns.xml file for DE-DR]
+
+The filter produces the following tokens:
+
+[source,text]
+--------------------------------------------------
+[ Kaffeetasse, Kaffee, tasse ]
+--------------------------------------------------
+
+[[analysis-hyp-decomp-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`hyphenation_patterns_path`::
++
+--
+(Required, string)
+Path to an Apache FOP (Formatting Objects Processor) XML hyphenation pattern file.
+
+This path must be absolute or relative to the `config` location. Only FOP v1.2
+compatible files are supported.
+
+For example FOP XML hyphenation pattern files, refer to:
+
+* http://offo.sourceforge.net/#FOP+XML+Hyphenation+Patterns[Objects For Formatting Objects (OFFO) Sourceforge project]
+* https://sourceforge.net/projects/offo/files/offo-hyphenation/1.2/offo-hyphenation_v1.2.zip/download[offo-hyphenation_v1.2.zip direct download]
+--
+
+`word_list`::
++
+--
+(Required+++*+++, array of strings)
+A list of subwords. Subwords found using the hyphenation pattern but not in this
+list are excluded from the token output.
+
+You can use the <<analysis-dict-decomp-tokenfilter,`dictionary_decompounder`>>
+filter to test the quality of word lists before implementing them.
+
+Either this parameter or `word_list_path` must be specified.
+--
+
+`word_list_path`::
++
+--
+(Required+++*+++, string)
+Path to a file containing a list of subwords. Subwords found using the
+hyphenation pattern but not in this list are excluded from the token output.
+
+This path must be absolute or relative to the `config` location, and the file
+must be UTF-8 encoded. Each token in the file must be separated by a line break.
+
+You can use the <<analysis-dict-decomp-tokenfilter,`dictionary_decompounder`>>
+filter to test the quality of word lists before implementing them.
+
+Either this parameter or `word_list` must be specified.
+--
+
+`max_subword_size`::
+(Optional, integer)
+Maximum subword character length. Longer subword tokens are excluded from the
+output. Defaults to `15`.
+
+`min_subword_size`::
+(Optional, integer)
+Minimum subword character length. Shorter subword tokens are excluded from the
+output. Defaults to `2`.
+
+`min_word_size`::
+(Optional, integer)
+Minimum word character length. Shorter word tokens are excluded from the
+output. Defaults to `5`.
+
+`only_longest_match`::
+(Optional, boolean)
+If `true`, only include the longest matching subword. Defaults to `false`.
+
+[[analysis-hyp-decomp-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `hyphenation_decompounder` filter, duplicate it to create the
+basis for a new custom token filter. You can modify the filter using its
+configurable parameters.
+
+For example, the following <<indices-create-index,create index API>> request
+uses a custom `hyphenation_decompounder` filter to configure a new
+<<analysis-custom-analyzer,custom analyzer>>.
+
+The custom `hyphenation_decompounder` filter find subwords based on hyphenation
+patterns in the `analysis/hyphenation_patterns.xml` file. The filter then checks
+these subwords against the list of words specified in the
+`analysis/example_word_list.txt` file. Subwords longer than 22 characters are
+excluded from the token output.
+
+[source,console]
+--------------------------------------------------
+PUT hyphenation_decompound_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_hyphenation_decompound": {
+          "tokenizer": "standard",
+          "filter": [ "22_char_hyphenation_decompound" ]
+        }
+      },
+      "filter": {
+        "22_char_hyphenation_decompound": {
+          "type": "hyphenation_decompounder",
+          "word_list_path": "analysis/example_word_list.txt",
+          "hyphenation_patterns_path": "analysis/hyphenation_patterns.xml",
+          "max_subword_size": 22
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

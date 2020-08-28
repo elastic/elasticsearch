@@ -12,9 +12,9 @@ tokenizer for autocomplete.
 By default, queries will use the `analyzer` defined in the field mapping, but
 this can be overridden with the `search_analyzer` setting:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -38,24 +38,22 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "autocomplete", <2>
-          "search_analyzer": "standard" <2>
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "autocomplete", <2>
+        "search_analyzer": "standard" <2>
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my-index-000001/_doc/1
 {
   "text": "Quick Brown Fox" <3>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -68,7 +66,6 @@ GET my_index/_search
 }
 
 --------------------------------------------------
-// CONSOLE
 
 <1> Analysis settings to define the custom `autocomplete` analyzer.
 <2> The `text` field uses the `autocomplete` analyzer at index time, but the `standard` analyzer at search time.
@@ -78,6 +75,5 @@ GET my_index/_search
 See {defguide}/_index_time_search_as_you_type.html[Index time search-as-you-
 type] for a full explanation of this example.
 
-TIP: The `search_analyzer` setting must have the same setting for fields of
-the same name in the same index.  Its value can be updated on existing fields
+TIP: The `search_analyzer` setting can be updated on existing fields
 using the <<indices-put-mapping,PUT mapping API>>.

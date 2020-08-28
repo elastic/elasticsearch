@@ -1,0 +1,7 @@
+grant {
+  permission javax.security.auth.AuthPermission "doAsPrivileged";
+  permission javax.security.auth.kerberos.DelegationPermission "\"HTTP/localhost@BUILD.ELASTIC.CO\" \"krbtgt/BUILD.ELASTIC.CO@BUILD.ELASTIC.CO\"";
+  permission javax.security.auth.kerberos.DelegationPermission "\"HTTP/localhost.localdomain@BUILD.ELASTIC.CO\" \"krbtgt/BUILD.ELASTIC.CO@BUILD.ELASTIC.CO\"";
+  permission javax.security.auth.kerberos.DelegationPermission "\"HTTP/localhost4@BUILD.ELASTIC.CO\" \"krbtgt/BUILD.ELASTIC.CO@BUILD.ELASTIC.CO\"";
+  permission javax.security.auth.kerberos.DelegationPermission "\"HTTP/localhost4.localdomain4@BUILD.ELASTIC.CO\" \"krbtgt/BUILD.ELASTIC.CO@BUILD.ELASTIC.CO\"";
+};

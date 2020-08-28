@@ -1,0 +1,119 @@
+---
+teardown:
+- do:
+    ingest.delete_pipeline:
+      id: "retarget"
+      ignore: 404
+
+- do:
+    indices.delete:
+      index: foo
+
+---
+"Test Change Target Index with Explicit Pipeline":
+
+- do:
+    ingest.put_pipeline:
+      id: "retarget"
+      body:  >
+        {
+          "processors": [
+            {
+              "set" : {
+                "field" : "_index",
+                "value" : "foo"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+# no indices
+- do:
+    cat.indices: {}
+
+- match:
+    $body: |
+      /^$/
+
+- do:
+    index:
+      index: test
+      id: 1
+      pipeline: "retarget"
+      body: {
+        a: true
+      }
+
+- do:
+    get:
+      index: foo
+      id: 1
+- match: { _source.a: true }
+
+# only the foo index
+- do:
+    cat.indices:
+      h: i
+
+- match:
+    $body: |
+      /^foo\n$/
+
+---
+"Test Change Target Index with Default Pipeline":
+
+- do:
+    indices.put_template:
+      name: index_template
+      body:
+        index_patterns: test
+        settings:
+          default_pipeline: "retarget"
+
+- do:
+    ingest.put_pipeline:
+      id: "retarget"
+      body:  >
+        {
+          "processors": [
+            {
+              "set" : {
+                "field" : "_index",
+                "value" : "foo"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+# no indices
+- do:
+    cat.indices: {}
+
+- match:
+    $body: |
+      /^$/
+
+- do:
+    index:
+      index: test
+      id: 1
+      body: {
+        a: true
+      }
+
+- do:
+    get:
+      index: foo
+      id: 1
+- match: { _source.a: true }
+
+# only the foo index
+- do:
+    cat.indices:
+      h: i
+
+- match:
+    $body: |
+      /^foo\n$/

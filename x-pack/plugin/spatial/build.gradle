@@ -1,0 +1,31 @@
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
+
+esplugin {
+  name 'spatial'
+  description 'A plugin for Basic Spatial features'
+  classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  api project(path: ':modules:geo', configuration: 'default')
+  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'bulk', 'indices', 'index', 'search'
+  }
+  restTests {
+    includeCore 'geo_shape'
+  }
+}
+
+testClusters.integTest {
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.breaker.request.limit', '25kb'
+  testDistribution = 'DEFAULT'
+}

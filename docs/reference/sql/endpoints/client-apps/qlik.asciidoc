@@ -1,0 +1,80 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-client-apps-qlik]]
+=== Qlik Sense Desktop
+
+You can use the {es} ODBC driver to access {es} data from Qlik Sense Desktop.
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
+==== Prerequisites
+
+* https://www.qlik.com/us/try-or-buy/download-qlik-sense[Qlik Sense Desktop] November 2018 or higher
+* {es-sql} <<sql-odbc, ODBC driver>>
+* A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
+
+==== Data loading
+
+To use the {odbc} to load data into Qlik Sense Desktop perform the following steps in sequence.
+
+. Create new app
++
+Once the application is launched, you'll first need to click on the _Create new app_ button:
++
+[[apps_qlik_newapp]]
+image:images/sql/odbc/apps_qlik_newapp.png[]
++
+. Name app
++
+...then give it a name,
++
+[[apps_qlik_create]]
+image:images/sql/odbc/apps_qlik_create.png[]
++
+. Open app
++
+...and then open it:
++
+[[apps_qlik_open]]
+image:images/sql/odbc/apps_qlik_open.png[]
++
+. Add data to your app
++
+Start configuring the source to load data from in the newly created app:
++
+[[apps_qlik_adddata]]
+image:images/sql/odbc/apps_qlik_adddata.png[]
++
+. Load from ODBC
++
+You'll be given a choice of sources to select. Click on the _ODBC_ icon:
++
+[[apps_qlik_odbc]]
+image:images/sql/odbc/apps_qlik_odbc.png[]
++
+. Choose DSN
++
+In the _Create new connection (ODBC)_ dialog, click on the DSN name that you have previously configured for your {es} instance:
++
+[[apps_qlik_dsn]]
+image:images/sql/odbc/apps_qlik_dsn.png[]
++
+Provide a username and password in the respective fields, if authentication is enabled on your instance and if these are not already part
+of the DSN. Press the _Create_ button.
++
+. Select source table
++
+The application will now connect to the {es} instance and query the catalog information, presenting you with a list of tables that you can
+load data from:
++
+[[apps_qlik_selecttable]]
+image:images/sql/odbc/apps_qlik_selecttable.png[]
++
+. Visualize the data
++
+Press on the _Add data_ button and customize your data visualization:
++
+[[apps_qlik_visualize]]
+image:images/sql/odbc/apps_qlik_visualize.png[]
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138 columns=140

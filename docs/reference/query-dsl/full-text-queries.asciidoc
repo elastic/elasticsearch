@@ -1,54 +1,54 @@
 [[full-text-queries]]
 == Full text queries
 
-The high-level full text queries are usually used for running full text
-queries on full text fields like the body of an email. They understand how the
-field being queried is <<analysis,analyzed>> and will apply each field's
-`analyzer` (or `search_analyzer`) to the query string before executing.
+The full text queries enable you to search <<analysis,analyzed text fields>> such as the 
+body of an email. The query string is processed using the same analyzer that was applied to 
+the field during indexing. 
 
 The queries in this group are:
 
-<<query-dsl-match-query,`match` query>>::
+<<query-dsl-intervals-query,`intervals` query>>::
+A full text query that allows fine-grained control of the ordering and
+proximity of matching terms.
 
-    The standard query for performing full text queries, including fuzzy matching
-    and phrase or proximity queries.
+<<query-dsl-match-query,`match` query>>::
+The standard query for performing full text queries, including fuzzy matching
+and phrase or proximity queries.
+
+<<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>>::
+Creates a `bool` query that matches each term as a `term` query, except for
+the last term, which is matched as a `prefix` query
 
 <<query-dsl-match-query-phrase,`match_phrase` query>>::
-
-    Like the `match` query but used for matching exact phrases or word proximity matches.
+Like the `match` query but used for matching exact phrases or word proximity matches.
     
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
-
-    The poor man's _search-as-you-type_.  Like the `match_phrase` query, but does a wildcard search on the final word.
-    
+Like the `match_phrase` query, but does a wildcard search on the final word.
+  
 <<query-dsl-multi-match-query,`multi_match` query>>::
-
-    The multi-field version of the `match` query.
-
-<<query-dsl-common-terms-query,`common_terms` query>>::
-
-    A more specialized query which gives more preference to uncommon words.
+The multi-field version of the `match` query.
 
 <<query-dsl-query-string-query,`query_string` query>>::
+Supports the compact Lucene <<query-string-syntax,query string syntax>>,
+allowing you to specify AND|OR|NOT conditions and multi-field search
+within a single query string. For expert users only.
 
-    Supports the compact Lucene <<query-string-syntax,query string syntax>>,
-    allowing you to specify AND|OR|NOT conditions and multi-field search
-    within a single query string. For expert users only.
+<<query-dsl-simple-query-string-query,`simple_query_string` query>>::
+A simpler, more robust version of the `query_string` syntax suitable
+for exposing directly to users.
 
-<<query-dsl-simple-query-string-query,`simple_query_string`>>::
 
-    A simpler, more robust version of the `query_string` syntax suitable
-    for exposing directly to users.
+include::intervals-query.asciidoc[]
 
 include::match-query.asciidoc[]
+
+include::match-bool-prefix-query.asciidoc[]
 
 include::match-phrase-query.asciidoc[]
 
 include::match-phrase-prefix-query.asciidoc[]
 
 include::multi-match-query.asciidoc[]
-
-include::common-terms-query.asciidoc[]
 
 include::query-string-query.asciidoc[]
 

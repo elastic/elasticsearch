@@ -1,0 +1,204 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Full-text
+//
+
+simpleQueryAllFields
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Baek fox') LIMIT 3;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10080          |Premal         |M              |Baek
+;
+
+simpleQueryDedicatedField
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'default_field=last_name') LIMIT 5;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10096          |Jayson         |M              |Mandell
+;
+
+simpleQueryOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'default_field=last_name;lenient=true;fuzzy_rewrite=scoring_boolean') LIMIT 5;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10096          |Jayson         |M              |Mandell
+;
+
+simpleQueryOptionsInMultipleCommaSeparatedStrings
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'default_field=last_name;lenient=true', 'fuzzy_rewrite=scoring_boolean') LIMIT 5;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10096          |Jayson         |M              |Mandell
+;
+
+matchWithFuzziness
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=2');
+
+  first_name:s  |   SCORE():f
+----------------+---------------
+Gino            |1.3684646
+Gao             |2.7369292
+;
+
+matchWithFuzzinessAuto
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=AUTO:1,7;fuzzy_rewrite=scoring_boolean');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gao             |2.7369292
+;
+
+multiMatchWithFuzzinessAuto
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=AUTO:1,5;operator=or') ORDER BY first_name;
+
+  first_name:s  |   last_name:s   |    SCORE():f
+----------------+-----------------+---------------
+Gao             |Dolinsky         |8.210788
+Shir            |McClurg          |8.210788
+;
+
+multiMatchWithFuzziness
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=2;operator=or') ORDER BY first_name;
+
+  first_name:s  |   last_name:s   |    SCORE():f
+----------------+-----------------+---------------
+Gao             |Dolinsky         |8.210788
+Gino            |Leonhardt        |4.105394
+Shir            |McClurg          |8.210788
+Uri             |Lenart           |4.105394
+;
+
+queryWithFuzziness
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=2;default_field=first_name');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gino            |1.3684646
+Gao             |2.7369292
+;
+
+queryWithFuzzinessAuto
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=AUTO:1,5;default_field=first_name');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gao             |2.7369292
+;
+
+matchQuery
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
+matchQueryWithOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
+matchQueryWithOptionsInMultipleCommaSeparatedStrings
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true','fuzzy_rewrite=scoring_boolean;minimum_should_match=1','operator=AND', 'max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
+multiMatchQuery
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;operator=OR');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+multiMatchQueryAllOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true;tie_breaker=0.1;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+multiMatchQueryWithInMultipleCommaSeparatedStrings
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true', 'tie_breaker=0.1;fuzzy_rewrite=scoring_boolean','minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+score
+SELECT emp_no, first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
+
+   emp_no:i    | first_name:s  |   SCORE():f
+10076          |Erez           |4.1053944
+;
+
+scoreAsSomething
+SELECT emp_no, first_name, SCORE() as s FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
+
+   emp_no:i    | first_name:s  |   s:f
+10076          |Erez           |4.1053944
+;
+
+//
+// Mixture of Aggs that triggers promotion of aggs to stats using multi full-text filtering
+//
+multiAggWithCountMatchAndQuery
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 AND (MATCH(gender, 'F') OR MATCH(gender, 'M')) AND QUERY('M*', 'default_field=last_name;lenient=true', 'fuzzy_rewrite=scoring_boolean') GROUP BY g HAVING max > 50000 ORDER BY gender;
+
+     min:i     |     max:i     |      g:s      |     c:l
+---------------+---------------+---------------+---------------
+37112          |69904          |F              |3
+32568          |70011          |M              |8
+;
+
+multiAggWithCountAndMultiMatch
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE MATCH(gender, 'F') OR MATCH(gender, 'M') GROUP BY g HAVING max > 50000 ORDER BY gender;
+
+     min:i     |     max:i     |      g:s      |     c:l
+---------------+---------------+---------------+---------------
+25976          |74572          |F              |33
+25945          |74999          |M              |57
+;
+
+multiAggWithMultiMatchOrderByCount
+SELECT MIN(salary) min, MAX(salary) max, ROUND(AVG(salary)) avg, gender g, COUNT(*) c FROM "test_emp" WHERE MATCH(gender, 'F') OR MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=2;operator=or') GROUP BY g ORDER BY c DESC;
+
+     min:i     |     max:i     |     avg:d     |      g:s      |       c:l
+---------------+---------------+---------------+---------------+---------------
+25976          |74572          |50491          |F              |33
+32568          |32568          |32568          |M              |1
+;
+
+multiAggWithMultiMatchOrderByCountAndSimpleCondition
+SELECT MIN(salary) min, MAX(salary) max, ROUND(AVG(salary)) avg, gender g, COUNT(*) c FROM "test_emp" WHERE (MATCH(gender, 'F') AND languages > 4) OR MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=2;operator=or') GROUP BY g ORDER BY c DESC;
+
+     min:i     |     max:i     |     avg:d     |      g:s      |       c:l
+---------------+---------------+---------------+---------------+---------------
+32272          |66817          |48081          |F              |11
+32568          |32568          |32568          |M              |1
+;
+
+multiAggWithPercentileAndMultiQuery
+SELECT languages, PERCENTILE(salary, 95) "95th", ROUND(PERCENTILE_RANK(salary, 65000)) AS rank, MAX(salary), MIN(salary), COUNT(*) c FROM test_emp WHERE QUERY('A*','default_field=first_name') OR QUERY('B*', 'default_field=first_name') OR languages IS NULL GROUP BY languages;
+
+  languages:bt |    95th:d     |    rank:d     | MAX(salary):i | MIN(salary):i |      c:l
+---------------+---------------+---------------+---------------+---------------+---------------
+null           |74999          |74             |74999          |28336          |10
+2              |44307          |100            |44307          |29175          |3
+3              |65030          |100            |65030          |38376          |4
+5              |66817          |100            |66817          |37137          |4
+;
+
+multiAggWithStatsAndMatrixStatsAndMultiQuery
+SELECT languages, KURTOSIS(salary) k, SKEWNESS(salary) s, MAX(salary), MIN(salary), COUNT(*) c FROM test_emp WHERE QUERY('A*','default_field=first_name') OR QUERY('B*', 'default_field=first_name') OR languages IS NULL GROUP BY languages;
+
+  languages:bt |       k:d        |        s:d        | MAX(salary):i | MIN(salary):i |      c:l
+---------------+------------------+-------------------+---------------+---------------+---------------
+null           |1.9161749939033146|0.1480828817161133 |74999          |28336          |10
+2              |1.5000000000000002|0.484743245141609  |44307          |29175          |3
+3              |1.0732551278666582|0.05483979801873433|65030          |38376          |4
+5              |1.322529094661261 |0.24501477738153868|66817          |37137          |4
+;

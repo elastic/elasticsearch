@@ -5,44 +5,34 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed.  For instance, use mappings to define:
+are stored and indexed. For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
-* whether the values of all fields in the document should be
-  indexed into the catch-all <<mapping-all-field,`_all`>> field.
 * the <<mapping-date-format,format>> of date values.
 * custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
-[float]
-[[mapping-type]]
-== Mapping Types
+A mapping definition has:
 
-Each index has one or more _mapping types_, which are used to divide the
-documents in an index into logical groups. User documents might be stored in a
-`user` type, and blog posts in a `blogpost` type.
+<<mapping-fields,Metadata fields>>::
 
-Each mapping type has:
-
-<<mapping-fields,Meta-fields>>::
-
-Meta-fields are used to customize how a document's metadata associated is
-treated. Examples of meta-fields include the document's
-<<mapping-index-field,`_index`>>, <<mapping-type-field,`_type`>>,
-<<mapping-id-field,`_id`>>,  and <<mapping-source-field,`_source`>> fields.
+Metadata fields are used to customize how a document's associated metadata is
+treated. Examples of metadata fields include the document's
+<<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
+<<mapping-source-field,`_source`>> fields.
 
 <<mapping-types,Fields>> or _properties_::
 
-Each mapping type contains a list of fields or `properties` pertinent to that
-type.  A `user` type might contain `title`, `name`, and `age` fields, while a
-`blogpost` type might contain `title`, `body`, `user_id` and `created` fields.
-Fields with the same name in different mapping types in the same index
-<<field-conflicts,must have the same mapping>>.
+A mapping contains a list of fields or `properties` pertinent to the
+document.
 
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
+For more details, please see <<removal-of-types>>.
 
-[float]
-== Field datatypes
+[discrete]
+[[field-datatypes]]
+== Field data types
 
 Each field has a data `type` which can be:
 
@@ -51,7 +41,7 @@ Each field has a data `type` which can be:
 * a type which supports the hierarchical nature of JSON such as
   <<object,`object`>> or <<nested,`nested`>>.
 * or a specialised type like <<geo-point,`geo_point`>>,
-  <<geo-shape,`geo_shape`>>, or <<search-suggesters-completion,`completion`>>.
+  <<geo-shape,`geo_shape`>>, or <<completion-suggester,`completion`>>.
 
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
@@ -61,130 +51,233 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.
 
-This is the purpose of _multi-fields_.  Most datatypes support multi-fields
+This is the purpose of _multi-fields_.  Most data types support multi-fields
 via the <<multi-fields>> parameter.
 
 [[mapping-limit-settings]]
-[float]
+[discrete]
 === Settings to prevent mappings explosion
 
-The following settings allow you to limit the number of field mappings that
-can be created manually or dynamically, in order to prevent bad documents from
-causing a mapping explosion:
+Defining too many fields in an index can lead to a
+mapping explosion, which can cause out of memory errors and difficult
+situations to recover from.
+
+Consider a situation where every new document inserted
+introduces new fields, such as with <<dynamic-mapping,dynamic mapping>>.
+Each new field is added to the index mapping, which can become a
+problem as the mapping grows.
+
+Use the following settings to limit the number of field mappings (created manually or dynamically) and prevent documents from causing a mapping explosion:
 
 `index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. The default value is `1000`.
+    The maximum number of fields in an index. Field and object mappings, as well as
+    field aliases count towards this limit. The default value is `1000`.
++
+[IMPORTANT]
+====
+The limit is in place to prevent mappings and searches from becoming too
+large. Higher values can lead to performance degradations and memory issues,
+especially in clusters with a high load or few resources.
+
+If you increase this setting, we recommend you also increase the
+<<search-settings,`indices.query.bool.max_clause_count`>> setting, which
+limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query.
+====
++
+[TIP]
+====
+If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> data type.
+====
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
     objects. For instance, if all fields are defined at the root object level,
     then the depth is `1`. If there is one object mapping, then the depth is
-    `2`, etc. The default is `20`.
+    `2`, etc. Default is `20`.
 
+// tag::nested-fields-limit[]
 `index.mapping.nested_fields.limit`::
-    The maximum number of `nested` fields in an index, defaults to `50`.
-    Indexing 1 document with 100 nested fields actually indexes 101 documents
-    as each nested document is indexed as a separate hidden document.
+    The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting
+    limits the number of unique `nested` types per index. Default is `50`.
+// end::nested-fields-limit[]
 
+// tag::nested-objects-limit[]
+`index.mapping.nested_objects.limit`::
+    The maximum number of nested JSON objects that a single document can contain across all
+    `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested
+    objects. Default is `10000`.
+// end::nested-objects-limit[]
 
-[float]
+`index.mapping.field_name_length.limit`::
+    Setting for the maximum length of a field name. This setting isn't really something that addresses
+    mappings explosion but might still be useful if you want to limit the field length.
+    It usually shouldn't be necessary to set this setting. The default is okay
+    unless a user starts to add a huge number of fields with really long names. Default is
+    `Long.MAX_VALUE` (no limit).
+
+[discrete]
 == Dynamic mapping
 
 Fields and mapping types do not need to be defined before being used. Thanks
-to _dynamic mapping_, new mapping types and new field names will be added
-automatically, just by indexing a document. New fields can be added both to
-the top-level mapping type, and to inner <<object,`object`>>  and
-<<nested,`nested`>> fields.
+to _dynamic mapping_, new field names will be added automatically, just by
+indexing a document. New fields can be added both to the top-level mapping
+type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
 
-The
-<<dynamic-mapping,dynamic mapping>> rules can be configured to
-customise the mapping that is used for new types and new fields.
+The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
+the mapping that is used for new fields.
 
-[float]
+[discrete]
 == Explicit mappings
 
 You know more about your data than Elasticsearch can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify
 your own explicit mappings.
 
-You can create mapping types and field mappings when you
-<<indices-create-index,create an index>>, and you can add mapping types and
-fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
+You can create field mappings when you <<create-mapping,create an index>> and
+<<add-field-mapping,add fields to an existing index>>.
 
-[float]
-== Updating existing mappings
+[discrete]
+[[create-mapping]]
+== Create an index with an explicit mapping
 
-Other than where documented, *existing type and field mappings cannot be
-updated*. Changing the mapping would mean invalidating already indexed
-documents.  Instead, you should create a new index with the correct mappings
-and reindex your data into that index.
+You can use the <<indices-create-index,create index>> API to create a new index
+with an explicit mapping.
 
-[[field-conflicts]]
-[float]
-== Fields are shared across mapping types
-
-Mapping types are used to group fields, but the fields in each mapping type
-are not independent of each other. Fields with:
-
-* the _same name_
-* in the _same index_
-* in _different mapping types_
-* map to the _same field_ internally,
-* and *must have the same mapping*.
-
-If a `title` field exists in both the `user` and `blogpost` mapping types, the
-`title` fields must have exactly the same mapping in each type. The only
-exceptions to this rule are the <<copy-to>>, <<dynamic>>, <<enabled>>,
-<<ignore-above>>, and <<properties>> parameters, which may have different
-settings per field.
-
-Usually, fields with the same name also contain the same type of data, so
-having the same mapping is not a problem.  When conflicts do arise, these can
-be solved by choosing more descriptive names, such as `user_title` and
-`blog_title`.
-
-[float]
-== Example mapping
-
-A mapping for the example described above could be specified when creating the
-index, as follows:
-
-[source,js]
----------------------------------------
-PUT my_index <1>
+[source,console]
+----
+PUT /my-index-000001
 {
   "mappings": {
-    "user": { <2>
-      "properties": { <3>
-        "title":    { "type": "text"  }, <4>
-        "name":     { "type": "text"  }, <4>
-        "age":      { "type": "integer" }  <4>
-      }
-    },
-    "blogpost": { <2>
-      "properties": { <3>
-        "title":    { "type": "text"  }, <4>
-        "body":     { "type": "text"  }, <4>
-        "user_id":  {
-          "type":   "keyword" <4>
+    "properties": {
+      "age":    { "type": "integer" },  <1>
+      "email":  { "type": "keyword"  }, <2>
+      "name":   { "type": "text"  }     <3>
+    }
+  }
+}
+----
+
+<1> Creates `age`, an <<number,`integer`>> field
+<2> Creates `email`, a <<keyword,`keyword`>> field
+<3> Creates `name`, a <<text,`text`>> field
+
+[discrete]
+[[add-field-mapping]]
+== Add a field to an existing mapping
+
+You can use the <<indices-put-mapping, put mapping>> API to add one or more new
+fields to an existing index.
+
+The following example adds `employee-id`, a `keyword` field with an
+<<mapping-index,`index`>> mapping parameter value of `false`. This means values
+for the `employee-id` field are stored but not indexed or available for search.
+
+[source,console]
+----
+PUT /my-index-000001/_mapping
+{
+  "properties": {
+    "employee-id": {
+      "type": "keyword",
+      "index": false
+    }
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[update-mapping]]
+=== Update the mapping of a field
+
+include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
+
+include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=rename-field]
+
+[discrete]
+[[view-mapping]]
+== View the mapping of an index
+
+You can use the <<indices-get-mapping, get mapping>> API to view the mapping of
+an existing index.
+
+[source,console]
+----
+GET /my-index-000001/_mapping
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my-index-000001" : {
+    "mappings" : {
+      "properties" : {
+        "age" : {
+          "type" : "integer"
         },
-        "created":  {
-          "type":   "date", <4>
-          "format": "strict_date_optional_time||epoch_millis"
+        "email" : {
+          "type" : "keyword"
+        },
+        "employee-id" : {
+          "type" : "keyword",
+          "index" : false
+        },
+        "name" : {
+          "type" : "text"
         }
       }
     }
   }
 }
----------------------------------------
-// CONSOLE
-<1> Create an index called `my_index`.
-<2> Add mapping types called `user` and `blogpost`.
-<3> Specify fields or _properties_ in each mapping type.
-<4> Specify the data `type` and mapping for each field.
+----
 
+
+[discrete]
+[[view-field-mapping]]
+== View the mapping of specific fields
+
+If you only want to view the mapping of one or more specific fields, you can use
+the <<indices-get-field-mapping, get field mapping>> API.
+
+This is useful if you don't need the complete mapping of an index or your index
+contains a large number of fields.
+
+The following request retrieves the mapping for the `employee-id` field.
+
+[source,console]
+----
+GET /my-index-000001/_mapping/field/employee-id
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my-index-000001" : {
+    "mappings" : {
+      "employee-id" : {
+        "full_name" : "employee-id",
+        "mapping" : {
+          "employee-id" : {
+            "type" : "keyword",
+            "index" : false
+          }
+        }
+      }
+    }
+  }
+}
+
+----
 
 --
+
+include::mapping/removal_of_types.asciidoc[]
 
 include::mapping/types.asciidoc[]
 

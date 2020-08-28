@@ -1,10 +1,13 @@
 [[query-dsl-match-all-query]]
-== Match All Query
+== Match all query
+++++
+<titleabbrev>Match all</titleabbrev>
+++++
 
 The most simple query, which matches all documents, giving them all a `_score`
 of `1.0`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 { 
@@ -13,34 +16,31 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `_score` can be changed with the `boost` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_all": { "boost" : 1.2 }
-    }
+  "query": {
+    "match_all": { "boost" : 1.2 }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-none-query]]
-[float]
+[discrete]
 == Match None Query
 
 This is the inverse of the `match_all` query, which matches no documents.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_none": {} 
-    }
+  "query": {
+    "match_none": {} 
+  }
 }
 --------------------------------------------------
-// CONSOLE

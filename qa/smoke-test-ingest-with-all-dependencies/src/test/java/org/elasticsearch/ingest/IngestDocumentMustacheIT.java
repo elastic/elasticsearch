@@ -30,35 +30,35 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
 
-    public void testAccessMetaDataViaTemplate() {
+    public void testAccessMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("1 {{foo}}", templateService));
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        ingestDocument.setFieldValue(compile("field1"), ValueSource.wrap("1 {{foo}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 bar"));
 
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("2 {{_source.foo}}", templateService));
+        ingestDocument.setFieldValue(compile("field1"), ValueSource.wrap("2 {{_source.foo}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("2 bar"));
     }
 
-    public void testAccessMapMetaDataViaTemplate() {
+    public void testAccessMapMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> innerObject = new HashMap<>();
         innerObject.put("bar", "hello bar");
         innerObject.put("baz", "hello baz");
         innerObject.put("qux", Collections.singletonMap("fubar", "hello qux and fubar"));
         document.put("foo", innerObject);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
-        ingestDocument.setFieldValue(templateService.compile("field1"),
-                ValueSource.wrap("1 {{foo.bar}} {{foo.baz}} {{foo.qux.fubar}}", templateService));
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        ingestDocument.setFieldValue(compile("field1"),
+                ValueSource.wrap("1 {{foo.bar}} {{foo.baz}} {{foo.qux.fubar}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 hello bar hello baz hello qux and fubar"));
 
-        ingestDocument.setFieldValue(templateService.compile("field1"),
-                ValueSource.wrap("2 {{_source.foo.bar}} {{_source.foo.baz}} {{_source.foo.qux.fubar}}", templateService));
+        ingestDocument.setFieldValue(compile("field1"),
+                ValueSource.wrap("2 {{_source.foo.bar}} {{_source.foo.baz}} {{_source.foo.qux.fubar}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("2 hello bar hello baz hello qux and fubar"));
     }
 
-    public void testAccessListMetaDataViaTemplate() {
+    public void testAccessListMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         document.put("list1", Arrays.asList("foo", "bar", null));
         List<Map<String, Object>> list = new ArrayList<>();
@@ -67,8 +67,8 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         list.add(value);
         list.add(null);
         document.put("list2", list);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("1 {{list1.0}} {{list2.0}}", templateService));
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        ingestDocument.setFieldValue(compile("field1"), ValueSource.wrap("1 {{list1.0}} {{list2.0}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 foo {field=value}"));
     }
 
@@ -77,9 +77,9 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         Map<String, Object> ingestMap = new HashMap<>();
         ingestMap.put("timestamp", "bogus_timestamp");
         document.put("_ingest", ingestMap);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
-        ingestDocument.setFieldValue(templateService.compile("ingest_timestamp"),
-                ValueSource.wrap("{{_ingest.timestamp}} and {{_source._ingest.timestamp}}", templateService));
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        ingestDocument.setFieldValue(compile("ingest_timestamp"),
+                ValueSource.wrap("{{_ingest.timestamp}} and {{_source._ingest.timestamp}}", scriptService));
         assertThat(ingestDocument.getFieldValue("ingest_timestamp", String.class),
                 equalTo(ingestDocument.getIngestMetadata().get("timestamp") + " and bogus_timestamp"));
     }

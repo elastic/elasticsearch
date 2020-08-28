@@ -18,6 +18,7 @@
  */
 
 grant {
+
   // needed because of problems in ClientConfiguration
   // TODO: get these fixed in aws sdk
   permission java.lang.RuntimePermission "accessDeclaredMembers";
@@ -37,4 +38,6 @@ grant {
 
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
+
+
 };

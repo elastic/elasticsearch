@@ -1,25 +1,49 @@
 [[indices-open-close]]
-== Open / Close Index API
+=== Open index API
+++++
+<titleabbrev>Open index</titleabbrev>
+++++
 
-The open and close index APIs allow to close an index, and later on
-opening it. A closed index has almost no overhead on the cluster (except
-for maintaining its metadata), and is blocked for read/write operations.
-A closed index can be opened which will then go through the normal
-recovery process.
+Opens a closed index. For data streams, the API
+opens any closed backing indices.
 
-The REST endpoint is `/{index}/_close` and `/{index}/_open`. For
-example:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /my_index/_close
-
-POST /my_index/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT my_index\n/]
+// TEST[setup:my_index]
+// TEST[s/^/POST \/my-index-000001\/_close\n/]
 
-It is possible to open and close multiple indices. An error will be thrown
+
+[[open-index-api-request]]
+==== {api-request-title}
+
+`POST /<target>/_open`
+
+
+[[open-index-api-desc]]
+==== {api-description-title}
+
+You can use the open index API to re-open closed indices. If the request targets
+a data stream, the request re-opens any of the stream's closed backing indices.
+
+// tag::closed-index[]
+
+A closed index is blocked for read/write operations and does not allow
+all operations that opened indices allow. It is not possible to index
+documents or to search for documents in a closed index. This allows
+closed indices to not have to maintain internal data structures for
+indexing or searching documents, resulting in a smaller overhead on
+the cluster.
+
+When opening or closing an index, the master is responsible for
+restarting the index shards to reflect the new state of the index.
+The shards will then go through the normal recovery process. The
+data of opened/closed indices is automatically replicated by the
+cluster to ensure that enough shard copies are safely kept around
+at all times.
+
+You can open and close multiple indices. An error is thrown
 if the request explicitly refers to a missing index. This behaviour can be
 disabled using the `ignore_unavailable=true` parameter.
 
@@ -30,5 +54,82 @@ Identifying indices via wildcards or `_all` can be disabled by setting the
 `action.destructive_requires_name` flag in the config file to `true`.
 This setting can also be changed via the cluster update settings api.
 
-Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
+Closed indices consume a significant amount of disk-space which can cause
+problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
+
+The current write index on a data stream cannot be closed. In order to close
+the current write index, the data stream must first be
+<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+and then the previous write index can be closed.
+
+// end::closed-index[]
+
+[[open-index-api-wait-for-active-shards]]
+===== Wait For active shards
+
+// tag::wait-for-active-shards[]
+
+Because opening or closing an index allocates its shards, the
+<<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
+index creation applies to the `_open` and `_close` index actions as well.
+
+// end::wait-for-active-shards[]
+
+
+
+
+[[open-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard (`*`) expressions are supported.
++
+To target all data streams and indices, use `_all` or `*`.
++
+To disallow use of `_all` or wildcard expressions,
+change the `action.destructive_requires_name` cluster setting to `true`.
+You can update this setting in the `elasticsearch.yml` file
+or using the <<cluster-update-settings,cluster update settings>> API.
+
+
+[[open-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `closed`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[open-index-api-example]]
+==== {api-examples-title}
+
+The following request re-opens a closed index named `my-index-000001`.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_open
+--------------------------------------------------
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close\n/]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged" : true,
+  "shards_acknowledged" : true
+}
+--------------------------------------------------

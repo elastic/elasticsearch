@@ -1,0 +1,37 @@
+--
+:api: delete-privileges
+:request: DeletePrivilegesRequest
+:response: DeletePrivilegesResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete Privileges API
+
+This API can be used to delete application privileges.
+
+[id="{upid}-{api}-request"]
+==== Delete Application Privileges Request
+
+A +{request}+ has two arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> the name of application
+<2> the name(s) of the privileges to delete that belong to the given application
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Delete Application Privileges Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> the name of the application
+<2> whether the given privilege was found and deleted

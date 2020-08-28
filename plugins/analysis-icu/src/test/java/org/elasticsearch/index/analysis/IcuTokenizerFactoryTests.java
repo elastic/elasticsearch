@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -95,8 +95,8 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         String json = "/org/elasticsearch/index/analysis/icu_analysis.json";
 
         Settings settings = Settings.builder()
-            .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json))
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
 

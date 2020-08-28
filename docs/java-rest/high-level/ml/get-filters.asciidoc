@@ -1,0 +1,52 @@
+--
+:api: get-filters
+:request: GetFiltersRequest
+:response: GetFiltersResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get filters API
+
+Retrieves one or more filter results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get filters request
+
+A +{request}+ object gets created.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request.
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-filter-id]
+--------------------------------------------------
+<1> The ID of the filter to get. Otherwise, it will return all filters.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page-params]
+--------------------------------------------------
+<1> `from` specifies the number of filters to skip. Defaults to `0`.
+<2> `size` specifies the maximum number of filters to get. Defaults to `100`.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get filters response
+
+The returned +{response}+ contains the requested filters:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of filters that were matched.
+<2> The filters retrieved.

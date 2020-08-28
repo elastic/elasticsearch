@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 
 import com.ibm.icu.text.Normalizer2;
+
 import org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -31,24 +32,24 @@ import java.io.Reader;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter} to normalize character.
- * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.</p>
- * <p>The <tt>mode</tt> can be used to provide 'compose' or 'decompose'. Default is compose.</p>
+ * <p>The {@code name} can be used to provide the type of normalization to perform.</p>
+ * <p>The {@code mode} can be used to provide 'compose' or 'decompose'. Default is compose.</p>
+ * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
-public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
-
-    private final String name;
+public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final Normalizer2 normalizer;
 
     public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name);
-        this.name = settings.get("name", "nfkc_cf");
+        String method = settings.get("name", "nfkc_cf");
         String mode = settings.get("mode");
         if (!"compose".equals(mode) && !"decompose".equals(mode)) {
             mode = "compose";
         }
-        this.normalizer = Normalizer2.getInstance(
-            null, this.name, "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE);
+        Normalizer2 normalizer = Normalizer2.getInstance(
+            null, method, "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
     }
 
     @Override
@@ -56,8 +57,4 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         return new ICUNormalizer2CharFilter(reader, normalizer);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

@@ -1,12 +1,83 @@
 [[analysis-cjk-width-tokenfilter]]
-=== CJK Width Token Filter
+=== CJK width token filter
+++++
+<titleabbrev>CJK width</titleabbrev>
+++++
 
-The `cjk_width` token filter normalizes CJK width differences:
+Normalizes width differences in CJK (Chinese, Japanese, and Korean) characters
+as follows:
 
-* Folds fullwidth ASCII variants into the equivalent basic Latin
-* Folds halfwidth Katakana variants into the equivalent Kana
+* Folds full-width ASCII character variants into the equivalent basic Latin
+characters
+* Folds half-width Katakana character variants into the equivalent Kana
+characters
 
-NOTE: This token filter can be viewed as a subset of NFKC/NFKD
-Unicode normalization.  See the {plugins}/analysis-icu-normalization-charfilter.html[`analysis-icu` plugin]
-for full normalization support.
+This filter is included in {es}'s built-in <<cjk-analyzer,CJK language
+analyzer>>. It uses Lucene's
+{lucene-analysis-docs}/cjk/CJKWidthFilter.html[CJKWidthFilter].
 
+NOTE: This token filter can be viewed as a subset of NFKC/NFKD Unicode
+normalization. See the
+{plugins}/analysis-icu-normalization-charfilter.html[`analysis-icu` plugin] for
+full normalization support.
+
+[[analysis-cjk-width-tokenfilter-analyze-ex]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+GET /_analyze
+{
+  "tokenizer" : "standard",
+  "filter" : ["cjk_width"],
+  "text" : "ｼｰｻｲﾄﾞﾗｲﾅｰ"
+}
+--------------------------------------------------
+
+The filter produces the following token:
+
+[source,text]
+--------------------------------------------------
+シーサイドライナー
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "シーサイドライナー",
+      "start_offset" : 0,
+      "end_offset" : 10,
+      "type" : "<KATAKANA>",
+      "position" : 0
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-cjk-width-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+CJK width token filter to configure a new 
+<<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+--------------------------------------------------
+PUT /cjk_width_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_cjk_width": {
+          "tokenizer": "standard",
+          "filter": [ "cjk_width" ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

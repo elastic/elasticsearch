@@ -1,6 +1,6 @@
 package org.elasticsearch.index.analysis;
 
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -133,7 +133,10 @@ public final class IndexableBinaryStringTools {
       codingCase = CODING_CASES[caseNum];
 
       if (inputByteNum + 1 < inputLength) { // codingCase.numBytes must be 3
-        outputArray[outputCharNum++] = (char) ((((inputArray[inputByteNum] & 0xFF) << codingCase.initialShift) + ((inputArray[inputByteNum + 1] & 0xFF) << codingCase.middleShift)) & (short) 0x7FFF);
+        outputArray[outputCharNum++] = (char) (
+            (   ((inputArray[inputByteNum] & 0xFF) << codingCase.initialShift)
+              + ((inputArray[inputByteNum + 1] & 0xFF) << codingCase.middleShift)
+            ) & (short) 0x7FFF);
         // Add trailing char containing the number of full bytes in final char
         outputArray[outputCharNum++] = (char) 1;
       } else if (inputByteNum < inputLength) {

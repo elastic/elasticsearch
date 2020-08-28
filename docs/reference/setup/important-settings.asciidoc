@@ -2,181 +2,36 @@
 == Important Elasticsearch configuration
 
 While Elasticsearch requires very little configuration, there are a number of
-settings which need to be configured manually and should definitely be
-configured before going into production.
+settings which need to be considered before going into production.
 
-* <<path-settings,`path.data` and `path.logs`>>
-* <<cluster.name,`cluster.name`>>
-* <<node.name,`node.name`>>
-* <<bootstrap.memory_lock,`bootstrap.memory_lock`>>
-* <<network.host,`network.host`>>
-* <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>>
-* <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
+The following settings *must* be considered before going to production:
 
-[float]
-[[path-settings]]
-=== `path.data` and `path.logs`
+* <<path-settings,Path settings>>
+* <<cluster.name,Cluster name>>
+* <<node.name,Node name>>
+* <<network.host,Network host>>
+* <<discovery-settings,Discovery settings>>
+* <<heap-size,Heap size>>
+* <<heap-dump-path,Heap dump path>>
+* <<gc-logging,GC logging>>
+* <<es-tmpdir,Temp directory>>
 
-If you are using the `.zip` or `.tar.gz` archives, the `data` and `logs`
-directories are sub-folders of `$ES_HOME`.  If these important folders are
-left in their default locations, there is a high risk of them being deleted
-while  upgrading Elasticsearch to a new version.
+include::important-settings/path-settings.asciidoc[]
 
-In production use, you will almost certainly want to change the locations of
-the data and log folder:
+include::important-settings/cluster-name.asciidoc[]
 
-[source,yaml]
---------------------------------------------------
-path:
-  logs: /var/log/elasticsearch
-  data: /var/data/elasticsearch
---------------------------------------------------
+include::important-settings/node-name.asciidoc[]
 
-The RPM and Debian distributions already use custom paths for `data` and
-`logs`.
+include::important-settings/network-host.asciidoc[]
 
-The `path.data` settings can be set to multiple paths, in which case all paths
-will be used to store data (although the files belonging to a single shard
-will all be stored on the same data path):
+include::important-settings/discovery-settings.asciidoc[]
 
-[source,yaml]
---------------------------------------------------
-path:
-  data:
-    - /mnt/elasticsearch_1
-    - /mnt/elasticsearch_2
-    - /mnt/elasticsearch_3
---------------------------------------------------
+include::important-settings/heap-size.asciidoc[]
 
-[float]
-[[cluster.name]]
-=== `cluster.name`
+include::important-settings/heap-dump-path.asciidoc[]
 
-A node can only join a cluster when it shares its `cluster.name` with all the
-other nodes in the cluster. The default name is `elasticsearch`, but you
-should change it to an appropriate name which describes the purpose of the
-cluster.
+include::important-settings/gc-logging.asciidoc[]
 
-[source,yaml]
---------------------------------------------------
-cluster.name: logging-prod
---------------------------------------------------
+include::important-settings/es-tmpdir.asciidoc[]
 
-Make sure that you don't reuse the same cluster names in different
-environments, otherwise you might end up with nodes joining the wrong cluster.
-
-[float]
-[[node.name]]
-=== `node.name`
-
-By default, Elasticsearch will take the 7 first character of the randomly generated uuid used as the node id.
-Note that the node id is persisted and does not change when a node restarts and therefore the default node name
-will also not change.
-
-It is worth configuring a more meaningful name which will also have the
-advantage of persisting after restarting the node:
-
-[source,yaml]
---------------------------------------------------
-node.name: prod-data-2
---------------------------------------------------
-
-The `node.name` can also be set to the server's HOSTNAME as follows:
-
-[source,yaml]
---------------------------------------------------
-node.name: ${HOSTNAME}
---------------------------------------------------
-
-[float]
-[[bootstrap.memory_lock]]
-=== `bootstrap.memory_lock`
-
-It is vitally important to the health of your node that none of the JVM is
-ever swapped out to disk.  One way of achieving that is set the
-`bootstrap.memory_lock` setting to `true`.
-
-For this setting to have effect, other system settings need to be configured
-first. See <<mlockall>> for more details about how to set up memory locking
-correctly.
-
-[float]
-[[network.host]]
-=== `network.host`
-
-By default, Elasticsearch binds to loopback addresses only -- e.g. `127.0.0.1`
-and `[::1]`. This is sufficient to run a single development node on a server.
-
-TIP: In fact, more than one node can be started from the same `$ES_HOME` location
-on a single node.  This can be useful for testing Elasticsearch's ability to
-form clusters, but it is not a configuration recommended for production.
-
-In order to communicate and to form a cluster with nodes on other servers,
-your node will need to bind to a non-loopback address.  While there are many
-<<modules-network,network settings>>, usually all you need to configure is
-`network.host`:
-
-[source,yaml]
---------------------------------------------------
-network.host: 192.168.1.10
---------------------------------------------------
-
-The `network.host` setting also understands some special values such as
-`_local_`, `_site_`, `_global_` and modifiers like `:ip4` and `:ip6`, details
-of which can be found in <<network-interface-values>>.
-
-IMPORTANT: As soon you provide a custom setting for `network.host`,
-Elasticsearch assumes that you are moving from development mode to production
-mode, and upgrades a number of system startup checks from warnings to
-exceptions.  See <<dev-vs-prod>> for more information.
-
-[float]
-[[unicast.hosts]]
-=== `discovery.zen.ping.unicast.hosts`
-
-Out of the box, without any network configuration, Elasticsearch will bind to
-the available loopback addresses and will scan ports 9300 to 9305 to try to
-connect to other nodes running on the same server. This provides an auto-
-clustering experience without having to do any configuration.
-
-When the moment comes to form a cluster with nodes on other servers, you have
-to provide a seed list of other nodes in the cluster that are likely to be
-live and contactable.  This can be specified as follows:
-
-[source,yaml]
---------------------------------------------------
-discovery.zen.ping.unicast.hosts:
-   - 192.168.1.10:9300
-   - 192.168.1.11 <1>
-   - seeds.mydomain.com <2>
---------------------------------------------------
-<1> The port will default to `transport.profiles.default.port` and fallback to `transport.tcp.port` if not specified.
-<2> A hostname that resolves to multiple IP addresses will try all resolved addresses.
-
-[float]
-[[minimum_master_nodes]]
-=== `discovery.zen.minimum_master_nodes`
-
-To prevent data loss, it is vital to configure the
-`discovery.zen.minimum_master_nodes` setting so that each master-eligible node
-knows the _minimum number of master-eligible nodes_ that must be visible in
-order to form a cluster.
-
-Without this setting, a cluster that suffers a network failure is at risk of
-having the cluster split into two independent clusters -- a split brain --
-which will lead to data loss. A more detailed explanation is provided
-in <<split-brain>>.
-
-To avoid a split brain, this setting should be set to a _quorum_ of master-
-eligible nodes:
-
-    (master_eligible_nodes / 2) + 1
-
-In other words, if there are three master-eligible nodes, then minimum master
-nodes should be set to `(3 / 2) + 1` or `2`:
-
-[source,yaml]
---------------------------------------------------
-discovery.zen.minimum_master_nodes: 2
---------------------------------------------------
-
+include::important-settings/error-file.asciidoc[]

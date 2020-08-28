@@ -16,20 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Mustache scripting integration for Elasticsearch'
   classname 'org.elasticsearch.script.mustache.MustachePlugin'
-  hasClientJar = true // For the template apis and query
 }
 
 dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.3"
+  api "com.github.spullara.mustache.java:compiler:0.9.6"
 }
 
-integTestCluster {
-  setting 'script.inline', 'true'
-  setting 'script.stored', 'true'
-  setting 'script.max_compilations_per_minute', '1000'
-  setting 'path.scripts', "${project.buildDir}/resources/test/templates"
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
+      'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
+  }
 }

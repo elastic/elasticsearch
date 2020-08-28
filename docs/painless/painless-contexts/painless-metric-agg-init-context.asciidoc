@@ -1,0 +1,32 @@
+[[painless-metric-agg-init-context]]
+=== Metric aggregation initialization context
+
+Use a Painless script to
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[initialize]
+values for use in a scripted metric aggregation. An initialization script is
+run prior to document collection once per shard and is optional as part of the
+full metric aggregation.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`state` (`Map`)::
+        Empty `Map` used to add values for use in a
+        <<painless-metric-agg-map-context, map script>>.
+
+*Side Effects*
+
+`state` (`Map`)::
+        Add values to this `Map` to for use in a map.  Additional values must
+        be of the type `Map`, `List`, `String` or primitive.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+The standard <<painless-api-reference-shared, Painless API>> is available.

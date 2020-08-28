@@ -1,0 +1,83 @@
+--
+:api: invalidate-api-key
+:request: InvalidateApiKeyRequest
+:response: InvalidateApiKeyResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Invalidate API Key API
+
+API Key(s) can be invalidated using this API.
+
+[id="{upid}-{api}-request"]
+==== Invalidate API Key Request
+The +{request}+ supports invalidating
+
+. A specific API key
+
+. All API keys for a specific realm
+
+. All API keys for a specific user
+
+. All API keys for a specific user in a specific realm
+
+. A specific key or all API keys owned by the current authenticated user
+
+===== Specific API key by API key id
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-api-key-id-request]
+--------------------------------------------------
+
+===== Specific API key by API key name
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-api-key-name-request]
+--------------------------------------------------
+
+===== All API keys for realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-realm-api-keys-request]
+--------------------------------------------------
+
+===== All API keys for user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-user-api-keys-request]
+--------------------------------------------------
+
+===== All API key for user in realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-user-realm-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for the current authenticated user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-api-keys-owned-by-authenticated-user-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Invalidate API Key Response
+
+The returned +{response}+ contains the information regarding the API keys that the request
+invalidated.
+
+`invalidatedApiKeys`:: Available using `getInvalidatedApiKeys` lists the API keys
+                      that this request invalidated.
+
+`previouslyInvalidatedApiKeys`:: Available using `getPreviouslyInvalidatedApiKeys` lists the API keys
+                                that this request attempted to invalidate
+                                but were already invalid.
+
+`errors`:: Available using `getErrors` contains possible errors that were encountered while
+           attempting to invalidate API keys.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

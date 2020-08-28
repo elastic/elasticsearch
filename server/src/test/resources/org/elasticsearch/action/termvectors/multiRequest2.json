@@ -1,0 +1,24 @@
+{
+   "docs": [
+      {
+         "_id": "1",
+         "field_statistics": false,
+         "term_statistics": true,
+         "payloads": false,
+         "offsets": false,
+         "positions": false,
+         "fields":["a","b","c"],
+         "_index": "testidx"
+      },
+      {
+         "_id": "2",
+         "field_statistics": false,
+         "term_statistics": true,
+         "payloads": false,
+         "offsets": false,
+         "positions": false,
+         "fields":["a","b","c"],
+         "_index": "testidx"
+      }
+   ]
+}

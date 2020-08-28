@@ -1,0 +1,6 @@
+grant {
+  // Required for testing the Driver registration
+  permission java.sql.SQLPermission "deregisterDriver";
+  // Required for debug logging purposes
+  permission java.sql.SQLPermission "setLog";
+};

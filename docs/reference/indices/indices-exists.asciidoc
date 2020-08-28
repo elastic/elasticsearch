@@ -1,14 +1,60 @@
 [[indices-exists]]
-== Indices Exists
+=== Index exists API
+++++
+<titleabbrev>Index exists</titleabbrev>
+++++
 
-Used to check if the index (indices) exists or not. For example:
+Checks if an index exists.
+The returned HTTP status code indicates if the index exists or not.
+A `404` means it does not exist, and `200` means it does.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-HEAD twitter
+HEAD /my-index-000001
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-The HTTP status code indicates if the index exists or not. A `404` means
-it does not exist, and `200` means it does.
+
+[[indices-exists-api-request]]
+==== {api-request-title}
+
+`HEAD /<index>`
+
+
+[[indices-exists-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
++
+IMPORTANT: This parameter does not distinguish between an index name and <<indices-aliases,alias>>,
+i.e. status code `200` is also returned if an alias exists with that name.
+
+
+[[indices-exists-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+
+[[indices-exists-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`::
+Indicates all specified indices or index aliases exist.
+
+ `404`::
+Indicates one or more specified indices or index aliases **do not** exist.

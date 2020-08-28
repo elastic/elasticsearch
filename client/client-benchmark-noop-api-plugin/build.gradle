@@ -27,9 +27,12 @@ esplugin {
   classname 'org.elasticsearch.plugin.noop.NoopPlugin'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+// Not published so no need to assemble
+assemble.enabled = false
+
+tasks.named("dependencyLicenses").configure { it.enabled = false }
+dependenciesInfo.enabled = false
 
 // no unit tests
 test.enabled = false
 integTest.enabled = false
-

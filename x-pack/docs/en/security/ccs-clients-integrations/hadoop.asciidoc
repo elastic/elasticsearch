@@ -1,0 +1,23 @@
+[[hadoop]]
+=== ES-Hadoop and Security
+
+Elasticsearch for Apache Hadoop ("ES-Hadoop") is capable of using HTTP basic and
+PKI authentication and/or TLS/SSL when accessing an Elasticsearch cluster. For
+full details please refer to the ES-Hadoop documentation, in particular the
+`Security` section.
+
+For authentication purposes, select the user for your ES-Hadoop client (for
+maintenance purposes it is best to create a dedicated user). Then, assign that
+user to a role with the privileges required by your Hadoop/Spark/Storm job.
+Configure ES-Hadoop to use the user name and password through the
+`es.net.http.auth.user` and `es.net.http.auth.pass` properties.
+
+If PKI authentication is enabled, setup the appropriate `keystore` and `truststore`
+instead through `es.net.ssl.keystore.location` and `es.net.truststore.location`
+(and their respective `.pass` properties to specify the password).
+
+For secured transport, enable SSL/TLS through the `es.net.ssl` property by
+setting it to `true`. Depending on your SSL configuration (keystore, truststore, etc...)
+you might need to set other parameters as well - please refer to the
+https://www.elastic.co/guide/en/elasticsearch/hadoop/current/configuration.html[ES-Hadoop] documentation,
+specifically the `Configuration` and `Security` chapters.

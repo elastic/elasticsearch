@@ -1,0 +1,236 @@
+#
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Primitive types
+
+class void @no_import {
+}
+
+class boolean @no_import {
+}
+
+class byte @no_import {
+}
+
+class short @no_import {
+}
+
+class char @no_import {
+}
+
+class int @no_import {
+}
+
+class long @no_import {
+}
+
+class float @no_import {
+}
+
+class double @no_import {
+}
+
+#### Painless debugging API
+
+class org.elasticsearch.painless.api.Debug {
+  void explain(Object)
+}
+
+#### ES Scripting API
+
+class org.elasticsearch.common.geo.GeoPoint {
+  double getLat()
+  double getLon()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
+  String get(int)
+  String getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
+  Long get(int)
+  long getValue()
+}
+
+class org.elasticsearch.script.JodaCompatibleZonedDateTime {
+  ##### ZonedDateTime methods
+  int getDayOfMonth()
+  int getDayOfYear()
+  int getHour()
+  LocalDate toLocalDate()
+  LocalDateTime toLocalDateTime()
+  int getMinute()
+  Month getMonth()
+  int getMonthValue()
+  int getNano()
+  int getSecond()
+  int getYear()
+  ZonedDateTime minus(TemporalAmount)
+  ZonedDateTime minus(long,TemporalUnit)
+  ZonedDateTime minusYears(long)
+  ZonedDateTime minusMonths(long)
+  ZonedDateTime minusWeeks(long)
+  ZonedDateTime minusDays(long)
+  ZonedDateTime minusHours(long)
+  ZonedDateTime minusMinutes(long)
+  ZonedDateTime minusSeconds(long)
+  ZonedDateTime minusNanos(long)
+  ZonedDateTime plus(TemporalAmount)
+  ZonedDateTime plus(long,TemporalUnit)
+  ZonedDateTime plusDays(long)
+  ZonedDateTime plusHours(long)
+  ZonedDateTime plusMinutes(long)
+  ZonedDateTime plusMonths(long)
+  ZonedDateTime plusNanos(long)
+  ZonedDateTime plusSeconds(long)
+  ZonedDateTime plusWeeks(long)
+  ZonedDateTime plusYears(long)
+  OffsetDateTime toOffsetDateTime()
+  ZonedDateTime truncatedTo(TemporalUnit)
+  ZonedDateTime with(TemporalAdjuster)
+  ZonedDateTime with(TemporalField,long)
+  ZonedDateTime withDayOfMonth(int)
+  ZonedDateTime withDayOfYear(int)
+  ZonedDateTime withEarlierOffsetAtOverlap()
+  ZonedDateTime withFixedOffsetZone()
+  ZonedDateTime withHour(int)
+  ZonedDateTime withLaterOffsetAtOverlap()
+  ZonedDateTime withMinute(int)
+  ZonedDateTime withMonth(int)
+  ZonedDateTime withNano(int)
+  ZonedDateTime withSecond(int)
+  ZonedDateTime withYear(int)
+  ZonedDateTime withZoneSameLocal(ZoneId)
+  ZonedDateTime withZoneSameInstant(ZoneId)
+
+  #### Joda time methods
+  long getMillis()
+  int getCenturyOfEra()
+  int getEra()
+  int getHourOfDay()
+  int getMillisOfDay()
+  int getMillisOfSecond()
+  int getMinuteOfDay()
+  int getMinuteOfHour()
+  int getMonthOfYear()
+  int getSecondOfDay()
+  int getSecondOfMinute()
+  int getWeekOfWeekyear()
+  int getWeekyear()
+  int getYearOfCentury()
+  int getYearOfEra()
+  String toString(String)
+  String toString(String,Locale)
+
+  # conflicting methods
+  DayOfWeek getDayOfWeekEnum()
+  int getDayOfWeek()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
+  JodaCompatibleZonedDateTime get(int)
+  JodaCompatibleZonedDateTime getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
+  Double get(int)
+  double getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
+  org.elasticsearch.common.geo.GeoPoint get(int)
+  org.elasticsearch.common.geo.GeoPoint getValue()
+  double getLat()
+  double getLon()
+  double[] getLats()
+  double[] getLons()
+
+  # geo distance functions
+  double arcDistance(double,double)
+  double arcDistanceWithDefault(double,double,double)
+  double planeDistance(double,double)
+  double planeDistanceWithDefault(double,double,double)
+  double geohashDistance(String)
+  double geohashDistanceWithDefault(String,double)
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
+  Boolean get(int)
+  boolean getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
+  BytesRef get(int)
+  BytesRef getValue()
+}
+
+class org.apache.lucene.util.BytesRef {
+  byte[] bytes
+  int offset
+  int length
+  boolean bytesEquals(BytesRef)
+  String utf8ToString()
+}
+
+class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
+  String get(int)
+  String getValue()
+}
+
+class org.elasticsearch.search.lookup.FieldLookup {
+  def getValue()
+  List getValues()
+  boolean isEmpty()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Query {
+  float getBoost()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Field {
+  long getDocCount()
+  long getSumDocFreq()
+  long getSumTotalTermFreq()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Term {
+  long getDocFreq()
+  long getTotalTermFreq()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
+  int getLength()
+  float getFreq()
+}
+
+class org.elasticsearch.index.query.IntervalFilterScript$Interval {
+  int getStart()
+  int getEnd()
+  int getGaps()
+}
+
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
+  void set(String)
+}

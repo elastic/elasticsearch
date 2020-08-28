@@ -1,0 +1,76 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[searchable-snapshots-api-clear-cache]]
+=== Clear cache API
+++++
+<titleabbrev>Clear cache</titleabbrev>
+++++
+
+experimental[]
+
+Clear the cache of searchable snapshots.
+
+[[searchable-snapshots-api-clear-cache-request]]
+==== {api-request-title}
+
+`POST /_searchable_snapshots/cache/clear`
+
+`POST /<target>/_searchable_snapshots/cache/clear`
+
+[[searchable-snapshots-api-clear-cache-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the
+`manage` cluster privilege and the `manage` index privilege
+for any included indices to use this API.
+For more information, see <<security-privileges>>.
+
+[[searchable-snapshots-api-clear-cache-desc]]
+==== {api-description-title}
+
+
+[[searchable-snapshots-api-clear-cache-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+A comma-separated list of data streams and indices for which the
+searchable snapshots cache must be cleared.
+
+
+[[searchable-snapshots-api-clear-cache-example]]
+==== {api-examples-title}
+////
+[source,console]
+-----------------------------------
+PUT /docs
+{
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+{
+  "include_global_state": false,
+  "indices": "docs"
+}
+
+DELETE /docs
+
+POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
+{
+  "index": "docs"
+}
+-----------------------------------
+// TEST[setup:setup-repository]
+////
+
+Clears the cache of the index `docs`:
+
+[source,console]
+--------------------------------------------------
+POST /docs/_searchable_snapshots/cache/clear
+--------------------------------------------------
+// TEST[continued]

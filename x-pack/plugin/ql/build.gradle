@@ -1,0 +1,36 @@
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'x-pack-ql'
+  description 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
+  classname 'org.elasticsearch.xpack.ql.plugin.QlPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+archivesBaseName = 'x-pack-ql'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
+}
+
+TaskProvider testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  // normal es plugins do not publish the jar but we need to since users need it for extensions
+  archives tasks.named("jar")
+  testArtifacts testJar
+}
+
+// disable integration tests for now
+tasks.named("integTest").configure {
+  enabled = false
+}

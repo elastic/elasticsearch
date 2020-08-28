@@ -1,0 +1,47 @@
+[role="xpack"]
+[testenv="basic"]
+[[encrypting-internode-communications]]
+== Tutorial: Encrypting communications
+
+In the {stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}]
+and <<security-getting-started>> tutorials, we
+used a cluster with a single {es} node to get up and running with the {stack}.
+
+You can add as many nodes as you want in a cluster but they must be able to
+communicate with each other. The communication between nodes in a cluster is
+handled by the <<modules-transport,transport module>>. To secure your
+cluster, you must ensure that the internode communications are encrypted.
+
+NOTE: In this tutorial, we add more nodes by installing more copies of {es} on
+the same machine. By default, {es} binds to loopback addresses for HTTP and
+transport communication. That is fine for the purposes of this tutorial and for
+downloading and experimenting with {es} in a test or development environment.
+When you are deploying a production environment, however, you are generally
+adding nodes on different machines so that your cluster is resilient to outages
+and avoids data loss. In a production scenario, there are additional
+requirements that are not covered in this tutorial. See
+<<dev-vs-prod-mode>> and
+<<add-elasticsearch-nodes>>.
+
+[discrete]
+[[encrypting-internode-prerequisites]]
+=== Before you begin
+
+Ideally, you should do this tutorial after you complete the 
+{stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}] and
+<<security-getting-started>> tutorials.
+
+At a minimum, you must install and configure {es} and {kib} in a cluster with a
+single {es} node. In particular, this tutorial provides instructions for adding
+nodes that work with the `zip` and `tar.gz` packages.
+
+IMPORTANT: To complete this tutorial, you must install the default {es} and
+{kib} packages, which include the encrypted communications {security-features}.
+When you install these products, they apply basic licenses with no expiration
+dates. All of the subsequent steps in this tutorial assume that you are using a
+basic license. For more information, see {subscriptions} and
+{kibana-ref}/managing-licenses.html[License management].
+
+include::tutorial-tls-certificates.asciidoc[]
+include::tutorial-tls-internode.asciidoc[]
+include::tutorial-tls-addnodes.asciidoc[]

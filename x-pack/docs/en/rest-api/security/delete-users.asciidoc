@@ -1,0 +1,52 @@
+[role="xpack"]
+[[security-api-delete-user]]
+=== Delete users API
+++++
+<titleabbrev>Delete users</titleabbrev>
+++++
+
+Deletes users from the native realm. 
+
+[[security-api-delete-user-request]]
+==== {api-request-title}
+
+`DELETE /_security/user/<username>` 
+
+[[security-api-delete-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-delete-user-desc]]
+==== {api-description-title}
+
+For more information about the native realm, see 
+<<realms>> and <<native-realm>>. 
+
+[[security-api-delete-user-path-params]]
+==== {api-path-parms-title}
+
+`username`::
+  (Required, string) An identifier for the user. 
+
+
+[[security-api-delete-user-example]]
+==== {api-examples-title}
+
+The following example deletes the user `jacknich`:
+
+[source,console]
+--------------------------------------------------
+DELETE /_security/user/jacknich
+--------------------------------------------------
+// TEST[setup:jacknich_user]
+
+If the user is successfully deleted, the request returns `{"found": true}`.
+Otherwise, `found` is set to false.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "found" : true
+}
+--------------------------------------------------

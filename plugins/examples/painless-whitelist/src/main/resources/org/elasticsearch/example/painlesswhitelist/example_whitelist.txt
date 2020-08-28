@@ -1,0 +1,49 @@
+#
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# This file contains a whitelist for an example class which may be access from painless
+
+class org.elasticsearch.example.painlesswhitelist.ExampleWhitelistedClass {
+  # constructor
+  (int, int)
+
+  # static constants and methods look the same as instance members and methods
+  int CONSTANT
+  void staticMethod()
+
+  # members lack parenthesis that methods have
+  int publicMember
+
+  # getter and setter for private member
+  int getPrivateMemberAccessor()
+  void setPrivateMemberAccessor(int)
+
+  # annotation
+  void annotate() @example_annotation[category="1",message="example annotation"]
+}
+
+class java.lang.String {
+  # existing classes can be "augmented" to have additional methods, which take the object
+  # to operate on as the first argument to a static method
+  int org.elasticsearch.example.painlesswhitelist.ExampleWhitelistedClass toInt()
+}
+
+static_import {
+  int exampleAddInts(int, int) from_class org.elasticsearch.example.painlesswhitelist.ExampleStaticMethodClass
+}

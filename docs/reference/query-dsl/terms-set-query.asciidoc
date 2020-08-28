@@ -1,0 +1,229 @@
+[[query-dsl-terms-set-query]]
+=== Terms set query
+++++
+<titleabbrev>Terms set</titleabbrev>
+++++
+
+Returns documents that contain a minimum number of *exact* terms in a provided
+field.
+
+The `terms_set` query is the same as the <<query-dsl-terms-query, `terms`
+query>>, except you can define the number of matching terms required to
+return a document. For example:
+
+* A field, `programming_languages`, contains a list of known programming
+languages, such as `c++`, `java`, or `php` for job candidates. You can use the
+`terms_set` query to return documents that match at least two of these
+languages.
+
+* A field, `permissions`, contains a list of possible user permissions for an
+application. You can use the `terms_set` query to return documents that
+match a subset of these permissions.
+
+[[terms-set-query-ex-request]]
+==== Example request
+
+[[terms-set-query-ex-request-index-setup]]
+===== Index setup
+In most cases, you'll need to include a <<number, numeric>> field mapping in
+your index to use the `terms_set` query. This numeric field contains the
+number of matching terms required to return a document.
+
+To see how you can set up an index for the `terms_set` query, try the
+following example.
+
+. Create an index, `job-candidates`, with the following field mappings:
++
+--
+
+* `name`, a <<keyword, `keyword`>> field. This field contains the name of the
+job candidate.
+
+* `programming_languages`, a <<keyword, `keyword`>> field. This field contains
+programming languages known by the job candidate.
+
+* `required_matches`, a <<number, numeric>> `long` field. This field contains
+the number of matching terms required to return a document.
+
+[source,console]
+----
+PUT /job-candidates
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "keyword"
+      },
+      "programming_languages": {
+        "type": "keyword"
+      },
+      "required_matches": {
+        "type": "long"
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+
+--
+
+. Index a document with an ID of `1` and the following values:
++
+--
+
+* `Jane Smith` in the `name` field.
+
+* `["c++", "java"]` in the `programming_languages` field.
+
+* `2` in the `required_matches` field.
+
+Include the `?refresh` parameter so the document is immediately available for
+search.
+
+[source,console]
+----
+PUT /job-candidates/_doc/1?refresh
+{
+  "name": "Jane Smith",
+  "programming_languages": [ "c++", "java" ],
+  "required_matches": 2
+}
+----
+
+--
+
+. Index another document with an ID of `2` and the following values:
++
+--
+
+* `Jason Response` in the `name` field.
+
+* `["java", "php"]` in the `programming_languages` field.
+
+* `2` in the `required_matches` field.
+
+[source,console]
+----
+PUT /job-candidates/_doc/2?refresh
+{
+  "name": "Jason Response",
+  "programming_languages": [ "java", "php" ],
+  "required_matches": 2
+}
+----
+
+--
+
+You can now use the `required_matches` field value as the number of
+matching terms required to return a document in the `terms_set` query.
+
+[[terms-set-query-ex-request-query]]
+===== Example query
+
+The following search returns documents where the `programming_languages` field
+contains at least two of the following terms:
+
+* `c++`
+* `java`
+* `php`
+
+The `minimum_should_match_field` is `required_matches`. This means the
+number of matching terms required is `2`, the value of the `required_matches`
+field.
+
+[source,console]
+----
+GET /job-candidates/_search
+{
+  "query": {
+    "terms_set": {
+      "programming_languages": {
+        "terms": [ "c++", "java", "php" ],
+        "minimum_should_match_field": "required_matches"
+      }
+    }
+  }
+}
+----
+
+[[terms-set-top-level-params]]
+==== Top-level parameters for `terms_set`
+
+`<field>`::
+(Required, object) Field you wish to search.
+
+[[terms-set-field-params]]
+==== Parameters for `<field>`
+
+`terms`::
++
+--
+(Required, array of strings) Array of terms you wish to find in the provided
+`<field>`. To return a document, a required number of terms must exactly match
+the field values, including whitespace and capitalization.
+
+The required number of matching terms is defined in the
+`minimum_should_match_field` or `minimum_should_match_script` parameter.
+--
+
+`minimum_should_match_field`::
+(Optional, string) <<number, Numeric>> field containing the number of matching
+terms required to return a document.
+
+`minimum_should_match_script`::
++
+--
+(Optional, string) Custom script containing the number of matching terms
+required to return a document.
+
+For parameters and valid values, see <<modules-scripting, Scripting>>.
+
+For an example query using the `minimum_should_match_script` parameter, see
+<<terms-set-query-script, How to use the `minimum_should_match_script`
+parameter>>.
+--
+
+[[terms-set-query-notes]]
+==== Notes
+
+[[terms-set-query-script]]
+===== How to use the `minimum_should_match_script` parameter
+You can use `minimum_should_match_script` to define the required number of
+matching terms using a script. This is useful if you need to set the number of
+required terms dynamically.
+
+[[terms-set-query-script-ex]]
+====== Example query using `minimum_should_match_script`
+
+The following search returns documents where the `programming_languages` field
+contains at least two of the following terms:
+
+* `c++`
+* `java`
+* `php`
+
+The `source` parameter of this query indicates:
+
+* The required number of terms to match cannot exceed `params.num_terms`, the
+number of terms provided in the `terms` field.
+* The required number of terms to match is `2`, the value of the
+`required_matches` field.
+
+[source,console]
+----
+GET /job-candidates/_search
+{
+  "query": {
+    "terms_set": {
+      "programming_languages": {
+        "terms": [ "c++", "java", "php" ],
+        "minimum_should_match_script": {
+          "source": "Math.min(params.num_terms, doc['required_matches'].value)"
+        },
+        "boost": 1.0
+      }
+    }
+  }
+}
+----

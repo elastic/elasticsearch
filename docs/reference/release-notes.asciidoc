@@ -1,7 +1,13 @@
 [[es-release-notes]]
-= Release Notes
+= Release notes
 
 [partintro]
 --
-This section will summarize the changes in released versions.
+
+This section summarizes the changes in each release.
+
+* <<release-notes-8.0.0-alpha1>>
+
 --
+
+include::release-notes/8.0.0-alpha1.asciidoc[]

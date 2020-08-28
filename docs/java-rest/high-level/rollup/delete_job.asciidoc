@@ -1,0 +1,35 @@
+--
+:api: rollup-delete-job
+:request: DeleteRollupJobRequest
+:response: DeleteRollupJobResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete Rollup Job API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Delete Rollup Job API allows you to delete a job by ID.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The ID of the job to delete.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the delete command was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the delete job request was received.
+
+include::../execution.asciidoc[]
+
+

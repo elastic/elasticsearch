@@ -1,0 +1,82 @@
+[[java-rest-high-field-caps]]
+=== Field Capabilities API
+
+The field capabilities API allows for retrieving the capabilities of fields across multiple indices.
+
+[[java-rest-high-field-caps-request]]
+==== Field Capabilities Request
+
+A `FieldCapabilitiesRequest` contains a list of fields to get capabilities for,
+should be returned, plus an optional list of target indices. If no indices
+are provided, the request will be executed on all indices.
+
+Note that fields parameter supports wildcard notation. For example, providing `text_*`
+will cause all fields that match the expression to be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-request]
+--------------------------------------------------
+
+[[java-rest-high-field-caps-request-optional]]
+===== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded.
+
+[[java-rest-high-field-caps-sync]]
+==== Synchronous Execution
+
+The `fieldCaps` method executes the request synchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-execute]
+--------------------------------------------------
+
+[[java-rest-high-field-caps-async]]
+==== Asynchronous Execution
+
+The `fieldCapsAsync` method executes the request asynchronously,
+calling the provided `ActionListener` when the response is ready:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-execute-async]
+--------------------------------------------------
+<1> The `FieldCapabilitiesRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+completes, the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `FieldCapabilitiesResponse` is constructed as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `FieldCapabilitiesRequest` fails.
+
+[[java-rest-high-field-caps-response]]
+==== FieldCapabilitiesResponse
+
+For each requested field, the returned `FieldCapabilitiesResponse` contains its type
+and whether or not it can be searched or aggregated on. The response also gives
+information about how each index contributes to the field's capabilities.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-response]
+--------------------------------------------------
+<1> A map with entries for the field's possible types, in this case `keyword` and `text`.
+<2> All indices where the `user` field has type `keyword`.
+<3> The subset of these indices where the `user` field isn't searchable, or null if it's always searchable.
+<4> Another subset of these indices where the `user` field isn't aggregatable, or null if it's always aggregatable.

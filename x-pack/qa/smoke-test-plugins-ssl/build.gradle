@@ -1,0 +1,93 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+
+import org.elasticsearch.gradle.http.WaitForHttpResource
+import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':client:rest-high-level')
+}
+
+String outputDir = "${buildDir}/generated-resources/${project.name}"
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
+  from project(xpackModule('core')).file('src/main/plugin-metadata')
+  from project(xpackModule('core')).tasks.pluginProperties
+  into outputDir
+}
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+
+// location of generated keystores and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+File nodeKeystore = file("$keystoreDir/testnode.jks")
+File nodeKey = file("$keystoreDir/testnode.pem")
+File nodeCert = file("$keystoreDir/testnode.crt")
+File clientKeyStore = file("$keystoreDir/testclient.jks")
+File clientKey = file("$keystoreDir/testclient.pem")
+File clientCert = file("$keystoreDir/testclient.crt")
+
+// Add keystores to test classpath: it expects it there
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
+  from('./') {
+    include '*.crt', '*.pem', '*.jks'
+  }
+  into keystoreDir
+}
+// Add keystores to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(copyKeyCerts)
+
+integTest.dependsOn(copyKeyCerts)
+
+def pluginsCount = 0
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.interval', '1s'
+
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.key', 'testnode.pem'
+  setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
+  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
+
+  setting 'xpack.ml.enabled', 'false'
+  // copy keystores, keys and certificates into config/
+  extraConfigFile nodeKeystore.name, nodeKeystore
+  extraConfigFile nodeKey.name, nodeKey
+  extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile clientKeyStore.name, clientKeyStore
+  extraConfigFile clientKey.name, clientKey
+  extraConfigFile clientCert.name, clientCert
+
+  user username: "test_user", password: "x-pack-test-password"
+  user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
+
+  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
+    plugin pluginProject.tasks.bundlePlugin.archiveFile
+    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
+    pluginsCount += 1
+  }
+}
+
+ext.expansions = [
+  'expected.plugins.count': pluginsCount
+]
+
+tasks.named("processTestResources").configure {
+  from(sourceSets.test.resources.srcDirs) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    include '**/*.yml'
+    inputs.properties(expansions)
+    MavenFilteringHack.filter(it, expansions)
+  }
+}

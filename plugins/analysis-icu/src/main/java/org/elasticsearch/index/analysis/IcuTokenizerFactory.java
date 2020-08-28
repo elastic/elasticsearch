@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -46,7 +47,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     private static final String RULE_FILES = "rule_files";
 
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings, name);
         config = getIcuConfig(environment, settings);
     }
 
@@ -63,7 +64,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         Map<Integer, String> tailored = new HashMap<>();
 
         try {
-            String[] ruleFiles = settings.getAsArray(RULE_FILES);
+            List<String> ruleFiles = settings.getAsList(RULE_FILES);
 
             for (String scriptAndResourcePath : ruleFiles) {
                 int colonPos = scriptAndResourcePath.indexOf(":");
@@ -88,9 +89,9 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                 // cjkAsWords nor myanmarAsWords are not configurable yet.
                 ICUTokenizerConfig config = new DefaultICUTokenizerConfig(true, true) {
                     @Override
-                    public BreakIterator getBreakIterator(int script) {
+                    public RuleBasedBreakIterator getBreakIterator(int script) {
                         if (breakers[script] != null) {
-                            return (BreakIterator) breakers[script].clone();
+                            return (RuleBasedBreakIterator) breakers[script].clone();
                         } else {
                             return super.getBreakIterator(script);
                         }

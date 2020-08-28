@@ -1,0 +1,75 @@
+import org.elasticsearch.gradle.info.BuildParams
+
+/*
+ * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
+ * group and it'd be super confusing for it to just be called "cli" there.
+ * Also, the jar we ultimately want to ship is sql-cli-VERSION.jar which is
+ * exactly what gradle makes by default when the project is named sql-cli.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
+/* We don't use the 'application' plugin because it builds a zip and tgz which
+ * we don't want. */
+
+archivesBaseName = 'elasticsearch-sql-cli'
+
+description = 'Command line interface to Elasticsearch that speaks SQL'
+
+dependencies {
+
+  // select just the parts of JLine that are needed
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
+
+  api xpackProject('plugin:sql:sql-client')
+  api xpackProject('plugin:sql:sql-action')
+  api project(":libs:elasticsearch-cli")
+  api project(':libs:elasticsearch-x-content')
+  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
+  testImplementation project(":test:framework")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /sql-action.*/, to: 'elasticsearch'
+  mapping from: /sql-client.*/, to: 'elasticsearch'
+  mapping from: /jline-.*/, to: 'jline'
+}
+
+shadowJar {
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //sql does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+  signaturesFiles += files('src/forbidden/cli-signatures.txt')
+}
+
+tasks.register("runcli") {
+  description = 'Run the CLI and connect to elasticsearch running on 9200'
+  dependsOn "shadowJar"
+  doLast {
+    List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
+    if ('true'.equals(System.getProperty('debug', 'false'))) {
+      command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+    }
+    command += ['-jar', shadowJar.archivePath.absolutePath]
+    logger.info("running the cli with: ${command}")
+
+    new ProcessBuilder(command)
+      .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+      .redirectInput(ProcessBuilder.Redirect.INHERIT)
+      .redirectError(ProcessBuilder.Redirect.INHERIT)
+      .start()
+      .waitFor()
+  }
+}

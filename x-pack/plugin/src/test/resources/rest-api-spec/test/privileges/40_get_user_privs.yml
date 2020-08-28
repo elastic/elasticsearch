@@ -1,0 +1,310 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  # Create some privileges
+  - do:
+      security.put_privileges:
+        body: >
+          {
+            "test-app": {
+              "user": {
+                "actions": [ "action:login", "version:1.0.*" ]
+              },
+              "read": {
+                "actions": [ "data:read/*" ]
+              },
+              "write": {
+                "actions": [ "data:write/*" ]
+              }
+            }
+          }
+
+  # Store 2 test roles
+  - do:
+      security.put_role:
+        name: "test-role-1"
+        body:  >
+            {
+              "cluster": [ "monitor" ],
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ "test-*" ]
+                  }
+                }
+              },
+              "indices": [
+                {
+                  "names": ["test-1-*"],
+                  "privileges": ["read" ]
+                },
+                {
+                  "names": ["test-2-*"],
+                  "privileges": ["read"],
+                  "field_security": {
+                    "grant" : ["*"],
+                    "except" : [ "secret-*", "private-*" ]
+                  },
+                  "query" : { "term" : { "test": true } }
+                },
+                {
+                  "names": ["test-3-*", "test-4-*", "test-5-*" ],
+                  "privileges": ["read"],
+                  "field_security": {
+                    "grant" : ["test-*"]
+                  }
+                },
+                {
+                  "names": ["test-6-*", "test-7-*" ],
+                  "privileges": ["read"],
+                  "query" : { "term" : { "test": true } }
+                }
+              ],
+              "applications": [
+                {
+                  "application": "test-app",
+                  "privileges": ["user"],
+                  "resources": ["*"]
+                },
+                {
+                  "application": "test-app",
+                  "privileges": ["read"],
+                  "resources": ["object/1"]
+                }
+              ],
+              "run_as": [ "test-*" ]
+            }
+
+  - do:
+      security.put_role:
+        name: "test-role-2"
+        body:  >
+            {
+              "cluster": [ "manage", "manage_security" ],
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ "apps-*" ]
+                  }
+                }
+              },
+              "indices": [
+                {
+                  "names": [ "test-1-*", "test-9-*" ],
+                  "privileges": ["all" ]
+                },
+                {
+                  "names": ["test-2-*"],
+                  "privileges": ["read"],
+                  "field_security": {
+                    "grant" : ["apps-*"]
+                  },
+                  "query" : { "term" : { "apps": true } }
+                },
+                {
+                  "names": ["test-3-*", "test-6-*" ],
+                  "privileges": ["read", "write" ]
+                },
+                {
+                  "names": ["test-4-*"],
+                  "privileges": ["read" ],
+                  "field_security": {
+                    "grant" : ["*"],
+                    "except" : [ "private-*" ]
+                  }
+                }
+              ],
+              "applications": [
+                {
+                  "application": "app-dne",
+                  "privileges": ["all"],
+                  "resources": ["*"]
+                },
+                {
+                  "application": "test-app",
+                  "privileges": ["dne"],
+                  "resources": ["*"]
+                },
+                {
+                  "application": "test-app",
+                  "privileges": ["read"],
+                  "resources": ["object/2"]
+                }
+              ],
+              "run_as": [ "app-*" ]
+            }
+
+  # And a user for each role combination
+  - do:
+      security.put_user:
+          username: "test-1"
+          body:  >
+              {
+                "password": "12345678",
+                "roles" : [ "test-role-1" ]
+              }
+  - do:
+      security.put_user:
+          username: "test-2"
+          body:  >
+              {
+                "password": "12345678",
+                "roles" : [ "test-role-2" ]
+              }
+  - do:
+      security.put_user:
+          username: "test-3"
+          body:  >
+              {
+                "password": "12345678",
+                "roles" : [ "test-role-1", "test-role-2" ]
+              }
+
+---
+teardown:
+  - do:
+      security.delete_privileges:
+        application: test-app
+        name: "user,read,write"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test-1"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test-2"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test-3"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "test-role-1"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "test-role-2"
+        ignore: 404
+
+---
+
+"Test get_user_privileges for single role":
+  - skip:
+          reason: "contains is a newly added assertion"
+          features: contains
+  - do:
+      headers: { Authorization: "Basic dGVzdC0xOjEyMzQ1Njc4" } # test-1
+      security.get_user_privileges: {}
+
+  - match: { "cluster" : [ "monitor" ] }
+
+  - length: { "global" : 1 }
+  - match: { "global.0.application.manage.applications" : [ "test-*" ]}
+
+  - length: { "indices" : 4 }
+  - contains: { "indices" : { "names" : [ "test-1-*" ], "privileges" : [ "read" ] } }
+  - contains: { "indices" : { "names" : [ "test-2-*" ], "privileges" : [ "read" ],
+        "field_security" : [ { "grant" : [ "*" ], "except" : [ "secret-*", "private-*" ] } ],
+        "query" : [ "{\"term\":{\"test\":true}}" ] }
+    }
+  - contains: { "indices" : { "names" : [ "test-3-*" , "test-4-*", "test-5-*" ], "privileges" : ["read"],
+        "field_security" : [ { "grant" : [ "test-*" ] } ] }
+    }
+  - contains: { "indices" : { "names" : [ "test-6-*" , "test-7-*" ], "privileges" : ["read"],
+        "query" : [ "{\"term\":{\"test\":true}}" ] }
+    }
+
+  - length: { "applications" : 2 }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "user" ], "resources" : [ "*" ] } }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "read" ], "resources" : [ "object/1" ] } }
+
+  - match: { "run_as" : [ "test-*" ] }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdC0yOjEyMzQ1Njc4" } # test-2
+      security.get_user_privileges:
+        username: null
+
+  - match: { "cluster" : [ "manage", "manage_security" ] }
+
+  - length: { "global" : 1 }
+  - match: { "global.0.application.manage.applications" : [ "apps-*" ]}
+
+  - length: { "indices" : 4 }
+  - contains: { "indices" : { "names" : [ "test-1-*", "test-9-*" ], "privileges" : [ "all" ] } }
+  - contains: { "indices" : { "names" : [ "test-2-*" ], "privileges" : [ "read" ],
+        "field_security" : [ { "grant" : [ "apps-*" ] } ],
+        "query" : [ "{\"term\":{\"apps\":true}}" ] }
+    }
+  - contains: { "indices" : { "names" : [ "test-3-*", "test-6-*" ], "privileges" : ["read","write"] } }
+  - contains: { "indices" : { "names" : [ "test-4-*" ], "privileges" : ["read"],
+        "field_security" : [ { "grant" : [ "*" ], "except" : [ "private-*" ] } ] }
+    }
+
+  - length: { "applications" : 3 }
+  - contains: { "applications" : { "application" : "app-dne", "privileges" : [ "all" ], "resources" : [ "*" ] } }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "read" ], "resources" : [ "object/2" ] } }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "dne" ], "resources" : [ "*" ] } }
+
+  - match: { "run_as" : [ "app-*" ] }
+
+---
+
+"Test get_user_privileges for merged roles":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+  - do:
+      headers: { Authorization: "Basic dGVzdC0zOjEyMzQ1Njc4" } # test-3
+      security.get_user_privileges: {}
+
+  - match: { "cluster" : [ "manage", "manage_security", "monitor" ] }
+
+  - length: { "global" : 2 }
+  - contains: { "global" : { "application" : { "manage" : { "applications" : [ "test-*" ]} } } }
+  - contains: { "global" : { "application" : { "manage" : { "applications" : [ "apps-*" ]} } } }
+
+  - length: { "indices" : 7 }
+  - contains: { "indices" : { "names" : [ "test-1-*" ], "privileges" : [ "read" ] } }
+  - contains: { "indices" : { "names" : [ "test-2-*" ], "privileges" : [ "read" ],
+        "field_security" : [
+          { "grant" : [ "*" ], "except" : [ "secret-*", "private-*" ] },
+          { "grant" : [ "apps-*" ] }
+        ],
+        "query" : [
+          "{\"term\":{\"test\":true}}",
+          "{\"term\":{\"apps\":true}}"
+        ]
+    } }
+  - contains: { "indices" : { "names" : [ "test-3-*" , "test-4-*", "test-5-*" ], "privileges" : ["read"],
+        "field_security" : [ { "grant" : [ "test-*" ] } ] }
+    }
+  - contains: { "indices" : { "names" : [ "test-6-*" , "test-7-*" ], "privileges" : ["read"],
+        "query" : [ "{\"term\":{\"test\":true}}" ] }
+    }
+  - contains: { "indices" : { "names" : [ "test-1-*", "test-9-*" ], "privileges" : [ "all" ] } }
+  - contains: { "indices" : { "names" : [ "test-3-*", "test-6-*" ], "privileges" : ["read","write"] } }
+  - contains: { "indices" : { "names" : [ "test-4-*" ], "privileges" : ["read"],
+        "field_security" : [ { "grant" : [ "*" ], "except" : [ "private-*" ] } ] }
+    }
+
+  - length: { "applications" : 3 }
+  - contains: { "applications" : { "application" : "app-dne", "privileges" : [ "all" ], "resources" : [ "*" ] } }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "user", "dne" ], "resources" : [ "*" ] } }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "read" ], "resources" : [ "object/1", "object/2" ] } }
+
+  - match: { "run_as" : [ "app-*", "test-*" ] }
+

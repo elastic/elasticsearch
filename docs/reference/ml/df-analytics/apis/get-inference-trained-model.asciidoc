@@ -1,0 +1,173 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-inference]]
+= Get {infer} trained model API
+[subs="attributes"]
+++++
+<titleabbrev>Get {infer} trained model</titleabbrev>
+++++
+
+Retrieves configuration information for a trained {infer} model.
+
+experimental[]
+
+
+[[ml-get-inference-request]]
+== {api-request-title}
+
+`GET _ml/inference/` +
+
+`GET _ml/inference/<model_id>` +
+
+`GET _ml/inference/_all` +
+
+`GET _ml/inference/<model_id1>,<model_id2>` +
+
+`GET _ml/inference/<model_id_pattern*>`
+
+
+[[ml-get-inference-prereq]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+
+
+[[ml-get-inference-desc]]
+== {api-description-title}
+
+You can get information for multiple trained models in a single API request by 
+using a comma-separated list of model IDs or a wildcard expression.
+
+
+[[ml-get-inference-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+
+[[ml-get-inference-query-params]]
+== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+`decompress_definition`::
+(Optional, boolean)
+Specifies whether the included model definition should be returned as a JSON map 
+(`true`) or in a custom compressed format (`false`). Defaults to `true`.
+
+`from`::
+(Optional, integer) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
+
+`include_model_definition`::
+(Optional, boolean)
+Specifies whether the model definition is returned in the response. Defaults 
+to `false`. When `true`, only a single model must match the ID patterns 
+provided. Otherwise, a bad request is returned.
+
+`size`::
+(Optional, integer) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+
+`tags`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
+
+`for_export`::
+(Optional, boolean)
+Indicates if certain fields should be removed from the model configuration on
+retrieval. This allows the model to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+
+[role="child_attributes"]
+[[ml-get-inference-results]]
+== {api-response-body-title}
+
+`trained_model_configs`::
+(array)
+An array of trained model resources, which are sorted by the `model_id` value in 
+ascending order.
++
+.Properties of trained model resources
+[%collapsible%open]
+====
+`created_by`:::
+(string)
+Information on the creator of the trained model.
+
+`create_time`:::
+(<<time-units,time units>>)
+The time when the trained model was created.
+
+`default_field_map` :::
+(object)
+A string to string object that contains the default field map to use
+when inferring against the model. For example, data frame analytics
+may train the model on a specific multi-field `foo.keyword`.
+The analytics job would then supply a default field map entry for
+`"foo" : "foo.keyword"`.
++
+Any field map described in the inference configuration takes precedence.
+
+`estimated_heap_memory_usage_bytes`:::
+(integer)
+The estimated heap usage in bytes to keep the trained model in memory.
+
+`estimated_operations`:::
+(integer)
+The estimated number of operations to use the trained model.
+
+`license_level`:::
+(string)
+The license level of the trained model.
+
+`metadata`:::
+(object)
+An object containing metadata about the trained model. For example, models 
+created by {dfanalytics} contain `analysis_config` and `input` objects.
+
+`model_id`:::
+(string)
+Identifier for the trained model.
+
+`tags`:::
+(string)
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+
+`version`:::
+(string)
+The {es} version number in which the trained model was created.
+====
+
+
+[[ml-get-inference-response-codes]]
+== {api-response-codes-title}
+
+`400`::
+  If `include_model_definition` is `true`, this code indicates that more than 
+  one models match the ID pattern.
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+  
+
+[[ml-get-inference-example]]
+== {api-examples-title}
+
+The following example gets configuration information for all the trained models:
+
+[source,console]
+--------------------------------------------------
+GET _ml/inference/
+--------------------------------------------------
+// TEST[skip:TBD]

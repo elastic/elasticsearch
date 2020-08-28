@@ -1,31 +1,33 @@
 [[mapping-type-field]]
 === `_type` field
 
-Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
-<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
-indexed in order to make searching by type name fast.
+deprecated[6.0.0,See <<removal-of-types>>]
+
+Each document indexed is associated with a <<mapping-type-field,`_type`>> and
+an <<mapping-id-field,`_id`>>.  The `_type` field is indexed in order to make
+searching by type name fast.
 
 The value of the `_type` field is accessible in queries, aggregations,
 scripts, and when sorting:
 
-[source,js]
+[source,console]
 --------------------------
 # Example documents
-PUT my_index/type_1/1
-{
-  "text": "Document with type 1"
-}
 
-PUT my_index/type_2/2?refresh=true
+PUT my-index-000001/_doc/1?refresh=true
 {
-  "text": "Document with type 2"
+  "text": "Document with type 'doc'"
 }
+--------------------------
+// TESTSETUP
 
-GET my_index/_search
+[source,console]
+--------------------------
+GET my-index-000001/_search
 {
   "query": {
-    "terms": {
-      "_type": [ "type_1", "type_2" ] <1>
+    "term": {
+      "_type": "_doc"  <1>
     }
   },
   "aggs": {
@@ -47,14 +49,14 @@ GET my_index/_search
     "type": {
       "script": {
         "lang": "painless",
-        "inline": "doc['_type']" <4>
+        "source": "doc['_type']" <4>
       }
     }
   }
 }
 
 --------------------------
-// CONSOLE
+// TEST[warning:[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.]
 
 <1> Querying on the `_type` field
 <2> Aggregating on the `_type` field

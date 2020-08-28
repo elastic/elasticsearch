@@ -1,0 +1,75 @@
+// some comment
+
+// name of the test - translated into 'testName'
+name
+
+// optional schema declaration - needs to start with schema:: followed by list of columnName:ColumnType
+// suitable for snippets included in the docs
+schema::A:d,B:d,C:i
+
+// ES SQL query
+SELECT COUNT(*) FROM "emp";
+
+//
+// expected result in CSV format
+//
+
+// list of <ColumnName:ColumnType*>
+// type might be missing in which case it will be autodetected or can be one of the following
+// d - double, f - float, i - int, bt - byte, b - boolean, l - long, t - timestamp, date
+A,B:d,C:i
+// actual values
+foo,2.5,3
+bar,3.5,4
+tar,4.5,5
+;
+// repeat the above
+
+
+// Test failure example:
+// org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT > test {pivot.testAverageWithOneValueAndLimit} FAILED
+//    java.lang.AssertionError: Elasticsearch [JdbcResultSet:row 4:cursor size 2:[languages<type=[BYTE]>, 'F'<type=[DOUBLE]>]] still has data after [3] entries:
+//    3                    | 53660.0
+//        at __randomizedtesting.SeedInfo.seed([81AF0740AC9F7D95:9FB389A0263106D]:0)
+//        at org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT.pivot.testAverageWithOneValueAndLimit(pivot.csv-spec:95)
+// REPRODUCE WITH: ./gradlew ':x-pack:plugin:sql:qa:single-node:integTestRunner' --tests "org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT" -Dtests.method="test {pivot.testAverageWithOneValueAndLimit}" -Dtests.seed=81AF0740AC9F7D95 -Dtests.security.manager=true -Dtests.locale=yo -Dtests.timezone=Etc/GMT-10 -Dcompiler.java=12 -Druntime.java=11
+
+// Muting test example:
+// The name of the file which contains the failing test can be found by 2 components:
+// - JdbcCsvSpecIT shows that it's a .csv-spec suffixed file
+// - The name of the file is the part before the . so in our case: {pivot.testAverageWithOneValueAndLimit} => pivot
+// Which in our example gives: pivot.csv-spec
+//
+// You can also find the whole name in the stacktrace of the exception along with the line where the failed test resides:
+//    at org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT.pivot.testAverageWithOneValueAndLimit(pivot.csv-spec:95)
+//
+//
+// BEFORE (file: pivot.csv-spec):
+//----------------------------------------------
+// averageWithOneValueAndLimit
+// schema::languages:bt|'F':d
+// SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) LIMIT 3;
+//
+//    languages   |       'F'
+// ---------------+------------------
+// null           |62140.666666666664
+// 1              |47073.25
+// 2              |50684.4
+// ;
+//----------------------------------------------
+//
+//
+// AFTER (muted), Just add the suffix -Ignore to the test name and a comment pointing to the Github issue:
+//----------------------------------------------
+// // AwaitsFix https://github.com/elastic/elasticsearch/issues/47080
+// averageWithOneValueAndLimit-Ignore
+// schema::languages:bt|'F':d
+// SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) LIMIT 3;
+//
+//    languages   |       'F'
+// ---------------+------------------
+// null           |62140.666666666664
+// 1              |47073.25
+// 2              |50684.4
+// ;
+// ---------------------------------------------

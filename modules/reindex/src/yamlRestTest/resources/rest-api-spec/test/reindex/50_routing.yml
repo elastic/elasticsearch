@@ -1,0 +1,53 @@
+---
+"Set routing":
+  - do:
+      index:
+        index:        src
+        id:           1
+        body:         { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index:   src
+          dest:
+            index:   dest
+            routing: =cat
+
+  - do:
+      get:
+        index:   dest
+        id:      1
+        routing: cat
+  - match: { _routing: cat }
+
+---
+"Discard routing":
+  - do:
+      index:
+        index:        src
+        id:           1
+        body:         { "company": "cat" }
+        routing:      null
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index:   src
+          dest:
+            index:   dest
+            routing: discard
+
+  - do:
+      get:
+        index:   dest
+        id:      1
+  - is_false: _routing

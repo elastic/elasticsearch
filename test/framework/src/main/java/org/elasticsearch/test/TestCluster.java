@@ -20,13 +20,15 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -45,12 +47,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  */
 public abstract class TestCluster implements Closeable {
 
-    protected final Logger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = LogManager.getLogger(getClass());
     private final long seed;
 
     protected Random random;
-
-    protected double transportClientRatio = 0.0;
 
     public TestCluster(long seed) {
         this.seed = seed;
@@ -63,10 +63,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
-        assert transportClientRatio >= 0.0 && transportClientRatio <= 1.0;
-        logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
-        this.transportClientRatio = transportClientRatio;
+    public void beforeTest(Random random) throws IOException, InterruptedException {
         this.random = new Random(random.nextLong());
     }
 
@@ -137,7 +134,9 @@ public abstract class TestCluster implements Closeable {
         assert indices != null && indices.length > 0;
         if (size() > 0) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(indices));
+                // include wiping hidden indices!
+                assertAcked(client().admin().indices().prepareDelete(indices)
+                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {
@@ -146,8 +145,8 @@ public abstract class TestCluster implements Closeable {
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
                     ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
-                    for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
-                        concreteIndices.add(indexMetaData.getIndex().getName());
+                    for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                        concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
@@ -163,7 +162,7 @@ public abstract class TestCluster implements Closeable {
     public void wipeAllTemplates(Set<String> exclude) {
         if (size() > 0) {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-            for (IndexTemplateMetaData indexTemplate : response.getIndexTemplates()) {
+            for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
                 if (exclude.contains(indexTemplate.getName())) {
                     continue;
                 }
@@ -233,5 +232,9 @@ public abstract class TestCluster implements Closeable {
      */
     public abstract Iterable<Client> getClients();
 
-
+    /**
+     * Returns this clusters {@link NamedWriteableRegistry} this is needed to
+     * deserialize binary content from this cluster that might include custom named writeables
+     */
+    public abstract NamedWriteableRegistry getNamedWriteableRegistry();
 }

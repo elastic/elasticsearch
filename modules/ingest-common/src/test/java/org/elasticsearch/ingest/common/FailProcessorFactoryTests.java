@@ -43,16 +43,16 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "error");
-        String processorTag = randomAsciiOfLength(10);
-        FailProcessor failProcessor = factory.create(null, processorTag, config);
+        String processorTag = randomAlphaOfLength(10);
+        FailProcessor failProcessor = factory.create(null, processorTag, null, config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
-        assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));
+        assertThat(failProcessor.getMessage().newInstance(Collections.emptyMap()).execute(), equalTo("error"));
     }
 
     public void testCreateMissingMessageField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));
@@ -62,10 +62,11 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testInvalidMustacheTemplate() throws Exception {
         FailProcessor.Factory factory = new FailProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
-        config.put("message", "error");
-        String processorTag = randomAsciiOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
+        config.put("message", "{{error}}");
+        String processorTag = randomAlphaOfLength(10);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag,
+            null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
-        assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));
+        assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }
 }

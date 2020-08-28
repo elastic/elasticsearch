@@ -26,14 +26,15 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.is;
 
 public class EvilCommandTests extends ESTestCase {
 
     public void testCommandShutdownHook() throws Exception {
         final AtomicBoolean closed = new AtomicBoolean();
         final boolean shouldThrow = randomBoolean();
-        final Command command = new Command("test-command-shutdown-hook") {
+        final Command command = new Command("test-command-shutdown-hook", () -> {}) {
             @Override
             protected void execute(Terminal terminal, OptionSet options) throws Exception {
 
@@ -49,20 +50,20 @@ public class EvilCommandTests extends ESTestCase {
         };
         final MockTerminal terminal = new MockTerminal();
         command.main(new String[0], terminal);
-        assertNotNull(command.shutdownHookThread.get());
+        assertNotNull(command.getShutdownHookThread());
         // successful removal here asserts that the runtime hook was installed in Command#main
-        assertTrue(Runtime.getRuntime().removeShutdownHook(command.shutdownHookThread.get()));
-        command.shutdownHookThread.get().run();
-        command.shutdownHookThread.get().join();
+        assertTrue(Runtime.getRuntime().removeShutdownHook(command.getShutdownHookThread()));
+        command.getShutdownHookThread().run();
+        command.getShutdownHookThread().join();
         assertTrue(closed.get());
-        final String output = terminal.getOutput();
+        final String output = terminal.getErrorOutput();
         if (shouldThrow) {
             // ensure that we dump the exception
             assertThat(output, containsString("java.io.IOException: fail"));
             // ensure that we dump the stack trace too
             assertThat(output, containsString("\tat org.elasticsearch.cli.EvilCommandTests$1.close"));
         } else {
-            assertThat(output, isEmptyString());
+            assertThat(output, is(emptyString()));
         }
     }
 

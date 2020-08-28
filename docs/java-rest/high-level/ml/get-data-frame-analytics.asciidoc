@@ -1,0 +1,35 @@
+--
+:api: get-data-frame-analytics
+:request: GetDataFrameAnalyticsRequest
+:response: GetDataFrameAnalyticsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get {dfanalytics-jobs} API
+
+Retrieves one or more {dfanalytics-jobs}.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get {dfanalytics-jobs} request
+
+A +{request}+ requires either a {dfanalytics-job} ID, a comma-separated list of
+IDs, or the special wildcard `_all` to get all {dfanalytics-jobs}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET request referencing an existing {dfanalytics-job}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested {dfanalytics-jobs}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

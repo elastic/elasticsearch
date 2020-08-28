@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,7 +42,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
             for (int t = 0; t < threads.length; t++) {
-                builders.add(client().prepareIndex("test", "doc").setSource("field", t));
+                builders.add(client().prepareIndex("test").setSource("field", t));
             }
         }
         indexRandom(true, true, true, builders);
@@ -82,7 +81,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test", "doc", String.valueOf(i)).setSource("foo", "bar"));
+            builders.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource("foo", "bar"));
         }
         indexRandom(true, true, true, builders);
 

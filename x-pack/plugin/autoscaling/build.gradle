@@ -1,0 +1,41 @@
+import org.elasticsearch.gradle.info.BuildParams
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-autoscaling'
+  description 'Elasticsearch Expanded Pack Plugin - Autoscaling'
+  classname 'org.elasticsearch.xpack.autoscaling.Autoscaling'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController false
+  requiresKeystore true
+}
+archivesBaseName = 'x-pack-autoscaling'
+
+integTest.enabled = false
+
+tasks.named('internalClusterTest').configure {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+  }
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
+}
+
+testingConventions.naming {
+  IT {
+    baseClass "org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase"
+  }
+}

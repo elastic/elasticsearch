@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+
+    <!-- Terms of Use configuration -->
+    
+    <!--
+    Terms of use is driven by a lookup function returning a key into messages/consent-messages.properties
+    
+    The default mapping returns the relying party / SP name as the key. The second example below
+    demonstrates use of a custom mapping table from the relying party name to the key to use. 
+    -->
+    
+    <alias alias="shibboleth.consent.terms-of-use.Key" name="shibboleth.RelyingPartyIdLookup.Simple" />
+    
+    <!--
+    <bean id="shibboleth.consent.terms-of-use.Key"
+            class="com.google.common.base.Functions" factory-method="compose">
+        <constructor-arg name="g">
+            <bean class="com.google.common.base.Functions" factory-method="forMap" c:defaultValue="terms-of-use">
+                <constructor-arg name="map">
+                    <map>
+                        <entry key="https://sp.example.org/shibboleth" value="example-terms" />
+                    </map>
+                </constructor-arg>
+            </bean>
+        </constructor-arg>
+        <constructor-arg name="f">
+            <ref bean="shibboleth.RelyingPartyIdLookup.Simple" />
+        </constructor-arg>
+    </bean>
+    -->
+
+    <!-- Attribute Release configuration -->
+
+    <!--
+    Attribute release whitelist, blacklist, and match expressions to determine 
+    whether consent should be obtained for an attribute based on the attribute ID.
+    -->
+    
+    <util:list id="shibboleth.consent.attribute-release.WhitelistedAttributeIDs">
+        <!--
+        <value>mail</value>
+        -->
+    </util:list>
+
+    <util:list id="shibboleth.consent.attribute-release.BlacklistedAttributeIDs">
+        <value>transientId</value>
+        <value>persistentId</value>
+        <value>eduPersonTargetedID</value>
+    </util:list>
+
+    <!-- 
+    <bean id="shibboleth.consent.attribute-release.MatchExpression" class="java.util.regex.Pattern" factory-method="compile" 
+        c:_0="^exampleAttribute.*$" />
+    -->
+
+    <!--
+    Customize the order in which attributes are displayed.
+    Attribute IDs not present in this list will be sorted according to their
+    natural order and displayed subsequent to any attribute IDs specified here.
+    -->
+    <!--
+    <util:list id="shibboleth.consent.attribute-release.AttributeDisplayOrder">
+        <value>mail</value>
+    </util:list>
+    -->
+
+    <!--
+    These beans define mappings between audit log categories and formatting strings.
+    -->
+
+    <!--
+    For terms-of-use acceptance, the default entry is :
+     'YYYYMMDDTHHMMSSZ|TermsAccepted|jdoe|example-tou-1|rHo...rrw=|true'
+
+    For terms-of-use refusal, the default entry is :
+     'YYYYMMDDTHHMMSSZ|TermsRejected|jdoe|example-tou-1|rHo...rrw=|false'
+    -->
+    <util:map id="shibboleth.consent.terms-of-use.AuditFormattingMap">
+        <entry key="Shibboleth-Consent-Audit" value="%T|%SP|%e|%u|%CCI|%CCV|%CCA" />
+    </util:map>
+
+    <!--
+    For attribute-release consent, the default entry is :
+     'YYYYMMDDTHHMMSSZ|https://sp.example.org|AttributeReleaseConsent|jdoe|email,eduPersonAffiliation|rHo...rrw=,rHo...rrw=|false,false'
+    -->
+    <util:map id="shibboleth.consent.attribute-release.AuditFormattingMap">
+        <entry key="Shibboleth-Consent-Audit" value="%T|%SP|%e|%u|%CCI|%CCV|%CCA" />
+    </util:map>
+
+    <!--
+    Specify custom symbolic replacements for attribute names to shrink the size of results saved to client-side storage 
+    such as cookies.
+    -->
+    <bean id="shibboleth.consent.AttributeSymbolics" parent="shibboleth.consent.DefaultAttributeSymbolics" lazy-init="true">
+        <property name="sourceMap">
+            <map merge="true">
+                <!--
+                <entry key="myAttribute" value="900" />
+                -->
+            </map>
+        </property>
+    </bean>
+
+    <!--
+    Condition to evaluate to apply attribute-release consent to attribute queries.
+    -->
+    <bean id="shibboleth.consent.AttributeQuery.Condition" parent="shibboleth.Conditions.FALSE" />
+
+</beans>

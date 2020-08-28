@@ -1,10 +1,14 @@
+plugins {
+  id "com.gradle.enterprise" version "3.3.3"
+}
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 
 List projects = [
   'build-tools',
+  'build-tools:reaper',
   'rest-api-spec',
-  'core',
   'docs',
   'client:rest',
   'client:rest-high-level',
@@ -14,99 +18,114 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
-  'distribution:integ-test-zip',
-  'distribution:zip',
-  'distribution:tar',
-  'distribution:deb',
-  'distribution:rpm',
+  'distribution:archives:integ-test-zip',
+  'distribution:archives:oss-windows-zip',
+  'distribution:archives:windows-zip',
+  'distribution:archives:oss-no-jdk-windows-zip',
+  'distribution:archives:no-jdk-windows-zip',
+  'distribution:archives:oss-darwin-tar',
+  'distribution:archives:darwin-tar',
+  'distribution:archives:oss-no-jdk-darwin-tar',
+  'distribution:archives:no-jdk-darwin-tar',
+  'distribution:archives:oss-linux-aarch64-tar',
+  'distribution:archives:oss-linux-tar',
+  'distribution:archives:linux-aarch64-tar',
+  'distribution:archives:linux-tar',
+  'distribution:archives:oss-no-jdk-linux-tar',
+  'distribution:archives:no-jdk-linux-tar',
+  'distribution:docker',
+  'distribution:docker:docker-aarch64-build-context',
+  'distribution:docker:docker-aarch64-export',
+  'distribution:docker:docker-build-context',
+  'distribution:docker:docker-export',
+  'distribution:docker:oss-docker-aarch64-build-context',
+  'distribution:docker:oss-docker-aarch64-export',
+  'distribution:docker:oss-docker-build-context',
+  'distribution:docker:oss-docker-export',
+  'distribution:docker:ubi-docker-aarch64-export',
+  'distribution:docker:ubi-docker-build-context',
+  'distribution:docker:ubi-docker-export',
+  'distribution:packages:aarch64-oss-deb',
+  'distribution:packages:oss-deb',
+  'distribution:packages:aarch64-deb',
+  'distribution:packages:deb',
+  'distribution:packages:oss-no-jdk-deb',
+  'distribution:packages:no-jdk-deb',
+  'distribution:packages:aarch64-oss-rpm',
+  'distribution:packages:oss-rpm',
+  'distribution:packages:aarch64-rpm',
+  'distribution:packages:rpm',
+  'distribution:packages:oss-no-jdk-rpm',
+  'distribution:packages:no-jdk-rpm',
+  'distribution:bwc:bugfix',
+  'distribution:bwc:maintenance',
+  'distribution:bwc:minor',
+  'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
+  'distribution:tools:launchers',
+  'distribution:tools:plugin-cli',
+  'distribution:tools:keystore-cli',
+  'server',
+  'server:cli',
   'test:framework',
-  'test:fixtures:example-fixture',
+  'test:fixtures:azure-fixture',
+  'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
-  'test:logger-usage',
-  'modules:aggs-matrix-stats',
-  'modules:ingest-common',
-  'modules:lang-expression',
-  'modules:lang-mustache',
-  'modules:lang-painless',
-  'modules:transport-netty4',
-  'modules:reindex',
-  'modules:percolator',
-  'modules:repository-url',
-  'plugins:analysis-icu',
-  'plugins:analysis-kuromoji',
-  'plugins:analysis-phonetic',
-  'plugins:analysis-smartcn',
-  'plugins:analysis-stempel',
-  'plugins:analysis-ukrainian',
-  'plugins:discovery-azure-classic',
-  'plugins:discovery-ec2',
-  'plugins:discovery-file',
-  'plugins:discovery-gce',
-  'plugins:ingest-geoip',
-  'plugins:ingest-attachment',
-  'plugins:ingest-user-agent',
-  'plugins:mapper-murmur3',
-  'plugins:mapper-size',
-  'plugins:repository-azure',
-  'plugins:repository-gcs',
-  'plugins:repository-hdfs',
-  'plugins:repository-s3',
-  'plugins:jvm-example',
-  'plugins:store-smb',
-  'qa:backwards-5.0',
-  'qa:evil-tests',
-  'qa:no-bootstrap-tests',
-  'qa:rolling-upgrade',
-  'qa:multi-cluster-search',
-  'qa:smoke-test-client',
-  'qa:smoke-test-http',
-  'qa:smoke-test-ingest-with-all-dependencies',
-  'qa:smoke-test-ingest-disabled',
-  'qa:smoke-test-multinode',
-  'qa:smoke-test-plugins',
-  'qa:smoke-test-reindex-with-painless',
-  'qa:smoke-test-tribe-node',
-  'qa:vagrant',
+  'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
+  'test:fixtures:old-elasticsearch',
+  'test:fixtures:s3-fixture',
+  'test:logger-usage'
 ]
 
-boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
-if (isEclipse) {
-  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
-  // for core-src and core-tests
-  projects << 'core-tests'
-}
-
-include projects.toArray(new String[0])
-
-project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-
-if (isEclipse) {
-  project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')
-  project(":core").buildFileName = 'eclipse-build.gradle'
-  project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
-  project(":core-tests").buildFileName = 'eclipse-build.gradle'
-}
-
 /**
-  * Iterates over sub directories, looking for build.gradle, and adds a project if found
-  * for that dir with the given path prefix. Note that this requires each level
-  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
-  * all files/directories in the source tree to find all projects.
-  */
+ * Iterates over sub directories, looking for build.gradle, and adds a project if found
+ * for that dir with the given path prefix. Note that this requires each level
+ * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+ * all files/directories in the source tree to find all projects.
+ */
 void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
+  if (findProject(dir) != null) return;
 
-  String projectName = "${path}:${dir.name}"
+  final String projectName = "${path}:${dir.name}"
   include projectName
-  if (path.isEmpty()) {
+  if (path.isEmpty() || path.startsWith(':example-plugins')) {
     project(projectName).projectDir = dir
   }
   for (File subdir : dir.listFiles()) {
     addSubProjects(projectName, subdir)
   }
+}
+
+
+// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  addSubProjects(':example-plugins', example)
+}
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+addSubProjects('', new File(rootProject.projectDir, 'libs'))
+addSubProjects('', new File(rootProject.projectDir, 'modules'))
+addSubProjects('', new File(rootProject.projectDir, 'plugins'))
+addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
+
+List startTasks = gradle.startParameter.taskNames
+
+
+include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
+
+project(":libs").children.each { libsProject ->
+  libsProject.name = "elasticsearch-${libsProject.name}"
 }
 
 // look for extra plugins for elasticsearch

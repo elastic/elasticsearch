@@ -18,92 +18,169 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.test.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.util.Util
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.XmlProvider
+import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
+import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.SourceSet
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
-public class PluginBuildPlugin extends BuildPlugin {
+class PluginBuildPlugin implements Plugin<Project> {
+
+    public static final String PLUGIN_EXTENSION_NAME = 'esplugin'
 
     @Override
-    public void apply(Project project) {
-        super.apply(project)
+    void apply(Project project) {
+        project.pluginManager.apply(BuildPlugin)
+        project.pluginManager.apply(RestTestBasePlugin)
+        project.pluginManager.apply(CompileOnlyResolvePlugin.class);
+
+        PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
-        // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
-        // so that the file name resolution for installing the plugin will be setup
+
+        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+        boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+
+        createIntegTestTask(project)
+        createBundleTasks(project, extension)
+        project.tasks.named("integTest").configure {
+            it.dependsOn(project.tasks.named("bundlePlugin"))
+        }
+        if (isModule) {
+            project.testClusters.integTest.module(project.tasks.bundlePlugin.archiveFile)
+        } else {
+            project.testClusters.integTest.plugin(project.tasks.bundlePlugin.archiveFile)
+        }
+
         project.afterEvaluate {
-            boolean isModule = project.path.startsWith(':modules:')
-            String name = project.pluginProperties.extension.name
+            project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
+                // Auto add dependent modules to the test cluster
+                if (project.findProject(":modules:${pluginName}") != null) {
+                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
+                    project.testClusters.integTest.module(
+                            project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
+                    )
+                }
+            }
+            PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
+            configurePublishing(project, extension1)
+            String name = extension1.name
             project.archivesBaseName = name
+            project.description = extension1.description
 
-            if (project.pluginProperties.extension.hasClientJar) {
-                // for plugins which work with the transport client, we copy the jar
-                // file to a new name, copy the nebula generated pom to the same name,
-                // and generate a different pom for the zip
-                addClientJarPomGeneration(project)
-                addClientJarTask(project)
-            } else {
-                // no client plugin, so use the pom file from nebula, without jar, for the zip
-                project.ext.set("nebulaPublish.maven.jar", false)
+            if (extension1.name == null) {
+                throw new InvalidUserDataException('name is a required setting for esplugin')
+            }
+            if (extension1.description == null) {
+                throw new InvalidUserDataException('description is a required setting for esplugin')
+            }
+            if (extension1.classname == null) {
+                throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
 
-            project.integTest.dependsOn(project.bundlePlugin)
-            project.tasks.run.dependsOn(project.bundlePlugin)
-            if (isModule) {
-                project.integTest.clusterConfig.module(project)
-                project.tasks.run.clusterConfig.module(project)
-            } else {
-                project.integTest.clusterConfig.plugin(project.path)
-                project.tasks.run.clusterConfig.plugin(project.path)
-                addZipPomGeneration(project)
-                addNoticeGeneration(project)
+            Map<String, String> properties = [
+                    'name'                : extension1.name,
+                    'description'         : extension1.description,
+                    'version'             : extension1.version,
+                    'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
+                    'javaVersion'         : project.targetCompatibility as String,
+                    'classname'           : extension1.classname,
+                    'extendedPlugins'     : extension1.extendedPlugins.join(','),
+                    'hasNativeController' : extension1.hasNativeController,
+                    'requiresKeystore'    : extension1.requiresKeystore
+            ]
+            project.tasks.named('pluginProperties').configure {
+                expand(properties)
+                inputs.properties(properties)
             }
-
-            project.namingConventions {
-                // Plugins declare integration tests as "Tests" instead of IT.
-                skipIntegTestInDisguise = true
+            if (isModule == false || isXPackModule) {
+                addNoticeGeneration(project, extension1)
             }
         }
-        createIntegTestTask(project)
-        createBundleTask(project)
-        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
-        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
+
+        //disable integTest task if project has been converted to use yaml or java rest test plugin
+        project.pluginManager.withPlugin("elasticsearch.yaml-rest-test") {
+            project.tasks.integTest.enabled = false
+        }
+        project.pluginManager.withPlugin("elasticsearch.java-rest-test") {
+            project.tasks.integTest.enabled = false
+        }
+
+        project.tasks.named('testingConventions').configure {
+            naming.clear()
+            naming {
+                Tests {
+                    baseClass 'org.apache.lucene.util.LuceneTestCase'
+                }
+                IT {
+                    baseClass 'org.elasticsearch.test.ESIntegTestCase'
+                    baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+                    baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
+                }
+            }
+        }
+        project.configurations.getByName('default')
+                .extendsFrom(project.configurations.getByName('runtimeClasspath'))
+        // allow running ES with this plugin in the foreground of a build
+        project.tasks.register('run', RunTask) {
+            dependsOn(project.tasks.bundlePlugin)
+            useCluster project.testClusters.integTest
+        }
+    }
+
+
+    private static void configurePublishing(Project project, PluginPropertiesExtension extension) {
+        if (project.plugins.hasPlugin(MavenPublishPlugin)) {
+            project.publishing.publications.nebula(MavenPublication).artifactId(extension.name)
+        }
     }
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            if (BuildParams.internal) {
+                compileOnly project.project(':server')
+                testImplementation project.project(':test:framework')
+            } else {
+                compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+                testImplementation "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            }
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
-            provided "com.vividsolutions:jts:${project.versions.jts}"
-            provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
-            provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            provided "net.java.dev.jna:jna:${project.versions.jna}"
+            compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
+            compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
+            compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
+            compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
+            compileOnly "org.elasticsearch:jna:${project.versions.jna}"
         }
     }
 
     /** Adds an integTest task which runs rest tests */
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter(project.precommit, project.test)
+        integTest.mustRunAfter('precommit', 'test')
         project.check.dependsOn(integTest)
     }
 
@@ -111,158 +188,80 @@ public class PluginBuildPlugin extends BuildPlugin {
      * Adds a bundlePlugin task which builds the zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
-    private static void createBundleTask(Project project) {
+    private static void createBundleTasks(Project project, PluginPropertiesExtension extension) {
         File pluginMetadata = project.file('src/main/plugin-metadata')
+        File templateFile = new File(project.buildDir, "templates/plugin-descriptor.properties")
 
-        // create a task to build the properties file for this plugin
-        PluginPropertiesTask buildProperties = project.tasks.create('pluginProperties', PluginPropertiesTask.class)
+        // create tasks to build the properties file for this plugin
+        TaskProvider<Task> copyPluginPropertiesTemplate = project.tasks.register('copyPluginPropertiesTemplate') {
+            outputs.file(templateFile)
+            doLast {
+                InputStream resourceTemplate = PluginBuildPlugin.getResourceAsStream("/${templateFile.name}")
+                templateFile.setText(resourceTemplate.getText('UTF-8'), 'UTF-8')
+            }
+        }
+
+        TaskProvider<Copy> buildProperties = project.tasks.register('pluginProperties', Copy) {
+            dependsOn(copyPluginPropertiesTemplate)
+            from(templateFile)
+            into("${project.buildDir}/generated-resources")
+        }
 
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         SourceSet testSourceSet = project.sourceSets.test
-        testSourceSet.output.dir(buildProperties.descriptorOutput.parentFile, builtBy: 'pluginProperties')
+        testSourceSet.output.dir("${project.buildDir}/generated-resources", builtBy: buildProperties)
         testSourceSet.resources.srcDir(pluginMetadata)
 
         // create the actual bundle task, which zips up all the files for the plugin
-        Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties]) {
-            from(buildProperties.descriptorOutput.parentFile) {
-                // plugin properties file
-                include(buildProperties.descriptorOutput.name)
-            }
+        TaskProvider<Zip> bundle = project.tasks.register('bundlePlugin', Zip) {
+            from buildProperties
             from pluginMetadata // metadata (eg custom security policy)
-            from project.jar // this plugin's jar
-            from project.configurations.runtime - project.configurations.provided // the dep jars
+            /*
+             * If the plugin is using the shadow plugin then we need to bundle
+             * that shadow jar.
+             */
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
+            from project.configurations.runtimeClasspath - project.configurations.getByName(
+                    CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME
+            )
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
                 include 'config/**'
                 include 'bin/**'
             }
-            if (project.path.startsWith(':modules:') == false) {
-                into('elasticsearch')
-            }
         }
-        project.assemble.dependsOn(bundle)
+        project.tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure {
+            dependsOn(bundle)
+        }
 
         // also make the zip available as a configuration (used when depending on this project)
         project.configurations.create('zip')
         project.artifacts.add('zip', bundle)
     }
 
-    /** Adds a task to move jar and associated files to a "-client" name. */
-    protected static void addClientJarTask(Project project) {
-        Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn(project.jar, 'generatePomFileForClientJarPublication', project.javadocJar, project.sourcesJar)
-        clientJar.doFirst {
-            Path jarFile = project.jar.outputs.files.singleFile.toPath()
-            String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
-            Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
+    /** Configure the pom for the main jar of this plugin */
 
-            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
-            String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-
-            String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
-            String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
-            Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-
-            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
-            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-        }
-        project.assemble.dependsOn(clientJar)
-    }
-
-    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
-
-    /** Find the reponame. */
-    static String urlFromOrigin(String origin) {
-        if (origin == null) {
-            return null // best effort, the url doesnt really matter, it is just required by maven central
-        }
-        if (origin.startsWith('https')) {
-            return origin
-        }
-        Matcher matcher = GIT_PATTERN.matcher(origin)
-        if (matcher.matches()) {
-            return "https://${matcher.group(1)}/${matcher.group(2)}"
-        } else {
-            return origin // best effort, the url doesnt really matter, it is just required by maven central
-        }
-    }
-
-    /** Adds nebula publishing task to generate a pom file for the plugin. */
-    protected static void addClientJarPomGeneration(Project project) {
-        project.plugins.apply(MavenPublishPlugin.class)
-
-        project.publishing {
-            publications {
-                clientJar(MavenPublication) {
-                    from project.components.java
-                    artifactId = project.pluginProperties.extension.name + '-client'
-                    pom.withXml { XmlProvider xml ->
-                        Node root = xml.asNode()
-                        root.appendNode('name', project.pluginProperties.extension.name)
-                        root.appendNode('description', project.pluginProperties.extension.description)
-                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
-                        Node scmNode = root.appendNode('scm')
-                        scmNode.appendNode('url', project.scminfo.origin)
-                    }
-                }
-            }
-        }
-    }
-
-    /** Adds a task to generate a pom file for the zip distribution. */
-    protected void addZipPomGeneration(Project project) {
-        project.plugins.apply(MavenPublishPlugin.class)
-
-        project.publishing {
-            publications {
-                zip(MavenPublication) {
-                    artifact project.bundlePlugin
-                }
-                /* HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
-                 * when the packaging type is set to 'pom'. But Sonatype's OSS repositories require source files
-                 * for artifacts that are of type 'zip'. We already publish the source and javadoc for Elasticsearch
-                 * under the various other subprojects. So here we create another publication using the same
-                 * name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
-                 * in alphabetical order. This lets us publish the zip file and even though the pom says the
-                 * type is 'pom' instead of 'zip'. We cannot setup a dependency between the tasks because the
-                 * publishing tasks are created *extremely* late in the configuration phase, so that we cannot get
-                 * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
-                 * maven local work, since we publish to maven central externally. */
-                zipReal(MavenPublication) {
-                    artifactId = project.pluginProperties.extension.name
-                    pom.withXml { XmlProvider xml ->
-                        Node root = xml.asNode()
-                        root.appendNode('name', project.pluginProperties.extension.name)
-                        root.appendNode('description', project.pluginProperties.extension.description)
-                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
-                        Node scmNode = root.appendNode('scm')
-                        scmNode.appendNode('url', project.scminfo.origin)
-                    }
-                }
-            }
-        }
-    }
-
-    protected void addNoticeGeneration(Project project) {
-        File licenseFile = project.pluginProperties.extension.licenseFile
+    protected static void addNoticeGeneration(Project project, PluginPropertiesExtension extension) {
+        File licenseFile = extension.licenseFile
         if (licenseFile != null) {
-            project.bundlePlugin.from(licenseFile.parentFile) {
-                include(licenseFile.name)
+            project.tasks.named('bundlePlugin').configure {
+                from(licenseFile.parentFile) {
+                    include(licenseFile.name)
+                    rename { 'LICENSE.txt' }
+                }
             }
         }
-        File noticeFile = project.pluginProperties.extension.noticeFile
+        File noticeFile = extension.noticeFile
         if (noticeFile != null) {
-            NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
-            generateNotice.dependencies(project)
-            generateNotice.inputFile = noticeFile
-            project.bundlePlugin.from(generateNotice)
+            TaskProvider<NoticeTask> generateNotice = project.tasks.register('generateNotice', NoticeTask) {
+                inputFile = noticeFile
+                source(Util.getJavaMainSourceSet(project).get().allJava)
+            }
+            project.tasks.named('bundlePlugin').configure {
+                from(generateNotice)
+            }
         }
     }
 }

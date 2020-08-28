@@ -1,0 +1,36 @@
+--
+:api: ilm-start-ilm
+:request: StartILMRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start Index Lifecycle Management API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Start Lifecycle Management API allows you to start Index Lifecycle
+Management if it has previously been stopped.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the request to start Index Lifecycle
+Management was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the request to start Index Lifecycle Management was
+acknowledged.
+
+include::../execution.asciidoc[]

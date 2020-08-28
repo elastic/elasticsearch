@@ -1,0 +1,425 @@
+[[modules-scripting-using]]
+== How to use scripts
+
+Wherever scripting is supported in the Elasticsearch API, the syntax follows
+the same pattern:
+
+[source,js]
+-------------------------------------
+  "script": {
+    "lang":   "...",  <1>
+    "source" | "id": "...", <2>
+    "params": { ... } <3>
+  }
+-------------------------------------
+// NOTCONSOLE
+<1> The language the script is written in, which defaults to `painless`.
+<2> The script itself which may be specified as `source` for an inline script or `id` for a stored script.
+<3> Any named parameters that should be passed into the script.
+
+For example, the following script is used in a search request to return a
+<<script-fields, scripted field>>:
+
+[source,console]
+-------------------------------------
+PUT my-index-000001/_doc/1
+{
+  "my_field": 5
+}
+
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "my_doubled_field": {
+      "script": {
+        "lang":   "expression",
+        "source": "doc['my_field'] * multiplier",
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+-------------------------------------
+
+[discrete]
+=== Script parameters
+
+`lang`::
+
+    Specifies the language the script is written in.  Defaults to `painless`.
+
+
+`source`, `id`::
+
+    Specifies the source of the script.  An `inline` script is specified
+    `source` as in the example above. A `stored` script is specified `id`
+    and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>).
+
+
+`params`::
+
+    Specifies any named parameters that are passed into the script as
+    variables.
+
+[IMPORTANT]
+[[prefer-params]]
+.Prefer parameters
+========================================
+
+The first time Elasticsearch sees a new script, it compiles it and stores the
+compiled version in a cache. Compilation can be a heavy process.
+
+If you need to pass variables into the script, you should pass them in as
+named `params` instead of hard-coding values into the script itself.  For
+example, if you want to be able to multiply a field value by different
+multipliers, don't hard-code the multiplier into the script:
+
+[source,js]
+----------------------
+  "source": "doc['my_field'] * 2"
+----------------------
+// NOTCONSOLE
+
+Instead, pass it in as a named parameter:
+
+[source,js]
+----------------------
+  "source": "doc['my_field'] * multiplier",
+  "params": {
+    "multiplier": 2
+  }
+----------------------
+// NOTCONSOLE
+
+The first version has to be recompiled every time the multiplier changes.  The
+second version is only compiled once.
+
+If you compile too many unique scripts within a small amount of time,
+Elasticsearch will reject the new dynamic scripts with a
+`circuit_breaking_exception` error. For most contexts, you can compile up to 75
+scripts per 5 minutes by default. For ingest contexts, the default script
+compilation rate is unlimited. You can change these settings dynamically by
+setting `script.context.$CONTEXT.max_compilations_rate` eg.
+`script.context.field.max_compilations_rate=100/10m`.
+
+========================================
+
+[discrete]
+[[modules-scripting-short-script-form]]
+=== Short script form
+A short script form can be used for brevity. In the short form, `script` is represented
+by a string instead of an object. This string contains the source of the script.
+
+Short form:
+
+[source,js]
+----------------------
+  "script": "ctx._source.my-int++"
+----------------------
+// NOTCONSOLE
+
+The same script in the normal form:
+
+[source,js]
+----------------------
+  "script": {
+    "source": "ctx._source.my-int++"
+  }
+----------------------
+// NOTCONSOLE
+
+[discrete]
+[[modules-scripting-stored-scripts]]
+=== Stored scripts
+
+Scripts may be stored in and retrieved from the cluster state using the
+`_scripts` end-point.
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges to create, retrieve, and delete stored scripts:
+
+* cluster: `all` or `manage`
+
+For more information, see <<security-privileges>>.
+
+
+[discrete]
+==== Request examples
+
+The following are examples of using a stored script that lives at
+`/_scripts/{id}`.
+
+First, create the script called `calculate-score` in the cluster state:
+
+[source,console]
+-----------------------------------
+POST _scripts/calculate-score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params.my_modifier"
+  }
+}
+-----------------------------------
+// TEST[setup:my_index]
+
+You may also specify a context as part of the url path to compile a
+stored script against that specific context in the form of
+`/_scripts/{id}/{context}`:
+
+[source,console]
+-----------------------------------
+POST _scripts/calculate-score/score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params.my_modifier"
+  }
+}
+-----------------------------------
+// TEST[setup:my_index]
+
+This same script can be retrieved with:
+
+[source,console]
+-----------------------------------
+GET _scripts/calculate-score
+-----------------------------------
+// TEST[continued]
+
+Stored scripts can be used by specifying the `id` parameters as follows:
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match": {
+            "message": "some message"
+        }
+      },
+      "script": {
+        "id": "calculate-score",
+        "params": {
+          "my_modifier": 2
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+And deleted with:
+
+[source,console]
+-----------------------------------
+DELETE _scripts/calculate-score
+-----------------------------------
+// TEST[continued]
+
+[discrete]
+[[modules-scripting-search-templates]]
+=== Search templates
+You can also use the `_scripts` API to store **search templates**. Search
+templates save specific <<search-search,search requests>> with placeholder
+values, called template parameters.
+
+You can use stored search templates to run searches without writing out the
+entire query. Just provide the stored template's ID and the template parameters.
+This is useful when you want to run a commonly used query quickly and without
+mistakes.
+
+Search templates use the https://mustache.github.io/mustache.5.html[mustache
+templating language]. See <<search-template>> for more information and examples.
+
+[discrete]
+[[modules-scripting-using-caching]]
+=== Script caching
+
+All scripts are cached by default so that they only need to be recompiled
+when updates occur. By default, scripts do not have a time-based expiration, but
+you can change this behavior by using the `script.cache.expire` setting.
+You can configure the size of this cache by using the `script.cache.max_size` setting.
+For most contexts, the default cache size is `100`. For ingest contexts, the
+default cache size is `200`.
+
+NOTE: The size of scripts is limited to 65,535 bytes. This can be
+changed by setting `script.max_size_in_bytes` setting to increase that soft
+limit, but if scripts are really large then a
+<<modules-scripting-engine,native script engine>> should be considered.
+
+[[scripts-and-search-speed]]
+=== Scripts and search speed
+
+Scripts can't make use of {es}'s index structures or related optimizations. This
+can sometimes result in slower search speeds.
+
+If you often use scripts to transform indexed data, you can speed up search by
+making these changes during ingest instead. However, that often means slower
+index speeds.
+
+.*Example*
+[%collapsible]
+=====
+An index, `my_test_scores`, contains two `long` fields:
+
+* `math_score`
+* `verbal_score`
+
+When running searches, users often use a script to sort results by the sum of
+these two field's values.
+
+[source,console]
+----
+GET /my_test_scores/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2099"
+    }
+  },
+  "sort": [
+    {
+      "_script": {
+        "type": "number",
+        "script": {
+          "source": "doc['math_score'].value + doc['verbal_score'].value"
+        },
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my_test_scores\n/]
+
+To speed up search, you can perform this calculation during ingest and index the
+sum to a field instead.
+
+First, <<indices-put-mapping,add a new field>>, `total_score`, to the index. The
+`total_score` field will contain sum of the `math_score` and `verbal_score`
+field values.
+
+[source,console]
+----
+PUT /my_test_scores/_mapping
+{
+  "properties": {
+    "total_score": {
+      "type": "long"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Next, use an <<ingest,ingest pipeline>> containing the
+<<script-processor,`script`>> processor to calculate the sum of `math_score` and
+`verbal_score` and index it in the `total_score` field.
+
+[source,console]
+----
+PUT _ingest/pipeline/my_test_scores_pipeline
+{
+  "description": "Calculates the total test score",
+  "processors": [
+    {
+      "script": {
+        "source": "ctx.total_score = (ctx.math_score + ctx.verbal_score)"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+To update existing data, use this pipeline to <<docs-reindex,reindex>> any
+documents from `my_test_scores` to a new index, `my_test_scores_2`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "my_test_scores"
+  },
+  "dest": {
+    "index": "my_test_scores_2",
+    "pipeline": "my_test_scores_pipeline"
+  }
+}
+----
+// TEST[continued]
+
+Continue using the pipeline to index any new documents to `my_test_scores_2`.
+
+[source,console]
+----
+POST /my_test_scores_2/_doc/?pipeline=my_test_scores_pipeline
+{
+  "student": "kimchy",
+  "grad_year": "2099",
+  "math_score": 800,
+  "verbal_score": 800
+}
+----
+// TEST[continued]
+
+These changes may slow indexing but allow for faster searches. Users can now
+sort searches made on `my_test_scores_2` using the `total_score` field instead
+of using a script.
+
+[source,console]
+----
+GET /my_test_scores_2/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2099"
+    }
+  },
+  "sort": [
+    {
+      "total_score": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/my_test_scores_pipeline
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+"acknowledged": true
+}
+----
+////
+=====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production.
+
+[discrete]
+[[modules-scripting-errors]]
+=== Script errors
+Elasticsearch returns error details when there is a compliation or runtime
+exception.  The contents of this response are useful for tracking down the
+problem.
+
+experimental[]
+
+The contents of `position` are experimental and subject to change.

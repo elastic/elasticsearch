@@ -7,9 +7,14 @@ produces a single token.
 
 The `normalizer` is applied prior to indexing the keyword, as well as at
 search-time when the `keyword` field is searched via a query parser such as
-the <<query-dsl-match-query,`match`>> query.
+the <<query-dsl-match-query,`match`>> query or via a term-level query
+such as the <<query-dsl-term-query,`term`>> query.
 
-[source,js]
+A simple normalizer called `lowercase` ships with elasticsearch and can be used.
+Custom normalizers can be defined as part of analysis settings as follows.
+
+
+[source,console]
 --------------------------------
 PUT index
 {
@@ -25,33 +30,40 @@ PUT index
     }
   },
   "mappings": {
-    "type": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "normalizer": "my_normalizer"
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "normalizer": "my_normalizer"
       }
     }
   }
 }
 
-PUT index/type/1
+PUT index/_doc/1
 {
   "foo": "BÀR"
 }
 
-PUT index/type/2
+PUT index/_doc/2
 {
   "foo": "bar"
 }
 
-PUT index/type/3
+PUT index/_doc/3
 {
   "foo": "baz"
 }
 
 POST index/_refresh
+
+GET index/_search
+{
+  "query": {
+    "term": {
+      "foo": "BAR"
+    }
+  }
+}
 
 GET index/_search
 {
@@ -62,41 +74,42 @@ GET index/_search
   }
 }
 --------------------------------
-// CONSOLE
 
-The above query matches documents 1 and 2 since `BÀR` is converted to `bar` at
+The above queries match documents 1 and 2 since `BÀR` is converted to `bar` at
 both index and query time.
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": $body.took,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 2,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 0.4700036,
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
-        "_id": "2",
-        "_score": 0.2876821,
+        "_id": "1",
+        "_score": 0.4700036,
         "_source": {
-          "foo": "bar"
+          "foo": "BÀR"
         }
       },
       {
         "_index": "index",
-        "_type": "type",
-        "_id": "1",
-        "_score": 0.2876821,
+        "_id": "2",
+        "_score": 0.4700036,
         "_source": {
-          "foo": "BÀR"
+          "foo": "bar"
         }
       }
     ]
@@ -108,7 +121,7 @@ both index and query time.
 Also, the fact that keywords are converted prior to indexing also means that
 aggregations return normalized values:
 
-[source,js]
+[source,console]
 ----------------------------
 GET index/_search
 {
@@ -121,25 +134,28 @@ GET index/_search
     }
   }
 }
---------------------------------
-// CONSOLE
+----------------------------
 // TEST[continued]
 
 returns
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": 43,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 3,
-    "max_score": 0.0,
+    "total" : {
+        "value": 3,
+        "relation": "eq"
+    },
+    "max_score": null,
     "hits": []
   },
   "aggregations": {

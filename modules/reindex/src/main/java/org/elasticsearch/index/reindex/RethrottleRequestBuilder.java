@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -29,7 +29,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  */
 public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
     public RethrottleRequestBuilder(ElasticsearchClient client,
-            Action<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> action) {
+            ActionType<ListTasksResponse> action) {
         super(client, action, new RethrottleRequest());
     }
 

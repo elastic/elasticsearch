@@ -1,0 +1,61 @@
+setup:
+
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+              aliases:
+                alias_1:
+                  "filter" : { "term" : { "foo" : "bar"} }
+
+  - do:
+      index:
+          index:  test_1
+          id:     id_1
+          body:   { foo: bar, title: howdy }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Basic explain":
+
+  - do:
+      explain:
+          index:  test_1
+          id:     id_1
+          body:
+            query:
+              match_all: {}
+
+  - is_true: matched
+  - match: { explanation.value: 1 }
+  - match: { _index: test_1 }
+  - match: { _id: id_1 }
+
+---
+"Basic explain with alias":
+
+  - do:
+      explain:
+          index:  alias_1
+          id:     id_1
+          body:
+            query:
+              match_all: {}
+
+  - is_true: matched
+  - match: { explanation.value: 1 }
+  - match: { _index: test_1 }
+  - match: { _id: id_1 }
+
+---
+"Explain body without query element":
+  - do:
+      catch: bad_request
+      explain:
+          index:  test_1
+          id:     id_1
+          body:
+            match_all: {}

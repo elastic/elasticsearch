@@ -1,0 +1,40 @@
+{
+  "idp.saml_register_sp": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/idp-saml-register-sp.html"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_idp/saml/sp/{sp_entity_id}",
+          "methods": [
+            "POST",
+            "PUT"
+          ],
+          "parts": {
+            "sp_entity_id": {
+              "type": "string",
+              "description": "The SAML entity ID of the Service Provider to register"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "refresh": {
+        "type": "enum",
+        "options": [
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description": "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    },
+    "body": {
+      "description": "The Service Provider to register",
+      "required": true
+    }
+  }
+}

@@ -1,5 +1,8 @@
 [[analysis-thai-tokenizer]]
-=== Thai Tokenizer
+=== Thai tokenizer
+++++
+<titleabbrev>Thai</titleabbrev>
+++++
 
 The `thai` tokenizer segments Thai text into words, using the Thai
 segmentation algorithm included with Java. Text in other languages in general
@@ -10,10 +13,10 @@ WARNING: This tokenizer may not be supported by all JREs. It is known to work
 with Sun/Oracle and OpenJDK. If your application needs to be fully portable,
 consider using the {plugins}/analysis-icu-tokenizer.html[ICU Tokenizer] instead.
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -21,11 +24,10 @@ POST _analyze
   "text": "การที่ได้ต้องแสดงว่างานดี"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -88,7 +90,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -100,7 +101,7 @@ The above sentence would produce the following terms:
 [ การ, ที่, ได้, ต้อง, แสดง, ว่า, งาน, ดี ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `thai` tokenizer is not configurable.

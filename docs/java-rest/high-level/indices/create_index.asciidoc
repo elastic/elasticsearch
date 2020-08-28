@@ -1,0 +1,116 @@
+--
+:api: create-index
+:request: CreateIndexRequest
+:response: CreateIndexResponse
+--
+
+[id="{upid}-{api}"]
+=== Create Index API
+
+[id="{upid}-{api}-request"]
+==== Create Index Request
+
+A +{request}+ requires an `index` argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The index to create
+
+==== Index settings
+Each index created can have specific settings associated with it.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-settings]
+--------------------------------------------------
+<1> Settings for this index
+
+[[java-rest-high-create-index-request-mappings]]
+==== Index mappings
+An index may be created with mappings for its document types
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-mappings]
+--------------------------------------------------
+<1> The type to define
+<2> The mapping for this type, provided as a JSON string
+
+The mapping source can be provided in different ways in addition to the
+`String` example shown above:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-mappings-map]
+--------------------------------------------------
+<1> Mapping source provided as a `Map` which gets automatically converted
+to JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-mappings-xcontent]
+--------------------------------------------------
+<1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
+built-in helpers to generate JSON content
+
+==== Index aliases
+Aliases can be set at index creation time
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-aliases]
+--------------------------------------------------
+<1> The alias to define
+
+==== Providing the whole source
+
+The whole source including all of its sections (mappings, settings and aliases)
+can also be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-whole-source]
+--------------------------------------------------
+<1> The source provided as a JSON string. It can also be provided as a `Map`
+or an `XContentBuilder`.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index creation as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
+--------------------------------------------------
+<1> The number of active shard copies to wait for before the create index API returns a
+response, as an `int`
+<2> The number of active shard copies to wait for before the create index API returns a
+response, as an `ActiveShardCount`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Create Index Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates whether the requisite number of shard copies were started for each shard in the index before timing out

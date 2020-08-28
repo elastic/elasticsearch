@@ -44,7 +44,7 @@ class TestWithDependenciesPlugin implements Plugin<Project> {
             return
         }
 
-        project.configurations.testCompile.dependencies.all { Dependency dep ->
+        project.configurations.testImplementation.dependencies.all { Dependency dep ->
             // this closure is run every time a compile dependency is added
             if (dep instanceof ProjectDependency && dep.dependencyProject.plugins.hasPlugin(PluginBuildPlugin)) {
                 project.gradle.projectsEvaluated {
@@ -56,11 +56,14 @@ class TestWithDependenciesPlugin implements Plugin<Project> {
 
     private static addPluginResources(Project project, Project pluginProject) {
         String outputDir = "${project.buildDir}/generated-resources/${pluginProject.name}"
-        String taskName = ClusterFormationTasks.pluginTaskName("copy", pluginProject.name, "Metadata")
-        Copy copyPluginMetadata = project.tasks.create(taskName, Copy.class)
-        copyPluginMetadata.into(outputDir)
-        copyPluginMetadata.from(pluginProject.tasks.pluginProperties)
-        copyPluginMetadata.from(pluginProject.file('src/main/plugin-metadata'))
+        String camelName = pluginProject.name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
+        String taskName = "copy" + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + "Metadata"
+        project.tasks.register(taskName, Copy.class) {
+            into(outputDir)
+            from(pluginProject.tasks.pluginProperties)
+            from(pluginProject.file('src/main/plugin-metadata'))
+        }
+
         project.sourceSets.test.output.dir(outputDir, builtBy: taskName)
     }
 }

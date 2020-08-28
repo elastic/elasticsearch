@@ -3,65 +3,94 @@
 
 A special single bucket aggregation that enables aggregating nested documents.
 
-For example, lets say we have a index of products, and each product holds the list of resellers - each having its own
+For example, lets say we have an index of products, and each product holds the list of resellers - each having its own
 price for the product. The mapping could look like:
 
-[source,js]
+[source,console,id=nested-aggregation-example]
 --------------------------------------------------
+PUT /products
 {
-    ...
-
-    "product" : {
-        "properties" : {
-            "resellers" : { <1>
-                "type" : "nested",
-                "properties" : {
-                    "name" : { "type" : "text" },
-                    "price" : { "type" : "double" }
-                }
-            }
+  "mappings": {
+    "properties": {
+      "resellers": { <1>
+        "type": "nested",
+        "properties": {
+          "reseller": { "type": "text" },
+          "price": { "type": "double" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
+<1> `resellers` is an array that holds nested documents.
 
-<1> The `resellers` is an array that holds nested documents under the `product` object.
+The following request adds a product with two resellers:
 
-The following aggregations will return the minimum price products can be purchased in:
-
-[source,js]
+[source,console]
 --------------------------------------------------
+PUT /products/_doc/0
 {
-    "query" : {
-        "match" : { "name" : "led tv" }
+  "name": "LED TV", <1>
+  "resellers": [
+    {
+      "reseller": "companyA",
+      "price": 350
     },
-    "aggs" : {
-        "resellers" : {
-            "nested" : {
-                "path" : "resellers"
-            },
-            "aggs" : {
-                "min_price" : { "min" : { "field" : "resellers.price" } }
-            }
-        }
+    {
+      "reseller": "companyB",
+      "price": 500
     }
+  ]
 }
 --------------------------------------------------
+// TEST[s/PUT \/products\/_doc\/0/PUT \/products\/_doc\/0\?refresh/]
+// TEST[continued]
+<1> We are using a dynamic mapping for the `name` attribute.
+
+
+The following request returns the minimum price a product can be purchased for:
+
+[source,console]
+--------------------------------------------------
+GET /products/_search
+{
+  "query": {
+    "match": { "name": "led tv" }
+  },
+  "aggs": {
+    "resellers": {
+      "nested": {
+        "path": "resellers"
+      },
+      "aggs": {
+        "min_price": { "min": { "field": "resellers.price" } }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[s/GET \/products\/_search/GET \/products\/_search\?filter_path=aggregations/]
+// TEST[continued]
 
 As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents.
 Then one can define any type of aggregation over these nested documents.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "aggregations": {
-        "resellers": {
-            "min_price": {
-                "value" : 350
-            }
-        }
+  ...
+  "aggregations": {
+    "resellers": {
+      "doc_count": 2,
+      "min_price": {
+        "value": 350
+      }
     }
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: [0-9]+/: $body.$_path/]

@@ -20,27 +20,22 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.OpType;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.RequestWrapper;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollActionTestCase;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.OpType;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.junit.Before;
-import org.mockito.Matchers;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,8 +43,6 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
                 Response extends BulkByScrollResponse>
         extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
-
-    private static final Script EMPTY_SCRIPT = new Script("");
 
     protected ScriptService scriptService;
 
@@ -60,13 +53,16 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
 
     @SuppressWarnings("unchecked")
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
-        IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
-        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
-        ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
-
-        when(scriptService.executable(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))
-                .thenReturn(executableScript);
-        AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(EMPTY_SCRIPT));
+        IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
+        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
+        UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
+            @Override
+            public void execute() {
+                scriptBody.accept(getCtx());
+            }
+        };
+        when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
+        AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
     }
@@ -89,16 +85,9 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertEquals("cat", index.sourceAsMap().get("bar"));
     }
 
-    public void testSetOpTypeNoop() throws Exception {
-        assertThat(task.getStatus().getNoops(), equalTo(0L));
-        assertNull(applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.NOOP.toString())));
-        assertThat(task.getStatus().getNoops(), equalTo(1L));
-    }
-
     public void testSetOpTypeDelete() throws Exception {
         DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.DELETE.toString()));
         assertThat(delete.index(), equalTo("index"));
-        assertThat(delete.type(), equalTo("type"));
         assertThat(delete.id(), equalTo("1"));
     }
 
@@ -108,5 +97,5 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertThat(e.getMessage(), equalTo("Operation type [unknown] not allowed, only [noop, index, delete] are allowed"));
     }
 
-    protected abstract AbstractAsyncBulkByScrollAction<Request> action(ScriptService scriptService, Request request);
+    protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action(ScriptService scriptService, Request request);
 }

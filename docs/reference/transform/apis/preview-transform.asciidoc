@@ -1,0 +1,272 @@
+[role="xpack"]
+[testenv="basic"]
+[[preview-transform]]
+= Preview {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Preview {transform}</titleabbrev>
+++++
+
+Previews a {transform}.
+
+[[preview-transform-request]]
+== {api-request-title}
+
+`POST _transform/_preview`
+
+[[preview-transform-prereq]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* `manage_transform` 
+* source index: `read`, `view_index_metadata`
+
+The built-in `transform_admin` role has the `manage_transform` privilege.
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[preview-transform-desc]]
+== {api-description-title}
+
+This API generates a preview of the results that you will get when you run the
+<<put-transform,create {transforms} API>> with the same
+configuration. It returns a maximum of 100 results. The calculations are based
+on all the current data in the source index.
+
+It also generates a list of mappings and settings for the destination index.
+If the destination index does not exist when you start a {transform}, these are
+the mappings and settings that are used. These values are determined based on
+the field types of the source index and the {transform} aggregations.
+
+TIP: There are some <<transform-aggresponse-limitations,limitations>> that
+might result in poor mappings. As a work-around, create the destination index
+or an index template with your preferred mappings before you start the
+{transform}.
+
+[role="child_attributes"]
+[[preview-transform-request-body]]
+== {api-request-body-title}
+
+
+`description`::
+(Optional, string) Free text description of the {transform}.
+
+//Begin dest
+`dest`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
++
+.Properties of `dest`
+[%collapsible%open]
+====
+`index`:::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`pipeline`:::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+====
+//End dest
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+//Begin pivot
+`pivot`::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot]
++
+.Properties of `pivot`
+[%collapsible%open]
+====
+
+`aggregations` or `aggs`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
+
+`group_by`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
+====
+//End pivot
+
+//Begin source
+`source`::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
++
+.Properties of `source`
+[%collapsible%open]
+====
+
+`index`:::
+(Required, string or array)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`query`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+====
+//End source
+
+//Begin sync
+`sync`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
++
+.Properties of `sync`
+[%collapsible%open]
+====
+//Begin sync.time
+
+`time`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
++
+.Properties of `analysis_config`
+[%collapsible%open]
+=====
+
+`delay`::::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+    
+`field`::::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+=====
+//End sync.time
+====
+//End sync
+
+//Begin settings
+`settings`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
+
+[role="child_attributes"]
+[[preview-transform-response]]
+== {api-response-body-title}
+
+`preview`::
+(array) An array of documents. In particular, they are the JSON representation 
+of the documents that would be created in the destination index by the 
+{transform}.
+
+//Begin generated_dest_index  
+`generated_dest_index`::
+(object) Contains details about the destination index.
++
+.Properties of `generated_dest_index`
+[%collapsible%open]
+====
+
+`aliases`:::
+(object) The aliases for the destination index.
+
+`mappings`:::
+(object) The <<mapping,mappings>> for each document in the destination index. 
+
+`settings`:::
+(object) The <<index-modules-settings,index settings>> for the destination index.
+====
+//End generated_dest_index
+
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:set up sample data]
+
+The data that is returned for this example is as follows:
+[source,js]
+----
+{
+  "preview" : [
+    {
+      "max_price" : 171.0,
+      "customer_id" : "10"
+    },
+    {
+      "max_price" : 233.0,
+      "customer_id" : "11"
+    },
+    {
+      "max_price" : 200.0,
+      "customer_id" : "12"
+    }
+    ...
+  ],
+  "generated_dest_index" : {
+    "mappings" : {
+      "_meta" : {
+        "_transform" : {
+          "transform" : "transform-preview",
+          "version" : {
+            "created" : "7.7.0"
+          },
+          "creation_date_in_millis" : 1584738236757
+        },
+        "created_by" : "transform"
+      },
+      "properties" : {
+        "max_price" : {
+          "type" : "half_float"
+        },
+        "customer_id" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "auto_expand_replicas" : "0-1"
+      }
+    },
+    "aliases" : { }
+  }
+}
+----
+// NOTCONSOLE

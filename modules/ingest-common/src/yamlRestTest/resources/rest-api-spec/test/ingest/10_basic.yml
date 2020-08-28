@@ -1,0 +1,38 @@
+"Ingest common installed":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - contains:  { nodes.$master.modules: { name: ingest-common } }
+    - contains:  { nodes.$master.ingest.processors: { type: append } }
+    - contains:  { nodes.$master.ingest.processors: { type: bytes } }
+    - contains:  { nodes.$master.ingest.processors: { type: convert } }
+    - contains:  { nodes.$master.ingest.processors: { type: date } }
+    - contains:  { nodes.$master.ingest.processors: { type: date_index_name } }
+    - contains:  { nodes.$master.ingest.processors: { type: dissect } }
+    - contains:  { nodes.$master.ingest.processors: { type: dot_expander } }
+    - contains:  { nodes.$master.ingest.processors: { type: fail } }
+    - contains:  { nodes.$master.ingest.processors: { type: foreach } }
+    - contains:  { nodes.$master.ingest.processors: { type: grok } }
+    - contains:  { nodes.$master.ingest.processors: { type: gsub } }
+    - contains:  { nodes.$master.ingest.processors: { type: html_strip } }
+    - contains:  { nodes.$master.ingest.processors: { type: join } }
+    - contains:  { nodes.$master.ingest.processors: { type: json } }
+    - contains:  { nodes.$master.ingest.processors: { type: kv } }
+    - contains:  { nodes.$master.ingest.processors: { type: lowercase } }
+    - contains:  { nodes.$master.ingest.processors: { type: remove } }
+    - contains:  { nodes.$master.ingest.processors: { type: rename } }
+    - contains:  { nodes.$master.ingest.processors: { type: script } }
+    - contains:  { nodes.$master.ingest.processors: { type: set } }
+    - contains:  { nodes.$master.ingest.processors: { type: sort } }
+    - contains:  { nodes.$master.ingest.processors: { type: split } }
+    - contains:  { nodes.$master.ingest.processors: { type: trim } }
+    - contains:  { nodes.$master.ingest.processors: { type: uppercase } }

@@ -1,0 +1,112 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+//// additional test framework permissions.
+//// These are mock objects and test management that we allow test framework libs
+//// to provide on our behalf. But tests themselves cannot do this stuff!
+
+grant codeBase "${codebase.securemock}" {
+  // needed to access ReflectionFactory (see below)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  // needed for reflection in ibm jdk
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  // needed to support creation of mocks
+  permission java.lang.RuntimePermission "reflectionFactoryAccess";
+  // needed for spy interception, etc
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${codebase.lucene-test-framework}" {
+  // needed by RamUsageTester
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
+  permission java.nio.file.LinkPermission "hard";
+  // needed for RAMUsageTester
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.randomizedtesting-runner}" {
+  // optionally needed for access to private test methods (e.g. beforeClass)
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed to fail tests on uncaught exceptions from other threads
+  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
+  // needed for top threads handling
+  permission org.elasticsearch.secure_sm.ThreadPermission "modifyArbitraryThreadGroup";
+  // needed for TestClass creation
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.junit}" {
+  // needed for TestClass creation
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // needed for test listener notifications
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${codebase.mocksocket}" {
+  // mocksocket makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};
+
+grant codeBase "${codebase.elasticsearch-nio}" {
+  // elasticsearch-nio makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};
+
+grant codeBase "${codebase.elasticsearch-rest-client}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.httpcore-nio}" {
+  // httpcore makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
+grant codeBase "${codebase.httpasyncclient}" {
+  // httpasyncclient makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.junit-rt.jar}" {
+  // allows IntelliJ IDEA JUnit test runner to control number of test iterations
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "file:${gradle.dist.lib}/-" {
+  // gradle test worker code needs a slew of permissions, we give full access here since gradle isn't a production
+  // dependency and there's no point in exercising the security policy against it
+  permission java.security.AllPermission;
+};
+
+grant codeBase "file:${gradle.worker.jar}" {
+  // gradle test worker code needs a slew of permissions, we give full access here since gradle isn't a production
+  // dependency and there's no point in exercising the security policy against it
+  permission java.security.AllPermission;
+};
+
+grant {
+  // since the gradle test worker jar is on the test classpath, our tests should be able to read it
+  permission java.io.FilePermission "${gradle.worker.jar}", "read";
+};

@@ -1,0 +1,101 @@
+[[java-rest-high-tasks-list]]
+=== List Tasks API
+
+The List Tasks API allows to get information about the tasks currently executing in the cluster.
+
+[[java-rest-high-cluster-list-tasks-request]]
+==== List Tasks Request
+
+A `ListTasksRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-request]
+--------------------------------------------------
+There is no required parameters. By default the client will list all tasks and will not wait
+for task completion.
+
+==== Parameters
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-request-filter]
+--------------------------------------------------
+<1> Request only cluster-related tasks
+<2> Request all tasks running on nodes nodeId1 and nodeId2
+<3> Request only children of a particular task
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-request-detailed]
+--------------------------------------------------
+<1> Should the information include detailed, potentially slow to generate data. Defaults to `false`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-request-wait-completion]
+--------------------------------------------------
+<1> Should this request wait for all found tasks to complete. Defaults to `false`
+<2> Timeout for the request as a `TimeValue`. Applicable only if `setWaitForCompletion` is `true`.
+Defaults to 30 seconds
+<3> Timeout as a `String`
+
+[[java-rest-high-cluster-list-tasks-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-execute]
+--------------------------------------------------
+
+[[java-rest-high-cluster-list-tasks-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a cluster update settings requires both the
+`ListTasksRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-execute-async]
+--------------------------------------------------
+<1> The `ListTasksRequest` to execute and the `ActionListener` to use
+when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `ListTasksResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of a failure. The raised exception is provided as an argument
+
+[[java-rest-high-cluster-list-tasks-response]]
+==== List Tasks Response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-response-tasks]
+--------------------------------------------------
+<1> List of currently running tasks
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-response-calc]
+--------------------------------------------------
+<1> List of tasks grouped by a node
+<2> List of tasks grouped by a parent task
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[list-tasks-response-failures]
+--------------------------------------------------
+<1> List of node failures
+<2> List of tasks failures

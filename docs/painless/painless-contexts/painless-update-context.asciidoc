@@ -1,0 +1,75 @@
+[[painless-update-context]]
+=== Update context
+
+Use a Painless script in an {ref}/docs-update.html[update] operation to
+add, modify, or delete fields within a single document.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`ctx['op']` (`String`)::
+        The name of the operation.
+
+{ref}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
+        The value used to select a shard for document storage.
+
+{ref}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
+        The name of the index.
+
+{ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
+        The unique document id.
+
+`ctx['_version']` (`int`, read-only)::
+        The current version of the document.
+
+`ctx['_now']` (`long`, read-only)::
+        The current timestamp in milliseconds.
+
+{ref}/mapping-source-field.html[`ctx['_source']`] (`Map`)::
+        Contains extracted JSON in a `Map` and `List` structure for the fields
+        existing in a stored document.
+
+*Side Effects*
+
+`ctx['op']`::
+        Use the default of `index` to update a document. Set to `none` to
+        specify no operation or `delete` to delete the current document from
+        the index.
+
+{ref}/mapping-source-field.html[`ctx['_source']`]::
+        Modify the values in the `Map/List` structure to add, modify, or delete
+        the fields of a document.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+The standard <<painless-api-reference-shared, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+The following query updates a document to be sold, and sets the cost
+to the actual price paid after discounts:
+
+[source,console]
+--------------------------------------------------
+POST /seats/_update/3
+{
+  "script": {
+    "source": "ctx._source.sold = true; ctx._source.cost = params.sold_cost",
+    "lang": "painless",
+    "params": {
+      "sold_cost": 26
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:seats]

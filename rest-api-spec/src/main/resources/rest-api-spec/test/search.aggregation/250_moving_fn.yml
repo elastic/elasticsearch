@@ -1,0 +1,77 @@
+---
+"Bad window":
+
+  - skip:
+      version: " - 7.1.99"
+      reason:  "calendar_interval added in 7.2"
+
+  - do:
+      catch: /\[window\] must be a positive, non-zero integer\./
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: -1
+                    script: "MovingFunctions.windowMax(values)"
+
+---
+"Bad window deprecated interval":
+
+  - skip:
+      version: " - 7.1.99"
+      reason:  "interval deprecation added in 7.2"
+      features: "warnings"
+
+  - do:
+      catch: /\[window\] must be a positive, non-zero integer\./
+      warnings:
+        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: -1
+                    script: "MovingFunctions.windowMax(values)"
+---
+"Not under date_histo":
+
+  - do:
+      catch: /\[window\] must be a positive, non-zero integer\./
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_avg:
+              avg:
+                field: "value_field"
+            the_mov_fn:
+              moving_fn:
+                buckets_path: "the_avg"
+                window: -1
+                script: "MovingFunctions.windowMax(values)"
+

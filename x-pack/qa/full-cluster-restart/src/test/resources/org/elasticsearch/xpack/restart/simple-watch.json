@@ -1,0 +1,39 @@
+{
+  "trigger" : {
+    "schedule": {
+      "interval": "1s"
+    }
+  },
+  "input" : {
+    "search" : {
+      "timeout": "100s",
+      "request" : {
+        "indices" : [ ".watches" ],
+        "body" : {
+          "query" : { "match_all" : {}},
+          "size": 1
+        }
+      }
+    }
+  },
+  "condition" : {
+    "always" : {}
+  },
+  "throttle_period": "1s",
+  "actions" : {
+    "index_payload" : {
+      "transform" : {
+        "search" : {
+          "request" : {
+            "body" : { "size": 1, "query" : { "match_all" : {} }}
+          },
+          "timeout": "100s"
+        }
+      },
+      "index" : {
+        "index" : "bwc_watch_index",
+        "timeout": "100s"
+      }
+    }
+  }
+}

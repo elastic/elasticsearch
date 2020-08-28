@@ -1,0 +1,77 @@
+[[painless-context-examples]]
+=== Context examples
+
+To run the examples, index the sample seat data into Elasticsearch. The examples
+must be run sequentially to work correctly.
+
+. Download the
+https://download.elastic.co/demos/painless/contexts/seats.json[seat data]. This
+data set contains booking information for a collection of plays. Each document
+represents a single seat for a play at a particular theater on a specific date
+and time.
++
+Each document contains the following fields:
++
+`theatre` ({ref}/keyword.html[`keyword`])::
+        The name of the theater the play is in.
+`play` ({ref}/text.html[`text`])::
+        The name of the play.
+`actors` ({ref}/text.html[`text`])::
+        A list of actors in the play.
+`row` ({ref}/number.html[`integer`])::
+        The row of the seat.
+`number` ({ref}/number.html[`integer`])::
+        The number of the seat within a row.
+`cost` ({ref}/number.html[`double`])::
+        The cost of the ticket for the seat.
+`sold` ({ref}/boolean.html[`boolean`])::
+        Whether or not the seat is sold.
+`datetime` ({ref}/date.html[`date`])::
+        The date and time of the play as a date object.
+`date` ({ref}/keyword.html[`keyword`])::
+        The date of the play as a keyword.
+`time` ({ref}/keyword.html[`keyword`])::
+        The time of the play as a keyword.
+
+. {defguide}/running-elasticsearch.html[Start] Elasticsearch. Note these
+examples assume Elasticsearch and Kibana are running locally. To use the Console
+editor with a remote Kibana instance, click the settings icon and enter the
+Console URL. To submit a cURL request to a remote Elasticsearch instance, edit
+the request URL.
+
+. Create {ref}/mapping.html[mappings] for the sample data:
++
+[source,console]
+----
+PUT /seats
+{
+  "mappings": {
+    "properties": {
+      "theatre":  { "type": "keyword" },
+      "play":     { "type": "keyword" },
+      "actors":   { "type": "text"    },
+      "row":      { "type": "integer" },
+      "number":   { "type": "integer" },
+      "cost":     { "type": "double"  },
+      "sold":     { "type": "boolean" },
+      "datetime": { "type": "date"    },
+      "date":     { "type": "keyword" },
+      "time":     { "type": "keyword" }
+    }
+  }
+}
+----
++
+
+. Run the <<painless-ingest-processor-context, ingest processor context>>
+example. This sets up a script ingest processor used on each document as the
+seat data is indexed.
+
+. Index the seat data:
++
+[source,js]
+----
+curl -XPOST "localhost:9200/seats/_bulk?pipeline=seats" -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
+----
+// NOTCONSOLE
+

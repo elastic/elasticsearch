@@ -1,0 +1,160 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// Default security policy file.
+// On startup, BootStrap reads environment and adds additional permissions
+// for configured paths and network binding to these.
+
+//// SecurityManager impl:
+//// Must have all permissions to properly perform access checks
+
+grant codeBase "${codebase.elasticsearch-secure-sm}" {
+  permission java.security.AllPermission;
+};
+
+//// Very special jar permissions:
+//// These are dangerous permissions that we don't want to grant to everything.
+
+grant codeBase "${codebase.lucene-core}" {
+  // needed to allow MMapDirectory's "unmap hack" (die unmap hack, die)
+  // java 8 package
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  // java 9 "package"
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.ref";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // NOTE: also needed for RAMUsageEstimator size calculations
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.lucene-misc}" {
+  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
+  permission java.nio.file.LinkPermission "hard";
+};
+
+grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
+  // needed to create the classloader which allows plugins to extend other plugins
+  permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${codebase.jna}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+//// Everything else:
+
+grant {
+  // needed by vendored Guice
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
+
+  // checked by scripting engines, and before hacks and other issues in
+  // third party code, to safeguard these against unprivileged code like scripts.
+  permission org.elasticsearch.SpecialPermission;
+
+  // Allow host/ip name service lookups
+  permission java.net.SocketPermission "*", "resolve";
+
+  // Allow reading and setting socket keepalive options
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPIDLE";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPIDLE";
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPINTERVAL";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPINTERVAL";
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPCOUNT";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPCOUNT";
+
+  // Allow read access to all system properties
+  permission java.util.PropertyPermission "*", "read";
+
+  // TODO: clean all these property writes up, and don't allow any more in. these are all bogus!
+
+  // LuceneTestCase randomization (locale/timezone/cpus/ssd)
+  // TODO: put these in doPrivileged and move these to test-framework.policy
+  permission java.util.PropertyPermission "user.language", "write";
+  permission java.util.PropertyPermission "user.timezone", "write";
+  permission java.util.PropertyPermission "lucene.cms.override_core_count", "write";
+  permission java.util.PropertyPermission "lucene.cms.override_spins", "write";
+  // messiness in LuceneTestCase: do the above, or clean this up, or simply allow to fail if its denied
+  permission java.util.PropertyPermission "solr.solr.home", "write";
+  permission java.util.PropertyPermission "solr.data.dir", "write";
+  permission java.util.PropertyPermission "solr.directoryFactory", "write";
+
+  // set by ESTestCase to improve test reproducibility
+  // TODO: set this with gradle or some other way that repros with seed?
+  permission java.util.PropertyPermission "processors.override", "write";
+
+  // TODO: these simply trigger a noisy warning if its unable to clear the properties
+  // fix that in randomizedtesting
+  permission java.util.PropertyPermission "junit4.childvm.count", "write";
+  permission java.util.PropertyPermission "junit4.childvm.id", "write";
+
+  // needed by Settings
+  permission java.lang.RuntimePermission "getenv.*";
+
+  // thread permission for the same thread group and ancestor groups
+  // (this logic is more strict than the JDK, see SecureSM)
+  permission java.lang.RuntimePermission "modifyThread";
+  permission java.lang.RuntimePermission "modifyThreadGroup";
+
+  // needed by ExceptionSerializationTests and RestTestCase for
+  // some hackish things they do. otherwise only needed by groovy
+  // (TODO: clean this up?)
+  permission java.lang.RuntimePermission "getProtectionDomain";
+
+  // needed by HotThreads and potentially more
+  // otherwise can be provided only to test libraries
+  permission java.lang.RuntimePermission "getStackTrace";
+
+  // needed by JMX instead of getFileSystemAttributes, seems like a bug...
+  permission java.lang.RuntimePermission "getFileStoreAttributes";
+
+  // needed for jimfs and NewPathForShardsTests
+  // otherwise can be provided only to test libraries
+  permission java.lang.RuntimePermission "fileSystemProvider";
+
+  // needed by jvminfo for monitoring the jvm
+  permission java.lang.management.ManagementPermission "monitor";
+
+  // needed by JDKESLoggerTests
+  permission java.util.logging.LoggingPermission "control";
+
+  // load averages on Linux
+  permission java.io.FilePermission "/proc/loadavg", "read";
+
+  // read max virtual memory areas
+  permission java.io.FilePermission "/proc/sys/vm/max_map_count", "read";
+
+  // OS release on Linux
+  permission java.io.FilePermission "/etc/os-release", "read";
+  permission java.io.FilePermission "/usr/lib/os-release", "read";
+  permission java.io.FilePermission "/etc/system-release", "read";
+
+  // io stats on Linux
+  permission java.io.FilePermission "/proc/self/mountinfo", "read";
+  permission java.io.FilePermission "/proc/diskstats", "read";
+
+  // control group stats on Linux
+  permission java.io.FilePermission "/proc/self/cgroup", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+};

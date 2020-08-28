@@ -1,5 +1,8 @@
 [[analysis-pattern-capture-tokenfilter]]
-=== Pattern Capture Token Filter
+=== Pattern capture token filter
+++++
+<titleabbrev>Pattern capture</titleabbrev>
+++++
 
 The `pattern_capture` token filter, unlike the `pattern` tokenizer,
 emits a token for every capture group in the regular expression.
@@ -12,25 +15,25 @@ overlap.
 ========================================
 
 The pattern capture token filter uses
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
 
 A badly written regular expression could run very slowly or even throw a
 StackOverflowError and cause the node it is running on to exit suddenly.
 
-Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+Read more about https://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
 
 ========================================
 
 For instance a pattern like :
 
-[source,js]
+[source,text]
 --------------------------------------------------
 "(([a-z]+)(\d*))"
 --------------------------------------------------
 
 when matched against:
 
-[source,js]
+[source,text]
 --------------------------------------------------
 "abc123def456"
 --------------------------------------------------
@@ -44,7 +47,7 @@ emit the original token: `abc123def456`.
 This is particularly useful for indexing text like camel-case code, eg
 `stripHTML` where a user may search for `"strip html"` or `"striphtml"`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -70,11 +73,10 @@ PUT test
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 When used to analyze the text
 
-[source,js]
+[source,java]
 --------------------------------------------------
 import static org.apache.commons.lang.StringEscapeUtils.escapeHtml
 --------------------------------------------------
@@ -85,7 +87,7 @@ this emits the tokens: [ `import`, `static`, `org`, `apache`, `commons`,
 
 Another example is analyzing email addresses:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -113,11 +115,10 @@ PUT test
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 When the above analyzer is used on an email address like:
 
-[source,js]
+[source,text]
 --------------------------------------------------
 john-smith_123@foo-bar.com
 --------------------------------------------------
@@ -131,19 +132,21 @@ Multiple patterns are required to allow overlapping captures, but also
 means that patterns are less dense and easier to understand.
 
 *Note:* All tokens are emitted in the same position, and with the same
-character offsets, so when combined with highlighting, the whole
-original token will be highlighted, not just the matching subset. For
-instance, querying the above email address for `"smith"` would
-highlight:
+character offsets. This means, for example, that a `match` query for
+`john-smith_123@foo-bar.com` that uses this analyzer will return documents
+containing any of these tokens, even when using the `and` operator.
+Also, when combined with highlighting, the whole original token will 
+be highlighted, not just the matching subset. For instance, querying 
+the above email address for `"smith"` would highlight:
 
-[source,js]
+[source,html]
 --------------------------------------------------
   <em>john-smith_123@foo-bar.com</em>
 --------------------------------------------------
 
 not:
 
-[source,js]
+[source,html]
 --------------------------------------------------
   john-<em>smith</em>_123@foo-bar.com
 --------------------------------------------------

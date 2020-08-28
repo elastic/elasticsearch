@@ -1,0 +1,35 @@
+
+--
+:api: get-certificates
+:response: GetSslCertificatesResponse
+--
+
+[role="xpack"]
+[id="{upid}-{api}"]
+=== SSL Certificate API
+
+[id="{upid}-{api}-request"]
+==== Get Certificates Request
+
+The X.509 Certificates that are used to encrypt communications in an
+Elasticsearch cluster using the `security().getSslCertificates()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[{api}-execute]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Get Certificates Response
+
+The returned +{response}+ contains a single field, `certificates`.
+This field, accessed with `getCertificates` returns a List of `CertificateInfo`
+objects containing the information for all the certificates used.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[{api}-response]
+--------------------------------------------------
+<1> `certificates` is a List of `CertificateInfo`
+
+include::../execution.asciidoc[]

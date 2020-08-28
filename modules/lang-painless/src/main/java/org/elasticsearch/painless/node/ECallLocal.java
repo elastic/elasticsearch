@@ -19,78 +19,45 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a user-defined call.
  */
-public final class ECallLocal extends AExpression {
+public class ECallLocal extends AExpression {
 
-    private final String name;
-    private final List<AExpression> arguments;
+    private final String methodName;
+    private final List<AExpression> argumentNodes;
 
-    private Method method = null;
+    public ECallLocal(int identifier, Location location, String methodName, List<AExpression> argumentNodes) {
+        super(identifier, location);
 
-    public ECallLocal(Location location, String name, List<AExpression> arguments) {
-        super(location);
+        this.methodName = Objects.requireNonNull(methodName);
+        this.argumentNodes = Collections.unmodifiableList(Objects.requireNonNull(argumentNodes));
+    }
 
-        this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public List<AExpression> getArgumentNodes() {
+        return argumentNodes;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitCallLocal(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        MethodKey methodKey = new MethodKey(name, arguments.size());
-        method = locals.getMethod(methodKey);
-
-        if (method == null) {
-            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AExpression argumentNode : argumentNodes) {
+            argumentNode.visit(userTreeVisitor, scope);
         }
-
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
-
-            expression.expected = method.arguments.get(argument);
-            expression.internal = true;
-            expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
-        }
-
-        statement = true;
-        actual = method.rtn;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        for (AExpression argument : arguments) {
-            argument.write(writer, globals);
-        }
-
-        writer.invokeStatic(CLASS_TYPE, method.method);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, name);
     }
 }

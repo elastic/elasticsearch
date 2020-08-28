@@ -1,0 +1,289 @@
+[[java-rest-high-level-migration]]
+== Migration Guide
+
+This section describes how to migrate existing code from the `TransportClient`
+to the Java High Level REST Client released with the version 5.6.0
+of Elasticsearch.
+
+=== Motivations around a new Java client
+
+The existing `TransportClient` has been part of Elasticsearch since https://github.com/elastic/elasticsearch/blob/b3337c312765e51cec7bde5883bbc0a08f56fb65/modules/elasticsearch/src/main/java/org/elasticsearch/client/transport/TransportClient.java[its very first commit].
+ It is a special client as it uses the transport protocol to communicate with Elasticsearch,
+ which causes compatibility problems if the client is not on the same version as the
+ Elasticsearch instances it talks to.
+
+We released a low-level REST client in 2016, which is based on the well known Apache HTTP
+client and it allows to communicate with an Elasticsearch cluster in any version using HTTP.
+On top of that we released the high-level REST client which is based on the low-level client
+but takes care of request marshalling and response un-marshalling.
+
+If you're interested in knowing more about these changes, we wrote a blog post about the
+https://www.elastic.co/blog/state-of-the-official-elasticsearch-java-clients[state of the official Elasticsearch Java clients].
+
+=== Prerequisite
+
+The Java High Level Rest Client requires Java `1.8` and can be used to send requests
+to an <<java-rest-high-compatibility,Elasticsearch cluster in a compatible version>>.
+
+=== How to migrate
+
+Adapting existing code to use the `RestHighLevelClient` instead of the `TransportClient`
+requires the following steps:
+
+- Update dependencies
+- Update client initialization
+- Update application code
+
+=== Updating the dependencies
+
+Java application that uses the `TransportClient` depends on the
+`org.elasticsearch.client:transport` artifact. This dependency
+must be replaced by a new dependency on the high-level client.
+
+The <<java-rest-high-getting-started,Getting Started>> page shows
+ typical configurations for Maven and Gradle and presents the
+ <<java-rest-high-getting-started-dependencies, dependencies>> brought by the
+ high-level client.
+
+// This ID is bad but it is the one we've had forever.
+[[_changing_the_client_8217_s_initialization_code]]
+=== Changing the client's initialization code
+
+The `TransportClient` is typically initialized as follows:
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.builder()
+        .put("cluster.name", "prod").build();
+
+TransportClient transportClient = new PreBuiltTransportClient(settings)
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("localhost"), 9300))
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("localhost"), 9301));
+--------------------------------------------------
+
+The initialization of a `RestHighLevelClient` is different. It requires to provide
+a <<java-rest-low-usage-initialization,low-level client builder>> as a constructor
+argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
+--------------------------------------------------
+
+NOTE: The `RestClient` uses Elasticsearch's HTTP service which is
+ bounded by default on `9200`. This port is different from the port
+ used to connect to Elasticsearch with a `TransportClient`.
+
+The `RestHighLevelClient` is thread-safe. It is typically instantiated by the
+application at startup time or when the first request is executed.
+
+Once the `RestHighLevelClient` is initialized, it can be used to execute any
+of the <<java-rest-high-supported-apis,supported APIs>>.
+
+As with the `TransportClient`, the `RestHighLevelClient` must be closed when it
+is not needed anymore or when the application is stopped.
+
+The code that closes the `TransportClient`:
+
+[source,java]
+--------------------------------------------------
+transportClient.close();
+--------------------------------------------------
+
+must be replaced with:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
+--------------------------------------------------
+
+// This ID is bad but it is the one we've had forever.
+[[_changing_the_application_8217_s_code]]
+=== Changing the application's code
+
+The `RestHighLevelClient` supports the same request and response objects
+as the `TransportClient`, but exposes slightly different methods to
+send the requests.
+
+More importantly, the high-level client:
+
+- does not support request builders. The legacy methods like
+`client.prepareIndex()` must be changed to use
+ request constructors like `new IndexRequest()` to create requests
+ objects. The requests are then executed using synchronous or
+ asynchronous dedicated methods like `client.index()` or `client.indexAsync()`.
+
+==== How to migrate the way requests are built
+
+The Java API provides two ways to build a request: by using the request's constructor or by using
+a request builder. Migrating from the `TransportClient` to the high-level client can be
+straightforward if application's code uses the former, while changing usages of the latter can
+require more work.
+
+[[java-rest-high-level-migration-request-ctor]]
+===== With request constructors
+
+When request constructors are used, like in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-ctor]
+--------------------------------------------------
+<1> Create an `IndexRequest` using its constructor and id() setter.
+
+The migration is very simple. The execution using the `TransportClient`:
+
+[source,java]
+--------------------------------------------------
+IndexResponse response = transportClient.index(indexRequest).actionGet();
+--------------------------------------------------
+
+Can be easily replaced to use the `RestHighLevelClient`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-ctor-execution]
+--------------------------------------------------
+
+[[java-rest-high-level-migration-request-builder]]
+===== With request builders
+
+The Java API provides a request builder for every type of request. They are exposed by the
+`TransportClient` through the many `prepare()` methods. Here are some examples:
+
+[source,java]
+--------------------------------------------------
+IndexRequestBuilder indexRequestBuilder   = transportClient.prepareIndex();  // <1>
+DeleteRequestBuilder deleteRequestBuilder = transportClient.prepareDelete(); // <2>
+SearchRequestBuilder searchRequestBuilder = transportClient.prepareSearch(); // <3>
+--------------------------------------------------
+<1> Create a `IndexRequestBuilder` using the `prepareIndex()` method from the `TransportClient`. The
+request builder encapsulates the `IndexRequest` to be executed.
+<2> Create a `DeleteRequestBuilder` using the `prepareDelete()` method from the `TransportClient`. The
+request builder encapsulates the `DeleteRequest` to be executed.
+<3> Create a `SearchRequestBuilder` using the `prepareSearch()` method from the `TransportClient`. The
+request builder encapsulates the `SearchRequest` to be executed.
+
+Since the Java High Level REST Client does not support request builders, applications that use
+them must be changed to use <<java-rest-high-level-migration-request-ctor,requests constructors>> instead.
+
+NOTE: While you are incrementally migrating your application and you have both the transport client
+and the high level client available you can always get the `Request` object from the `Builder` object
+by calling `Builder.request()`. We do not advise continuing to depend on the builders in the long run
+but it should be possible to use them during the transition from the transport client to the high
+level rest client.
+
+==== How to migrate the way requests are executed
+
+The `TransportClient` allows to execute requests in both synchronous and asynchronous ways. This is also
+possible using the high-level client.
+
+===== Synchronous execution
+
+The following example shows how a `DeleteRequest` can be synchronously executed using the `TransportClient`:
+
+[source,java]
+--------------------------------------------------
+DeleteRequest request = new DeleteRequest("index", "doc", "id"); // <1>
+DeleteResponse response = transportClient.delete(request).actionGet(); // <2>
+--------------------------------------------------
+<1> Create the `DeleteRequest` using its constructor
+<2> Execute the `DeleteRequest`. The `actionGet()` method blocks until a
+response is returned by the cluster.
+
+The same request synchronously executed using the high-level client is:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-sync-execution]
+--------------------------------------------------
+<1> Execute the `DeleteRequest`. The `delete()` method blocks until a
+response is returned by the cluster.
+
+===== Asynchronous execution
+
+The following example shows how a `DeleteRequest` can be asynchronously executed using the `TransportClient`:
+
+[source,java]
+--------------------------------------------------
+DeleteRequest request = new DeleteRequest("index", "doc", "id"); // <1>
+transportClient.delete(request, new ActionListener<DeleteResponse>() { // <2>
+    @Override
+    public void onResponse(DeleteResponse deleteResponse) {
+        // <3>
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        // <4>
+    }
+});
+--------------------------------------------------
+<1> Create the `DeleteRequest` using its constructor
+<2> Execute the `DeleteRequest` by passing the request and a
+`ActionListener` that gets called on execution completion or
+failure. This method does not block and returns immediately.
+<3> The `onResponse()` method is called when the response is
+returned by the cluster.
+<4> The `onFailure()` method is called when an error occurs
+during the execution of the request.
+
+The same request asynchronously executed using the high-level client is:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-async-execution]
+--------------------------------------------------
+<1> Create the `DeleteRequest` using its constructor
+<2> Execute the `DeleteRequest` by passing the request and a
+`ActionListener` that gets called on execution completion or
+failure. This method does not block and returns immediately.
+<3> The `onResponse()` method is called when the response is
+returned by the cluster.
+<4> The `onFailure()` method is called when an error occurs
+during the execution of the request.
+
+[[java-rest-high-level-migration-cluster-health]]
+==== Checking Cluster Health using the Low-Level REST Client
+
+Another common need is to check the cluster's health using the Cluster API. With
+the `TransportClient` it can be done this way:
+
+[source,java]
+--------------------------------------------------
+ClusterHealthResponse response = client.admin().cluster().prepareHealth().get(); // <1>
+
+ClusterHealthStatus healthStatus = response.getStatus(); // <2>
+if (healthStatus != ClusterHealthStatus.GREEN) {
+    // <3>
+}
+--------------------------------------------------
+<1> Execute a `ClusterHealth` with default parameters
+<2> Retrieve the cluster's health status from the response
+<3> Handle the situation where the cluster's health is not green
+
+With the low-level client, the code can be changed to:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-health]
+--------------------------------------------------
+<1> Set up the request to wait for the cluster's health to become green if it isn't already.
+<2> Make the request and the get back a `Response` object.
+<3> Retrieve an `InputStream` object in order to read the response's content
+<4> Parse the response's content using Elasticsearch's helper class `XContentHelper`. This
+ helper requires the content type of the response to be passed as an argument and returns
+ a `Map` of objects. Values in the map can be of any type, including inner `Map` that are
+ used to represent the JSON object hierarchy.
+<5> Retrieve the value of the `status` field in the response map, casts it as a `String`
+object and use the `ClusterHealthStatus.fromString()` method to convert it as a `ClusterHealthStatus`
+object. This method throws an exception if the value does not corresponds to a valid cluster
+health status.
+<6> Handle the situation where the cluster's health is not green
+
+Note that for convenience this example uses Elasticsearch's helpers to parse the JSON response
+body, but any other JSON parser could have been use instead.
+
+=== Provide feedback
+
+We love to hear from you! Please give us your feedback about your migration
+experience and how to improve the Java High Level Rest Client on https://discuss.elastic.co/[our forum].

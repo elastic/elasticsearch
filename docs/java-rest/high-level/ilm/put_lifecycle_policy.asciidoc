@@ -1,0 +1,38 @@
+--
+:api: ilm-put-lifecycle-policy
+:request: PutLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Put Lifecycle Policy API allows you to add an Index Lifecycle Management
+Policy to the cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Adds a hot phase with a rollover action
+<2> Adds a delete phase that will delete in the index 90 days after rollover
+<3> Creates the policy with the defined phases and the name `my_policy`
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the put lifecycle policy request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the put lifecycle policy was acknowledged.
+
+include::../execution.asciidoc[]
+
+

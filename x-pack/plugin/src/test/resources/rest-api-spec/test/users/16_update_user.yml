@@ -1,0 +1,132 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "superuser" ]
+            }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Test creating a user without password":
+  - do:
+      catch: bad_request
+      security.put_user:
+        username: "no_password_user"
+        body:  >
+            {
+              "roles" : [ "superuser" ]
+            }
+  - match: { error.root_cause.0.reason: 'Validation Failed: 1: password must be specified unless you are updating an existing user;' }
+
+---
+"Test create user and update without and with password":
+  - skip:
+      features: [headers, catch_unauthorized]
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      security.get_user:
+        username: "joe"
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "superuser" }
+  - is_false: joe.full_name
+  - is_false: joe.email
+
+# update the user without a password
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "roles" : [ "superuser", "foo" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
+            }
+  - match: { created: false }
+
+# validate existing password works
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+# validate other properties
+  - do:
+      security.get_user:
+        username: "joe"
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "superuser" }
+  - match: { joe.roles.1:  "foo" }
+  - match: { joe.full_name:  "Bazooka Joe" }
+  - match: { joe.email:  "joe@bazooka.gum" }
+  - match: { joe.metadata.key1:  "val1" }
+  - match: { joe.metadata.key2:  "val2" }
+
+# update with password
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password" : "s3krit2",
+              "roles" : [ "superuser" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2",
+                "key3" : "val3"
+              }
+            }
+  - match: { created: false }
+
+# validate old password doesn't work
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+
+# validate new password works
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdDI="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+# validate properties
+  - do:
+      security.get_user:
+        username: "joe"
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "superuser" }
+  - match: { joe.full_name:  "Bazooka Joe" }
+  - match: { joe.email:  "joe@bazooka.gum" }
+  - match: { joe.metadata.key1:  "val1" }
+  - match: { joe.metadata.key2:  "val2" }
+  - match: { joe.metadata.key3:  "val3" }

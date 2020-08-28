@@ -1,0 +1,100 @@
+setup:
+  - do:
+      indices.create:
+        index: index
+        body:
+          aliases:
+            alias: {}
+  - do:
+      indices.create:
+        index: index2
+---
+"Delete index against alias":
+  - do:
+      catch: bad_request
+      indices.delete:
+        index: alias
+  - do:
+      indices.get:
+        index: index,index2
+  - is_true: index
+  - is_true: index2
+---
+"Delete index against alias - ignore unavailable":
+  - do:
+      indices.delete:
+        index: alias
+        ignore_unavailable: true
+  - do:
+      indices.get:
+        index: index,index2
+  - is_true: index
+  - is_true: index2
+---
+"Delete index against alias -  multiple indices":
+  - do:
+      catch: bad_request
+      indices.delete:
+        index: alias,index2
+  - do:
+      indices.get:
+        index: index,index2
+  - is_true: index
+  - is_true: index2
+---
+"Delete index against alias -  ignore unavailable - multiple indices":
+  - do:
+      indices.delete:
+        index: alias,index2
+        ignore_unavailable: true
+  - do:
+      indices.get:
+        index: index,index2
+        ignore_unavailable: true
+  - is_true: index
+  - is_false: index2
+---
+"Delete index against wildcard matching alias":
+  - do:
+      indices.delete:
+        index: alia*
+  - do:
+      indices.get:
+        index: index,index2
+  - is_true: index
+  - is_true: index2
+---
+"Delete index against wildcard matching alias - disallow no indices":
+  - do:
+      catch: missing
+      indices.delete:
+        index: alia*
+        allow_no_indices: false
+  - do:
+      indices.get:
+        index: index,index2
+  - is_true: index
+  - is_true: index2
+---
+"Delete index against wildcard matching alias - multiple indices":
+  - do:
+      indices.delete:
+        index: alia*,index2
+  - do:
+      indices.get:
+        index: index,index2
+        ignore_unavailable: true
+  - is_true: index
+  - is_false: index2
+---
+"Delete index against wildcard matching alias - disallow no indices - multiple indices":
+  - do:
+      catch: missing
+      indices.delete:
+        index: index2,alia*
+        allow_no_indices: false
+  - do:
+      indices.get:
+        index: index,index2
+  - is_true: index
+  - is_true: index2

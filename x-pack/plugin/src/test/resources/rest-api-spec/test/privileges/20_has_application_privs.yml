@@ -1,0 +1,378 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  # Create some privileges
+  - do:
+      security.put_privileges:
+        body: >
+          {
+            "myapp": {
+              "user": {
+                "application": "myapp",
+                "name": "user",
+                "actions": [ "action:login", "version:1.0.*" ]
+              },
+              "read": {
+                "application": "myapp",
+                "name": "read",
+                "actions": [ "data:read/*" ]
+              },
+              "write": {
+                "application": "myapp",
+                "name": "write",
+                "actions": [ "data:write/*" ]
+              }
+            },
+            "yourapp-v1" : {
+              "read": {
+                "actions": [ "data:read/*" ]
+              }
+            },
+            "yourapp-v2" : {
+              "read": {
+                "actions": [ "data:read/*" ]
+              }
+            }
+          }
+
+  # Store 2 test roles
+  - do:
+      security.put_role:
+        name: "myapp_engineering_read"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": "engineering-*",
+                  "privileges": ["read"]
+                }
+              ],
+              "applications": [
+                {
+                  "application": "myapp",
+                  "privileges": ["user"],
+                  "resources": ["*"]
+                },
+                {
+                  "application": "myapp",
+                  "privileges": ["read"],
+                  "resources": ["engineering/*"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "myapp_engineering_write"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": "engineering-*",
+                  "privileges": ["read"]
+                }
+              ],
+              "applications": [
+                {
+                  "application": "myapp",
+                  "privileges": ["user"],
+                  "resources": ["*"]
+                },
+                {
+                  "application": "myapp",
+                  "privileges": ["read", "write"],
+                  "resources": ["engineering/*"]
+                }
+              ]
+            }
+  - do:
+      security.put_role:
+        name: "yourapp_read_config"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [],
+              "applications": [
+                {
+                  "application": "yourapp-*",
+                  "privileges": ["read"],
+                  "resources": ["settings/*"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "role_containing_wildcard_app_name_and_plain_app_name"
+        body:  >
+          {
+            "cluster": [],
+            "indices": [],
+            "applications": [
+              {
+                "application": "myapp",
+                "privileges": ["user"],
+                "resources": ["*"]
+              },
+              {
+                "application": "yourapp-*",
+                "privileges": ["read"],
+                "resources": ["*"]
+              }
+            ]
+          }
+
+  # And a user for each role
+  - do:
+      security.put_user:
+          username: "eng_read"
+          body:  >
+              {
+                "password": "p@ssw0rd",
+                "roles" : [ "myapp_engineering_read" ]
+              }
+  - do:
+      security.put_user:
+          username: "eng_write"
+          body:  >
+              {
+                "password": "p@ssw0rd",
+                "roles" : [ "myapp_engineering_write" ]
+              }
+  - do:
+      security.put_user:
+          username: "your_read"
+          body:  >
+              {
+                "password": "p@ssw0rd",
+                "roles" : [ "yourapp_read_config" ]
+              }
+  - do:
+      security.put_user:
+        username: "myapp_yourapp_wildard_role_user"
+        body:  >
+          {
+            "password": "p@ssw0rd",
+            "roles" : [ "role_containing_wildcard_app_name_and_plain_app_name" ]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_privileges:
+        application: myapp
+        name: "user,read,write"
+        ignore: 404
+  - do:
+      security.delete_privileges:
+        application: yourapp-v1
+        name: "read"
+        ignore: 404
+  - do:
+      security.delete_privileges:
+        application: yourapp-v2
+        name: "read"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "eng_read"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "eng_write"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "your_read"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "myapp_yourapp_wildard_role_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "myapp_engineering_read"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "myapp_engineering_write"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "yourapp_read_config"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "role_containing_wildcard_app_name_and_plain_app_name"
+        ignore: 404
+
+---
+"Test has_privileges with application-privileges":
+  - do:
+      headers: { Authorization: "Basic ZW5nX3JlYWQ6cEBzc3cwcmQ=" } # eng_read
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              {
+                "names" :[ "engineering-logs", "product-logs" ],
+                "privileges" : [ "read", "index", "write" ]
+              }
+            ],
+            "application": [
+              {
+                "application" : "myapp",
+                "resources" : [ "*" ],
+                "privileges" : [ "action:login", "version:1.0.3" ]
+              },
+              {
+                "application" : "myapp",
+                "resources" : [ "engineering/logs/*", "product/logs/*" ],
+                "privileges" : [ "data:read/log/raw", "data:write/log/raw" ]
+              }
+            ]
+          }
+
+  - match: { "username" : "eng_read" }
+  - match: { "has_all_requested" : false }
+  - match: { "index" : {
+      "engineering-logs" : {
+        "read": true,
+        "index": false,
+        "write": false
+      },
+      "product-logs" : {
+        "read": false,
+        "index": false,
+        "write": false
+      }
+    } }
+  - match: { "application" : {
+      "myapp" : {
+        "*" : {
+          "action:login" : true,
+          "version:1.0.3" : true
+        },
+        "engineering/logs/*" : {
+          "data:read/log/raw" : true,
+          "data:write/log/raw" : false
+        },
+        "product/logs/*" : {
+          "data:read/log/raw" : false,
+          "data:write/log/raw" : false
+        }
+      }
+    } }
+
+  - do:
+      headers: { Authorization: "Basic eW91cl9yZWFkOnBAc3N3MHJk" } # your_read
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "application": [
+              {
+                "application" : "yourapp-v1",
+                "resources" : [ "settings/host", "settings/port", "system/key" ],
+                "privileges" : [ "data:read/settings", "data:write/settings", "read", "write" ]
+              },
+              {
+                "application" : "yourapp-v2",
+                "resources" : [ "settings/host" ],
+                "privileges" : [ "data:read/settings", "data:write/settings" ]
+              }
+            ]
+          }
+
+  - match: { "username" : "your_read" }
+  - match: { "has_all_requested" : false }
+  - match: { "application": {
+      "yourapp-v1": {
+        "settings/host": {
+          "data:read/settings": true,
+          "data:write/settings": false,
+          "read": true,
+          "write": false
+        },
+        "settings/port": {
+          "data:read/settings": true,
+          "data:write/settings": false,
+          "read": true,
+          "write": false
+        },
+        "system/key": {
+          "data:read/settings": false,
+          "data:write/settings": false,
+          "read": false,
+          "write": false
+        }
+      },
+      "yourapp-v2": {
+        "settings/host": {
+          "data:read/settings": true,
+          "data:write/settings": false,
+        }
+      }
+    } }
+
+  - do:
+      headers: { Authorization: "Basic bXlhcHBfeW91cmFwcF93aWxkYXJkX3JvbGVfdXNlcjpwQHNzdzByZA==" } # myapp_yourapp_wildard_role_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "application": [
+              {
+                "application" : "myapp",
+                "resources" : [ "*" ],
+                "privileges" : [ "action:login" ]
+              },
+              {
+                "application" : "yourapp-v1",
+                "resources" : [ "*" ],
+                "privileges" : [ "read" ]
+              },
+              {
+                "application" : "yourapp-v2",
+                "resources" : [ "*" ],
+                "privileges" : [ "read" ]
+              }
+            ]
+          }
+
+  - match: { "username" : "myapp_yourapp_wildard_role_user" }
+  - match: { "has_all_requested" : true }
+  - match: { "application" : {
+    "myapp" : {
+      "*" : {
+        "action:login" : true
+      }
+    },
+    "yourapp-v1": {
+      "*": {
+        "read": true
+      }
+    },
+    "yourapp-v2": {
+      "*": {
+        "read": true
+      }
+    }
+  } }

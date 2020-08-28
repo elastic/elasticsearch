@@ -1,0 +1,29 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Arithmetic tests outside H2
+//
+
+// the standard behavior here is to return the constant for each element
+// the weird thing is that an actual query needs to be ran
+arithmeticWithFrom
+SELECT 5 - 2 x FROM test_emp LIMIT 5;
+
+       x:i
+---------------
+3
+3
+3
+3
+3
+;
+
+
+nullArithmetics
+schema::a:i|b:d|c:s|d:s|e:l|f:i|g:i|h:i|i:i|j:i|k:d
+SELECT null + 2 AS a, null * 1.5 AS b, null + null AS c, null - null AS d, null - 1234567890123 AS e, 123 - null AS f, null / 5 AS g, 5 / null AS h, null % 5 AS i, 5 % null AS j, null + 5.5 - (null * (null * 3)) AS k;
+
+       a       |       b       |       c       |       d       |       e       |       f       |       g       |       h       |       i       |       j       |       k       
+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
+null           |null           |null           |null           |null           |null           |null           |null           |null           |null           |null           
+;

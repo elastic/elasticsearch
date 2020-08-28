@@ -1,0 +1,260 @@
+[role="xpack"]
+[testenv="basic"]
+[[put-transform]]
+= Create {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Create {transform}</titleabbrev>
+++++
+
+Instantiates a {transform}.
+
+[[put-transform-request]]
+== {api-request-title}
+
+`PUT _transform/<transform_id>`
+
+[[put-transform-prereqs]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `transform_admin`
+* source index: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
+
+For more information, see <<built-in-roles>>, <<security-privileges>>, and
+{ml-docs-setup-privileges}.
+
+
+[[put-transform-desc]]
+== {api-description-title}
+
+This API defines a {transform}, which copies data from source indices,
+transforms it, and persists it into an entity-centric destination index. The
+entities are defined by the set of `group_by` fields in the `pivot` object. You
+can also think of the destination index as a two-dimensional tabular data
+structure (known as a {dataframe}). The ID for each document in the
+{dataframe} is generated from a hash of the entity, so there is a unique row
+per entity. For more information, see <<transforms>>.
+
+When the {transform} is created, a series of validations occur to
+ensure its success. For example, there is a check for the existence of the
+source indices and a check that the destination index is not part of the source
+index pattern. You can use the `defer_validation` parameter to skip these
+checks.
+
+Deferred validations are always run when the {transform} is started,
+with the exception of privilege checks. When {es} {security-features} are
+enabled, the {transform} remembers which roles the user that created
+it had at the time of creation and uses those same roles. If those roles do not
+have the required privileges on the source and destination indices, the
+{transform} fails when it attempts unauthorized operations.
+
+IMPORTANT:  You must use {kib} or this API to create a {transform}.
+            Do not put a {transform} directly into any
+            `.transform-internal*` indices using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users any
+            privileges on `.transform-internal*` indices. If you used transforms
+            prior 7.5, also do not give users any privileges on
+            `.data-frame-internal*` indices.
+
+[[put-transform-path-parms]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+[[put-transform-query-parms]]
+== {api-query-parms-title}
+
+`defer_validation`::
+  (Optional, boolean) When `true`, deferrable validations are not run. This
+  behavior may be desired if the source index does not exist until after the
+  {transform} is created.
+
+[role="child_attributes"]
+[[put-transform-request-body]]
+== {api-request-body-title}
+
+`description`::
+  (Optional, string) Free text description of the {transform}.
+
+//Begin dest
+`dest`::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
++
+.Properties of `dest`
+[%collapsible%open]
+====
+
+`index`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`pipeline`:::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+====
+//End dest
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+//Begin pivot
+`pivot`::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot]
++
+.Properties of `pivot`
+[%collapsible%open]
+====
+
+`aggregations` or `aggs`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
+
+`group_by`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
+
+====
+//End pivot
+
+//Begin settings
+`settings`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
+
+//Begin source
+`source`::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
++
+.Properties of `source`
+[%collapsible%open]
+====
+
+`index`:::
+(Required, string or array)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`query`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+====
+//End source
+
+//Begin sync
+`sync`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
++
+.Properties of `sync`
+[%collapsible%open]
+====
+
+//Begin time
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+
+`delay`::::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+    
+`field`::::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
++
+--
+TIP: In general, it’s a good idea to use a field that contains the
+<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+you might need to set the `delay` such that it accounts for data transmission
+delays.
+
+--
+=====
+//End time
+====
+//End sync
+
+
+[[put-transform-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+PUT _transform/ecommerce_transform
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "5m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "60s"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:kibana_sample_data_ecommerce,add_timestamp_pipeline]
+
+When the {transform} is created, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

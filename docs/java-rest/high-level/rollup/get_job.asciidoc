@@ -1,0 +1,72 @@
+[role="xpack"]
+[[java-rest-high-x-pack-rollup-get-job]]
+=== Get Rollup Job API
+
+The Get Rollup Job API can be used to get one or all rollup jobs from the
+cluster. It accepts a `GetRollupJobRequest` object as a request and returns
+a `GetRollupJobResponse`.
+
+[[java-rest-high-x-pack-rollup-get-rollup-job-request]]
+==== Get Rollup Job Request
+
+A `GetRollupJobRequest` can be built without any parameters to get all of the
+rollup jobs or with a job name to get a single job:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-request]
+--------------------------------------------------
+<1> Gets all jobs.
+<2> Gets `job_1`.
+
+[[java-rest-high-x-pack-rollup-get-rollup-job-execution]]
+==== Execution
+
+The Get Rollup Job API can be executed through a `RollupClient`
+instance. Such instance can be retrieved from a `RestHighLevelClient`
+using the `rollup()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-rollup-get-rollup-job-response]]
+==== Response
+
+The returned `GetRollupJobResponse` includes a `JobWrapper` per returned job
+which contains the configuration of the job, the job's current status, and
+statistics about the job's past execution.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-response]
+--------------------------------------------------
+<1> We only asked for a single job
+
+[[java-rest-high-x-pack-rollup-get-rollup-job-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute-async]
+--------------------------------------------------
+<1> The `GetRollupJobRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetRollupJobResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

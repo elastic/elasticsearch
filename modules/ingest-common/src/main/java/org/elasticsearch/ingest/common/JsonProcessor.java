@@ -19,14 +19,19 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -43,8 +48,8 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean addToRoot;
 
-    JsonProcessor(String tag, String field, String targetField, boolean addToRoot) {
-        super(tag);
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
@@ -62,21 +67,53 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRoot;
     }
 
-    @Override
-    public void execute(IngestDocument document) throws Exception {
-        String stringValue = document.getFieldValue(field, String.class);
-        try {
-            Map<String, Object> mapValue = XContentHelper.convertToMap(JsonXContent.jsonXContent, stringValue, false);
-            if (addToRoot) {
-                for (Map.Entry<String, Object> entry : mapValue.entrySet()) {
-                    document.setFieldValue(entry.getKey(), entry.getValue());
-                }
-            } else {
-                document.setFieldValue(targetField, mapValue);
+    public static Object apply(Object fieldValue) {
+        BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
+        try (InputStream stream = bytesRef.streamInput();
+             XContentParser parser = JsonXContent.jsonXContent
+                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+            XContentParser.Token token = parser.nextToken();
+            Object value = null;
+            if (token == XContentParser.Token.VALUE_NULL) {
+                value = null;
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                value = parser.text();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                value = parser.numberValue();
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                value = parser.booleanValue();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                value = parser.map();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                value = parser.list();
+            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                throw new IllegalArgumentException("cannot read binary value");
             }
-        } catch (ElasticsearchParseException e) {
+            return value;
+        } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    public static void apply(Map<String, Object> ctx, String fieldName) {
+        Object value = apply(ctx.get(fieldName));
+        if (value instanceof Map) {
+            @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) value;
+                ctx.putAll(map);
+        } else {
+            throw new IllegalArgumentException("cannot add non-map fields to root of document");
+        }
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        if (addToRoot) {
+           apply(document.getSourceAndMetadata(), field);
+        } else {
+            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class)));
+        }
+        return document;
     }
 
     @Override
@@ -87,7 +124,7 @@ public final class JsonProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
         @Override
         public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
@@ -101,7 +138,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, field, targetField, addToRoot);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot);
         }
     }
 }

@@ -1,65 +1,110 @@
 [[indices-create-index]]
-== Create Index
+=== Create index API
+++++
+<titleabbrev>Create index</titleabbrev>
+++++
 
-The create index API allows to instantiate an index. Elasticsearch
-provides support for multiple indices, including executing operations
-across several indices.
+Creates a new index.
 
-[float]
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001
+--------------------------------------------------
+
+
+[[indices-create-api-request]]
+==== {api-request-title}
+
+`PUT /<index>`
+
+[[indices-create-api-desc]]
+==== {api-description-title}
+You can use the create index API to add a new index to an {es} cluster. When
+creating an index, you can specify the following:
+
+* Settings for the index
+* Mappings for fields in the index
+* Index aliases
+
+
+[[indices-create-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
++
+--
+(Required, string) Name of the index you wish to create.
+
+// tag::index-name-reqs[]
+Index names must meet the following criteria:
+
+- Lowercase only
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character), `,`, `#`
+- Indices prior to 7.0 could contain a colon (`:`), but that's been deprecated and won't be supported in 7.0+
+- Cannot start with `-`, `_`, `+`
+- Cannot be `.` or `..`
+- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+- Names starting with `.` are deprecated, except for <<index-hidden,hidden indices>> and internal indices managed by plugins
+// end::index-name-reqs[]
+--
+
+
+[[indices-create-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[indices-create-api-request-body]]
+==== {api-request-body-title}
+
+`aliases`::
+(Optional, <<indices-aliases,alias object>>) Index aliases which include the
+index. See <<indices-aliases>>.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+
+[[indices-create-api-example]]
+==== {api-examples-title}
+
 [[create-index-settings]]
-=== Index Settings
+===== Index settings
 
 Each index created can have specific settings
-associated with it.
+associated with it, defined in the body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT twitter
+PUT /my-index-000001
 {
-    "settings" : {
-        "index" : {
-            "number_of_shards" : 3, <1>
-            "number_of_replicas" : 2 <2>
-        }
+  "settings": {
+    "index": {
+      "number_of_shards": 3,  <1>
+      "number_of_replicas": 2 <2>
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-<1> Default for `number_of_shards` is 5
+
+<1> Default for `number_of_shards` is 1
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
-
-The above second curl example shows how an index called `twitter` can be
-created with specific settings for it using http://www.yaml.org[YAML].
-In this case, creating an index with 3 shards, each with 2 replicas. The
-index settings can also be defined with http://www.json.org[JSON]:
-
-[source,js]
---------------------------------------------------
-PUT twitter
-{
-    "settings" : {
-        "index" : {
-            "number_of_shards" : 3,
-            "number_of_replicas" : 2
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
 
 or more simplified
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT twitter
+PUT /my-index-000001
 {
-    "settings" : {
-        "number_of_shards" : 3,
-        "number_of_replicas" : 2
-    }
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 2
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 [NOTE]
 You do not have to explicitly specify `index` section inside the
@@ -69,106 +114,96 @@ For more information regarding all the different index level settings
 that can be set when creating an index, please check the
 <<index-modules,index modules>> section.
 
-
-[float]
 [[mappings]]
-=== Mappings
+===== Mappings
 
-The create index API allows to provide a set of one or more mappings:
+The create index API allows for providing a mapping definition:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test
+PUT /test
 {
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "type1" : {
-            "properties" : {
-                "field1" : { "type" : "text" }
-            }
-        }
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "properties": {
+      "field1": { "type": "text" }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
 [[create-index-aliases]]
-=== Aliases
+===== Aliases
 
 The create index API allows also to provide a set of <<indices-aliases,aliases>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test
+PUT /test
 {
-    "aliases" : {
-        "alias_1" : {},
-        "alias_2" : {
-            "filter" : {
-                "term" : {"user" : "kimchy" }
-            },
-            "routing" : "kimchy"
-        }
+  "aliases": {
+    "alias_1": {},
+    "alias_2": {
+      "filter": {
+        "term": { "user.id": "kimchy" }
+      },
+      "routing": "shard-1"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
 [[create-index-wait-for-active-shards]]
-=== Wait For Active Shards
+===== Wait For active shards
 
-By default, index creation will only return a response to the client when the primary copies of 
+By default, index creation will only return a response to the client when the primary copies of
 each shard have been started, or the request times out. The index creation response will indicate
 what happened:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "acknowledged": true,
-    "shards_acknowledged": true
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "test"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
-`acknowledged` indicates whether the index was successfully created in the cluster, while 
+`acknowledged` indicates whether the index was successfully created in the cluster, while
 `shards_acknowledged` indicates whether the requisite number of shard copies were started for
-each shard in the index before timing out. Note that it is still possible for either 
-`acknowledged` or `shards_acknowledged` to be `false`, but the index creation was successful. 
-These values simply indicate whether the operation completed before the timeout. If 
+each shard in the index before timing out. Note that it is still possible for either
+`acknowledged` or `shards_acknowledged` to be `false`, but the index creation was successful.
+These values simply indicate whether the operation completed before the timeout. If
 `acknowledged` is `false`, then we timed out before the cluster state was updated with the
-newly created index, but it probably will be created sometime soon. If `shards_acknowledged` 
-is `false`, then we timed out before the requisite number of shards were started (by default 
-just the primaries), even if the cluster state was successfully updated to reflect the newly 
+newly created index, but it probably will be created sometime soon. If `shards_acknowledged`
+is `false`, then we timed out before the requisite number of shards were started (by default
+just the primaries), even if the cluster state was successfully updated to reflect the newly
 created index (i.e. `acknowledged=true`).
 
 We can change the default of only waiting for the primary shards to start through the index
 setting `index.write.wait_for_active_shards` (note that changing this setting will also affect
 the `wait_for_active_shards` value on all subsequent write operations):
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test
+PUT /test
 {
-    "settings": {
-        "index.write.wait_for_active_shards": "2"
-    }
+  "settings": {
+    "index.write.wait_for_active_shards": "2"
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires two nodes]
 
 or through the request parameter `wait_for_active_shards`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT test?wait_for_active_shards=2
+PUT /test?wait_for_active_shards=2
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires two nodes]
 
-A detailed explanation of `wait_for_active_shards` and its possible values can be found 
+A detailed explanation of `wait_for_active_shards` and its possible values can be found
 <<index-wait-for-active-shards,here>>.

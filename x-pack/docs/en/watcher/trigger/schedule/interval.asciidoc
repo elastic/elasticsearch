@@ -1,0 +1,38 @@
+[role="xpack"]
+[[schedule-interval]]
+==== Interval schedule
+
+A <<trigger-schedule,`schedule`>> that triggers at a fixed time interval. The
+interval can be set in seconds, minutes, hours, days, or weeks:
+
+* `"Xs"` - trigger every `X` seconds. For example, `"30s"` means every 30 seconds.
+* `"Xm"` - trigger every `X` minutes. For example, `"5m"` means every 5 minutes.
+* `"Xh"` - trigger every `X` hours. For example, `"12h"` means every 12 hours.
+* `"Xd"` - trigger every `X` days. For example, `"3d"` means every 3 days.
+* `"Xw"` - trigger every `X` weeks. For example, `"2w"` means every 2 weeks.
+
+If you don't specify a time unit, it defaults to seconds.
+
+NOTE: The interval value differs from the standard _time value_ used in
+      Elasticsearch. You cannot configure intervals in milliseconds or
+      nanoseconds.
+
+===== Configuring an interval schedule
+
+To configure an `interval` schedule, you specify a string value that represents
+the interval. If you omit the unit of time (`s`,`m`, `h`, `d`, or `w`), it
+defaults to seconds.
+
+For example, the following `interval` schedule triggers every five minutes:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "interval" : "5m"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

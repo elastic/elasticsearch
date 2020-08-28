@@ -1,0 +1,163 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-operators]]
+=== Comparison Operators
+
+Boolean operator for comparing against one or multiple expressions.
+
+[[sql-operators-equality]]
+==== `Equality (=)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
+--------------------------------------------------
+
+[[sql-operators-null-safe-equality]]
+==== `Null safe Equality (<=>)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareWithNull]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareTwoNulls]
+--------------------------------------------------
+
+[[sql-operators-inequality]]
+==== `Inequality (<> or !=)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldNonEquality]
+--------------------------------------------------
+
+[[sql-operators-comparison]]
+==== `Comparison (<, <=, >, >=)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldLessThan]
+--------------------------------------------------
+
+[[sql-operators-between]]
+==== `BETWEEN`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
+--------------------------------------------------
+
+[[sql-operators-is-null]]
+==== `IS NULL/IS NOT NULL`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
+--------------------------------------------------
+
+[[sql-operators-in]]
+==== `IN (<value1>, <value2>, ...)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
+--------------------------------------------------
+
+[[sql-operators-logical]]
+=== Logical Operators
+
+Boolean operator for evaluating one or two expressions.
+
+[[sql-operators-and]]
+==== `AND`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldAndComparison]
+--------------------------------------------------
+
+[[sql-operators-or]]
+==== `OR`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldOrComparison]
+--------------------------------------------------
+
+[[sql-operators-not]]
+==== `NOT`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
+--------------------------------------------------
+
+[[sql-operators-math]]
+=== Math Operators
+
+Perform mathematical operations affecting one or two values.
+The result is a value of numeric type.
+
+[[sql-operators-plus]]
+==== `Add (+)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[plus]
+--------------------------------------------------
+
+[[sql-operators-subtract]]
+==== `Subtract (infix -)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[minus]
+--------------------------------------------------
+
+[[sql-operators-negate]]
+==== `Negate (unary -)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[unaryMinus]
+--------------------------------------------------
+
+[[sql-operators-multiply]]
+==== `Multiply (*)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
+--------------------------------------------------
+
+[[sql-operators-divide]]
+==== `Divide (/)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
+--------------------------------------------------
+
+[[sql-operators-remainder]]
+==== `Modulo or Remainder(%)`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
+--------------------------------------------------
+
+[[sql-operators-cast]]
+=== Cast Operators
+
+[[sql-operators-cast-cast]]
+==== `Cast (::)`
+
+`::` provides an alternative syntax to the <<sql-functions-type-conversion-cast>> function.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToLongCastOperator]
+--------------------------------------------------

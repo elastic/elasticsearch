@@ -1,0 +1,162 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "test_watch"
+        ignore: 404
+
+---
+"Test execute watch api with configured trigger data timestamps":
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "foo": "bar"
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "indexme" : {
+                "index" : {
+                  "index" : "my_test_index",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            }
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.trigger_event.triggered_time: "2012-12-12T12:12:12.120Z" }
+  - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.status.state.active: true }
+  - is_true: watch_record.node
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+  - gt: { watch_record.result.execution_duration: 0 }
+
+---
+"Test execute watch API with user supplied watch":
+
+  - do:
+      watcher.execute_watch:
+        body: >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "condition": {
+                "always": {}
+              },
+              "actions": {
+                "indexme" : {
+                  "index" : {
+                    "index" : "my_test_index",
+                    "doc_id": "my-id"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.watch_id: "_inlined_" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.status.state.active: true }
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+
+---
+"Execute unknown watch results in 404":
+
+  - do:
+      watcher.execute_watch:
+        id: "non-existent-watch"
+      catch: missing
+
+---
+"Test execute watch with alternative input":
+
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "foo": "bar"
+              }
+            },
+            "actions": {
+              "indexme" : {
+                "index" : {
+                  "index" : "my_test_index",
+                  "refresh" : "wait_for",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "alternative_input" : {
+              "spam" : "eggs"
+            }
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.status.state.active: true }
+  - is_true: watch_record.node
+  - is_false: watch_record.result.input.payload.foo
+  - is_true: watch_record.result.input.payload.spam
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: my_test_index
+  - match: { hits.total : 1 }

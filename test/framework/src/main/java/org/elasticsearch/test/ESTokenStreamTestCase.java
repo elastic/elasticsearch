@@ -21,12 +21,13 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
@@ -51,12 +52,8 @@ public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
         BootstrapForTesting.ensureInitialized();
     }
 
-    public static Version randomVersion() {
-        return VersionUtils.randomVersion(random());
-    }
-
     public Settings.Builder newAnalysisSettingsBuilder() {
-        return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
     }
 
 }

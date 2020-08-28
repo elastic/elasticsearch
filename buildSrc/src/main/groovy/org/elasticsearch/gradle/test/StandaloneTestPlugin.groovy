@@ -19,35 +19,33 @@
 
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.ElasticsearchJavaPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.TaskProvider
+import org.gradle.api.tasks.testing.Test
 
 /**
  * Configures the build to compile against Elasticsearch's test framework and
  * run integration and unit tests. Use BuildPlugin if you want to build main
  * code as well as tests. */
-public class StandaloneTestPlugin implements Plugin<Project> {
+@CompileStatic
+class StandaloneTestPlugin implements Plugin<Project> {
 
     @Override
-    public void apply(Project project) {
+    void apply(Project project) {
         project.pluginManager.apply(StandaloneRestTestPlugin)
 
-        Map testOptions = [
-            name: 'test',
-            type: RandomizedTestingTask,
-            dependsOn: 'testClasses',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs unit tests that are separate'
-        ]
-        RandomizedTestingTask test = project.tasks.create(testOptions)
-        test.configure(BuildPlugin.commonTestConfig(project))
-        BuildPlugin.configureCompile(project)
-        test.classpath = project.sourceSets.test.runtimeClasspath
-        test.testClassesDir project.sourceSets.test.output.classesDir
-        test.mustRunAfter(project.precommit)
-        project.check.dependsOn(test)
+        project.tasks.register('test', Test).configure { t ->
+            t.group = JavaBasePlugin.VERIFICATION_GROUP
+            t.description = 'Runs unit tests that are separate'
+            t.mustRunAfter(project.tasks.getByName('precommit'))
+        }
+
+        ElasticsearchJavaPlugin.configureCompile(project)
+        project.tasks.named('check').configure { it.dependsOn(project.tasks.named('test')) }
     }
 }

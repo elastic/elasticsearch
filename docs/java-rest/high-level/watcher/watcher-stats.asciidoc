@@ -1,0 +1,33 @@
+--
+:api: watcher-stats
+:request: WatcherStatsRequest
+:response: WatcherStatsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get Watcher stats API
+
+[id="{upid}-{api}-request"]
+==== Execution
+
+{ref}/watcher-api-stats.html[Watcher Stats] returns the current {watcher} metrics.
+Submit the following request to get the stats:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned `AcknowledgeResponse` contains a value on whether or not the request
+was received:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> A boolean value of `true` if successfully received, `false` otherwise.
+
+include::../execution.asciidoc[]

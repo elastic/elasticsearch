@@ -1,0 +1,57 @@
+# All cluster rights
+# All operations on all indices
+# Run as all users
+test-admin:
+  cluster:
+    - all
+  indices:
+    - names: '*'
+      privileges: [ all ]
+  run_as:
+    - '*'
+
+user1:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: ['index-user1', 'index' ]
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+user2:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'index-user2', 'index' ]
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+user_dls:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names:
+        - 'index*'
+      privileges:
+        - read
+      field_security:
+        grant:
+          - baz
+      query: |
+        {
+          "bool": {
+            "must_not": [
+              {
+                "match": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+        }

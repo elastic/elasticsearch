@@ -1,0 +1,6 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testImplementation project(":x-pack:plugin:core")
+  testImplementation project(path: xpackModule('ml'))
+}

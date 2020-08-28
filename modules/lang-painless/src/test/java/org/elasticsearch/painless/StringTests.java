@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.Constants;
+
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -89,7 +91,7 @@ public class StringTests extends ScriptTestCase {
             result.append(s);
         }
         final String s = script.toString();
-        assertTrue("every string part should be separatly pushed to stack.",
+        assertTrue("every string part should be separately pushed to stack.",
                 Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
         assertEquals(result.toString(), exec(s));
     }
@@ -165,25 +167,25 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        ClassCastException expected = expectScriptThrows(ClassCastException.class, () -> {
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
-        expected = expectScriptThrows(ClassCastException.class, () -> {
+        expected = expectScriptThrows(ClassCastException.class, false, () -> {
             assertEquals("cc", exec("return (String)(char)'cc'"));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals('c', exec("String s = \"cc\"; (char)s"));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals('c', exec("String s = 'cc'; (char)s"));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
     }
 
     public void testDefConcat() {
@@ -231,7 +233,7 @@ public class StringTests extends ScriptTestCase {
         ctx.put("_id", "somerandomid");
         params.put("ctx", ctx);
 
-        assertEquals("somerandomid.somerandomid", exec("ctx._id += '.' + ctx._id", params, false));
+        assertEquals("somerandomid.somerandomid", exec("params.ctx._id += '.' + params.ctx._id", params, false));
         assertEquals("somerandomid.somerandomid", exec("String x = 'somerandomid'; x += '.' + x"));
         assertEquals("somerandomid.somerandomid", exec("def x = 'somerandomid'; x += '.' + x"));
     }
@@ -248,5 +250,34 @@ public class StringTests extends ScriptTestCase {
 
         String rando = randomRealisticUnicodeOfLength(between(5, 1000));
         assertEquals(rando, exec("params.rando.encodeBase64().decodeBase64()", singletonMap("rando", rando), true));
+    }
+
+    public void testJava9ConstantStringConcatBytecode() {
+        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+        assertBytecodeExists("String s = \"cat\"; return s + true + 'abc' + null;",
+                "INVOKEDYNAMIC concat(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+    }
+
+    public void testJava9StringConcatBytecode() {
+        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+        assertBytecodeExists("String s = \"cat\"; boolean t = true; Object u = null; return s + t + 'abc' + u;",
+                "INVOKEDYNAMIC concat(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Object;)Ljava/lang/String;");
+    }
+
+    public void testNullStringConcat() {
+        assertEquals("" + null + null, exec("'' + null + null"));
+        assertEquals("" + 2 + null, exec("'' + 2 + null"));
+        assertEquals("" + null + 2, exec("'' + null + 2"));
+        assertEquals("" + null + null, exec("null + '' + null"));
+        assertEquals("" + 2 + null, exec("2 + '' + null"));
+        assertEquals("" + null + 2, exec("null + '' + 2"));
+    }
+
+    public void testJava9NullStringConcatBytecode() {
+        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+        assertEquals("" + null + null, exec("'' + null + null"));
     }
 }

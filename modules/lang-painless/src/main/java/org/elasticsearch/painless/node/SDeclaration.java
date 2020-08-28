@@ -19,94 +19,49 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a single variable declaration.
  */
-public final class SDeclaration extends AStatement {
+public class SDeclaration extends AStatement {
 
-    private final String type;
-    private final String name;
-    private AExpression expression;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression valueNode;
 
-    private Variable variable = null;
+    public SDeclaration(int identifier, Location location, String canonicalTypeName, String symbol, AExpression valueNode) {
+        super(identifier, location);
 
-    public SDeclaration(Location location, String type, String name, AExpression expression) {
-        super(location);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.valueNode = valueNode;
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = expression;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclaration(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        final Type type;
-
-        try {
-            type = Definition.getType(this.type);
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (valueNode != null) {
+            valueNode.visit(userTreeVisitor, scope);
         }
-
-        if (expression != null) {
-            expression.expected = type;
-            expression.analyze(locals);
-            expression = expression.cast(locals);
-        }
-
-        variable = locals.addVariable(location, type, name, false);
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-
-        if (expression == null) {
-            switch (variable.type.sort) {
-                case VOID:   throw createError(new IllegalStateException("Illegal tree structure."));
-                case BOOL:
-                case BYTE:
-                case SHORT:
-                case CHAR:
-                case INT:    writer.push(0);    break;
-                case LONG:   writer.push(0L);   break;
-                case FLOAT:  writer.push(0.0F); break;
-                case DOUBLE: writer.push(0.0);  break;
-                default:     writer.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expression.write(writer, globals);
-        }
-
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
-
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
     }
 }

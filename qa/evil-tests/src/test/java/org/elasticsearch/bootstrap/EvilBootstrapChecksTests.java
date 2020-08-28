@@ -22,7 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class EvilBootstrapChecksTests extends ESTestCase {
+public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     private String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
 
@@ -58,24 +58,13 @@ public class EvilBootstrapChecksTests extends ESTestCase {
 
     public void testEnforceBootstrapChecks() throws NodeValidationException {
         setEsEnforceBootstrapChecks("true");
-        final List<BootstrapCheck> checks = Collections.singletonList(
-                new BootstrapCheck() {
-                    @Override
-                    public boolean check() {
-                        return true;
-                    }
+        final List<BootstrapCheck> checks = Collections.singletonList(context -> BootstrapCheck.BootstrapCheckResult.failure("error"));
 
-                    @Override
-                    public String errorMessage() {
-                        return "error";
-                    }
-                }
-        );
         final Logger logger = mock(Logger.class);
 
         final NodeValidationException e = expectThrows(
                 NodeValidationException.class,
-                () -> BootstrapChecks.check(false, checks, logger));
+                () -> BootstrapChecks.check(emptyContext, false, checks, logger));
         final Matcher<String> allOf =
                 allOf(containsString("bootstrap checks failed"), containsString("error"));
         assertThat(e, hasToString(allOf));
@@ -87,17 +76,17 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         setEsEnforceBootstrapChecks(null);
         final Logger logger = mock(Logger.class);
         // nothing should happen
-        BootstrapChecks.check(false, emptyList(), logger);
+        BootstrapChecks.check(emptyContext, false, emptyList(), logger);
         verifyNoMoreInteractions(logger);
     }
 
     public void testInvalidValue() {
-        final String value = randomAsciiOfLength(8);
+        final String value = randomAlphaOfLength(8);
         setEsEnforceBootstrapChecks(value);
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> BootstrapChecks.check(enforceLimits, emptyList(), "testInvalidValue"));
+                () -> BootstrapChecks.check(emptyContext, enforceLimits, emptyList()));
         final Matcher<String> matcher = containsString(
                 "[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
         assertThat(e, hasToString(matcher));

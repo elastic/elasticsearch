@@ -1,0 +1,18 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Geo-specific Sys Commands
+//
+
+geoSysColumns
+SYS COLUMNS TABLE LIKE 'geo';
+
+               TABLE_CAT:s                       |  TABLE_SCHEM:s|  TABLE_NAME:s | COLUMN_NAME:s |   DATA_TYPE:i |   TYPE_NAME:s |  COLUMN_SIZE:i|BUFFER_LENGTH:i|DECIMAL_DIGITS:i|NUM_PREC_RADIX:i| NULLABLE:i|    REMARKS:s  |  COLUMN_DEF:s |SQL_DATA_TYPE:i|SQL_DATETIME_SUB:i|CHAR_OCTET_LENGTH:i|ORDINAL_POSITION:i|IS_NULLABLE:s|SCOPE_CATALOG:s|SCOPE_SCHEMA:s|SCOPE_TABLE:s|SOURCE_DATA_TYPE:sh|IS_AUTOINCREMENT:s|IS_GENERATEDCOLUMN:s
+integTest|null           |geo            |city           |12             |KEYWORD        |32766          |2147483647     |null            |null            |1          |null           |null           |12             |0                 |2147483647         |1                 |YES          |null           |null          |null         |null               |NO                |NO
+integTest|null           |geo            |geoshape       |114            |GEO_SHAPE      |2147483647     |2147483647     |null            |null            |1          |null           |null           |114            |0                 |null               |2                 |YES          |null           |null          |null         |null               |NO                |NO
+integTest|null           |geo            |location       |114            |GEO_POINT      |58             |16             |null            |null            |1          |null           |null           |114            |0                 |null               |3                 |YES          |null           |null          |null         |null               |NO                |NO
+integTest|null           |geo            |location_no_dv |114            |GEO_POINT      |58             |16             |null            |null            |1          |null           |null           |114            |0                 |null               |4                 |YES          |null           |null          |null         |null               |NO                |NO
+integTest|null           |geo            |region         |12             |KEYWORD        |32766          |2147483647     |null            |null            |1          |null           |null           |12             |0                 |2147483647         |5                 |YES          |null           |null          |null         |null               |NO                |NO
+integTest|null           |geo            |region_point   |12             |KEYWORD        |32766          |2147483647     |null            |null            |1          |null           |null           |12             |0                 |2147483647         |6                 |YES          |null           |null          |null         |null               |NO                |NO
+integTest|null           |geo            |shape          |114            |SHAPE          |2147483647     |2147483647     |null            |null            |1          |null           |null           |114            |0                 |null               |7                 |YES          |null           |null          |null         |null               |NO                |NO
+;

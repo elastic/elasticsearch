@@ -19,25 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class RethrottleAction extends Action<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
+public class RethrottleAction extends ActionType<ListTasksResponse> {
     public static final RethrottleAction INSTANCE = new RethrottleAction();
     public static final String NAME = "cluster:admin/reindex/rethrottle";
 
     private RethrottleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public RethrottleRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RethrottleRequestBuilder(client, this);
-    }
-
-    @Override
-    public ListTasksResponse newResponse() {
-        return new ListTasksResponse();
+        super(NAME, ListTasksResponse::new);
     }
 }

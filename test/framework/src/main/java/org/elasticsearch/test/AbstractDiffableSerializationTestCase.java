@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * An abstract test case to ensure correct behavior of Diffable.
  *
- * This class can be used as a based class for tests of MetaData.Custom classes and other classes that support,
+ * This class can be used as a based class for tests of Metadata.Custom classes and other classes that support,
  * Writable serialization, XContent-based serialization and is diffable.
  */
 public abstract class AbstractDiffableSerializationTestCase<T extends Diffable<T> & ToXContent> extends AbstractSerializingTestCase<T> {
@@ -41,9 +41,8 @@ public abstract class AbstractDiffableSerializationTestCase<T extends Diffable<T
 
     protected abstract Reader<Diff<T>> diffReader();
 
-    public void testDiffableSerialization() throws IOException {
+    public final void testDiffableSerialization() throws IOException {
         DiffableTestUtils.testDiffableSerialization(this::createTestInstance, this::makeTestChanges, getNamedWriteableRegistry(),
             instanceReader(), diffReader());
     }
-
 }

@@ -1,0 +1,51 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "with_global" ]
+            }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "with_global"
+        ignore: 404
+
+
+---
+"Test put role with conditional security privileges":
+  - do:
+      security.put_role:
+        name: "with_global"
+        body:  >
+            {
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ "app1-*" , "app2-*" ]
+                  }
+                }
+              }
+            }
+  - match: { role: { created: true } }
+
+  - do:
+      security.get_role:
+        name: "with_global"
+  - match: { with_global.global.application.manage.applications.0:  "app1-*" }
+  - match: { with_global.global.application.manage.applications.1:  "app2-*" }

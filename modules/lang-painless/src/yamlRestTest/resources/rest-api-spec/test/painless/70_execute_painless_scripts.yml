@@ -1,0 +1,70 @@
+setup:
+  - do:
+      indices.create:
+        index: my-index
+        body:
+          mappings:
+            properties:
+              rank:
+                type: long
+              field:
+                type: keyword
+              text:
+                type: text
+
+---
+"Execute with defaults":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.count / params.total"
+            params:
+              count: 100.0
+              total: 1000.0
+  - match: { result: "0.1" }
+
+---
+"Execute with painless_test context":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.var1 - params.var2"
+            params:
+              var1: 10
+              var2: 100
+          context: "painless_test"
+  - match: { result: "-90" }
+
+---
+"Execute with filter context":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['field'].value.length() <= params.max_length"
+            params:
+              max_length: 4
+          context: "filter"
+          context_setup:
+            document:
+              field: "four"
+            index: "my-index"
+  - match: { result: true }
+
+---
+"Execute with score context":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['rank'].value / params.max_rank"
+            params:
+              max_rank: 5.0
+          context: "score"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: 0.8 }

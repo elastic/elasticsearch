@@ -19,12 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptType;
-
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -74,40 +69,5 @@ public class ScriptEngineTests extends ScriptTestCase {
         assertEquals("value2", ((Map<String, Object>)obj1.get("obj2")).get("prop2"));
 
         assertEquals("value1", exec("return params.l.3.prop1;", vars, true));
-    }
-
-    public void testChangingVarsCrossExecution1() {
-        Map<String, Object> vars = new HashMap<>();
-        Map<String, Object> ctx = new HashMap<>();
-        vars.put("ctx", ctx);
-
-        Object compiledScript = scriptEngine.compile(null,
-                "return ctx.value;", Collections.emptyMap());
-        ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptType.INLINE,
-                "testChangingVarsCrossExecution1", "painless", compiledScript), vars);
-
-        ctx.put("value", 1);
-        Object o = script.run();
-        assertEquals(1, ((Number) o).intValue());
-
-        ctx.put("value", 2);
-        o = script.run();
-        assertEquals(2, ((Number) o).intValue());
-    }
-
-    public void testChangingVarsCrossExecution2() {
-        Map<String, Object> vars = new HashMap<>();
-        Object compiledScript = scriptEngine.compile(null, "return params['value'];", Collections.emptyMap());
-
-        ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptType.INLINE,
-                "testChangingVarsCrossExecution2", "painless", compiledScript), vars);
-
-        script.setNextVar("value", 1);
-        Object value = script.run();
-        assertEquals(1, ((Number)value).intValue());
-
-        script.setNextVar("value", 2);
-        value = script.run();
-        assertEquals(2, ((Number)value).intValue());
     }
 }

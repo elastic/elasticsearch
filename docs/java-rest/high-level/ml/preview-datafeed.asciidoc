@@ -1,0 +1,35 @@
+--
+:api: preview-datafeed
+:request: PreviewDatafeedRequest
+:response: PreviewDatafeedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Preview Datafeed API
+
+The Preview Datafeed API provides the ability to preview a {ml} datafeed's data
+in the cluster. It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Preview Datafeed Request
+
+A +{request}+ object is created referencing a non-null `datafeedId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `datafeedId`
+
+[id="{upid}-{api}-response"]
+==== Preview Datafeed Response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The raw +BytesReference+ of the data preview
+<2> A +List<Map<String,Object>>+ that represents the previewed data
+
+include::../execution.asciidoc[]

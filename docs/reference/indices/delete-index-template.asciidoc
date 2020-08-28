@@ -1,0 +1,52 @@
+[[indices-delete-template]]
+=== Delete index template API
+++++
+<titleabbrev>Delete index template</titleabbrev>
+++++
+
+Deletes an index template.
+
+////
+[source,console]
+--------------------------------------------------
+PUT _template/template_1
+{
+ "index_patterns" : ["te*"],
+  "settings": {
+    "number_of_shards": 1
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template_1
+--------------------------------------------------
+
+
+[[delete-template-api-request]]
+==== {api-request-title}
+
+`DELETE /_template/<index-template>`
+
+
+[[delete-template-api-desc]]
+==== {api-description-title}
+
+Use the delete index template API to delete one or more index templates.
+Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
+and <<indices-aliases,aliases>> that can be applied automatically to new indices. 
+
+
+[[delete-template-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
+
+
+[[delete-template-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

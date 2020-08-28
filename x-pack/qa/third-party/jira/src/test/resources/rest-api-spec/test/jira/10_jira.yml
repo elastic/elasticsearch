@@ -1,0 +1,348 @@
+---
+"Test Jira Action":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "jira_watch"
+        body:  >
+          {
+            "metadata": {
+              "custom_title": "Hello from"
+            },
+            "trigger": {
+              "schedule": {
+                "interval": "1d"
+              }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "create_jira_issue": {
+                "jira": {
+                  "account": "test",
+                  "fields": {
+                    "summary": "{{ctx.metadata.custom_title}} {{ctx.watch_id}}",
+                    "description": "Issue created by the REST integration test [/watcher/actions/20_jira.yaml]",
+                    "issuetype" : {
+                      "name": "Bug"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "jira_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "jira_watch"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            },
+            "record_execution": true
+          }
+
+  - match: { watch_record.watch_id: "jira_watch" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.trigger_event.triggered_time: "2012-12-12T12:12:12.120Z" }
+  - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
+  - match: { watch_record.state: "executed" }
+
+  # Waits for the watcher history index to be available
+  - do:
+      cluster.health:
+          index: ".watcher-history-*"
+          wait_for_no_relocating_shards: true
+          timeout: 60s
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+  - match: { hits.total: 1 }
+
+  - match: { hits.hits.0._type: "doc" }
+  - match: { hits.hits.0._source.watch_id: "jira_watch" }
+  - match: { hits.hits.0._source.state: "executed" }
+
+  - match: { hits.hits.0._source.result.actions.0.id: "create_jira_issue" }
+  - match: { hits.hits.0._source.result.actions.0.type: "jira" }
+  - match: { hits.hits.0._source.result.actions.0.status: "success" }
+  - match: { hits.hits.0._source.result.actions.0.jira.account: "test" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.summary: "Hello from jira_watch" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.issuetype.name: "Bug" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.project.key: "XWT" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.labels.0: "integration-tests" }
+  - match: { hits.hits.0._source.result.actions.0.jira.result.id: /\d+/ }
+  - match: { hits.hits.0._source.result.actions.0.jira.result.key: /XWT-\d+/ }
+  - match: { hits.hits.0._source.result.actions.0.jira.result.self: /http(.)*/ }
+
+  - set: { hits.hits.0._id: id }
+  - set: { hits.hits.0._source.result.actions.0.jira.result.self: self }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+        body:
+          query:
+            match:
+              result.actions.jira.fields.project.key: "XWT"
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: $id }
+  - match: { hits.hits.0._source.result.actions.0.jira.result.self: $self }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+        body:
+          query:
+            match:
+              result.actions.jira.fields.summary: "hello jira_watch"
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: $id }
+  - match: { hits.hits.0._source.result.actions.0.jira.result.self: $self }
+
+---
+"Test Jira Action with Error":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "wrong_jira_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "interval": "1d"
+              }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "fail_to_create_jira_issue": {
+                "jira": {
+                  "account": "test",
+                  "fields": {
+                    "summary": "Hello from {{ctx.watch_id}}",
+                    "description": "This Jira issue does not have a type (see below) so it won't be created at all",
+                    "issuetype" : {
+                      "name": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "wrong_jira_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "wrong_jira_watch"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            },
+            "record_execution": true
+          }
+
+  - match: { watch_record.watch_id: "wrong_jira_watch" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.trigger_event.triggered_time: "2012-12-12T12:12:12.120Z" }
+  - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
+  - match: { watch_record.state: "executed" }
+
+  # Waits for the watcher history index to be available
+  - do:
+      cluster.health:
+          index: ".watcher-history-*"
+          wait_for_no_relocating_shards: true
+          timeout: 60s
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+        body:
+          query:
+            match:
+              result.actions.status: "failure"
+
+  - match: { hits.total: 1 }
+
+  - match: { hits.hits.0._type: "doc" }
+  - match: { hits.hits.0._source.watch_id: "wrong_jira_watch" }
+  - match: { hits.hits.0._source.state: "executed" }
+
+  - match: { hits.hits.0._source.result.actions.0.id: "fail_to_create_jira_issue" }
+  - match: { hits.hits.0._source.result.actions.0.type: "jira" }
+  - match: { hits.hits.0._source.result.actions.0.status: "failure" }
+  - match: { hits.hits.0._source.result.actions.0.jira.account: "test" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.summary: "Hello from wrong_jira_watch" }
+  - is_false: hits.hits.0._source.result.actions.0.jira.fields.issuetype.name
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.project.key: "XWT" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.labels.0: "integration-tests" }
+  - match: { hits.hits.0._source.result.actions.0.jira.reason: "Bad Request - Field [issuetype] has error [issue type is required]\n" }
+  - match: { hits.hits.0._source.result.actions.0.jira.request.method: "post" }
+  - match: { hits.hits.0._source.result.actions.0.jira.request.path: "/rest/api/2/issue" }
+  - is_true: hits.hits.0._source.result.actions.0.jira.request.auth.basic.username
+  - match: { hits.hits.0._source.result.actions.0.jira.request.auth.basic.password: "::es_redacted::" }
+  - match: { hits.hits.0._source.result.actions.0.jira.response.body: "{\"errorMessages\":[],\"errors\":{\"issuetype\":\"issue type is required\"}}" }
+
+---
+"Test Jira action with custom fields of different types":
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "jira_watch_with_custom_field_one"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "interval": "1d"
+              }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "create_jira_issue": {
+                "jira": {
+                  "account": "test",
+                  "fields": {
+                    "summary": "Jira watch with custom field of string type",
+                    "description": "Issue created by the REST integration test [/watcher/actions/20_jira.yaml]",
+                    "issuetype" : {
+                      "name": "Bug"
+                    },
+                    "customfield_70000": "jira-software-users"
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "jira_watch_with_custom_field_one" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "jira_watch_with_custom_field_one"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            },
+            "record_execution": true
+          }
+
+  - match: { watch_record.watch_id: "jira_watch_with_custom_field_one" }
+  - match: { watch_record.state: "executed" }
+
+  - do:
+      watcher.put_watch:
+        id: "jira_watch_with_custom_field_two"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "interval": "1d"
+              }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "create_jira_issue": {
+                "jira": {
+                  "account": "test",
+                  "fields": {
+                    "summary": "Jira watch with custom field of object (Jira's CascadingSelectField) type",
+                    "description": "Issue created by the REST integration test [/watcher/actions/20_jira.yaml]",
+                    "issuetype" : {
+                      "name": "Bug"
+                    },
+                    "customfield_70000": {
+                      "value": "green",
+                      "child": {
+                        "value":"blue"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "jira_watch_with_custom_field_two" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "jira_watch_with_custom_field_two"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            },
+            "record_execution": true
+          }
+
+  - match: { watch_record.watch_id: "jira_watch_with_custom_field_two" }
+  - match: { watch_record.state: "executed" }
+
+  - do:
+      indices.refresh:
+        index: ".watcher-history-*"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+        body:
+          query:
+            match:
+              result.actions.status: "failure"
+
+  - match: { hits.total: 2 }

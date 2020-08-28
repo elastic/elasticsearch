@@ -26,8 +26,10 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 
 import java.io.IOException;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
@@ -39,34 +41,47 @@ public class RestClientBuilderTests extends RestClientTestCase {
         try {
             RestClient.builder((HttpHost[])null);
             fail("should have failed");
-        } catch(NullPointerException e) {
-            assertEquals("hosts must not be null", e.getMessage());
+        } catch(IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
         }
 
         try {
-            RestClient.builder();
+            RestClient.builder(new HttpHost[] {});
             fail("should have failed");
         } catch(IllegalArgumentException e) {
-            assertEquals("no hosts provided", e.getMessage());
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+
+        try {
+            RestClient.builder((Node[])null);
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new Node[] {});
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new Node(new HttpHost("localhost", 9200)), null);
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("node cannot be null", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200), null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch(IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
 
         try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
             assertNotNull(restClient);
-        }
-
-        try {
-            RestClient.builder(new HttpHost("localhost", 9200))
-                    .setMaxRetryTimeoutMillis(randomIntBetween(Integer.MIN_VALUE, 0));
-            fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals("maxRetryTimeoutMillis must be greater than 0", e.getMessage());
         }
 
         try {
@@ -135,17 +150,72 @@ public class RestClientBuilderTests extends RestClientTestCase {
             builder.setDefaultHeaders(headers);
         }
         if (randomBoolean()) {
-            builder.setMaxRetryTimeoutMillis(randomIntBetween(1, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            String pathPrefix = (randomBoolean() ? "/" : "") + randomAsciiOfLengthBetween(2, 5);
+            String pathPrefix = (randomBoolean() ? "/" : "") + randomAsciiLettersOfLengthBetween(2, 5);
             while (pathPrefix.length() < 20 && randomBoolean()) {
-                pathPrefix += "/" + randomAsciiOfLengthBetween(3, 6);
+                pathPrefix += "/" + randomAsciiLettersOfLengthBetween(3, 6);
             }
             builder.setPathPrefix(pathPrefix + (randomBoolean() ? "/" : ""));
         }
         try (RestClient restClient = builder.build()) {
             assertNotNull(restClient);
+        }
+    }
+
+    public void testBuildCloudId() throws IOException {
+        String host = "us-east-1.aws.found.io";
+        String esId = "elasticsearch";
+        String kibanaId = "kibana";
+        String toEncode = host + "$" + esId + "$" + kibanaId;
+        String encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
+        assertNotNull(RestClient.builder(encodedId));
+        assertNotNull(RestClient.builder("humanReadable:" + encodedId));
+
+        String badId = Base64.getEncoder().encodeToString("foo$bar".getBytes(UTF8));
+        try {
+            RestClient.builder(badId);
+            fail("should have failed");
+        } catch (IllegalStateException e) {
+            assertEquals("cloudId " + badId + " did not decode to a cluster identifier correctly", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(badId + ":");
+            fail("should have failed");
+        } catch (IllegalStateException e) {
+            assertEquals("cloudId " + badId + ":" + " must begin with a human readable identifier followed by a colon", e.getMessage());
+        }
+
+        RestClient client = RestClient.builder(encodedId).build();
+        assertThat(client.getNodes().size(), equalTo(1));
+        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(esId + "." + host));
+        assertThat(client.getNodes().get(0).getHost().getPort(), equalTo(443));
+        assertThat(client.getNodes().get(0).getHost().getSchemeName(), equalTo("https"));
+        client.close();
+    }
+
+    public void testBuildCloudIdWithPort() throws IOException {
+        String host = "us-east-1.aws.found.io";
+        String esId = "elasticsearch";
+        String kibanaId = "kibana";
+        String port = "9443";
+        String toEncode = host + ":" + port + "$" + esId + "$" + kibanaId;
+        String encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
+
+        RestClient client = RestClient.builder("humanReadable:" + encodedId).build();
+        assertThat(client.getNodes().size(), equalTo(1));
+        assertThat(client.getNodes().get(0).getHost().getPort(), equalTo(9443));
+        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(esId + "." + host));
+        assertThat(client.getNodes().get(0).getHost().getSchemeName(), equalTo("https"));
+        client.close();
+
+        toEncode = host + ":" + "123:foo" + "$" + esId + "$" + kibanaId;
+        encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
+
+        try {
+            RestClient.builder("humanReadable:" + encodedId);
+            fail("should have failed");
+        } catch (IllegalStateException e) {
+            assertEquals("cloudId " + encodedId + " does not contain a valid port number", e.getMessage());
         }
     }
 
@@ -159,7 +229,6 @@ public class RestClientBuilderTests extends RestClientTestCase {
     }
 
     public void testSetPathPrefixEmpty() {
-        assertSetPathPrefixThrows("/");
         assertSetPathPrefixThrows("");
     }
 
@@ -177,4 +246,24 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
     }
 
+    /**
+     * This test verifies that we don't change the default value for the connection request timeout as that causes problems.
+     * See https://github.com/elastic/elasticsearch/issues/24069
+     */
+    public void testDefaultConnectionRequestTimeout() throws IOException {
+        RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200));
+        builder.setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
+            @Override
+            public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                RequestConfig requestConfig = requestConfigBuilder.build();
+                assertEquals(RequestConfig.DEFAULT.getConnectionRequestTimeout(), requestConfig.getConnectionRequestTimeout());
+                //this way we get notified if the default ever changes
+                assertEquals(-1, requestConfig.getConnectionRequestTimeout());
+                return requestConfigBuilder;
+            }
+        });
+        try (RestClient restClient = builder.build()) {
+            assertNotNull(restClient);
+        }
+    }
 }

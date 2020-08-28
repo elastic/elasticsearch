@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "name": "X-Pack Monitoring: License Expiration",
+    "xpack": {
+      "link": "license",
+      "expires_days": [ 60, 30, 14, 7 ],
+      "severity": 0,
+      "alert_index": ".monitoring-alerts-7",
+      "cluster_uuid": "${monitoring.watch.cluster_uuid}",
+      "type": "monitoring",
+      "version_created": "${monitoring.version_created}",
+      "watch": "${monitoring.watch.id}"
+    }
+  },
+  "trigger": {
+    "schedule": {
+      "interval": "1m"
+    }
+  },
+  "input": {
+    "chain": {
+      "inputs": [
+        {
+          "check": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-es-*"
+                ],
+                "body": {
+                  "size": 1,
+                  "sort": [
+                    {
+                      "timestamp": {
+                        "order": "desc"
+                      }
+                    }
+                  ],
+                  "_source": [
+                    "license.*"
+                  ],
+                  "query": {
+                    "bool": {
+                      "filter": [
+                        {
+                          "term": {
+                            "cluster_uuid": "{{ctx.metadata.xpack.cluster_uuid}}"
+                          }
+                        },
+                        {
+                          "term": {
+                            "type": "cluster_stats"
+                          }
+                        },
+                        {
+                          "range": {
+                            "timestamp": {
+                              "gte": "now-2m"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "alert": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-alerts-7"
+                ],
+                "body": {
+                  "size": 1,
+                  "terminate_after": 1,
+                  "query": {
+                    "bool": {
+                      "filter": {
+                        "term": {
+                          "_id": "{{ctx.watch_id}}"
+                        }
+                      }
+                    }
+                  },
+                  "sort": [
+                    { "timestamp": { "order": "desc" } }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "kibana_settings": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-kibana-7-*"
+                ],
+                "body": {
+                  "size": 1,
+                  "query": {
+                    "bool": {
+                      "filter": {
+                        "term": {
+                          "type": "kibana_settings"
+                        }
+                      }
+                    }
+                  },
+                  "sort": [
+                    {
+                      "timestamp": {
+                        "order": "desc"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "condition": {
+    "script": {
+      "source": "if (ctx.payload.check.hits.total == 0) {return false;}def license = ctx.payload.check.hits.hits[0]._source.license;if (license == null) {return false;}ctx.vars.fails_check = false;Instant expiry = Instant.ofEpochMilli(license.expiry_date_in_millis);ctx.vars.expiry = expiry;if (license.status != 'active') {ctx.vars.expired = true;ctx.vars.fails_check = true;ctx.metadata.xpack.severity = 2001;} else {Instant now = Instant.ofEpochMilli(new Date().getTime());ctx.vars.now = now;for (int i = ctx.metadata.xpack.expires_days.length - 1;i > -1;--i) {if (license.type == 'trial' && i < 2) {break;}Instant fromNow = now.plusSeconds(ctx.metadata.xpack.expires_days[i] * 24 * 60 * 60);if (fromNow.isAfter(expiry)) {ctx.vars.fails_check = true;ctx.metadata.xpack.severity = i * 1000;break;}}}ctx.vars.not_resolved = (ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null);ctx.vars.update = ctx.vars.fails_check || ctx.vars.not_resolved;"
+    }
+  },
+  "transform": {
+    "script": {
+      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0 && ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack != null) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.default_admin_email : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def alertMessage = null;if (ctx.vars.fails_check) { alertMessage = 'Update your license.';} if (ctx.vars.not_resolved) { ctx.payload = ctx.payload.alert.hits.hits[0]._source;ctx.payload.metadata = ctx.metadata.xpack;if (ctx.vars.fails_check == false) { ctx.payload.resolved_timestamp = ctx.execution_time;} } else { ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster\\'s license is going to expire in {{#relativeTime}}metadata.time{{/relativeTime}} at {{#absoluteTime}}metadata.time{{/absoluteTime}}.', 'message': alertMessage, 'metadata': ctx.metadata.xpack ];} if (ctx.vars.fails_check) { ctx.payload.metadata.time = ctx.vars.expiry.toString();} ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+    }
+  },
+  "actions": {
+    "add_to_alerts_index": {
+      "index": {
+        "index": ".monitoring-alerts-7",
+        "doc_id": "${monitoring.watch.unique_id}"
+      }
+    },
+    "send_email_to_admin": {
+      "condition": {
+        "script": "return ctx.vars.email_recipient != null && (ctx.vars.is_new || ctx.vars.is_resolved)"
+      },
+      "email": {
+        "to": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
+        "from": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
+        "subject": "[{{#ctx.vars.is_new}}NEW{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}RESOLVED{{/ctx.vars.is_resolved}}] {{ctx.metadata.name}}",
+        "body": {
+          "text": "{{#ctx.vars.is_resolved}}This cluster alert has been resolved: {{/ctx.vars.is_resolved}} This cluster's license {{#ctx.vars.is_new}}is going to expire on {{ctx.payload.metadata.time}}{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}was going to expire{{ctx.payload.metadata.time}}{{/ctx.vars.is_resolved}}. {{#ctx.vars.is_new}}{{ctx.payload.message}}{{/ctx.vars.is_new}}"
+        }
+      }
+    }
+  }
+}

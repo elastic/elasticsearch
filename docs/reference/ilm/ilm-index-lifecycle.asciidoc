@@ -1,0 +1,110 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-index-lifecycle]]
+=== Index lifecycle
+++++
+<titleabbrev>Index lifecycle</titleabbrev>
+++++
+
+{ilm-init} defines five index lifecycle _phases_:
+
+* **Hot**: The index is actively being updated and queried.
+* **Warm**: The index is no longer being updated but is still being queried.
+* **Cold**: The index is no longer being updated and is seldom queried. The
+information still needs to be searchable, but it's okay if those queries are
+slower.
+* **Frozen**: The index is no longer being updated and is seldom queried. The
+queries are performing longer-term analyses for which a slower response is
+acceptable.
+* **Delete**: The index is no longer needed and can safely be removed.
+
+An index's _lifecycle policy_ specifies which phases 
+are applicable, what actions are performed in each phase,
+and when it transitions between phases. 
+
+You can manually apply a lifecycle policy when you create an index. 
+For time series indices, you need to associate the lifecycle policy with
+the index template used to create new indices in the series. 
+When an index rolls over, a manually-applied policy isn't automatically applied to the new index.
+
+[discrete]
+[[ilm-phase-transitions]]
+=== Phase transitions
+
+{ilm-init} moves indices through the lifecycle according to their age. 
+To control the timing of these transitions, you set a _minimum age_ for each phase. 
+For an index to move to the next phase, all actions in the current phase must be complete and 
+the index must be older than the minimum age of the next phase. 
+
+The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
+as soon as all actions in the current phase complete. 
+
+If an index has unallocated shards and the <<cluster-health,cluster health status>> is yellow, 
+the index can still transition to the next phase according to its {ilm} policy.
+However, because {es} can only perform certain clean up tasks on a green
+cluster, there might be unexpected side effects. 
+
+To avoid increased disk usage and reliability issues,
+address any cluster health problems in a timely fashion.
+
+
+[discrete]
+[[ilm-phase-execution]]
+=== Phase execution
+
+{ilm-init} controls the order in which the actions in a phase are executed and
+what _steps_ are executed to perform the necessary index operations for each action.
+
+When an index enters a phase, {ilm-init} caches the phase definition in the index metadata.
+This ensures that policy updates don't put the index into a state where it can never exit the phase.
+If changes can be safely applied, {ilm-init} updates the cached phase definition.
+If they cannot, phase execution continues using the cached definition. 
+
+{ilm-init} runs periodically, checks to see if an index meets policy criteria, 
+and executes whatever steps are needed. 
+To avoid race conditions, {ilm-init} might need to run more than once to execute all of the steps
+required to complete an action.
+For example, if {ilm-init} determines that an index has met the rollover criteria, 
+it begins executing the steps required to complete the rollover action. 
+If it reaches a point where it is not safe to advance to the next step, execution stops. 
+The next time {ilm-init} runs, {ilm-init} picks up execution where it left off. 
+This means that even if `indices.lifecycle.poll_interval` is set to 10 minutes and an index meets
+the rollover criteria, it could be 20 minutes before the rollover is complete. 
+
+[discrete]
+[[ilm-phase-actions]]
+=== Phase actions
+
+{ilm-init} supports the following actions in each phase.
+
+* Hot
+  - <<ilm-set-priority,Set Priority>>
+  - <<ilm-unfollow,Unfollow>>
+  - <<ilm-rollover,Rollover>>
+* Warm
+  - <<ilm-set-priority,Set Priority>>
+  - <<ilm-unfollow,Unfollow>>
+  - <<ilm-readonly,Read-Only>>
+  - <<ilm-allocate,Allocate>>
+  - <<ilm-shrink,Shrink>>
+  - <<ilm-forcemerge,Force Merge>>
+* Cold
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-allocate,Allocate>>
+  - <<ilm-freeze,Freeze>>
+ifdef::permanently-unreleased-branch[]
+  - <<ilm-searchable-snapshot, Searchable Snapshot>>
+endif::[]
+* Frozen
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-allocate,Allocate>>
+  - <<ilm-freeze,Freeze>>
+ifdef::permanently-unreleased-branch[]
+  - <<ilm-searchable-snapshot, Searchable Snapshot>>
+endif::[]
+* Delete
+  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
+  - <<ilm-delete,Delete>>
+  

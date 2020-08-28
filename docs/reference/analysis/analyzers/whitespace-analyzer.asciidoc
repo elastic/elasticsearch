@@ -1,21 +1,16 @@
 [[analysis-whitespace-analyzer]]
-=== Whitespace Analyzer
+=== Whitespace analyzer
+++++
+<titleabbrev>Whitespace</titleabbrev>
+++++
 
 The `whitespace` analyzer breaks text into terms whenever it encounters a
 whitespace character.
 
-[float]
-=== Definition
-
-It consists of:
-
-Tokenizer::
-* <<analysis-whitespace-tokenizer,Whitespace Tokenizer>>
-
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -23,11 +18,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -104,7 +98,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -116,7 +109,41 @@ The above sentence would produce the following terms:
 [ The, 2, QUICK, Brown-Foxes, jumped, over, the, lazy, dog's, bone. ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `whitespace` analyzer is not configurable.
+
+[discrete]
+=== Definition
+
+It consists of:
+
+Tokenizer::
+* <<analysis-whitespace-tokenizer,Whitespace Tokenizer>>
+
+If you need to customize the `whitespace` analyzer then you need to
+recreate it as a `custom` analyzer and modify it, usually by adding
+token filters. This would recreate the built-in `whitespace` analyzer
+and you can use it as a starting point for further customization:
+
+[source,console]
+----------------------------------------------------
+PUT /whitespace_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "rebuilt_whitespace": {
+          "tokenizer": "whitespace",
+          "filter": [         <1>
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: whitespace_example, first: whitespace, second: rebuilt_whitespace}\nendyaml\n/]
+
+<1> You'd add any token filters here.

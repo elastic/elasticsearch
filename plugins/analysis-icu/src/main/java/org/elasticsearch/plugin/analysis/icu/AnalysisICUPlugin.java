@@ -19,7 +19,13 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
+import static java.util.Collections.singletonMap;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.IcuAnalyzerProvider;
 import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
@@ -28,16 +34,20 @@ import org.elasticsearch.index.analysis.IcuTokenizerFactory;
 import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.DocValueFormat;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
-
-public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin {
+public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperPlugin {
     @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return singletonMap("icu_normalizer", IcuNormalizerCharFilterFactory::new);
@@ -54,7 +64,28 @@ public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        return singletonMap("icu_analyzer", IcuAnalyzerProvider::new);
+    }
+
+    @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return singletonMap("icu_tokenizer", IcuTokenizerFactory::new);
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(ICUCollationKeywordFieldMapper.CONTENT_TYPE, new ICUCollationKeywordFieldMapper.TypeParser());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.singletonList(
+            new NamedWriteableRegistry.Entry(
+                DocValueFormat.class,
+                ICUCollationKeywordFieldMapper.CollationFieldType.COLLATE_FORMAT.getWriteableName(),
+                in -> ICUCollationKeywordFieldMapper.CollationFieldType.COLLATE_FORMAT
+            )
+        );
     }
 }

@@ -426,27 +426,6 @@ Name of the index containing the event.
 Unique identifier for the event.
 This ID is only unique within the index.
 
-`_version`::
-(integer)
-Version of the document (event). This version is incremented each time the document is
-updated.
-
-`_seq_no`::
-(integer)
-Sequence number assigned to the document (event).
-+
-Sequence numbers are used to ensure an older version of a document
-doesn’t overwrite a newer version. See <<optimistic-concurrency-control>>.
-
-`_primary_term`::
-(integer)
-Primary term assigned to the document. See <<optimistic-concurrency-control>>.
-
-`_score`::
-(float)
-Positive 32-bit floating point number used to determine the relevance of the
- event. See <<relevance-scores>>.
-
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
@@ -471,11 +450,6 @@ Name of the index containing the event.
 (string)
 Unique identifier for the event.
 This ID is only unique within the index.
-
-`_score`::
-(float)
-Positive 32-bit floating point number used to determine the relevance of the
- event. See <<relevance-scores>>.
 
 `_source`::
 (object)
@@ -505,7 +479,6 @@ GET /my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
@@ -532,7 +505,6 @@ the events in ascending, lexicographic order.
       {
         "_index": "my-index-000001",
         "_id": "babI3XMBI9IjHuIqU0S_",
-        "_score": null,
         "_source": {
           "@timestamp": "2099-12-06T11:04:05.000Z",
           "event": {
@@ -550,7 +522,6 @@ the events in ascending, lexicographic order.
       {
         "_index": "my-index-000001",
         "_id": "b6bI3XMBI9IjHuIqU0S_",
-        "_score": null,
         "_source": {
           "@timestamp": "2099-12-07T11:06:07.000Z",
           "event": {
@@ -633,10 +604,6 @@ shared `process.pid` value for each matching event.
           {
             "_index": "my-index-000001",
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
-            "_version": 1,
-            "_seq_no": 1,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-06T11:04:07.000Z",
               "event": {
@@ -661,10 +628,6 @@ shared `process.pid` value for each matching event.
           {
             "_index": "my-index-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {

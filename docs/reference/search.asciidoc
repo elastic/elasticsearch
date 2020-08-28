@@ -14,6 +14,7 @@ exception of the <<search-explain,explain API>>.
 * <<search-search>>
 * <<search-multi-search>>
 * <<async-search>>
+* <<point-in-time-api>>
 * <<scroll-api>>
 * <<clear-scroll-api>>
 * <<search-suggesters>>
@@ -50,6 +51,8 @@ For an overview of EQL and related tutorials, see <<eql>>.
 include::search/search.asciidoc[]
 
 include::search/async-search.asciidoc[]
+
+include::search/point-in-time-api.asciidoc[]
 
 include::search/scroll-api.asciidoc[]
 

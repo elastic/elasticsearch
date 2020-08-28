@@ -1,5 +1,5 @@
 [[binary]]
-=== Binary data type
+=== Binary field type
 ++++
 <titleabbrev>Binary</titleabbrev>
 ++++

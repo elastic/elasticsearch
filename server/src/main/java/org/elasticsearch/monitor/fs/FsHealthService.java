@@ -153,12 +153,11 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            brokenLock = false;
             Path[] paths = null;
             try {
                 paths = nodeEnv.nodeDataPaths();
             } catch (IllegalStateException e) {
-                logger.error("Lock assertions failed due to", e);
+                logger.error("health check failed", e);
                 brokenLock = true;
                 return;
             }
@@ -189,6 +188,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 }
             }
             unhealthyPaths = currentUnhealthyPaths;
+            brokenLock = false;
         }
     }
 }

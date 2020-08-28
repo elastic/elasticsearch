@@ -104,7 +104,6 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists_alias:
-        allow_system_index_access: true
         name: ".ml-state-write"
   - is_true: ''
 
@@ -700,7 +699,6 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists_alias:
-        allow_system_index_access: true
         name: ".ml-state-write"
   - is_true: ''
 

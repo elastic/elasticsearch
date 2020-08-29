@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -52,20 +53,21 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-
+       List<FetchDocValuesContext.FieldAndFormat> docValueFields = new ArrayList<>();
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldName();
-            if (context.docValuesContext() == null) {
-                context.docValuesContext(new FetchDocValuesContext(
-                        Collections.singletonList(new FieldAndFormat(name, null))));
-            } else if (context.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValuesContext().fields().add(new FieldAndFormat(name, null));
+            docValueFields.add(new FieldAndFormat(context.collapse().getFieldName(), null));
+        } else {
+            // add _ignored field
+            if (context.indexShard().indexSettings().getIndexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                docValueFields.add(new FieldAndFormat("_ignored", null));
             }
         }
 
         if (context.docValuesContext() == null) {
-            return;
+           context.docValuesContext(new FetchDocValuesContext(docValueFields));
+        } else {
+           context.docValuesContext().fields().addAll(docValueFields);
         }
 
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {

@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 
@@ -41,34 +40,49 @@ import java.util.Collections;
  * A field mapper that records fields that have been ignored because they were malformed.
  */
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
-
     public static final String NAME = "_ignored";
-
     public static final String CONTENT_TYPE = "_ignored";
 
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType LEGACY_FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
+
+            LEGACY_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            LEGACY_FIELD_TYPE.setTokenized(false);
+            LEGACY_FIELD_TYPE.setStored(false);
+            LEGACY_FIELD_TYPE.setOmitNorms(true);
+            LEGACY_FIELD_TYPE.freeze();
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper(c.indexVersionCreated()));
 
     public static final class IgnoredFieldType extends StringFieldType {
 
+        public static final IgnoredFieldType INSTANCE_LEGACY = new IgnoredFieldType(false);
         public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
-            super(NAME, true, Version.CURRENT.id >= Version.V_7_1_0.id,
-                TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(true);
+        }
+
+        private IgnoredFieldType(boolean docValues) {
+            super(NAME, true, docValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
+
+        public static IgnoredFieldType getInstance(Version version) {
+            return version.onOrAfter(Version.V_8_0_0)
+                ? INSTANCE
+                : INSTANCE_LEGACY;
         }
 
         @Override
@@ -93,8 +107,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     }
 
-    private IgnoredFieldMapper() {
-        super(IgnoredFieldType.INSTANCE);
+    private IgnoredFieldMapper(Version version) {
+        super(IgnoredFieldType.getInstance(version));
     }
 
     @Override
@@ -114,11 +128,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
-            if (fieldType().hasDocValues()) {
-                final BytesRef binaryValue = new BytesRef(field);
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            if (!fieldType().hasDocValues()) {
+                // Use legacy field type if there are no doc values
+                context.doc().add(new Field(NAME, field, Defaults.LEGACY_FIELD_TYPE));
+                continue;
             }
+            final BytesRef binaryValue = new BytesRef(field);
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 

@@ -53,7 +53,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-       List<FetchDocValuesContext.FieldAndFormat> docValueFields = new ArrayList<>();
+       List<FieldAndFormat> docValueFields = new ArrayList<>();
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             docValueFields.add(new FieldAndFormat(context.collapse().getFieldName(), null));

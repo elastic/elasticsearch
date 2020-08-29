@@ -26,6 +26,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
@@ -51,6 +52,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
+
     }
 
     public void testWildcardQuery() {
@@ -63,5 +65,11 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
+    }
+    public void testDocValues(){
+        MappedFieldType legacyIgnored = IgnoredFieldMapper.IgnoredFieldType.getInstance(Version.V_7_1_0);
+        MappedFieldType ignored = IgnoredFieldMapper.IgnoredFieldType.getInstance(Version.V_8_0_0);
+        assertEquals(true,legacyIgnored.hasDocValues());
+        assertEquals(ignored.hasDocValues(), false);
     }
 }

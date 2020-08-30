@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -48,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
 public class IpFieldMapper extends ParametrizedFieldMapper {
@@ -268,7 +270,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), IpScriptDocValues::new, CoreValuesSourceType.IP);
         }
@@ -328,11 +330,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object nullValue() {
-        return nullValue;
-    }
-
-    @Override
     protected IpFieldMapper clone() {
         return (IpFieldMapper) super.clone();
     }
@@ -385,18 +382,22 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-
-        InetAddress address;
-        if (value instanceof InetAddress) {
-            address = (InetAddress) value;
-        } else {
-            address = InetAddresses.forString(value.toString());
-        }
-        return InetAddresses.toAddrString(address);
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                InetAddress address;
+                if (value instanceof InetAddress) {
+                    address = (InetAddress) value;
+                } else {
+                    address = InetAddresses.forString(value.toString());
+                }
+                return InetAddresses.toAddrString(address);
+            }
+        };
     }
 
     @Override

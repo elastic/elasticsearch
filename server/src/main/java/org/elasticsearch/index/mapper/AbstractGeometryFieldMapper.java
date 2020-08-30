@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
@@ -183,14 +184,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
-        if (format == null) {
-            format = GeoJsonGeometryFormat.NAME;
-        }
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        return geometryParser.parseAndFormatObject(value, this, format);
+        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return valueParser.apply(value);
+            }
+        };
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {

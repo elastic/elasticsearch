@@ -15,8 +15,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -27,10 +29,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitterFactory;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
@@ -45,12 +50,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.same;
@@ -70,6 +78,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     private TrainTestSplitterFactory trainTestSplitterFactory;
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
+    private int searchHitCounter;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -83,7 +92,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         query = QueryBuilders.matchAllQuery();
         extractedFields = new ExtractedFields(Arrays.asList(
             new DocValueField("field_1", Collections.singleton("keyword")),
-            new DocValueField("field_2", Collections.singleton("keyword"))), Collections.emptyMap());
+            new DocValueField("field_2", Collections.singleton("keyword"))),
+            Collections.emptyList(),
+            Collections.emptyMap());
         scrollSize = 1000;
         headers = Collections.emptyMap();
 
@@ -187,6 +198,13 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         List<String> capturedClearScrollRequests = getCapturedClearScrollIds();
         assertThat(capturedClearScrollRequests.size(), equalTo(1));
         assertThat(capturedClearScrollRequests.get(0), equalTo(lastAndEmptyResponse.getScrollId()));
+
+        // Notice we've done two searches here
+        assertThat(dataExtractor.capturedSearchRequests, hasSize(2));
+
+        // Assert the second search did not include a range query as the failure happened on the very first search
+        String searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"query\":{\"match_all\":{\"boost\":1.0}}"));
     }
 
     public void testErrorOnSearchTwiceLeadsToFailure() {
@@ -206,14 +224,14 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         TestExtractor dataExtractor = createExtractor(true, false);
 
         // Search will succeed
-        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1), Arrays.asList(2_1));
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
         dataExtractor.setNextResponse(response1);
 
         // But the first continue scroll fails
         dataExtractor.setNextResponse(createResponseWithShardFailures());
 
         // The next one succeeds and we shall recover
-        SearchResponse response2 = createSearchResponse(Arrays.asList(1_2), Arrays.asList(2_2));
+        SearchResponse response2 = createSearchResponse(Arrays.asList(1_3), Arrays.asList(2_3));
         dataExtractor.setNextResponse(response2);
 
         // Last one
@@ -225,15 +243,16 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         // First batch expected as normally since we'll retry after the error
         Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().size(), equalTo(1));
+        assertThat(rows.get().size(), equalTo(2));
         assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
+        assertThat(rows.get().get(1).getValues(), equalTo(new String[] {"12", "22"}));
         assertThat(dataExtractor.hasNext(), is(true));
 
         // We get second batch as we retried after the error
         rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
         assertThat(rows.get().size(), equalTo(1));
-        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"12", "22"}));
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"13", "23"}));
         assertThat(dataExtractor.hasNext(), is(true));
 
         // Next batch should return empty
@@ -244,6 +263,12 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         // Notice we've done two searches and two continues here
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
         assertThat(dataExtractor.capturedContinueScrollIds.size(), equalTo(2));
+
+        // Assert the second search continued from the latest successfully processed doc
+        String searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
+        assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__id_copy\":{\"from\":\"1\",\"to\":null,\"include_lower\":false"));
 
         // Check we cleared the scroll with the latest scroll id
         List<String> capturedClearScrollRequests = getCapturedClearScrollIds();
@@ -304,7 +329,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
             (ExtractedField) new DocValueField("field_1", Collections.singleton("keyword")),
-            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))), Collections.emptyMap());
+            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))),
+            Collections.emptyList(),
+            Collections.emptyMap());
 
         TestExtractor dataExtractor = createExtractor(false, false);
 
@@ -446,7 +473,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             (ExtractedField) new DocValueField("field_integer", Collections.singleton("integer")),
             (ExtractedField) new DocValueField("field_long", Collections.singleton("long")),
             (ExtractedField) new DocValueField("field_keyword", Collections.singleton("keyword")),
-            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))), Collections.emptyMap());
+            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))),
+            Collections.emptyList(),
+            Collections.emptyMap());
         TestExtractor dataExtractor = createExtractor(true, true);
 
         assertThat(dataExtractor.getCategoricalFields(OutlierDetectionTests.createRandom()), empty());
@@ -466,10 +495,98 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             containsInAnyOrder("field_keyword", "field_text", "field_boolean"));
     }
 
+    public void testGetFieldNames_GivenProcessesFeatures() {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
+        extractedFields = new ExtractedFields(Arrays.asList(
+            (ExtractedField) new DocValueField("field_boolean", Collections.singleton("boolean")),
+            (ExtractedField) new DocValueField("field_float", Collections.singleton("float")),
+            (ExtractedField) new DocValueField("field_double", Collections.singleton("double")),
+            (ExtractedField) new DocValueField("field_byte", Collections.singleton("byte")),
+            (ExtractedField) new DocValueField("field_short", Collections.singleton("short")),
+            (ExtractedField) new DocValueField("field_integer", Collections.singleton("integer")),
+            (ExtractedField) new DocValueField("field_long", Collections.singleton("long")),
+            (ExtractedField) new DocValueField("field_keyword", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))),
+            Arrays.asList(
+                new ProcessedField(new CategoricalPreProcessor("field_long", "animal")),
+                buildProcessedField("field_short", "field_1", "field_2")
+            ),
+            Collections.emptyMap());
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        assertThat(dataExtractor.getCategoricalFields(new Regression("field_double")),
+            containsInAnyOrder("field_keyword", "field_text", "animal"));
+
+        List<String> fieldNames = dataExtractor.getFieldNames();
+        assertThat(fieldNames, containsInAnyOrder(
+            "animal",
+            "field_1",
+            "field_2",
+            "field_boolean",
+            "field_float",
+            "field_double",
+            "field_byte",
+            "field_integer",
+            "field_keyword",
+            "field_text"));
+        assertThat(dataExtractor.getFieldNames(), contains(fieldNames.toArray(String[]::new)));
+    }
+
+    public void testExtractionWithProcessedFeatures() throws IOException {
+        extractedFields = new ExtractedFields(Arrays.asList(
+            new DocValueField("field_1", Collections.singleton("keyword")),
+            new DocValueField("field_2", Collections.singleton("keyword"))),
+            Arrays.asList(
+                new ProcessedField(new CategoricalPreProcessor("field_1", "animal")),
+                new ProcessedField(new OneHotEncoding("field_1",
+                    Arrays.asList("11", "12")
+                        .stream()
+                        .collect(Collectors.toMap(Function.identity(), s -> s.equals("11") ? "field_11" : "field_12")),
+                    true))
+            ),
+            Collections.emptyMap());
+
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        // First and only batch
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, null, 1_3), Arrays.asList(2_1, 2_2, 2_3));
+        dataExtractor.setNextResponse(response1);
+
+        // Empty
+        SearchResponse lastAndEmptyResponse = createEmptySearchResponse();
+        dataExtractor.setNextResponse(lastAndEmptyResponse);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        // First batch
+        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        assertThat(rows.get().size(), equalTo(3));
+
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"21", "dog", "1", "0"}));
+        assertThat(rows.get().get(1).getValues(),
+            equalTo(new String[] {"22", "dog", DataFrameDataExtractor.NULL_VALUE, DataFrameDataExtractor.NULL_VALUE}));
+        assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"23", "dog", "0", "0"}));
+
+        assertThat(rows.get().get(0).shouldSkip(), is(false));
+        assertThat(rows.get().get(1).shouldSkip(), is(false));
+        assertThat(rows.get().get(2).shouldSkip(), is(false));
+    }
+
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(JOB_ID, extractedFields, indices, query, scrollSize,
             headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory);
         return new TestExtractor(client, context);
+    }
+
+    private static ProcessedField buildProcessedField(String inputField, String... outputFields) {
+        return new ProcessedField(buildPreProcessor(inputField, outputFields));
+    }
+
+    private static PreProcessor buildPreProcessor(String inputField, String... outputFields) {
+        return new OneHotEncoding(inputField,
+            Arrays.stream(outputFields).collect(Collectors.toMap((s) -> randomAlphaOfLength(10), Function.identity())),
+            true);
     }
 
     private SearchResponse createSearchResponse(List<Number> field1Values, List<Number> field2Values) {
@@ -482,6 +599,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             addField(searchHitBuilder, "field_1", field1Values.get(i));
             addField(searchHitBuilder, "field_2", field2Values.get(i));
             searchHitBuilder.setSource("{\"field_1\":" + field1Values.get(i) + ",\"field_2\":" + field2Values.get(i) + "}");
+            searchHitBuilder.setStringSortValue(String.valueOf(searchHitCounter++));
             hits.add(searchHitBuilder.build());
         }
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
@@ -543,6 +661,72 @@ public class DataFrameDataExtractorTests extends ESTestCase {
                 throw new RuntimeException(searchResponse.getShardFailures()[0].getCause());
             }
             return searchResponse;
+        }
+    }
+
+    private static class CategoricalPreProcessor implements PreProcessor {
+
+        private final List<String> inputFields;
+        private final List<String> outputFields;
+
+        CategoricalPreProcessor(String inputField, String outputField) {
+            this.inputFields = Arrays.asList(inputField);
+            this.outputFields = Arrays.asList(outputField);
+        }
+
+        @Override
+        public List<String> inputFields() {
+            return inputFields;
+        }
+
+        @Override
+        public List<String> outputFields() {
+            return outputFields;
+        }
+
+        @Override
+        public void process(Map<String, Object> fields) {
+            fields.put(outputFields.get(0), "dog");
+        }
+
+        @Override
+        public Map<String, String> reverseLookup() {
+            return null;
+        }
+
+        @Override
+        public boolean isCustom() {
+            return true;
+        }
+
+        @Override
+        public String getOutputFieldType(String outputField) {
+            return "text";
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+
+        }
+
+        @Override
+        public String getName() {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
         }
     }
 }

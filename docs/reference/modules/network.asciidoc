@@ -34,7 +34,7 @@ at least some of the other nodes in the cluster.  This setting provides the
 initial list of addresses this node will try to contact. Accepts IP addresses
 or hostnames. If a hostname lookup resolves to multiple IP addresses then each
 IP address will be used for discovery.
-https://en.wikipedia.org/wiki/Round-robin_DNS[Round robin DNS] -- returning a
+{wikipedia}/Round-robin_DNS[Round robin DNS] -- returning a
 different IP from a list on each lookup -- can be used for discovery; non-
 existent IP addresses will throw exceptions and cause another DNS lookup on the
 next round of pinging (subject to <<networkaddress-cache-ttl,JVM DNS
@@ -126,7 +126,7 @@ Any component that uses TCP (like the <<modules-http,HTTP>> and
 <<modules-transport,transport>> layers) share the following settings:
 
 `network.tcp.no_delay`::
-Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
 setting. Defaults to `true`.
 
 `network.tcp.keep_alive`::
@@ -163,15 +163,17 @@ The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
 [discrete]
-=== Transport and HTTP protocols
+=== HTTP and transport network communication
 
-An Elasticsearch node exposes two network protocols which inherit the above
-settings, but may be further configured independently:
+Each {es} node uses the network for two different methods of communication:
 
-TCP Transport::
-Used for communication between nodes in the cluster.
-See <<modules-transport>>.
+* it exposes an <<modules-http,HTTP interface>> for use by clients.
 
-HTTP::
-Exposes the JSON-over-HTTP interface used by all clients.
-See <<modules-http>>.
+* it exposes a <<modules-transport,transport interface>> for communication
+between nodes within a cluster and for communication with a
+<<modules-remote-clusters,remote cluster>>.
+
+The network settings described above apply to both methods of communication,
+and you can also configure each interface separately if needed. See the
+<<modules-http,HTTP>> and <<modules-transport,transport>> pages for more
+details on their respective configurations.

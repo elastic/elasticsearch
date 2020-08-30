@@ -114,6 +114,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }

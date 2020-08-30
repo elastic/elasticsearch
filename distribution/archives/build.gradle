@@ -211,9 +211,6 @@ tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
 }
 
-Closure tarExists = { it -> new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }
-Closure unzipExists = { it -> new File('/bin/unzip').exists() || new File('/usr/bin/unzip').exists() || new File('/usr/local/bin/unzip').exists() }
-
 // This configures the default artifact for the distribution specific
 // subprojects. We have subprojects for two reasons:
 // 1. Gradle project substitutions can only bind to the default
@@ -222,105 +219,16 @@ Closure unzipExists = { it -> new File('/bin/unzip').exists() || new File('/usr/
 //    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
+  apply plugin: 'elasticsearch.internal-distribution-archive-check'
+
+  distributionArchiveCheck {
+    expectedMlLicenses.add("Boost Software License - Version 1.0 - August 17th, 2003")
+  }
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.named(buildTask)
   artifacts {
     'default' buildDist
-  }
-
-  // sanity checks if archives can be extracted
-  File archiveExtractionDir
-  if (project.name.contains('tar')) {
-    archiveExtractionDir = new File(buildDir, 'tar-extracted')
-  } else {
-    assert project.name.contains('zip')
-    archiveExtractionDir = new File(buildDir, 'zip-extracted')
-  }
-  def checkExtraction = tasks.register('checkExtraction', LoggedExec) {
-    dependsOn buildDist
-    doFirst {
-      project.delete(archiveExtractionDir)
-      archiveExtractionDir.mkdirs()
-    }
-    // common sanity checks on extracted archive directly as part of checkExtraction
-    doLast {
-      // check no plain class files are packaged
-      archiveExtractionDir.eachFileRecurse (FileType.FILES) { file ->
-        assert file.name.endsWith(".class") == false
-      }
-    }
-  }
-  tasks.named('check').configure { dependsOn checkExtraction }
-  if (project.name.contains('tar')) {
-    checkExtraction.configure {
-      onlyIf tarExists
-      commandLine 'tar', '-xvzf', "${-> buildDist.get().outputs.files.singleFile}", '-C', archiveExtractionDir
-    }
-  } else {
-    assert project.name.contains('zip')
-    checkExtraction.configure {
-      onlyIf unzipExists
-      commandLine 'unzip', "${-> buildDist.get().outputs.files.singleFile}", '-d', archiveExtractionDir
-    }
-  }
-
-  Closure toolExists
-  if (project.name.contains('tar')) {
-    toolExists = tarExists
-  } else {
-    assert project.name.contains('zip')
-    toolExists = unzipExists
-  }
-
-
-  tasks.register('checkLicense') {
-    dependsOn buildDist, checkExtraction
-    onlyIf toolExists
-    doLast {
-      String licenseFilename = null
-      if (project.name.contains('oss-') || project.name == 'integ-test-zip') {
-        licenseFilename = "APACHE-LICENSE-2.0.txt"
-      } else {
-        licenseFilename = "ELASTIC-LICENSE.txt"
-      }
-      final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
-      final Path licensePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/LICENSE.txt")
-      assertLinesInFile(licensePath, licenseLines)
-    }
-  }
-  tasks.named('check').configure { dependsOn checkLicense }
-
-  tasks.register('checkNotice') {
-    dependsOn buildDist, checkExtraction
-    onlyIf toolExists
-    doLast {
-      final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
-      final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/NOTICE.txt")
-      assertLinesInFile(noticePath, noticeLines)
-    }
-  }
-  tasks.named('check').configure { dependsOn checkNotice }
-
-  if (project.name == 'zip' || project.name == 'tar') {
-    project.ext.licenseName = 'Elastic License'
-    project.ext.licenseUrl = ext.elasticLicenseUrl
-    def checkMlCppNotice = tasks.register('checkMlCppNotice') {
-      dependsOn buildDist, checkExtraction
-      onlyIf toolExists
-      doLast {
-        // this is just a small sample from the C++ notices, the idea being that if we've added these lines we've probably added all the required lines
-        final List<String> expectedLines = Arrays.asList("Apache log4cxx", "Boost Software License - Version 1.0 - August 17th, 2003")
-        final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/modules/x-pack-ml/NOTICE.txt")
-        final List<String> actualLines = Files.readAllLines(noticePath)
-        for (final String expectedLine : expectedLines) {
-          if (actualLines.contains(expectedLine) == false) {
-            throw new GradleException("expected [${noticePath}] to contain [${expectedLine}] but it did not")
-          }
-        }
-      }
-    }
-    tasks.named('check').configure { dependsOn checkMlCppNotice }
   }
 }
 

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -163,7 +164,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
-                ShardSearchFailure.EMPTY_ARRAY, clusters));
+                ShardSearchFailure.EMPTY_ARRAY, clusters, null));
             return;
         }
         executePhase(this);
@@ -377,36 +378,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         onShardFailure(shardIndex, shardTarget, e);
         final ShardRouting nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
+        logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
+            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
         if (lastShard) {
             onShardGroupFailure(shardIndex, shardTarget, e);
         }
-
-        if (totalOps.incrementAndGet() == expectedTotalOps) {
-            if (logger.isDebugEnabled()) {
-                if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                    logger.debug(new ParameterizedMessage(
-                        "{}: Failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
-                } else if (logger.isTraceEnabled()) {
-                    logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
-                }
-            }
+        final int totalOps = this.totalOps.incrementAndGet();
+        if (totalOps == expectedTotalOps) {
             onPhaseDone();
+        } else if (totalOps > expectedTotalOps) {
+            throw new AssertionError("unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
+                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures()));
         } else {
-            // trace log this exception
-            logger.trace(() -> new ParameterizedMessage(
-                "{}: Failed to execute [{}] lastShard [{}]",
-                shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
             if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
-            } else {
-                // no more shards active, add a failure
-                if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
-                    if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                        logger.debug(new ParameterizedMessage(
-                            "{}: Failed to execute [{}] lastShard [{}]",
-                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
-                    }
-                }
             }
         }
     }
@@ -505,8 +490,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (xTotalOps == expectedTotalOps) {
             onPhaseDone();
         } else if (xTotalOps > expectedTotalOps) {
-            throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
-                + expectedTotalOps + "]");
+            throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
+                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures()));
         }
     }
 
@@ -530,22 +515,29 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
-    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse,
-                                                       String scrollId,
-                                                       ShardSearchFailure[] failures) {
+    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
+                                                       String scrollId, String searchContextId) {
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            skippedOps.get(), buildTookInMillis(), failures, clusters);
+            skippedOps.get(), buildTookInMillis(), failures, clusters, searchContextId);
+    }
+
+    boolean includeSearchContextInResponse() {
+        return request.pointInTimeBuilder() != null;
     }
 
     @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (allowPartialResults == false && failures.length > 0){
+        if (request.pointInTimeBuilder() == null && allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId, failures));
+            final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
+            final String searchContextId =
+                includeSearchContextInResponse() ? SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion) : null;
+            listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
     }
 
@@ -614,12 +606,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
             .toArray(new String[0]);
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
-            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings);
+            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings,
+            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
-        // Note that, we have to disable this shortcut for scroll queries.
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && request.scroll() == null);
+        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
         return shardRequest;
     }
 
@@ -688,9 +681,5 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             return toExecute;
         }
-    }
-
-    protected ClusterState clusterState() {
-        return clusterState;
     }
 }

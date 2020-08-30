@@ -196,7 +196,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         private BytesRefIterator iterator;
         private int sliceIndex;
         private BytesRef slice;
-        private int sliceStartOffset; // the current position of the stream
+        private int sliceStartOffset; // the offset on the stream at which the current slice starts
 
         private int mark = 0;
 

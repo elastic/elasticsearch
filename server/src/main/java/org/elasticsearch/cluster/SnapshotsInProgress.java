@@ -159,7 +159,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.version = version;
             this.source = source;
             if (source == null) {
-                assert clones == null : "Provided [" + clones + "] but no source";
+                assert clones == null || clones.isEmpty() : "Provided [" + clones + "] but no source";
                 this.clones = ImmutableOpenMap.of();
             } else {
                 this.clones = clones;
@@ -209,8 +209,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert source != null || indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
             final boolean shardsCompleted = completed(shards.values());
-            assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
-                : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;
+            if (source == null) {
+                assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
+                        : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;
+            } else {
+                // TODO: assert things about clones
+            }
             return true;
         }
 
@@ -436,6 +440,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             if (out.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
                 out.writeOptionalWriteable(source);
+                out.writeMap(clones, StreamOutput::writeString, StreamOutput::writeList);
             }
         }
 
@@ -539,7 +544,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
-            out.writeByte(state.value);
+            state.writeTo(out);
             out.writeOptionalString(generation);
             out.writeOptionalString(reason);
         }
@@ -701,7 +706,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder;
     }
 
-    public enum ShardState {
+    public enum ShardState implements Writeable {
         INIT((byte) 0, false, false),
         SUCCESS((byte) 2, true, false),
         FAILED((byte) 3, true, true),
@@ -756,6 +761,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 default:
                     throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(value);
         }
     }
 }

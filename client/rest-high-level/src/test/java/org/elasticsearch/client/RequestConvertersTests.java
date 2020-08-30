@@ -1150,10 +1150,14 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             searchScrollRequest.scroll(randomPositiveTimeValue());
         }
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+
         Request request = RequestConverters.searchScroll(searchScrollRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_search/scroll", request.getEndpoint());
-        assertEquals(0, request.getParameters().size());
+        assertEquals(1, request.getParameters().size());
+        assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(searchScrollRequest, request.getEntity());
         assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }

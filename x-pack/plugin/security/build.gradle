@@ -139,6 +139,12 @@ processInternalClusterTestResources {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
+processTestResources {
+  from(project(xpackModule('core')).file('src/main/config'))
+  from(project(xpackModule('core')).file('src/test/resources'))
+}
+
+
 configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation

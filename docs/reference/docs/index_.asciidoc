@@ -172,14 +172,18 @@ the operation automatically creates the index and applies any matching
 [IMPORTANT]
 ====
 {es} has built-in index templates for the `metrics-*-*` and `logs-*-*` index
-patterns. {ingest-guide}/ingest-management-overview.html[{agent}] uses these
-templates to create data streams. If you use {agent}, assign your index
-templates a priority lower than `100` to avoid an override of the built-in
-templates.
+patterns, each with a priority of `100`.
+{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+create data streams. If you use {agent}, assign your index templates a priority
+lower than `100` to avoid overriding the built-in templates.
 
 Otherwise, to avoid accidentally applying the built-in templates, use a
-non-overlapping index pattern, or assign your templates a `priority` higher or
-lower than `100`.
+non-overlapping index pattern or assign templates with an overlapping pattern a
+`priority` higher than `100`.
+
+For example, if you don't use {agent} and want to create a template for the
+`logs-*` index pattern, assign your template a priority of `200`. This ensures
+your template is applied instead of the built-in template for `logs-*-*`.
 ====
 
 If no mapping exists, the index operation

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.eql.session.Payload;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 
 import java.util.List;
 
@@ -17,7 +17,7 @@ import java.util.List;
  */
 public interface QueryClient {
 
-    void query(QueryRequest request, ActionListener<Payload> listener);
+    void query(QueryRequest request, ActionListener<SearchResponse> listener);
 
-    void get(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
+    void get(Iterable<List<HitReference>> refs, ActionListener<List<List<GetResponse>>> listener);
 }

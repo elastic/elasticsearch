@@ -127,6 +127,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
@@ -583,12 +584,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public void unblockRepositories() throws Exception {
+        if (isInternalCluster() == false) {
+            return;
+        }
         List<RepositoryMetadata> repositories = admin().cluster().prepareGetRepositories().get().repositories();
         for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             for (RepositoryMetadata repositoryMetadata : repositories) {
-                Repository repository = repositoriesService.repository(repositoryMetadata.name());
-                if (repository instanceof MockRepository) {
-                    ((MockRepository) repository).unblock();
+                try {
+                    Repository repository = repositoriesService.repository(repositoryMetadata.name());
+                    if (repository instanceof MockRepository) {
+                        ((MockRepository) repository).unblock();
+                    }
+                } catch (RepositoryMissingException e) {
+                    // ignore missing repositories
                 }
             }
         }

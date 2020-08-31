@@ -1,5 +1,5 @@
 [[geo-shape]]
-=== Geo-shape data type
+=== Geo-shape field type
 ++++
 <titleabbrev>Geo-shape</titleabbrev>
 ++++

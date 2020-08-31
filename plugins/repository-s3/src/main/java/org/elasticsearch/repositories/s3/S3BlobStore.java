@@ -25,6 +25,8 @@ import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -39,6 +41,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 class S3BlobStore implements BlobStore {
+
+    private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
 
@@ -105,8 +109,10 @@ class S3BlobStore implements BlobStore {
     private long getRequestCount(Request<?> request) {
         Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
             .getCounter(AWSRequestMetrics.Field.RequestCount.name());
-        assert requestCount != null;
-
+        if (requestCount == null) {
+            logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
+            return 0L;
+        }
         return requestCount.longValue();
     }
 

@@ -117,6 +117,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 successHandler.run();
             }
 
@@ -235,6 +236,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 successHandler.run();
             }
 
@@ -290,6 +292,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);

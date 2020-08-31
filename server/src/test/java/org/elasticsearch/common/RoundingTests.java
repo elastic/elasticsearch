@@ -36,6 +36,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneOffsetTransitionRule;
+import java.time.zone.ZoneRules;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -234,51 +236,55 @@ public class RoundingTests extends ESTestCase {
         for (int i = 0; i < 1000; ++i) {
             Rounding.DateTimeUnit unit = randomFrom(Rounding.DateTimeUnit.values());
             ZoneId tz = randomZone();
-            Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
             long[] bounds = randomDateBounds(unit);
-            Rounding.Prepared prepared = rounding.prepare(bounds[0], bounds[1]);
+            assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, bounds[0], bounds[1]);
+        }
+    }
 
-            // Check that rounding is internally consistent and consistent with nextRoundingValue
-            long date = dateBetween(bounds[0], bounds[1]);
-            long unitMillis = unit.getField().getBaseUnit().getDuration().toMillis();
-            // FIXME this was copy pasted from the other impl and not used. breaks the nasty date actually gets assigned
-            if (randomBoolean()) {
-                nastyDate(date, tz, unitMillis);
+    private void assertUnitRoundingSameAsJavaUtilTimeImplementation(Rounding.DateTimeUnit unit, ZoneId tz, long start, long end) {
+        Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
+        Rounding.Prepared prepared = rounding.prepare(start, end);
+
+        // Check that rounding is internally consistent and consistent with nextRoundingValue
+        long date = dateBetween(start, end);
+        long unitMillis = unit.getField().getBaseUnit().getDuration().toMillis();
+        // FIXME this was copy pasted from the other impl and not used. breaks the nasty date actually gets assigned
+        if (randomBoolean()) {
+            nastyDate(date, tz, unitMillis);
+        }
+        final long roundedDate = prepared.round(date);
+        final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
+
+        assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
+
+        // check correct unit interval width for units smaller than a day, they should be fixed size except for transitions
+        if (unitMillis <= 86400 * 1000) {
+            // if the interval defined didn't cross timezone offset transition, it should cover unitMillis width
+            int offsetRounded = tz.getRules().getOffset(Instant.ofEpochMilli(roundedDate - 1)).getTotalSeconds();
+            int offsetNextValue = tz.getRules().getOffset(Instant.ofEpochMilli(nextRoundingValue + 1)).getTotalSeconds();
+            if (offsetRounded == offsetNextValue) {
+                assertThat("unit interval width not as expected for [" + unit + "], [" + tz + "] at "
+                    + Instant.ofEpochMilli(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
             }
-            final long roundedDate = prepared.round(date);
-            final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
+        }
 
-            assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
-
-            // check correct unit interval width for units smaller than a day, they should be fixed size except for transitions
-            if (unitMillis <= 86400 * 1000) {
-                // if the interval defined didn't cross timezone offset transition, it should cover unitMillis width
-                int offsetRounded = tz.getRules().getOffset(Instant.ofEpochMilli(roundedDate - 1)).getTotalSeconds();
-                int offsetNextValue = tz.getRules().getOffset(Instant.ofEpochMilli(nextRoundingValue + 1)).getTotalSeconds();
-                if (offsetRounded == offsetNextValue) {
-                    assertThat("unit interval width not as expected for [" + unit + "], [" + tz + "] at "
-                        + Instant.ofEpochMilli(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
-                }
+        // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+        Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
+        for (int d = 0; d < 1000; d++) {
+            date = dateBetween(start, end);
+            long javaRounded = javaTimeRounding.round(date);
+            long esRounded = prepared.round(date);
+            if (javaRounded != esRounded) {
+                fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                        + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
             }
-
-            // Round a whole bunch of dates and make sure they line up with the known good java time implementation
-            Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
-            for (int d = 0; d < 1000; d++) {
-                date = dateBetween(bounds[0], bounds[1]);
-                long javaRounded = javaTimeRounding.round(date);
-                long esRounded = prepared.round(date);
-                if (javaRounded != esRounded) {
-                    fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
-                            + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
-                }
-                long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
-                long esNextRoundingValue = prepared.nextRoundingValue(date);
-                if (javaNextRoundingValue != esNextRoundingValue) {
-                    fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
-                            + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
-                            + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
-                            + Instant.ofEpochMilli(esNextRoundingValue) + "]");
-                }
+            long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+            long esNextRoundingValue = prepared.nextRoundingValue(date);
+            if (javaNextRoundingValue != esNextRoundingValue) {
+                fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                        + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                        + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                        + Instant.ofEpochMilli(esNextRoundingValue) + "]");
             }
         }
     }
@@ -716,6 +722,70 @@ public class RoundingTests extends ESTestCase {
             assertThat(ceiling, isDate(time("2006-10-30T00:00:00.000-03:30"), tz));
             assertInterval(floor, timeAfterSecondMidnight, ceiling, rounding, tz);
         }
+    }
+
+    /**
+     * Tests for DST transitions that cause the rounding to jump "backwards" because they round
+     * from one back to the previous day. Usually these rounding start before 
+     */
+    public void testForwardsBackwardsTimeZones() {
+        for (String zoneId : JAVA_ZONE_IDS) {
+            ZoneId tz = ZoneId.of(zoneId);
+            ZoneRules rules = tz.getRules();
+            for (ZoneOffsetTransition transition : rules.getTransitions()) {
+                checkForForwardsBackwardsTransition(tz, transition);
+            }
+            int firstYear;
+            if (rules.getTransitions().isEmpty()) {
+                // Pick an arbitrary year to start the range
+                firstYear = 1999;
+            } else {
+                ZoneOffsetTransition lastTransition = rules.getTransitions().get(rules.getTransitions().size() - 1);
+                firstYear = lastTransition.getDateTimeAfter().getYear() + 1;
+            }
+            // Pick an arbitrary year to end the range too
+            int lastYear = 2050;
+            int year = randomFrom(firstYear, lastYear);
+            for (ZoneOffsetTransitionRule transitionRule : rules.getTransitionRules()) {
+                ZoneOffsetTransition transition = transitionRule.createTransition(year);
+                checkForForwardsBackwardsTransition(tz, transition);
+            }
+        }
+    }
+
+    private void checkForForwardsBackwardsTransition(ZoneId tz, ZoneOffsetTransition transition) {
+        if (transition.getDateTimeBefore().getYear() < 1950) {
+            // We don't support transitions far in the past at all
+            return;
+        }
+        if (false == transition.isOverlap()) {
+            // Only overlaps cause the array rounding to have trouble
+            return;
+        }
+        if (transition.getDateTimeBefore().getDayOfMonth() == transition.getDateTimeAfter().getDayOfMonth()) {
+            // Only when the rounding changes the day
+            return;
+        }
+        if (transition.getDateTimeBefore().getMinute() == 0) {
+            // But roundings that change *at* midnight are safe because they don't "jump" to the next day.
+            return;
+        }
+        logger.info(
+            "{} from {}{} to {}{}",
+            tz,
+            transition.getDateTimeBefore(),
+            transition.getOffsetBefore(),
+            transition.getDateTimeAfter(),
+            transition.getOffsetAfter()
+        );
+        long millisSinceEpoch = TimeUnit.SECONDS.toMillis(transition.toEpochSecond());
+        long twoHours = TimeUnit.HOURS.toMillis(2);
+        assertUnitRoundingSameAsJavaUtilTimeImplementation(
+            Rounding.DateTimeUnit.DAY_OF_MONTH,
+            tz,
+            millisSinceEpoch - twoHours,
+            millisSinceEpoch + twoHours
+        );
     }
 
     /**

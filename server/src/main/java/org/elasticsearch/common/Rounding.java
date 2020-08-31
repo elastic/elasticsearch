@@ -48,8 +48,8 @@ import java.time.zone.ZoneRules;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -471,15 +471,26 @@ public abstract class Rounding implements Writeable {
         }
 
         /**
-         * Time zones with two midnights get "funny" non-continuous rounding
-         * that isn't compatible with the pre-computed array rounding.
+         * Time zones have a daylight savings time transition after midnight that
+         * transitions back before midnight break the array-based rounding so
+         * we don't use it for them during those transitions. Luckily they are
+         * fairly rare and a while in the past. Note: we can use the array based
+         * rounding if the transition is <strong>at</strong> midnight. Just not
+         * if it is <strong>after</strong> it.
          */
-        private static final Set<String> HAS_TWO_MIDNIGHTS = Set.of("America/Moncton", "America/St_Johns", "Canada/Newfoundland");
+        private static final Map<String, Long> FORWARDS_BACKWRADS_ZONES = Map.ofEntries(
+            Map.entry("America/Goose_Bay", 1289116800000L),   // Stopped transitioning after midnight in 2010
+            Map.entry("America/Moncton", 1162108800000L),     // Stopped transitioning after midnight in 2006
+            Map.entry("America/St_Johns", 1289118600000L),    // Stopped transitioning after midnight in 2010
+            Map.entry("Canada/Newfoundland", 1289118600000L), // Stopped transitioning after midnight in 2010
+            Map.entry("Pacific/Guam", -29347200000L),         // Stopped transitioning after midnight in 1969
+            Map.entry("Pacific/Saipan", -29347200000L)        // Stopped transitioning after midnight in 1969
+        );
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
             Prepared orig = prepareOffsetRounding(minUtcMillis, maxUtcMillis);
-            if (unitRoundsToMidnight && HAS_TWO_MIDNIGHTS.contains(timeZone.getId())) {
+            if (unitRoundsToMidnight && minUtcMillis <= FORWARDS_BACKWRADS_ZONES.getOrDefault(timeZone.getId(), Long.MIN_VALUE)) {
                 return orig;
             }
             return maybeUseArray(orig, minUtcMillis, maxUtcMillis, 128);

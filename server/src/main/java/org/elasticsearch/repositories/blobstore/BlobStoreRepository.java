@@ -403,6 +403,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(listener, () -> {
             final BlobContainer shardContainer = shardContainer(index, shardId);
+            final BlobStoreIndexShardSnapshots existingSnapshots =
+                    buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+            if (existingSnapshots.snapshots().stream().anyMatch(snapshotFiles -> snapshotFiles.snapshot().equals(target.getName()))) {
+                return shardGeneration;
+            }
             final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
             final String newGen;
             if (shardGeneration == null) {
@@ -411,8 +416,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newGen = UUIDs.randomBase64UUID();
                 logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
                 INDEX_SHARD_SNAPSHOT_FORMAT.write(sourceMeta.clone(target.getName()), shardContainer, target.getUUID(), compress);
-                final BlobStoreIndexShardSnapshots existingSnapshots =
-                        buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
                 INDEX_SHARD_SNAPSHOTS_FORMAT.write(existingSnapshots.withClone(source.getName(), target.getName()), shardContainer, newGen,
                         compress);
             }

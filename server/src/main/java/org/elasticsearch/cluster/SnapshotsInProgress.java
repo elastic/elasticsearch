@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryOperation;
@@ -741,6 +740,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         private RepoShardId(StreamInput in) throws IOException {
             this(new IndexId(in), in.readVInt());
+        }
+
+        public IndexId index() {
+            return index;
         }
 
         public String indexName() {

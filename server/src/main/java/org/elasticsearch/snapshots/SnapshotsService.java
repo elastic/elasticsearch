@@ -469,19 +469,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             if (updatedEntry != null) {
+                                final Snapshot target = updatedEntry.snapshot();
                                 final SnapshotId sourceSnapshot = updatedEntry.source();
-                                final SnapshotId targetSnapshot = updatedEntry.snapshot().getSnapshotId();
+                                final SnapshotId targetSnapshot = target.getSnapshotId();
                                 for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> indexClone : updatedEntry.clones()) {
                                     final IndexId indexId = repositoryData.resolveIndexId(indexClone.key.indexName());
                                         final ShardSnapshotStatus shardStatusBefore = indexClone.value;
                                         if (shardStatusBefore.state() != ShardState.INIT) {
                                             continue;
                                         }
-                                        repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, indexId, indexClone.key.shardId(),
+                                        final RepoShardId repoShardId = indexClone.key;
+                                        repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, indexId, repoShardId.shardId(),
                                                 shardStatusBefore.generation(), ActionListener.wrap(
                                                         generation -> innerUpdateSnapshotState(
-                                                                new ShardSnapshotUpdate(updatedEntry.snapshot(),
-                                                                        indexClone.key, null,
+                                                                new ShardSnapshotUpdate(target,
+                                                                        repoShardId, null,
                                                                         new ShardSnapshotStatus(clusterService.localNode().getId(),
                                                                                 ShardState.SUCCESS, generation)),
                                                                 ActionListener.wrap(

@@ -409,8 +409,14 @@ final class RequestConverters {
         }
     }
 
+    private static void addSearchScrollRequestParams(Params params) {
+        params.putParam(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+    }
+
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_search/scroll");
+        Params params = new Params(request);
+        addSearchScrollRequestParams(params);
         request.setEntity(createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

@@ -93,12 +93,28 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * Same as {@link #concreteIndexNames(ClusterState, IndicesRequest)}, but access to system indices is always allowed.
+     */
+    public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), true);
+        return concreteIndexNames(context, request.indices());
+    }
+
+    /**
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request and resolves data streams.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
             isSystemIndexAccessAllowed());
+        return concreteIndices(context, request.indices());
+    }
+
+    /**
+     * Same as {@link #concreteIndices(ClusterState, IndicesRequest)}, but access to system indices is always allowed.
+     */
+    public Index[] concreteIndicesWithSystemIndexAccess(ClusterState state, IndicesRequest request) {
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), true);
         return concreteIndices(context, request.indices());
     }
 

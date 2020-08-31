@@ -1181,7 +1181,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (!content.contains(origin)) {
                     throw new IOException("template property " + origin + " not found in template.");
                 }
-                content = content.replaceAll(origin, expansions.get(origin));
+                content = content.replace(origin, expansions.get(origin));
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {

@@ -69,6 +69,12 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         }
     }
 
+    public static double upper(TDigestState state) {
+        double q3 = state.quantile(0.75);
+        double iqr = q3 - state.quantile(0.25);
+        return state.quantile(state.cdf(q3 + (1.5 * iqr)));
+    }
+
     private final TDigestState state;
 
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {

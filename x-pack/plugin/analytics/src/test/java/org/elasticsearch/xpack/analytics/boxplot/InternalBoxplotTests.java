@@ -107,4 +107,13 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         ));
         return extendedNamedXContents;
     }
+
+    public void testIQR() {
+        double epsilon = 0.00001; // tolerance on equality for doubles
+        TDigestState state = new TDigestState(100);
+        for (double value : List.of(52, 57, 57, 58, 63, 66, 66, 67, 67, 68, 69, 70, 70, 70, 70, 72, 73, 75, 75, 76, 76, 78, 79, 89)) {
+            state.add(value);
+        }
+        assertEquals(79.0, InternalBoxplot.upper(state), epsilon);
+    }
 }

@@ -66,7 +66,6 @@ GET /my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events are included in the
 `hits.events` property. These events are sorted by timestamp, converted to
@@ -89,7 +88,6 @@ ascending order.
       {
         "_index": "my-index-000001",
         "_id": "OQmfCaduce8zoHT93o4H",
-        "_score": null,
         "_source": {
           "@timestamp": "2099-12-07T11:07:09.000Z",
           "event": {
@@ -108,7 +106,6 @@ ascending order.
       {
         "_index": "my-index-000001",
         "_id": "xLkCaj4EujzdNSxfYLbO",
-        "_score": null,
         "_source": {
           "@timestamp": "2099-12-07T11:07:10.000Z",
           "event": {
@@ -188,10 +185,6 @@ The API returns the following response. Matching sequences are included in the
           {
             "_index": "my-index-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
@@ -210,10 +203,6 @@ The API returns the following response. Matching sequences are included in the
           {
             "_index": "my-index-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_version": 1,
-            "_seq_no": 4,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
               "event": {
@@ -322,10 +311,6 @@ contains the shared `process.pid` value for each matching event.
           {
             "_index": "my-index-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
@@ -344,10 +329,6 @@ contains the shared `process.pid` value for each matching event.
           {
             "_index": "my-index-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_version": 1,
-            "_seq_no": 4,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
               "event": {

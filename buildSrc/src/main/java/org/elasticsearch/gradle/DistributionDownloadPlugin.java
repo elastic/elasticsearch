@@ -24,30 +24,22 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
+import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.credentials.HttpHeaderCredentials;
-import org.gradle.api.file.FileTree;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Sync;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
-import java.io.File;
 import java.util.Comparator;
-import java.util.Locale;
-import java.util.concurrent.Callable;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
-import static org.elasticsearch.gradle.util.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
@@ -76,6 +68,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
 
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
+            transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        });
+
+        ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
+        project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, transformSpec -> {
+            transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, tarArtifactTypeDefinition.getName());
+            transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        });
+
         setupResolutionsContainer(project);
         setupDistributionContainer(project, dockerSupport);
         setupDownloadServiceRepo(project);
@@ -86,6 +89,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
+            extractedConfiguration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
             return new ElasticsearchDistribution(name, project.getObjects(), dockerSupport, fileConfiguration, extractedConfiguration);
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
@@ -114,21 +118,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     void setupDistributions(Project project) {
         for (ElasticsearchDistribution distribution : distributionsContainer) {
             distribution.finalizeValues();
-
             DependencyHandler dependencies = project.getDependencies();
             // for the distribution as a file, just depend on the artifact directly
-            dependencies.add(distribution.configuration.getName(), resolveDependencyNotation(project, distribution));
-
+            Object resolvedDependency = resolveDependencyNotation(project, distribution);
+            dependencies.add(distribution.configuration.getName(), resolvedDependency);
             // no extraction allowed for rpm, deb or docker
             if (distribution.getType().shouldExtract()) {
-                // for the distribution extracted, add a root level task that does the extraction, and depend on that
-                // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(
-                    distribution.getExtracted().configuration.getName(),
-                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution))
-                );
-                // ensure a root level download task exists
-                setupRootDownload(project.getRootProject(), distribution);
+                // The extracted configuration depends on the artifact directly but has
+                // an artifact transform registered to resolve it as an unpacked folder.
+                dependencies.add(distribution.getExtracted().getName(), resolvedDependency);
             }
         }
     }
@@ -140,51 +138,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             .filter(d -> d != null)
             .findFirst()
             .orElseGet(() -> dependencyNotation(distribution));
-    }
-
-    private void setupRootDownload(Project rootProject, ElasticsearchDistribution distribution) {
-        String extractTaskName = extractTaskName(distribution);
-        // NOTE: this is *horrendous*, but seems to be the only way to check for the existence of a registered task
-        try {
-            rootProject.getTasks().named(extractTaskName);
-            // already setup this version
-            return;
-        } catch (UnknownTaskException e) {
-            // fall through: register the task
-        }
-        setupDownloadServiceRepo(rootProject);
-        final ConfigurationContainer configurations = rootProject.getConfigurations();
-        String downloadConfigName = configName("elasticsearch", distribution);
-        String extractedConfigName = "extracted_" + downloadConfigName;
-        final Configuration downloadConfig = configurations.create(downloadConfigName);
-        configurations.create(extractedConfigName);
-        rootProject.getDependencies().add(downloadConfigName, resolveDependencyNotation(rootProject, distribution));
-
-        // add task for extraction, delaying resolving config until runtime
-        if (distribution.getType() == Type.ARCHIVE || distribution.getType() == Type.INTEG_TEST_ZIP) {
-            Supplier<File> archiveGetter = downloadConfig::getSingleFile;
-            String extractDir = rootProject.getBuildDir().toPath().resolve("elasticsearch-distros").resolve(extractedConfigName).toString();
-            TaskProvider<Sync> extractTask = rootProject.getTasks().register(extractTaskName, Sync.class, syncTask -> {
-                syncTask.dependsOn(downloadConfig);
-                syncTask.into(extractDir);
-                syncTask.from((Callable<FileTree>) () -> {
-                    File archiveFile = archiveGetter.get();
-                    String archivePath = archiveFile.toString();
-                    if (archivePath.endsWith(".zip")) {
-                        return rootProject.zipTree(archiveFile);
-                    } else if (archivePath.endsWith(".tar.gz")) {
-                        return rootProject.tarTree(rootProject.getResources().gzip(archiveFile));
-                    }
-                    throw new IllegalStateException("unexpected file extension on [" + archivePath + "]");
-                });
-            });
-            rootProject.getArtifacts()
-                .add(
-                    extractedConfigName,
-                    rootProject.getLayout().getProjectDirectory().dir(extractDir),
-                    artifact -> artifact.builtBy(extractTask)
-                );
-        }
     }
 
     private static void addIvyRepo(Project project, String name, String url, String group) {
@@ -247,37 +200,5 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
         return group + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
-    }
-
-    private static String configName(String prefix, ElasticsearchDistribution distribution) {
-        return String.format(
-            Locale.ROOT,
-            "%s_%s_%s_%s%s%s",
-            prefix,
-            distribution.getVersion(),
-            distribution.getType(),
-            distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
-            distribution.getFlavor(),
-            distribution.getBundledJdk() ? "" : "_nojdk"
-        );
-    }
-
-    private static String extractTaskName(ElasticsearchDistribution distribution) {
-        String taskName = "extractElasticsearch";
-        if (distribution.getType() != Type.INTEG_TEST_ZIP) {
-            if (distribution.getFlavor() == Flavor.OSS) {
-                taskName += "Oss";
-            }
-            if (distribution.getBundledJdk() == false) {
-                taskName += "NoJdk";
-            }
-        }
-        if (distribution.getType() == Type.ARCHIVE) {
-            taskName += capitalize(distribution.getPlatform().toString());
-        } else if (distribution.getType() != Type.INTEG_TEST_ZIP) {
-            taskName += capitalize(distribution.getType().toString());
-        }
-        taskName += distribution.getVersion();
-        return taskName;
     }
 }

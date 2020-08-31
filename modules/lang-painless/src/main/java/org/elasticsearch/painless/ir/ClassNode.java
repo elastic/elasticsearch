@@ -111,7 +111,6 @@ public class ClassNode extends IRNode {
         clinitBlockNode = new BlockNode();
         clinitBlockNode.setLocation(new Location("internal$clinit$blocknode", 0));
         clinitBlockNode.setAllEscape(true);
-        clinitBlockNode.setStatementCount(1);
     }
 
     public byte[] write() {

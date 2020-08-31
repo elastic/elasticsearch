@@ -54,13 +54,13 @@ public class ConstantFoldingTests extends ScriptTestCase {
         assertBytecodeExists("4L>>1L", "LDC 2");
         assertBytecodeExists("4>>>1", "ICONST_2");
         assertBytecodeExists("4L>>>1L", "LDC 2");
-        assertBytecodeExists("3&1", "ICONST_1");
-        assertBytecodeExists("3L&1L", "LDC 1");
+        assertBytecodeExists("5&3", "ICONST_1");
+        assertBytecodeExists("5L&3L", "LDC 1");
         assertBytecodeExists("true^false", "ICONST_1");
-        assertBytecodeExists("3^1", "ICONST_2");
-        assertBytecodeExists("3L^1L", "LDC 2");
-        assertBytecodeExists("3|1", "ICONST_3");
-        assertBytecodeExists("3L|1L", "LDC 3");
+        assertBytecodeExists("5^3", "BIPUSH 6");
+        assertBytecodeExists("5L^3L", "LDC 6");
+        assertBytecodeExists("5|3", "BIPUSH 7");
+        assertBytecodeExists("5L|3L", "LDC 7");
     }
 
     public void testStringConcatenation() {

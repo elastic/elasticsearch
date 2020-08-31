@@ -444,7 +444,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             if (busyShardsInRepo.contains(SnapshotsInProgress.repoShardId(count.v1(), shardId))) {
                                                 shardSnapshotStatuses.add(ShardSnapshotStatus.UNASSIGNED_QUEUED);
                                             } else {
-                                                // TODO: proper state + generation
                                                 shardSnapshotStatuses.add(new ShardSnapshotStatus(currentState.nodes().getLocalNodeId(),
                                                         repositoryData.shardGenerations().getShardGen(count.v1(), shardId)));
                                             }

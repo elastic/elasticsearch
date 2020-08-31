@@ -157,4 +157,10 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
                                              Consumer<Exception> onFailure) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
+
+    @Override
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, String shardGeneration,
+                                   ActionListener<String> listener) {
+        throw new AssertionError("not supported");
+    }
 }

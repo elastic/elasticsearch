@@ -397,6 +397,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, onFailure));
     }
 
+    @Override
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, @Nullable String shardGeneration,
+                                   ActionListener<String> listener) {
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        executor.execute(ActionRunnable.supply(listener, () -> {
+            final BlobContainer shardContainer = shardContainer(index, shardId);
+            final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
+            final String newGen;
+            if (shardGeneration == null) {
+                throw new AssertionError("Not implemented yet");
+            } else {
+                newGen = UUIDs.randomBase64UUID();
+            }
+            return newGen;
+        }));
+    }
+
     // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
     // #latestKnownRepoGen if a newer than currently known generation is found
     @Override

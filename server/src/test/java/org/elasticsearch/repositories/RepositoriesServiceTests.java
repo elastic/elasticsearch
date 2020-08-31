@@ -228,6 +228,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
+        public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, String shardGeneration,
+                                       ActionListener<String> listener) {
+
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }

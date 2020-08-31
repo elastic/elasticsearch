@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -14,7 +15,6 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -35,40 +35,55 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         DoubleScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
+    private double[] values = new double[1];
+    private int count;
+
     public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
     }
 
-    public abstract double[] execute();
-
     /**
      * Execute the script for the provided {@code docId}.
      */
-    public final double[] runForDoc(int docId) {
+    public final void runForDoc(int docId) {
+        count = 0;
         setDocument(docId);
-        return execute();
+        execute();
     }
 
-    public static double[] convertFromDouble(double v) {
-        return new double[] { v };
+    /**
+     * Values from the last time {@link #runForDoc(int)} was called. This array
+     * is mutable and will change with the next call of {@link #runForDoc(int)}.
+     * It is also oversized and will contain garbage at all indices at and
+     * above {@link #count()}.
+     */
+    public final double[] values() {
+        return values;
     }
 
-    public static double[] convertFromCollection(Collection<?> v) {
-        double[] result = new double[v.size()];
-        int i = 0;
-        for (Object o : v) {
-            result[i++] = ((Number) o).doubleValue();
+    /**
+     * The number of results produced the last time {@link #runForDoc(int)} was called.
+     */
+    public final int count() {
+        return count;
+    }
+
+    private void collectValue(double v) {
+        if (values.length < count + 1) {
+            values = ArrayUtil.grow(values, count + 1);
         }
-        return result;
+        values[count++] = v;
     }
 
-    public static double[] convertFromDef(Object o) {
-        if (o instanceof Number) {
-            return convertFromDouble(((Number) o).doubleValue());
-        } else if (o instanceof Collection) {
-            return convertFromCollection((Collection<?>) o);
-        } else {
-            return (double[]) o;
+    public static class Value {
+        private final DoubleScriptFieldScript script;
+
+        public Value(DoubleScriptFieldScript script) {
+            this.script = script;
+        }
+
+        public void value(double v) {
+            script.collectValue(v);
         }
     }
 }

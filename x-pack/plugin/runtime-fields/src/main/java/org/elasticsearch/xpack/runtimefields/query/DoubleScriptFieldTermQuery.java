@@ -20,9 +20,9 @@ public class DoubleScriptFieldTermQuery extends AbstractDoubleScriptFieldQuery {
     }
 
     @Override
-    protected boolean matches(double[] values) {
-        for (double value : values) {
-            if (term == value) {
+    protected boolean matches(double[] values, int count) {
+        for (int i = 0; i < count; i++) {
+            if (term == values[i]) {
                 return true;
             }
         }

@@ -75,12 +75,13 @@ public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQ
             "test",
             LongHashSet.from(Double.doubleToLongBits(0.1), Double.doubleToLongBits(0.2), Double.doubleToLongBits(7.5))
         );
-        assertTrue(query.matches(new double[] { 0.1 }));
-        assertTrue(query.matches(new double[] { 0.2 }));
-        assertTrue(query.matches(new double[] { 7.5 }));
-        assertTrue(query.matches(new double[] { 0.1, 0 }));
-        assertTrue(query.matches(new double[] { 0, 0.1 }));
-        assertFalse(query.matches(new double[] { 0 }));
+        assertTrue(query.matches(new double[] { 0.1 }, 1));
+        assertTrue(query.matches(new double[] { 0.2 }, 1));
+        assertTrue(query.matches(new double[] { 7.5 }, 1));
+        assertTrue(query.matches(new double[] { 0.1, 0 }, 2));
+        assertTrue(query.matches(new double[] { 0, 0.1 }, 2));
+        assertFalse(query.matches(new double[] { 0 }, 1));
+        assertFalse(query.matches(new double[] { 0, 0.1 }, 1));
     }
 
     @Override

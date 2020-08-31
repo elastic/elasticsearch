@@ -166,9 +166,6 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             return null;
         }
         StringBuilder b = new StringBuilder();
-        if ("double".equals(type)) {
-            b.append("List result = new ArrayList();");
-        }
         b.append("def v = source['").append(name).append("'];\n");
         b.append("if (v instanceof Iterable) {\n");
         b.append("  for (def vv : ((Iterable) v)) {\n");
@@ -183,9 +180,6 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         b.append("    ").append(emit).append("\n");
         b.append("  }\n");
         b.append("}\n");
-        if ("double".equals(type)) {
-            b.append("return result;");
-        }
         return b.toString();
     }
 
@@ -194,7 +188,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         Map.entry(DateFieldMapper.CONTENT_TYPE, "millis(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
-            "result.add(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
+            "value(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
         ),
         Map.entry(KeywordFieldMapper.CONTENT_TYPE, "value(value.toString());"),
         Map.entry(IpFieldMapper.CONTENT_TYPE, "stringValue(value.toString());"),

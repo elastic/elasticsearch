@@ -23,8 +23,6 @@ public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldS
         super(params, searchLookup, ctx);
     }
 
-    public abstract void execute();
-
     /**
      * Execute the script for the provided {@code docId}.
      */

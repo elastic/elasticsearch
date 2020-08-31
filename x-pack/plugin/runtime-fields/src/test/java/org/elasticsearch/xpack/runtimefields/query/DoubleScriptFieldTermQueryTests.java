@@ -46,9 +46,10 @@ public class DoubleScriptFieldTermQueryTests extends AbstractDoubleScriptFieldQu
     @Override
     public void testMatches() {
         DoubleScriptFieldTermQuery query = new DoubleScriptFieldTermQuery(randomScript(), leafFactory, "test", 3.14);
-        assertTrue(query.matches(new double[] { 3.14 }));
-        assertFalse(query.matches(new double[] { 2 }));
-        assertTrue(query.matches(new double[] { 2, 3.14 }));
+        assertTrue(query.matches(new double[] { 3.14 }, 1));     // Match because value matches
+        assertFalse(query.matches(new double[] { 2 }, 1));       // No match because wrong value
+        assertFalse(query.matches(new double[] { 2, 3.14 }, 1)); // No match because value after count of values
+        assertTrue(query.matches(new double[] { 2, 3.14 }, 2));  // Match because one value matches
     }
 
     @Override

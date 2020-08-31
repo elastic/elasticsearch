@@ -29,9 +29,9 @@ public class DoubleScriptFieldRangeQuery extends AbstractDoubleScriptFieldQuery 
     }
 
     @Override
-    protected boolean matches(double[] values) {
-        for (double value : values) {
-            if (lowerValue <= value && value <= upperValue) {
+    protected boolean matches(double[] values, int count) {
+        for (int i = 0; i < count; i++) {
+            if (lowerValue <= values[i] && values[i] <= upperValue) {
                 return true;
             }
         }

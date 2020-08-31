@@ -22,62 +22,33 @@ setup:
                 runtime_type: double
                 script:
                   source: |
-                    def voltage = doc['voltage'];
-                    double[] result = new double[voltage.size()];
-                    int i = 0;
-                    for (double v : voltage) {
-                      result[i++] = v / params.max;
+                    for (double v : doc['voltage']) {
+                      value(v / params.max);
                     }
-                    return result;
                   params:
                     max: 5.8
-              # Test fetching from _source and the the def -> double[] conversion
+              # Test fetching from _source
               voltage_percent_from_source:
                 type: runtime_script
                 runtime_type: double
                 script:
                   source: |
-                    source['voltage'] / params.max
+                    value(source['voltage'] / params.max);
                   params:
                     max: 5.8
-              # Test the implicit conversion from double -> double[]
-              voltage_percent_returning_double:
-                type: runtime_script
-                runtime_type: double
-                script:
-                  source: |
-                     ((double) source['voltage']) / 5.8
-              # Test the implicit conversion from long -> double[]
-              voltage_percent_returning_long:
-                type: runtime_script
-                runtime_type: double
-                script:
-                  source: |
-                     (long) (doc['voltage_percent_returning_double'].value * 100)
-              # Test the implicit conversion from def (secretly a long) -> double[]
-              voltage_percent_returning_def_long:
-                type: runtime_script
-                runtime_type: double
-                script:
-                  source: |
-                     def v = (long) doc['voltage_percent_returning_long'].value;
-                     return v;
-              # Test fetching many values and the Collection -> double[] conversion
+              # Test fetching many values
               voltage_sqrts:
                 type: runtime_script
                 runtime_type: double
                 script:
                   source: |
-                    List result = new ArrayList();
-                    int i = 0;
                     for (double voltage : doc['voltage']) {
                       double v = voltage;
                       while (v > 1.2) {
-                        result.add(v);
+                        value(v);
                         v = Math.sqrt(v);
                       }
                     }
-                    return result;
 
   - do:
       bulk:
@@ -106,13 +77,9 @@ setup:
   - match: {sensor.mappings.properties.voltage_percent.runtime_type: double }
   - match:
       sensor.mappings.properties.voltage_percent.script.source: |
-        def voltage = doc['voltage'];
-        double[] result = new double[voltage.size()];
-        int i = 0;
-        for (double v : voltage) {
-          result[i++] = v / params.max;
+        for (double v : doc['voltage']) {
+          value(v / params.max);
         }
-        return result;
   - match: {sensor.mappings.properties.voltage_percent.script.params: {max: 5.8} }
   - match: {sensor.mappings.properties.voltage_percent.script.lang: painless }
 
@@ -123,19 +90,10 @@ setup:
         index: sensor
         body:
           sort: timestamp
-          docvalue_fields:
-            - voltage_percent
-            - voltage_percent_from_source
-            - voltage_percent_returning_double
-            - voltage_percent_returning_long
-            - voltage_percent_returning_def_long
-            - voltage_sqrts
+          docvalue_fields: [voltage_percent, voltage_percent_from_source, voltage_sqrts]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
   - match: {hits.hits.0.fields.voltage_percent_from_source: [0.6896551724137931] }
-  - match: {hits.hits.0.fields.voltage_percent_returning_double: [0.6896551724137931] }
-  - match: {hits.hits.0.fields.voltage_percent_returning_long: [68.0] }
-  - match: {hits.hits.0.fields.voltage_percent_returning_def_long: [68.0] }
   # Scripts that scripts that emit multiple values are supported and their results are sorted
   - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
   - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }

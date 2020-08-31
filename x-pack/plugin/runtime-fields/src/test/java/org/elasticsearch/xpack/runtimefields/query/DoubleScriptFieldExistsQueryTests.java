@@ -29,13 +29,9 @@ public class DoubleScriptFieldExistsQueryTests extends AbstractDoubleScriptField
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new double[] { 1 }));
-        assertFalse(createTestInstance().matches(new double[0]));
-        double[] big = new double[between(1, 10000)];
-        for (int i = 0; i < big.length; i++) {
-            big[i] = 1.0;
-        }
-        assertTrue(createTestInstance().matches(big));
+        assertTrue(createTestInstance().matches(new double[0], randomIntBetween(1, Integer.MAX_VALUE)));
+        assertFalse(createTestInstance().matches(new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[] { 1, 2, 3 }, 0));
     }
 
     @Override

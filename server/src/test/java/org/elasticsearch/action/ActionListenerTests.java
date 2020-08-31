@@ -170,7 +170,7 @@ public class ActionListenerTests extends ESTestCase {
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
-    
+
     public void testRunBefore() {
         {
             AtomicBoolean afterSuccess = new AtomicBoolean();

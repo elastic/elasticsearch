@@ -125,7 +125,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             } else {
                 listener.onResponse(null);
             }
-            listener.onResponse(null);
         } else if (ClientReservedRealm.isReserved(username, config.globalSettings()) == false) {
             listener.onResponse(null);
         } else if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {

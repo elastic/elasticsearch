@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -313,8 +315,13 @@ public class ClusterHealthIT extends ESIntegTestCase {
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
         // without exceptions
         for (int i = 0; i < 20; ++i) {
-            responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForGreenStatus().execute());
+            ClusterHealthRequestBuilder healthRequestBuilder =
+                client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus();
+            if (randomBoolean()) {
+                healthRequestBuilder.setWaitForNodes(">100")
+                    .setTimeout(TimeValue.timeValueMillis(100)).setMasterNodeTimeout(ClusterHealthRequest.DEFAULT_MASTER_NODE_TIMEOUT);
+            }
+            responseFutures.add(healthRequestBuilder.execute());
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {

@@ -528,7 +528,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean canUseSharedDistribution() {
-        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0 && !requiresAddingXPack();
+        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0 && requiresAddingXPack() == false;
     }
 
     private void logToProcessStdout(String message) {

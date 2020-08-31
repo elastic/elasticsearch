@@ -21,8 +21,6 @@ import java.util.Set;
 
 public class AuditUtil {
 
-    private static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
-
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
             try {
@@ -67,11 +65,11 @@ public class AuditUtil {
         }
         final String requestId = UUIDs.randomBase64UUID(Randomness.get());
         // Store as a header (not transient) so that it is passed over the network if this request requires execution on other nodes
-        threadContext.putHeader(AUDIT_REQUEST_ID, requestId);
+        threadContext.putHeader(ThreadContext.TRACE_REQUEST_ID, requestId);
         return requestId;
     }
 
     public static String extractRequestId(ThreadContext threadContext) {
-        return threadContext.getHeader(AUDIT_REQUEST_ID);
+        return threadContext.getHeader(ThreadContext.TRACE_REQUEST_ID);
     }
 }

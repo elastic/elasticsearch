@@ -42,12 +42,31 @@ public class ThreadContextTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("ctx.foo", 1);
+        boolean hasOpaqueId = randomBoolean();
+        if (hasOpaqueId) {
+            threadContext.putHeader(ThreadContext.X_OPAQUE_ID, "opaque_id_value");
+        }
+        boolean hasRequestId = randomBoolean();
+        if (hasRequestId) {
+            threadContext.putHeader(ThreadContext.TRACE_REQUEST_ID, "request_id_value");
+        }
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+            if (hasOpaqueId) {
+                assertEquals("opaque_id_value", threadContext.getHeader(ThreadContext.X_OPAQUE_ID));
+            } else {
+                assertNull(threadContext.getHeader(ThreadContext.X_OPAQUE_ID));
+            }
+            if (hasRequestId) {
+                assertEquals("request_id_value", threadContext.getHeader(ThreadContext.TRACE_REQUEST_ID));
+            } else {
+                assertNull(threadContext.getHeader(ThreadContext.TRACE_REQUEST_ID));
+            }
             assertEquals("1", threadContext.getHeader("default"));
         }
 

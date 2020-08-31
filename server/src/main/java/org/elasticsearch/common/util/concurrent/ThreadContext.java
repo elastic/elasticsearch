@@ -92,6 +92,10 @@ public final class ThreadContext implements Writeable {
      * The request header to mark tasks with specific ids
      */
     public static final String X_OPAQUE_ID = "X-Opaque-Id";
+    /**
+     * Similar to X_OPAQUE_ID but the value cannot be set by the client, it is only set internally
+     */
+    public static final String TRACE_REQUEST_ID = "trace.request.id";
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -122,13 +126,14 @@ public final class ThreadContext implements Writeable {
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * Otherwise when context is stash, it should be empty.
          */
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
         if (context.requestHeaders.containsKey(X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(Map.of(X_OPAQUE_ID, context.requestHeaders.get(X_OPAQUE_ID)));
-            threadLocal.set(threadContextStruct);
-        } else {
-            threadLocal.set(DEFAULT_CONTEXT);
+            threadContextStruct = threadContextStruct.putHeaders(Map.of(X_OPAQUE_ID, context.requestHeaders.get(X_OPAQUE_ID)));
         }
+        if (context.requestHeaders.containsKey(TRACE_REQUEST_ID)) {
+            threadContextStruct = threadContextStruct.putHeaders(Map.of(TRACE_REQUEST_ID, context.requestHeaders.get(TRACE_REQUEST_ID)));
+        }
+        threadLocal.set(threadContextStruct);
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an

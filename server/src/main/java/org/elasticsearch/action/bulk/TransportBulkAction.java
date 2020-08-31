@@ -164,18 +164,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        // TODO should system indices bypass or have their own indexing pressure?
-        long indexingBytes = bulkRequest.ramBytesUsed();
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingBytes);
+        final long indexingBytes = bulkRequest.ramBytesUsed();
+        final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
-            doInternalExecute(task, bulkRequest, releasingListener);
+            doInternalExecute(task, bulkRequest, executorName, releasingListener);
         } catch (Exception e) {
             releasingListener.onFailure(e);
         }
     }
 
-    protected void doInternalExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+    protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
@@ -213,7 +214,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, listener);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, listener);
                 } else {
                     ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
                 }
@@ -262,8 +263,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                final String executorName =
-                                    getExecutorName(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
                                 threadPool.executor(executorName).execute(
                                     () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
                             }
@@ -281,8 +280,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                final String executorName =
-                                    getExecutorName(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
                                 threadPool.executor(executorName).execute(() -> executeBulk(task, bulkRequest, startTime,
                                     ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
@@ -348,7 +345,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    static String getExecutorName(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
+    boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
         final boolean onlySystem = request.getIndices().stream().allMatch(indexName -> {
             final IndexAbstraction abstraction = indicesLookup.get(indexName);
             if (abstraction != null) {
@@ -357,7 +354,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return systemIndices.isSystemIndex(indexName);
             }
         });
-        return onlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
+        return onlySystem;
     }
 
     boolean needToCheck() {
@@ -680,11 +677,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return relativeTimeProvider.getAsLong();
     }
 
-    private void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
+    private void processBulkIndexIngestRequest(Task task, BulkRequest original, String executorName,
+                                               ActionListener<BulkResponse> listener) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        final String executorName =
-            getExecutorName(original, clusterService.state().metadata().getIndicesLookup(), systemIndices);
         ingestService.executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
@@ -708,7 +704,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
                             assert Thread.currentThread().getName().contains(executorName);
-                            doInternalExecute(task, bulkRequest, actionListener);
+                            doInternalExecute(task, bulkRequest, executorName, actionListener);
                         } else {
                             threadPool.executor(executorName).execute(new AbstractRunnable() {
                                 @Override
@@ -718,7 +714,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                 @Override
                                 protected void doRun() throws Exception {
-                                    doInternalExecute(task, bulkRequest, actionListener);
+                                    doInternalExecute(task, bulkRequest, executorName, actionListener);
                                 }
 
                                 @Override

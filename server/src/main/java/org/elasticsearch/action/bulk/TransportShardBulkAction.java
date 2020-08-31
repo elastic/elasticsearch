@@ -145,7 +145,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 public void onTimeout(TimeValue timeout) {
                     mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
                 }
-            }), listener, threadPool
+            }), listener, threadPool, executor(primary)
         );
     }
 
@@ -162,10 +162,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool) {
+        ThreadPool threadPool,
+        String executorName) {
         new ActionRunnable<>(listener) {
 
-            private final Executor executor = threadPool.executor(ThreadPool.Names.WRITE);
+            private final Executor executor = threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 

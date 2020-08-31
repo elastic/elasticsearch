@@ -70,11 +70,15 @@ public abstract class TransportWriteAction<
                                    Writeable.Reader<ReplicaRequest> replicaRequest, Function<IndexShard, String> executor,
                                    boolean forceExecutionOnPrimary, IndexingPressure indexingPressure) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
-        // ThreadPool.Names.WRITE thread pool in this class.
+        // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
         this.indexingPressure = indexingPressure;
+    }
+
+    protected String executor(IndexShard shard) {
+        return executor.apply(shard);
     }
 
     @Override

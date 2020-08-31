@@ -45,7 +45,7 @@ and {ls} is ignored.
 [[xpack-monitoring-collection-interval]]
 // tag::monitoring-collection-interval-tag[]
 `xpack.monitoring.collection.interval` {ess-icon}::
-deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to `false` instead.] 
+deprecated:[6.3.0,"Use `xpack.monitoring.collection.enabled` set to `false` instead."] 
 (<<cluster-update-settings,Dynamic>>) Setting to `-1` to disable data collection
 is no longer supported beginning with 7.0.0.
 +

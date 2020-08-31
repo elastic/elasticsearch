@@ -20,23 +20,23 @@ setup:
               tight_loop:
                 type: runtime_script
                 runtime_type: keyword
-                script: value(doc['tight_loop'].value)
+                script: emitValue(doc['tight_loop'].value)
               loose_loop:
                 type: runtime_script
                 runtime_type: keyword
-                script: value(doc['lla'].value)
+                script: emitValue(doc['lla'].value)
               lla:
                 type: runtime_script
                 runtime_type: keyword
-                script: value(doc['llb'].value)
+                script: emitValue(doc['llb'].value)
               llb:
                 type: runtime_script
                 runtime_type: keyword
-                script: value(doc['llc'].value)
+                script: emitValue(doc['llc'].value)
               llc:
                 type: runtime_script
                 runtime_type: keyword
-                script: value(doc['loose_loop'].value)
+                script: emitValue(doc['loose_loop'].value)
 
   - do:
       bulk:

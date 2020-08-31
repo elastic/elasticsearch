@@ -301,7 +301,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new IpScriptFieldScript.StringValue(this).stringValue(foo.toString());
+                                            emitValue(foo.toString());
                                         }
                                     }
                                 };
@@ -310,9 +310,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new IpScriptFieldScript.StringValue(this).stringValue(
-                                                foo.toString() + getParams().get("param")
-                                            );
+                                            emitValue(foo.toString() + getParams().get("param"));
                                         }
                                     }
                                 };

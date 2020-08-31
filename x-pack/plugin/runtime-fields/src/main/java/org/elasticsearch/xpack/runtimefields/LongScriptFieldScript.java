@@ -38,15 +38,15 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
         super(params, searchLookup, ctx);
     }
 
-    public static class Value {
+    public static class EmitValue {
         private final LongScriptFieldScript script;
 
-        public Value(LongScriptFieldScript script) {
+        public EmitValue(LongScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(long v) {
-            script.collectValue(v);
+        public void emitValue(long v) {
+            script.emitValue(v);
         }
     }
 }

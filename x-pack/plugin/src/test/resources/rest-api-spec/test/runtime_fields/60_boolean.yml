@@ -23,7 +23,7 @@ setup:
                 script:
                   source: |
                     for (def v : doc['voltage']) {
-                      value(v >= params.min_v);
+                      emitValue(v >= params.min_v);
                     }
                   params:
                     min_v: 5.0
@@ -33,7 +33,7 @@ setup:
                 runtime_type: boolean
                 script:
                   source: |
-                    value(source['voltage'] >= 5.0);
+                    emitValue(source['voltage'] >= 5.0);
               # Test many booleans
               big_vals:
                 type: runtime_script
@@ -41,13 +41,11 @@ setup:
                 script:
                   source: |
                     for (def v : doc['temperature']) {
-                      value(v >= 200);
+                      emitValue(v >= 200);
                     }
                     for (def v : doc['voltage']) {
-                      value(v >= 5.0);
+                      emitValue(v >= 5.0);
                     }
-
-
 
   - do:
       bulk:
@@ -77,7 +75,7 @@ setup:
   - match:
       sensor.mappings.properties.over_v.script.source: |
         for (def v : doc['voltage']) {
-          value(v >= params.min_v);
+          emitValue(v >= params.min_v);
         }
   - match: {sensor.mappings.properties.over_v.script.params: {min_v: 5.0} }
   - match: {sensor.mappings.properties.over_v.script.lang: painless }

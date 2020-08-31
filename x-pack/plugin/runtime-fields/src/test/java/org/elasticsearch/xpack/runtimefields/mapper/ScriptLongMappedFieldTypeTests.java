@@ -271,7 +271,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new LongScriptFieldScript.Value(this).value(((Number) foo).longValue());
+                                            emitValue(((Number) foo).longValue());
                                         }
                                     }
                                 };
@@ -280,9 +280,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new LongScriptFieldScript.Value(this).value(
-                                                ((Number) foo).longValue() + ((Number) getParams().get("param")).longValue()
-                                            );
+                                            emitValue(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
                                         }
                                     }
                                 };

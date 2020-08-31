@@ -23,7 +23,7 @@ setup:
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
-                      date(dt.plus(params.days, ChronoUnit.DAYS));
+                      emitValue(toEpochMilli(dt.plus(params.days, ChronoUnit.DAYS)));
                     }
                   params:
                     days: 1
@@ -35,7 +35,7 @@ setup:
                   source: |
                     Instant instant = Instant.ofEpochMilli(parse(source['timestamp']));
                     ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                    date(dt.plus(1, ChronoUnit.DAYS));
+                    emitValue(toEpochMilli(dt.plus(1, ChronoUnit.DAYS)));
               # Test returning millis
               the_past:
                 type: runtime_script
@@ -43,7 +43,7 @@ setup:
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
-                      millis(dt.toInstant().toEpochMilli() - 1000);
+                      emitValue(dt.toInstant().toEpochMilli() - 1000);
                     }
               # Test fetching many values
               all_week:
@@ -53,7 +53,7 @@ setup:
                   source: |
                     for (def dt : doc['timestamp']) {
                       for (int i = 0; i < 7; i++) {
-                        date(dt.plus(i, ChronoUnit.DAYS));
+                        emitValue(toEpochMilli(dt.plus(i, ChronoUnit.DAYS)));
                       }
                     }
               # Test format parameter
@@ -63,7 +63,7 @@ setup:
                 format: yyyy-MM-dd
                 script: |
                   for (def dt : doc['timestamp']) {
-                    date(dt.plus(1, ChronoUnit.DAYS));
+                    emitValue(toEpochMilli(dt.plus(1, ChronoUnit.DAYS)));
                   }
 
   - do:
@@ -94,7 +94,7 @@ setup:
   - match:
       sensor.mappings.properties.tomorrow.script.source: |
         for (def dt : doc['timestamp']) {
-          date(dt.plus(params.days, ChronoUnit.DAYS));
+          emitValue(toEpochMilli(dt.plus(params.days, ChronoUnit.DAYS)));
         }
   - match: {sensor.mappings.properties.tomorrow.script.params: {days: 1} }
   - match: {sensor.mappings.properties.tomorrow.script.lang: painless }
@@ -104,7 +104,7 @@ setup:
   - match:
       sensor.mappings.properties.formatted_tomorrow.script.source: |
         for (def dt : doc['timestamp']) {
-          date(dt.plus(1, ChronoUnit.DAYS));
+          emitValue(toEpochMilli(dt.plus(1, ChronoUnit.DAYS)));
         }
   - match: {sensor.mappings.properties.formatted_tomorrow.script.lang: painless }
   - match: {sensor.mappings.properties.formatted_tomorrow.format: yyyy-MM-dd }

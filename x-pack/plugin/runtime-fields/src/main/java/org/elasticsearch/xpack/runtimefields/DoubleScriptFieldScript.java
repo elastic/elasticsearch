@@ -68,22 +68,22 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         return count;
     }
 
-    private void collectValue(double v) {
+    protected final void emitValue(double v) {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
         values[count++] = v;
     }
 
-    public static class Value {
+    public static class EmitValue {
         private final DoubleScriptFieldScript script;
 
-        public Value(DoubleScriptFieldScript script) {
+        public EmitValue(DoubleScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(double v) {
-            script.collectValue(v);
+        public void emitValue(double v) {
+            script.emitValue(v);
         }
     }
 }

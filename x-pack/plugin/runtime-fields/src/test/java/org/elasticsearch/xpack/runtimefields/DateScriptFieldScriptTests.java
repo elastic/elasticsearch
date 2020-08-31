@@ -17,7 +17,7 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
     ) {
         @Override
         public void execute() {
-            new DateScriptFieldScript.Millis(this).millis(1595431354874L);
+            emitValue(1595431354874L);
         }
     };
 

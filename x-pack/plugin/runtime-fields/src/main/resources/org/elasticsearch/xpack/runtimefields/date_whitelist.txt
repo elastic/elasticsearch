@@ -6,15 +6,20 @@
 
 # The whitelist for date-valued runtime fields
 
+# These two whitelists are required for painless to find the classes
 class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript @no_import {
+}
+class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Factory @no_import {
 }
 
 static_import {
-    void millis(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Millis
-    void date(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, TemporalAccessor) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Date
+    # The `emitValue` callback to collect values for the field
+    void emitValue(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$EmitValue
+    # Parse a value from the source to millis since epoch
     long parse(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, def) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Parse
+    # Add an easy method to convert temporalAccessors to millis since epoch.
+    long toEpochMilli(java.time.temporal.TemporalAccessor) from_class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript
 }
 
-# This import is required to make painless happy and it isn't 100% clear why
-class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Factory @no_import {
-}
+
+

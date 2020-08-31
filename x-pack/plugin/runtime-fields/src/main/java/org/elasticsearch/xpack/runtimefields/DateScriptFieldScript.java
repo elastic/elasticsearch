@@ -44,30 +44,22 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
         this.formatter = formatter;
     }
 
-    public static class Millis {
-        private final DateScriptFieldScript script;
-
-        public Millis(DateScriptFieldScript script) {
-            this.script = script;
-        }
-
-        public void millis(long v) {
-            script.collectValue(v);
-        }
+    public static long toEpochMilli(TemporalAccessor v) {
+        // TemporalAccessor is a nanos API so we have to convert.
+        long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1000);
+        millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
+        return millis;
     }
 
-    public static class Date {
+    public static class EmitValue {
         private final DateScriptFieldScript script;
 
-        public Date(DateScriptFieldScript script) {
+        public EmitValue(DateScriptFieldScript script) {
             this.script = script;
         }
 
-        public void date(TemporalAccessor v) {
-            // TemporalAccessor is a nanos API so we have to convert.
-            long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1000);
-            millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
-            script.collectValue(millis);
+        public void emitValue(long v) {
+            script.emitValue(v);
         }
     }
 

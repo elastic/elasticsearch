@@ -91,7 +91,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                         @Override
                         public void execute() {
                             for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                new DateScriptFieldScript.Millis(this).millis(((Number) timestamp).longValue());
+                                emitValue(((Number) timestamp).longValue());
                             }
                         }
                     };

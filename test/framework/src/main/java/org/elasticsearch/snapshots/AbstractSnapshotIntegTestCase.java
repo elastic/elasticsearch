@@ -20,7 +20,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -106,18 +105,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public void unblockBlockedRepositories() throws Exception {
         List<RepositoryMetadata> repositories = admin().cluster().prepareGetRepositories().get().repositories();
         for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
-            for (RepositoryMetadata repository : repositories) {
-                ((MockRepository) repositoriesService.repository(repository.name())).unblock();
+            for (RepositoryMetadata repositoryMetadata : repositories) {
+                Repository repository = repositoriesService.repository(repositoryMetadata.name());
+                if (repository instanceof MockRepository) {
+                    ((MockRepository) repository).unblock();
+                }
             }
         }
 
-        // Wait for all snapshots to complete so cleanup operations can complete
-        for (RepositoryMetadata repository : repositories) {
-            GetSnapshotsResponse snapshots = admin().cluster().prepareGetSnapshots(repository.name()).get();
-            for (SnapshotInfo snapshot : snapshots.getSnapshots(repository.name())) {
-                waitForCompletion(repository.name(), snapshot.snapshotId().getName(), TimeValue.timeValueSeconds(1));
-            }
-        }
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     @After

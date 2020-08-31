@@ -747,6 +747,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(usage.get("dls"), is(dls));
     }
 
+    @SuppressWarnings("unchecked")
     public void testRealmUsageStats() {
         final int numNativeUsers = scaledRandomIntBetween(1, 32);
         for (int i = 0; i < numNativeUsers; i++) {

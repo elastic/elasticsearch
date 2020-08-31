@@ -134,7 +134,7 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
-processTestResources {
+processInternalClusterTestResources {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))
 }
@@ -475,6 +475,11 @@ test {
    * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
    * to keep direct memory usage under control.
    */
+  systemProperty 'es.transport.buffer.size', '256k'
+}
+
+internalClusterTest {
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
   systemProperty 'es.transport.buffer.size', '256k'
 }
 

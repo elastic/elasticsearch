@@ -158,6 +158,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         MappingMetadata mappingMetadata = mappingsMap.get(index);
         assertThat(mappingMetadata.getSourceAsMap(), hasKey("properties"));
         assertThat(mappingMetadata.getSourceAsMap().get("properties"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         assertThat(propertiesMap, hasKey(field));
     }

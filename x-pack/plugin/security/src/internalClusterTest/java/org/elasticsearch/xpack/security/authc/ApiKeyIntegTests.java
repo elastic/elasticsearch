@@ -559,6 +559,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         Client client = client().filterWithHeader(headers);
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        @SuppressWarnings("unchecked")
         List<CreateApiKeyResponse> responses = randomFrom(createApiKeyResponses1, createApiKeyResponses2);
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false), listener);
         verifyGetResponse(1, responses, listener.get(), Collections.singleton(responses.get(0).getId()), null);
@@ -638,6 +639,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
             "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        @SuppressWarnings("unchecked")
         final Tuple<String,String> invalidRealmAndUserPair = randomFrom(
             new Tuple<>("file", "user_with_run_as_role"),
             new Tuple<>("index", "user_with_manage_own_api_key_role"),
@@ -744,6 +746,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
             "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        @SuppressWarnings("unchecked")
         final Tuple<String,String> invalidRealmAndUserPair = randomFrom(
             new Tuple<>("file", "user_with_run_as_role"),
             new Tuple<>("index", "user_with_manage_own_api_key_role"),

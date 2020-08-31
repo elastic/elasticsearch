@@ -13,6 +13,7 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
 
     public void testSecurityServerTransportServiceWrapsAllHandlers() {
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            @SuppressWarnings("rawtypes")
             RequestHandlerRegistry handler = transportService.transport.getRequestHandlers()
                 .getHandler(TransportService.HANDSHAKE_ACTION_NAME);
             assertEquals(

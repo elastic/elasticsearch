@@ -513,7 +513,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean canUseSharedDistribution() {
-        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        // using original location can be too long due to MAX_PATH restrictions on windows CI
+        // TODO revisit when moving to shorter paths on CI by using Teamcity
+        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
     }
 
     private void logToProcessStdout(String message) {
@@ -751,11 +753,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         final ProcessBuilder processBuilder = new ProcessBuilder();
         Path effectiveDistroDir = getDistroDir();
         List<String> command = OS.<List<String>>conditional()
-            .onUnix(() -> { return Arrays.asList(effectiveDistroDir.resolve("./bin/elasticsearch").toString()); })
-            .onWindows(() -> {
-                Path relativized = project.getRootDir().toPath().relativize(effectiveDistroDir.resolve("bin\\elasticsearch.bat"));
-                return Arrays.asList("cmd", "/c", relativized.toString());
-            })
+            .onUnix(() -> Arrays.asList(effectiveDistroDir.resolve("./bin/elasticsearch").toString()))
+            .onWindows(() -> Arrays.asList("cmd", "/c", effectiveDistroDir.resolve("bin\\elasticsearch.bat").toString()))
             .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());

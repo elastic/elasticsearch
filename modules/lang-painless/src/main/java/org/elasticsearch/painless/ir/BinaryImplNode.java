@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -21,44 +21,29 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class StoreDotShortcutNode extends StoreNode {
+public class BinaryImplNode extends BinaryNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessMethod setter;
-
-    public void setSetter(PainlessMethod setter) {
-        this.setter = setter;
-    }
-
-    public PainlessMethod getSetter() {
-        return setter;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        irTreeVisitor.visitStoreDotShortcut(this, scope);
+        irTreeVisitor.visitBinaryImpl(this, scope);
     }
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        // do nothing; terminal node
+        getLeftNode().visit(irTreeVisitor, scope);
+        getRightNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
-
-        methodWriter.writeDebugInfo(location);
-        methodWriter.invokeMethodCall(setter);
-        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
+        getLeftNode().write(classWriter, methodWriter, writeScope);
+        getRightNode().write(classWriter, methodWriter, writeScope);
     }
 }

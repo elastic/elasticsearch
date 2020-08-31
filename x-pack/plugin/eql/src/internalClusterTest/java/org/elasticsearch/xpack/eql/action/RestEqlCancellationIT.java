@@ -15,6 +15,7 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
@@ -105,7 +106,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         Request request = new Request("GET", "/test/_eql/search");
         request.setJsonEntity(Strings.toString(eqlSearchRequest));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID, id));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(ThreadContext.X_OPAQUE_ID, id));
         logger.trace("Preparing search");
 
         CountDownLatch latch = new CountDownLatch(1);

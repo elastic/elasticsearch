@@ -39,6 +39,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
@@ -53,7 +54,6 @@ import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
-import org.elasticsearch.tasks.Task;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -82,7 +82,7 @@ class NioHttpClient implements Closeable {
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
-            list.add(response.headers().get(Task.X_OPAQUE_ID));
+            list.add(response.headers().get(ThreadContext.X_OPAQUE_ID));
         }
         return list;
     }
@@ -105,7 +105,7 @@ class NioHttpClient implements Closeable {
         for (int i = 0; i < uris.length; i++) {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
-            httpRequest.headers().add(Task.X_OPAQUE_ID, String.valueOf(i));
+            httpRequest.headers().add(ThreadContext.X_OPAQUE_ID, String.valueOf(i));
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);

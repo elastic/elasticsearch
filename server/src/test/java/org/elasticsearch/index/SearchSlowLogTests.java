@@ -33,12 +33,12 @@ import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.hamcrest.Matchers;
@@ -253,7 +253,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
         searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+            Collections.singletonMap(ThreadContext.X_OPAQUE_ID, "my_id")));
 
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("stats"), equalTo("[\\\"group1\\\"]"));
@@ -262,7 +262,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
         searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+            Collections.singletonMap(ThreadContext.X_OPAQUE_ID, "my_id")));
         p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
     }
@@ -463,7 +463,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         ctx.request().source(source);
         ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+            Collections.singletonMap(ThreadContext.X_OPAQUE_ID, "my_id")));
         return ctx;
     }
 }

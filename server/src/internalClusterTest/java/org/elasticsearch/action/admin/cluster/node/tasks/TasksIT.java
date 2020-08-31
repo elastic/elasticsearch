@@ -49,6 +49,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -349,7 +350,7 @@ public class TasksIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         Map<String, String> headers = new HashMap<>();
-        headers.put(Task.X_OPAQUE_ID, "my_id");
+        headers.put(ThreadContext.X_OPAQUE_ID, "my_id");
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(
@@ -396,7 +397,7 @@ public class TasksIT extends ESIntegTestCase {
         int maxSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.getDefault(Settings.EMPTY).getBytes() / 2 + 1);
 
         Map<String, String> headers = new HashMap<>();
-        headers.put(Task.X_OPAQUE_ID, "my_id");
+        headers.put(ThreadContext.X_OPAQUE_ID, "my_id");
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -407,7 +408,7 @@ public class TasksIT extends ESIntegTestCase {
 
     private void assertTaskHeaders(TaskInfo taskInfo) {
         assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
-        assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID));
+        assertEquals("my_id", taskInfo.getHeaders().get(ThreadContext.X_OPAQUE_ID));
         assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
     }
 

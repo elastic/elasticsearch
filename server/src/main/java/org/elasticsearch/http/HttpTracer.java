@@ -26,9 +26,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -66,7 +66,7 @@ class HttpTracer {
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(new ParameterizedMessage("[{}][{}][{}][{}] received request from [{}]", restRequest.getRequestId(),
-                restRequest.header(Task.X_OPAQUE_ID), restRequest.method(), restRequest.uri(), restRequest.getHttpChannel()), e);
+                restRequest.header(ThreadContext.X_OPAQUE_ID), restRequest.method(), restRequest.uri(), restRequest.getHttpChannel()), e);
             return this;
         }
         return null;
@@ -78,7 +78,7 @@ class HttpTracer {
      * @param restResponse  RestResponse
      * @param httpChannel   HttpChannel the response was sent on
      * @param contentLength Value of the response content length header
-     * @param opaqueHeader  Value of HTTP header {@link Task#X_OPAQUE_ID}
+     * @param opaqueHeader  Value of HTTP header {@link ThreadContext#X_OPAQUE_ID}
      * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
      * @param success       Whether the response was successfully sent
      */

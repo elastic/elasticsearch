@@ -20,11 +20,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -168,7 +168,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(ThreadContext.X_OPAQUE_ID, opaqueId))
             .execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
@@ -219,7 +219,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(ThreadContext.X_OPAQUE_ID, opaqueId))
             .execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));

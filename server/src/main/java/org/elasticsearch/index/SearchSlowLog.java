@@ -28,10 +28,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.util.Collections;
@@ -173,7 +173,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 messageFields.put("source", "{}");
             }
 
-            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("id", context.getTask().getHeader(ThreadContext.X_OPAQUE_ID));
             return messageFields;
         }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -89,6 +88,10 @@ public final class ThreadContext implements Writeable {
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+    /**
+     * The request header to mark tasks with specific ids
+     */
+    public static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -119,9 +122,9 @@ public final class ThreadContext implements Writeable {
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * Otherwise when context is stash, it should be empty.
          */
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+        if (context.requestHeaders.containsKey(X_OPAQUE_ID)) {
             ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+                DEFAULT_CONTEXT.putHeaders(Map.of(X_OPAQUE_ID, context.requestHeaders.get(X_OPAQUE_ID)));
             threadLocal.set(threadContextStruct);
         } else {
             threadLocal.set(DEFAULT_CONTEXT);

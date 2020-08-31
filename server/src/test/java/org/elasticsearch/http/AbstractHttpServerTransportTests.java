@@ -39,7 +39,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -260,7 +259,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
                     .withPath("/internal/test")
-                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withHeaders(Collections.singletonMap(ThreadContext.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .withInboundException(inboundException)
                     .build();
 
@@ -276,7 +275,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
                     .withPath("/internal/testNotSeen")
-                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withHeaders(Collections.singletonMap(ThreadContext.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .withInboundException(inboundExceptionExcludedPath)
                     .build();
 

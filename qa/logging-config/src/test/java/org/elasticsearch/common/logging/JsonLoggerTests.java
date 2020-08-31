@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
@@ -89,7 +88,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessage() throws Exception {
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putHeader(ThreadContext.X_OPAQUE_ID, "someId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
             testLogger.deprecate("someKey", "deprecated message1");
 
@@ -340,7 +339,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
+            threadContext.putHeader(ThreadContext.X_OPAQUE_ID, "ID1");
             deprecationLogger.deprecate("key", "message1");
             deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
@@ -368,7 +367,7 @@ public class JsonLoggerTests extends ESTestCase {
         // For the same key and different X-Opaque-ID should be multiple times per key/x-opaque-id
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
+            threadContext.putHeader(ThreadContext.X_OPAQUE_ID, "ID2");
             deprecationLogger.deprecate("key", "message1");
             deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");

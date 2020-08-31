@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -225,7 +226,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
     protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
         ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
-            if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID))) {
+            if (id.equals(task.getHeaders().get(ThreadContext.X_OPAQUE_ID))) {
                 return task;
             }
         }

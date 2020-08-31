@@ -22,7 +22,6 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -315,9 +314,9 @@ public class HeaderWarning {
 
     public static String getXOpaqueId() {
         return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+            .filter(t -> t.getHeader(ThreadContext.X_OPAQUE_ID) != null)
             .findFirst()
-            .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+            .map(t -> t.getHeader(ThreadContext.X_OPAQUE_ID))
             .orElse("");
     }
 

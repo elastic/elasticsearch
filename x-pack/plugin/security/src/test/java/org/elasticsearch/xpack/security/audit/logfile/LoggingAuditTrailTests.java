@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -212,7 +211,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
         if (randomBoolean()) {
-            threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
+            threadContext.putHeader(ThreadContext.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
         }
         if (randomBoolean()) {
             threadContext.putHeader(AuditTrail.X_FORWARDED_FOR_HEADER,
@@ -1483,7 +1482,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void opaqueId(ThreadContext threadContext, MapBuilder<String, String> checkedFields) {
-        final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+        final String opaqueId = threadContext.getHeader(ThreadContext.X_OPAQUE_ID);
         if (opaqueId != null) {
             checkedFields.put(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId);
         }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.junit.After;
 
@@ -63,7 +63,7 @@ public class EqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism
         Future<EqlSearchResponse> future = executorService.submit(() ->
-            client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, id)).execute(EqlSearchAction.INSTANCE, request).get()
+            client().filterWithHeader(Collections.singletonMap(ThreadContext.X_OPAQUE_ID, id)).execute(EqlSearchAction.INSTANCE, request).get()
         );
         logger.trace("Waiting for block to be established");
         if (cancelDuringSearch) {

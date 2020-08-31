@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
 
 /**
  * Represents a phase of a search request e.g. query, fetch etc.
@@ -56,8 +56,8 @@ public interface SearchPhase {
                 builder.append("source[], ");
             }
             if (searchContext.getTask() != null &&
-                    searchContext.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
-                builder.append("id[").append(searchContext.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
+                    searchContext.getTask().getHeader(ThreadContext.X_OPAQUE_ID) != null) {
+                builder.append("id[").append(searchContext.getTask().getHeader(ThreadContext.X_OPAQUE_ID)).append("], ");
             } else {
                 builder.append("id[], ");
             }

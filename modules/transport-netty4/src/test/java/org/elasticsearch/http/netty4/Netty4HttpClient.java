@@ -44,7 +44,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.NettyAllocator;
 
 import java.io.Closeable;
@@ -77,7 +77,7 @@ class Netty4HttpClient implements Closeable {
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
-            list.add(response.headers().get(Task.X_OPAQUE_ID));
+            list.add(response.headers().get(ThreadContext.X_OPAQUE_ID));
         }
         return list;
     }

@@ -334,13 +334,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         // TODO: do not allow delete of source of in-progress-clone
-        // TODO: handle index metadata via metadata generations only (no physical file writing) ... implement this in repo
-        // TODO: just copy global metadata blob? Or just make it empty with the index metadata in it? (latter might be better with DS)
         // TODO: Clone DS? (probably no, not relevant for searchable snapshots ...)
-        // TODO: SnapshotInfo build as always
         // TODO: shards are snapshot shard-by-shard on the master node, no need for coordination here
         // TODO: throw when no indices match
-        // TODO: what about snapshot metadata?
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;

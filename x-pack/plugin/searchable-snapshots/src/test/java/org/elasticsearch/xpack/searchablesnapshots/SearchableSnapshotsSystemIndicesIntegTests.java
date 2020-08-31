@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,10 +26,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -43,36 +38,17 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         return plugins;
     }
 
-    public void testCannotMountSystemIndex() {
+    public void testCannotMountSystemIndex() throws Exception {
         executeTest(TestSystemIndexPlugin.INDEX_NAME, new OriginSettingClient(client(), ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN));
     }
 
-    public void testCannotMountSnapshotBlobCacheIndex() {
+    public void testCannotMountSnapshotBlobCacheIndex() throws Exception {
         executeTest(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX, client());
     }
 
-    private void executeTest(final String indexName, final Client client) {
+    private void executeTest(final String indexName, final Client client) throws Exception {
         final boolean isHidden = randomBoolean();
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden).build())
-        );
-
-        final int nbDocs = scaledRandomIntBetween(0, 100);
-        if (nbDocs > 0) {
-            final BulkRequest bulkRequest = new BulkRequest();
-            for (int i = 0; i < nbDocs; i++) {
-                IndexRequest indexRequest = new IndexRequest(indexName);
-                indexRequest.source("value", i);
-                bulkRequest.add(indexRequest);
-            }
-            final BulkResponse bulkResponse = client.bulk(bulkRequest).actionGet();
-            assertThat(bulkResponse.hasFailures(), is(false));
-        }
-        flushAndRefresh(indexName);
-        assertHitCount(client.prepareSearch(indexName).get(), nbDocs);
+        createAndPopulateIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden));
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepo(repositoryName);

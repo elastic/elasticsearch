@@ -409,6 +409,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new AssertionError("Not implemented yet");
             } else {
                 newGen = UUIDs.randomBase64UUID();
+                logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
+                INDEX_SHARD_SNAPSHOT_FORMAT.write(sourceMeta.clone(target.getName()), shardContainer, target.getUUID(), compress);
+                final BlobStoreIndexShardSnapshots existingSnapshots =
+                        buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+                INDEX_SHARD_SNAPSHOTS_FORMAT.write(existingSnapshots.withClone(source.getName(), target.getName()), shardContainer, newGen,
+                        compress);
             }
             return newGen;
         }));

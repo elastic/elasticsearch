@@ -573,17 +573,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ShardGenerations.Builder builder = ShardGenerations.builder();
         final Map<String, IndexId> indexLookup = new HashMap<>();
         snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
-        snapshot.shards().forEach(c -> {
-            if (metadata.index(c.key.getIndex()) == null) {
-                assert snapshot.partial() :
-                    "Index [" + c.key.getIndex() + "] was deleted during a snapshot but snapshot was not partial.";
-                return;
-            }
-            final IndexId indexId = indexLookup.get(c.key.getIndexName());
-            if (indexId != null) {
-                builder.put(indexId, c.key.id(), c.value.generation());
-            }
-        });
+        if (snapshot.source() == null) {
+            snapshot.shards().forEach(c -> {
+                if (metadata.index(c.key.getIndex()) == null) {
+                    assert snapshot.partial() :
+                            "Index [" + c.key.getIndex() + "] was deleted during a snapshot but snapshot was not partial.";
+                    return;
+                }
+                final IndexId indexId = indexLookup.get(c.key.getIndexName());
+                if (indexId != null) {
+                    builder.put(indexId, c.key.id(), c.value.generation());
+                }
+            });
+        } else {
+            snapshot.clones().forEach(c -> {
+                final IndexId indexId = indexLookup.get(c.key);
+                for (int i = 0; i < c.value.size(); i++) {
+                    builder.put(indexId, i, c.value.get(i).generation());
+                }
+            });
+        }
         return builder.build();
     }
 
@@ -1075,12 +1084,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 metadataListener.onResponse(metadata);
             } else {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(
-                        ActionRunnable.supply(metadataListener, () -> repo.getSnapshotGlobalMetadata(entry.source())));
+                        ActionRunnable.supply(metadataListener, () -> {
+                            final Metadata.Builder metaBuilder = Metadata.builder(repo.getSnapshotGlobalMetadata(entry.source()));
+                            for (IndexId index : entry.indices()) {
+                                metaBuilder.put(repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index), false);
+                            }
+                            return metaBuilder.build();
+                        }));
             }
             metadataListener.whenComplete(meta -> repo.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
-                    metadataForSnapshot(entry, metadata),
+                    metadataForSnapshot(entry, meta),
                     snapshotInfo,
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),

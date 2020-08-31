@@ -59,6 +59,10 @@ public class SnapshotFiles {
         this.shardStateIdentifier = shardStateIdentifier;
     }
 
+    public SnapshotFiles clone(String targetName) {
+        return new SnapshotFiles(targetName, indexFiles, shardStateIdentifier);
+    }
+
     /**
      * Returns an identifier for the shard state that can be used to check whether a shard has changed between
      * snapshots or not.

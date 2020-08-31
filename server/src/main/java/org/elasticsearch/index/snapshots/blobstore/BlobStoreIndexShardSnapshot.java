@@ -385,6 +385,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.incrementalSize = incrementalSize;
     }
 
+    public BlobStoreIndexShardSnapshot clone(String targetSnapshotName) {
+        return new BlobStoreIndexShardSnapshot(
+                targetSnapshotName, indexVersion, indexFiles, startTime, time, incrementalFileCount, incrementalSize);
+    }
+
     /**
      * Returns snapshot name
      *

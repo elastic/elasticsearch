@@ -37,7 +37,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.locationtech.jts.util.AssertionFailedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -275,12 +274,6 @@ public interface Repository extends LifecycleComponent {
      */
     void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, @Nullable String shardGeneration,
                             ActionListener<String> listener);
-
-    default void finalizeSnapshotClone(SnapshotId source, ShardGenerations shardGenerations, long repositoryStateId,
-                               SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                               Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
-        throw new AssertionFailedException("not implemented yet");
-    }
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

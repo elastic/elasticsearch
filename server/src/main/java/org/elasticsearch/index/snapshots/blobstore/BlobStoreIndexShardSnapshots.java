@@ -94,6 +94,22 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         this.physicalFiles = unmodifiableMap(mapBuilder);
     }
 
+    public BlobStoreIndexShardSnapshots withClone(String source, String target) {
+        SnapshotFiles sourceFiles = null;
+        for (SnapshotFiles shardSnapshot : shardSnapshots) {
+            if (shardSnapshot.snapshot().equals(source)) {
+                sourceFiles = shardSnapshot;
+                break;
+            }
+        }
+        if (sourceFiles == null) {
+            throw new IllegalArgumentException("unknown source");
+        }
+        final List<SnapshotFiles> updated = new ArrayList<>(shardSnapshots);
+        updated.add(sourceFiles.clone(target));
+        return new BlobStoreIndexShardSnapshots(updated);
+    }
+
     /**
      * Returns list of snapshots
      *

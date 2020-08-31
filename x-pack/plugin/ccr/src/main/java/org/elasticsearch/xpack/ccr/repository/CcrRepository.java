@@ -442,6 +442,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
+    @Override
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, String shardGeneration,
+                                   ActionListener<String> listener) {
+        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
                                 Client followerClient, Index followerIndex) {
         final PlainActionFuture<IndexMetadata> indexMetadataFuture = new PlainActionFuture<>();

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -78,7 +79,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -737,7 +737,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             new SearchableSnapshotsStatsRequest(indexName)
         ).actionGet();
         final NumShards restoredNumShards = getNumShards(indexName);
-        assertThat(statsResponse.getStats(), hasSize(restoredNumShards.totalNumShards));
+        assertThat(statsResponse.getStats(), Matchers.hasSize(restoredNumShards.totalNumShards));
 
         final long totalSize = statsResponse.getStats()
             .stream()

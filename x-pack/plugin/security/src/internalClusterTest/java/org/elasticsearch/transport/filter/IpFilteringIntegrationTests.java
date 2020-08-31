@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.filter;
+package org.elasticsearch.transport.filter;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

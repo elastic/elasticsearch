@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.filter;
+package org.elasticsearch.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;

@@ -71,7 +71,7 @@ public final class CompressedXContent {
      */
     public CompressedXContent(ToXContent xcontent, XContentType type, ToXContent.Params params) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        OutputStream compressedStream = CompressorFactory.COMPRESSOR.streamOutput(bStream);
+        OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(bStream);
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
         try (XContentBuilder builder = XContentFactory.contentBuilder(type, checkedStream)) {

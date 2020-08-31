@@ -128,6 +128,17 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     }
 
     @Override
+    public boolean hasArray() {
+        return false;
+    }
+
+    @Override
+    public byte[] array() {
+        assert false;
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected int numBytesPerElement() {
         return 1;
     }

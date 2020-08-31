@@ -28,15 +28,18 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
@@ -45,12 +48,17 @@ import static java.util.stream.Collectors.toUnmodifiableList;
  */
 public class SystemIndices {
 
+    private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
+        TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
+    );
+
     private final CharacterRunAutomaton runAutomaton;
     private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
 
-    public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap) {
-        checkForOverlappingPatterns(systemIndexDescriptorMap);
-        this.systemIndexDescriptors = systemIndexDescriptorMap.values()
+    public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
+        final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+        checkForOverlappingPatterns(descriptorsMap);
+        this.systemIndexDescriptors = descriptorsMap.values()
             .stream()
             .flatMap(Collection::stream)
             .collect(Collectors.toUnmodifiableList());
@@ -63,7 +71,16 @@ public class SystemIndices {
      * @return true if the {@link Index}'s name matches a pattern from a {@link SystemIndexDescriptor}
      */
     public boolean isSystemIndex(Index index) {
-        return runAutomaton.run(index.getName());
+        return isSystemIndex(index.getName());
+    }
+
+    /**
+     * Determines whether a given index is a system index by comparing its name to the collection of loaded {@link SystemIndexDescriptor}s
+     * @param indexName the index name to check against loaded {@link SystemIndexDescriptor}s
+     * @return true if the index name matches a pattern from a {@link SystemIndexDescriptor}
+     */
+    public boolean isSystemIndex(String indexName) {
+        return runAutomaton.run(indexName);
     }
 
     /**
@@ -126,10 +143,10 @@ public class SystemIndices {
                 .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()))
                 .collect(Collectors.toUnmodifiableList());
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
-                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from plugin [" +
+                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from [" +
                     descriptorToCheck.v1() + "] overlaps with other system index descriptors: [" +
                     descriptorsMatchingThisPattern.stream()
-                        .map(descriptor -> descriptor.v2() + " from plugin [" + descriptor.v1() + "]")
+                        .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
                         .collect(Collectors.joining(", ")));
             }
         });
@@ -139,5 +156,20 @@ public class SystemIndices {
         Automaton a1Automaton = Regex.simpleMatchToAutomaton(a1.getIndexPattern());
         Automaton a2Automaton = Regex.simpleMatchToAutomaton(a2.getIndexPattern());
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
+    }
+
+    private static Map<String, Collection<SystemIndexDescriptor>> buildSystemIndexDescriptorMap(
+        Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesMap) {
+        final Map<String, Collection<SystemIndexDescriptor>> map =
+            new HashMap<>(pluginAndModulesMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+        map.putAll(pluginAndModulesMap);
+        // put the server items last since we expect less of them
+        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, descriptors) -> {
+            if (map.putIfAbsent(source, descriptors) != null) {
+                throw new IllegalArgumentException("plugin or module attempted to define the same source [" + source +
+                    "] as a built-in system index");
+            }
+        });
+        return Map.copyOf(map);
     }
 }

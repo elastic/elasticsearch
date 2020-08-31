@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
@@ -53,6 +54,7 @@ import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailu
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
+import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -166,8 +168,11 @@ public class DockerTests extends PackagingTestCase {
         final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
         append(tempDir.resolve("jvm.options"), jvmOptions);
 
-        // Make the temp directory and contents accessible when bind-mounted
+        // Make the temp directory and contents accessible when bind-mounted.
         Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
+        // These permissions are necessary to run the tests under Vagrant
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
 
         // Restart the container
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
@@ -214,6 +219,41 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that it is possible to run Elasticsearch under a different user and group to the default.
+     */
+    public void test072RunEsAsDifferentUserAndGroup() throws Exception {
+        assumeFalse(Platforms.WINDOWS);
+
+        final Path tempEsDataDir = tempDir.resolve("esDataDir");
+        final Path tempEsConfigDir = tempDir.resolve("esConfDir");
+        final Path tempEsLogsDir = tempDir.resolve("esLogsDir");
+
+        Files.createDirectory(tempEsConfigDir);
+        Files.createDirectory(tempEsConfigDir.resolve("jvm.options.d"));
+        Files.createDirectory(tempEsDataDir);
+        Files.createDirectory(tempEsLogsDir);
+
+        copyFromContainer(installation.config("elasticsearch.yml"), tempEsConfigDir);
+        copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
+        copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
+
+        chownWithPrivilegeEscalation(tempEsConfigDir, "501:501");
+        chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
+        chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
+
+        // Define the bind mounts
+        final Map<Path, Path> volumes = new HashMap<>();
+        volumes.put(tempEsDataDir.toAbsolutePath(), installation.data);
+        volumes.put(tempEsConfigDir.toAbsolutePath(), installation.config);
+        volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
+
+        // Restart the container
+        runContainer(distribution(), volumes, null, 501, 501);
+
+        waitForElasticsearch(installation);
+    }
+
+    /**
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
     public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
@@ -237,6 +277,8 @@ public class DockerTests extends PackagingTestCase {
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
+        // But when running in Vagrant, also ensure ES can actually access the file
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 

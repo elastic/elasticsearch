@@ -75,7 +75,8 @@ public class InternalGeoLine extends InternalAggregation {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
             for (int i = 0; i < geoLine.length; i++) {
                 finalSortVals[idx] = geoLine.sortVals[i];
-                finalList[idx++] = geoLine.line[i];
+                finalList[idx] = geoLine.line[i];
+                idx += 1;
             }
         }
 

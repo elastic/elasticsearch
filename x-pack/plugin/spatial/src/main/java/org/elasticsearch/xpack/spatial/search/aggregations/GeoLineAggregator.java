@@ -99,15 +99,11 @@ final class GeoLineAggregator extends MetricsAggregator {
                     double[] sortVals = sortValues.get(bucket);
                     if (bucketLine == null) {
                         bucketLine = new long[10000];
-                    } else {
-                        //bucketLine = ArrayUtil.grow(bucketLine, idx + 1);
                     }
 
 
                     if (sortVals == null) {
                         sortVals = new double[10000];
-                    } else {
-                        //sortVals = ArrayUtil.grow(sortVals, idx + 1);
                     }
 
                     int encodedLat = GeoEncodingUtils.encodeLatitude(point.lat());

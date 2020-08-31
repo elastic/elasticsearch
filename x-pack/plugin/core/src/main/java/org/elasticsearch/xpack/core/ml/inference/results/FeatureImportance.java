@@ -39,6 +39,12 @@ public class FeatureImportance implements Writeable, ToXContentObject {
         return new FeatureImportance(featureName, importance, null);
     }
 
+    public static FeatureImportance forBinaryClassification(String featureName, double importance, List<ClassImportance> classImportance) {
+        return new FeatureImportance(featureName,
+            importance,
+            classImportance);
+    }
+
     public static FeatureImportance forClassification(String featureName, List<ClassImportance> classImportance) {
         return new FeatureImportance(featureName,
             classImportance.stream().mapToDouble(ClassImportance::getImportance).map(Math::abs).sum(),
@@ -170,27 +176,27 @@ public class FeatureImportance implements Writeable, ToXContentObject {
         }
 
         private static Map<String, Double> toMap(List<ClassImportance> importances) {
-            return importances.stream().collect(Collectors.toMap(i -> i.className, i -> i.importance));
+            return importances.stream().collect(Collectors.toMap(i -> i.className.toString(), i -> i.importance));
         }
 
         public static ClassImportance fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
-        private final String className;
+        private final Object className;
         private final double importance;
 
-        public ClassImportance(String className, double importance) {
+        public ClassImportance(Object className, double importance) {
             this.className = className;
             this.importance = importance;
         }
 
         public ClassImportance(StreamInput in) throws IOException {
-            this.className = in.readString();
+            this.className = in.readGenericValue();
             this.importance = in.readDouble();
         }
 
-        public String getClassName() {
+        public Object getClassName() {
             return className;
         }
 
@@ -207,7 +213,7 @@ public class FeatureImportance implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(className);
+            out.writeGenericValue(className);
             out.writeDouble(importance);
         }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -326,7 +327,7 @@ public class SliceBuilderTests extends ESTestCase {
         OperationRouting routing = mock(OperationRouting.class);
         GroupShardsIterator<ShardIterator> it = new GroupShardsIterator<>(
             Collections.singletonList(
-                new SearchShardIterator(null, new ShardId("index", "index", 1), null, null)
+                new PlainShardIterator(new ShardId("index", "index", 1), Collections.emptyList())
             )
         );
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(it);

@@ -126,7 +126,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
-            " this ssl context ([xpack.http.ssl]) is not configured to trust that issuer"));
+            " this ssl context ([xpack.http.ssl]) is not configured to trust that issuer" +
+            " but trusts [2] other issuers ([CN=Test CA 2, CN=Test CA 3])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesEndCertificateOnlyWithMimicIssuer() throws Exception {
@@ -215,7 +216,7 @@ public class SslDiagnosticsTests extends ESTestCase {
             " signed by (subject [CN=ca,OU=windows,DC=example,DC=com] fingerprint [" + MOCK_FINGERPRINT_3 + "])" +
             " signed by (subject [CN=issuing-ca,DC=example,DC=com] fingerprint [" + MOCK_FINGERPRINT_2 + "])" +
             " which is issued by [CN=root-ca,DC=example,DC=com] (but that issuer certificate was not provided in the chain);" +
-            " this ssl context ([xpack.security.authc.realms.ldap.ldap1.ssl]) is not configured to trust that issuer"));
+            " this ssl context ([xpack.security.authc.realms.ldap.ldap1.ssl]) is not configured to trust that issuer or any other issuer"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesASelfSignedCertThatIsDirectlyTrusted() throws Exception {

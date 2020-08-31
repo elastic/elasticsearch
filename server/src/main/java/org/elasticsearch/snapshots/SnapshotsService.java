@@ -495,29 +495,38 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    private final Set<RepoShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
+
     private void runReadyClone(Snapshot target, SnapshotId sourceSnapshot,
                                ShardSnapshotStatus shardStatusBefore, RepoShardId repoShardId, Repository repository) {
         SnapshotId targetSnapshot = target.getSnapshotId();
-        repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, repoShardId.index(), repoShardId.shardId(),
-                shardStatusBefore.generation(), ActionListener.wrap(
-                        generation -> innerUpdateSnapshotState(
-                                new ShardSnapshotUpdate(target,
-                                        repoShardId, null,
-                                        new ShardSnapshotStatus(clusterService.localNode().getId(),
-                                                ShardState.SUCCESS, generation)),
-                                ActionListener.wrap(
-                                        v -> logger.trace(
-                                                "Marked [{}] as successfully cloned from [{}] to [{}]",
-                                                repoShardId, sourceSnapshot, targetSnapshot),
-                                        e -> {
-                                            //TODO: Error handling
-                                            throw new AssertionError(e);
-                                        }
+        if (currentlyCloning.add(repoShardId)) {
+            repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, repoShardId.index(), repoShardId.shardId(),
+                    shardStatusBefore.generation(), ActionListener.wrap(
+                            generation -> innerUpdateSnapshotState(
+                                    new ShardSnapshotUpdate(target,
+                                            repoShardId, null,
+                                            new ShardSnapshotStatus(clusterService.localNode().getId(),
+                                                    ShardState.SUCCESS, generation)),
+                                    ActionListener.wrap(
+                                            v -> {
+                                                currentlyCloning.remove(repoShardId);
+                                                logger.trace(
+                                                        "Marked [{}] as successfully cloned from [{}] to [{}]",
+                                                        repoShardId, sourceSnapshot, targetSnapshot);
+                                            },
+                                            e -> {
+                                                currentlyCloning.remove(repoShardId);
+                                                //TODO: Error handling
+                                                throw new AssertionError(e);
+                                            }
 
-                                )), e -> {
-                            //TODO: Error handling
-                            throw new AssertionError(e);
-                        }));
+                                    )), e -> {
+                                currentlyCloning.remove(repoShardId);
+                                //TODO: Error handling
+                                throw new AssertionError(e);
+                            }));
+        }
     }
 
     private void ensureBelowConcurrencyLimit(String repository, String name, SnapshotsInProgress snapshotsInProgress,
@@ -2232,7 +2241,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
                                         logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
                                                 finishedStatus.nodeId(), finishedStatus.generation());
-                                        shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
+                                        shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(),
+                                                finishedStatus.generation()));
                                         reusedShardIds.add(finishedShardId);
                                     }
                                 } else {
@@ -2248,7 +2258,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 continue;
                                             }
                                             if (updated == false) {
-                                                shards.putAll(entry.shards());
+                                                clones.putAll(entry.clones());
                                                 updated = true;
                                             }
                                             final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
@@ -2307,21 +2317,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         } finally {
                             // Maybe this state update completed the snapshot. If we are not already ending it because of a concurrent
                             // state update we check if its state is completed and end it if it is.
+                            final SnapshotsInProgress snapshotsInProgress =
+                                    newState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                             if (endingSnapshots.contains(update.snapshot()) == false) {
-                                final SnapshotsInProgress snapshotsInProgress = newState.custom(SnapshotsInProgress.TYPE);
                                 final SnapshotsInProgress.Entry updatedEntry = snapshotsInProgress.snapshot(update.snapshot());
                                 // If the entry is still in the cluster state and is completed, try finalizing the snapshot in the repo
-                                if (updatedEntry != null) {
-                                    if (updatedEntry.state().completed()) {
-                                        endSnapshot(updatedEntry, newState.metadata(), null);
-                                    } else if (updatedEntry.source() != null) {
-                                        // this is a clone, see if new work is ready
-                                        for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> clone : updatedEntry.clones()) {
-                                            if (clone.value.state() == ShardState.INIT) {
-                                                runReadyClone(updatedEntry.snapshot(), updatedEntry.source(), clone.value, clone.key,
-                                                        repositoriesService.repository(updatedEntry.repository()));
-                                            }
-                                        }
+                                if (updatedEntry != null && updatedEntry.state().completed()) {
+                                    endSnapshot(updatedEntry, newState.metadata(), null);
+                                }
+                            }
+                            // TODO: this is horrifically expensive, find a way of more efficiently transporting the state here
+                            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                                // this is a clone, see if new work is ready
+                                for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> clone : entry.clones()) {
+                                    if (clone.value.state() == ShardState.INIT) {
+                                        runReadyClone(entry.snapshot(), entry.source(), clone.value, clone.key,
+                                                repositoriesService.repository(entry.repository()));
                                     }
                                 }
                             }

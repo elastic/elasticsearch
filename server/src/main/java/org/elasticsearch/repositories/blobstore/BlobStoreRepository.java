@@ -405,9 +405,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(index, shardId);
             final BlobStoreIndexShardSnapshots existingSnapshots =
                     buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
-            if (existingSnapshots.snapshots().stream().anyMatch(snapshotFiles -> snapshotFiles.snapshot().equals(target.getName()))) {
-                return shardGeneration;
-            }
             final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
             final String newGen;
             if (shardGeneration == null) {

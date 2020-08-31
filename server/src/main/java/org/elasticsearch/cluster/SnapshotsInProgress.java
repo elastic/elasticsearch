@@ -226,6 +226,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry withClones(ImmutableOpenMap<RepoShardId, ShardSnapshotStatus> updatedClones) {
+            if (updatedClones.equals(clones)) {
+                return this;
+            }
             return new Entry(snapshot, includeGlobalState, partial,
                     completed(shards.values(), updatedClones) ? State.SUCCESS : state,
                     indices, dataStreams, startTime, repositoryStateId, shards, failure, userMetadata, version, source, updatedClones);

@@ -1188,6 +1188,31 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(sne.getCause().getMessage(), containsString("exception after block"));
     }
 
+    public void testConcurrentCloneAndSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "repo-name";
+        createRepository(repoName, "mock");
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        indexRandomDocs(indexName, randomIntBetween(20, 100));
+
+        final String targetSnapshot = "target-snapshot";
+        final ActionFuture<CreateSnapshotResponse> snapshot2Future =
+                startFullSnapshotBlockedOnDataNode("snapshot-2", repoName, dataNode);
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> cloneFuture =
+                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute();
+        awaitNSnapshotsInProgress(2);
+        unblockNode(repoName, dataNode);
+        assertAcked(cloneFuture.get());
+        assertSuccessful(snapshot2Future);
+    }
+
     private static String startDataNodeWithLargeSnapshotPool() {
         return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
     }

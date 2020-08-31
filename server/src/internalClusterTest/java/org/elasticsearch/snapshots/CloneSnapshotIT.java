@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;

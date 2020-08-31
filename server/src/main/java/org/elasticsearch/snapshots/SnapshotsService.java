@@ -481,6 +481,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     for (int i = 0; i < indexClone.value.size(); i++) {
                                         final int shardId = i;
                                         final ShardSnapshotStatus shardStatusBefore = indexClone.value.get(shardId);
+                                        if (shardStatusBefore.state() != ShardState.INIT) {
+                                            continue;
+                                        }
                                         repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, indexId, shardId,
                                                 shardStatusBefore.generation(), ActionListener.wrap(
                                                         generation -> innerUpdateSnapshotState(
@@ -2169,8 +2172,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             changedCount++;
                             clones.put(finishedShardId.indexName(), indexStatuses);
                         } else {
-                            throw new AssertionError("TODO");
-                            // TODO: start next snapshot
+                            // TODO: update on changes
                         }
                     } else {
                         final ShardId finishedShardId = updateSnapshotState.shardId();

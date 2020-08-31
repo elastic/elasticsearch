@@ -584,7 +584,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public void unblockRepositories() throws Exception {
-        if (isInternalCluster() == false) {
+        if (isInternalCluster() == false || cluster().size() == 0) {
             return;
         }
         List<RepositoryMetadata> repositories = admin().cluster().prepareGetRepositories().get().repositories();

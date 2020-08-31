@@ -225,8 +225,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     userMetadata, version, source, clones);
         }
 
-        public Entry initiateClones(ImmutableOpenMap<String, List<ShardSnapshotStatus>> updatedClones) {
-            assert clones.isEmpty() : "Can't initiate clones, already have running clones " + clones;
+        public Entry withClones(ImmutableOpenMap<String, List<ShardSnapshotStatus>> updatedClones) {
             return new Entry(snapshot, includeGlobalState, partial, state, this.indices, dataStreams, startTime, repositoryStateId, shards,
                     failure, userMetadata, version, source, updatedClones);
         }
@@ -729,6 +728,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private RepoShardId(IndexId index, int shard) {
             this.index = index;
             this.shard = shard;
+        }
+
+        public String indexName() {
+            return index.getName();
+        }
+
+        public int shardId() {
+            return shard;
         }
 
         @Override

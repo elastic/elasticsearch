@@ -525,7 +525,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean requiresAddingXPack() {
-        boolean b = getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT;
         return getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT;
     }
 

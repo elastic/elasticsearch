@@ -453,7 +453,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             pluginsToInstall.addAll(plugins.stream().map(Provider::get).map(URI::toString).collect(Collectors.toList()));
         }
 
-        if (getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT) {
+        if (requiresAddingXPack()) {
             logToProcessStdout("emulating the " + testDistribution + " flavor for " + getVersion() + " by installing x-pack");
             pluginsToInstall.add("x-pack");
         }
@@ -524,8 +524,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         startElasticsearchProcess();
     }
 
+    private boolean requiresAddingXPack() {
+        boolean b = getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT;
+        return getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT;
+    }
+
     private boolean canUseSharedDistribution() {
-        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0 && !requiresAddingXPack();
     }
 
     private void logToProcessStdout(String message) {

@@ -28,7 +28,7 @@ For example, the following returns the first 100 watches:
 
 [source,console]
 --------------------------------------------------
-GET .watches/_search
+GET .watches/_search?allow_system_index_access=true
 {
   "size" : 100
 }

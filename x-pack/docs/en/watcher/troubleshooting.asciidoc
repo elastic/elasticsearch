@@ -16,7 +16,7 @@ do that by submitting the following request:
 
 [source,console]
 --------------------------------------------------
-GET .watches/_mapping
+GET .watches/_mapping?allow_system_index_access=true
 --------------------------------------------------
 // TEST[setup:my_active_watch]
 
@@ -31,7 +31,7 @@ mappings:
 --
 [source,console]
 --------------------------------------------------
-DELETE .watches
+DELETE .watches?allow_system_index_access=true
 --------------------------------------------------
 // TEST[skip:index deletion]
 --

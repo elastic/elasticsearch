@@ -38,6 +38,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
@@ -65,7 +66,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -81,7 +81,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -1260,7 +1259,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Path getExtractedDistributionDir() {
-        return Paths.get(distributions.get(currentDistro).getExtracted().toString());
+        return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
@@ -1298,20 +1297,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Classpath
-    public Set<File> getDistributionClasspath() {
+    public List<FileTree> getDistributionClasspath() {
         return getDistributionFiles(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public Set<File> getDistributionFiles() {
+    public List<FileTree> getDistributionFiles() {
         return getDistributionFiles(filter -> filter.exclude("**/*.jar"));
     }
 
-    private Set<File> getDistributionFiles(Action<PatternFilterable> patternFilter) {
-        Set<File> files = new TreeSet<>();
+    private List<FileTree> getDistributionFiles(Action<PatternFilterable> patternFilter) {
+        List<FileTree> files = new ArrayList<>();
         for (ElasticsearchDistribution distribution : distributions) {
-            files.addAll(project.fileTree(Paths.get(distribution.getExtracted().toString())).matching(patternFilter).getFiles());
+            files.add(distribution.getExtracted().getAsFileTree().matching(patternFilter));
         }
         return files;
     }

@@ -6,13 +6,13 @@
 
 # The whitelist for long-valued runtime fields
 
+# These two whitelists are required for painless to find the classes
 class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript @no_import {
+}
+class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Factory @no_import {
 }
 
 static_import {
-    void value(org.elasticsearch.xpack.runtimefields.LongScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Value
-}
-
-# This import is required to make painless happy and it isn't 100% clear why
-class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Factory @no_import {
+    # The `emitValue` callback to collect values for the field
+    void emitValue(org.elasticsearch.xpack.runtimefields.LongScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$EmitValue
 }

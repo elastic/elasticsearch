@@ -16,7 +16,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
     ) {
         @Override
         public void execute() {
-            new BooleanScriptFieldScript.Value(this).value(false);
+            emitValue(false);
         }
     };
 

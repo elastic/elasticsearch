@@ -12,7 +12,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
     public static final LongScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
         @Override
         public void execute() {
-            new LongScriptFieldScript.Value(this).value(1);
+            emitValue(1);
         }
     };
 

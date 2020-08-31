@@ -16,7 +16,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
     ) {
         @Override
         public void execute() {
-            new DoubleScriptFieldScript.Value(this).value(1.0);
+            emitValue(1.0);
         }
     };
 

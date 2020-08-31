@@ -54,15 +54,19 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         return results;
     }
 
-    public static class Value {
+    protected final void emitValue(String v) {
+        results.add(v);
+    }
+
+    public static class EmitValue {
         private final StringScriptFieldScript script;
 
-        public Value(StringScriptFieldScript script) {
+        public EmitValue(StringScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(String v) {
-            script.results.add(v);
+        public void emitValue(String v) {
+            script.emitValue(v);
         }
     }
 }

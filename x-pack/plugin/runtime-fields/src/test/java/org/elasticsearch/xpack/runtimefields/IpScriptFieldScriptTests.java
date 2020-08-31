@@ -12,7 +12,7 @@ public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScript
     public static final IpScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new IpScriptFieldScript(params, lookup, ctx) {
         @Override
         public void execute() {
-            new IpScriptFieldScript.StringValue(this).stringValue("192.168.0.1");
+            emitValue("192.168.0.1");
         }
     };
 

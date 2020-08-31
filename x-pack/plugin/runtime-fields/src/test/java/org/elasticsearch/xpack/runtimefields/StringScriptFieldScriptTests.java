@@ -16,7 +16,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
     ) {
         @Override
         public void execute() {
-            new StringScriptFieldScript.Value(this).value("foo");
+            emitValue("foo");
         }
     };
 

@@ -440,7 +440,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
                                             DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
-                                            new DateScriptFieldScript.Millis(this).millis(parse.parse(timestamp));
+                                            emitValue(parse.parse(timestamp));
                                         }
                                     }
                                 };
@@ -452,7 +452,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                             long epoch = (Long) timestamp;
                                             ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                                             dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                                            new DateScriptFieldScript.Date(this).date(dt);
+                                            emitValue(toEpochMilli(dt));
                                         }
                                     }
                                 };

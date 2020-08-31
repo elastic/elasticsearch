@@ -382,7 +382,7 @@ the user back to after the OP logs them out.
 When configuring `rp.post_logout_redirect_uri`, care should be taken to not point this to a URL that
 will trigger re-authentication of the user. For instance, when using OpenID Connect to support
 single sign-on to {kib}, this could be set to either +$\{kibana-url}/security/logged_out+, which will show a
-friendly message to the user or +$\{kibana-url}/login?msg=LOGGED_OUT+ which will take the user to the login selector in {kib}.
+user-friendly message to the user or +$\{kibana-url}/login?msg=LOGGED_OUT+ which will take the user to the login selector in {kib}.
 
 [[oidc-ssl-config]]
 ==== OpenID Connect Realm SSL Configuration

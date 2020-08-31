@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.Version;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -116,6 +115,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CONTEXT_FIELD);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ContextSetup::parse, CONTEXT_SETUP_FIELD);
         }
+
 
         static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
 
@@ -284,15 +284,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         Request(StreamInput in) throws IOException {
             super(in);
             script = new Script(in);
-            if (in.getVersion().before(Version.V_6_4_0)) {
-                byte scriptContextId = in.readByte();
-                assert scriptContextId == 0;
-                context = null;
-                contextSetup = null;
-            } else {
-                context = fromScriptContextName(in.readString());
-                contextSetup = in.readOptionalWriteable(ContextSetup::new);
-            }
+            context = fromScriptContextName(in.readString());
+            contextSetup = in.readOptionalWriteable(ContextSetup::new);
         }
 
         public Script getScript() {
@@ -328,12 +321,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             script.writeTo(out);
-            if (out.getVersion().before(Version.V_6_4_0)) {
-                out.writeByte((byte) 0);
-            } else {
-                out.writeString(context.name);
-                out.writeOptionalWriteable(contextSetup);
-            }
+            out.writeString(context.name);
+            out.writeOptionalWriteable(contextSetup);
         }
 
         // For testing only:
@@ -590,8 +579,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         public List<Route> routes() {
             return unmodifiableList(asList(
-                new Route(GET, "/_scripts/painless/_execute"),
-                new Route(POST, "/_scripts/painless/_execute")));
+                    new Route(GET, "/_scripts/painless/_execute"),
+                    new Route(POST, "/_scripts/painless/_execute")));
         }
 
         @Override

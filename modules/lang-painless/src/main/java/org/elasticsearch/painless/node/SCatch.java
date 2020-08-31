@@ -19,102 +19,55 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class SCatch extends AStatement {
+public class SCatch extends AStatement {
 
-    private final DType baseException;
-    private final SDeclaration declaration;
-    private final SBlock block;
+    private final Class<?> baseException;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final SBlock blockNode;
 
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
-
-    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
-        super(location);
+    public SCatch(int identifier, Location location, Class<?> baseException, String canonicalTypeName, String symbol, SBlock blockNode) {
+        super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declaration = Objects.requireNonNull(declaration);
-        this.block = block;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.blockNode = blockNode;
+    }
+
+    public Class<?> getBaseException() {
+        return baseException;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        declaration.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitCatch(this, scope);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        declaration.analyze(scriptRoot, locals);
-
-        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = declaration.variable.clazz;
-
-        if (baseType.isAssignableFrom(type) == false) {
-            throw createError(new ClassCastException(
-                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        if (block != null) {
-            block.lastSource = lastSource;
-            block.inLoop = inLoop;
-            block.lastLoop = lastLoop;
-            block.analyze(scriptRoot, locals);
-
-            methodEscape = block.methodEscape;
-            loopEscape = block.loopEscape;
-            allEscape = block.allEscape;
-            anyContinue = block.anyContinue;
-            anyBreak = block.anyBreak;
-            statementCount = block.statementCount;
-        }
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label jump = new Label();
-
-        methodWriter.mark(jump);
-        methodWriter.visitVarInsn(
-                MethodWriter.getType(declaration.variable.clazz).getOpcode(Opcodes.ISTORE), declaration.variable.getSlot());
-
-        if (block != null) {
-            block.continu = continu;
-            block.brake = brake;
-            block.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declaration.variable.clazz).getInternalName());
-
-        if (exception != null && (block == null || !block.allEscape)) {
-            methodWriter.goTo(exception);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(baseException, declaration, block);
     }
 }

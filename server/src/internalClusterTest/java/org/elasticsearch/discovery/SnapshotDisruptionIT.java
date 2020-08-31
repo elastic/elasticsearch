@@ -120,7 +120,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
-        awaitNoMoreRunningOperations(dataNode);
+        awaitNoMoreSnapshotRunningOperations(dataNode);
 
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
@@ -148,7 +148,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 
-        awaitNoMoreRunningOperations(dataNode);
+        awaitNoMoreSnapshotRunningOperations(dataNode);
     }
 
     public void testDisruptionAfterShardFinalization() throws Exception {
@@ -237,7 +237,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, dataNode);
 
         networkDisruption.stopDisrupting();
-        awaitNoMoreRunningOperations(dataNode);
+        awaitNoMoreSnapshotRunningOperations(dataNode);
 
         logger.info("--> make sure isolated master responds to snapshot request");
         final SnapshotException sne =

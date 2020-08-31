@@ -25,14 +25,11 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,7 +41,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -56,7 +52,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
@@ -73,10 +68,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
@@ -102,21 +95,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void unblockBlockedRepositories() throws Exception {
-        List<RepositoryMetadata> repositories = admin().cluster().prepareGetRepositories().get().repositories();
-        for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
-            for (RepositoryMetadata repositoryMetadata : repositories) {
-                Repository repository = repositoriesService.repository(repositoryMetadata.name());
-                if (repository instanceof MockRepository) {
-                    ((MockRepository) repository).unblock();
-                }
-            }
-        }
-
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
-    }
-
-    @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
@@ -134,7 +112,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public void assertRepoConsistency() {
-        if (skipRepoConsistencyCheckReason == null) {
+        if (skipRepoConsistencyCheckReason == null && getSuiteFailureMarker().wasSuccessful()) {
             client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
                 final String name = repositoryMetadata.name();
                 if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
@@ -435,37 +413,5 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
-    }
-
-    protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
-        logger.info("--> verify no more operations in the cluster state");
-        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
-    }
-
-    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
-        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        if (statePredicate.test(observer.setAndGetObservedState()) == false) {
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    future.onResponse(null);
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    future.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    future.onFailure(new TimeoutException());
-                }
-            }, statePredicate);
-            future.get(30L, TimeUnit.SECONDS);
-        }
     }
 }

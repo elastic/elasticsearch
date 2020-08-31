@@ -1212,7 +1212,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void awaitNoMoreRunningOperations() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreSnapshotRunningOperations(internalCluster().getMasterName());
     }
 
     private ActionFuture<AcknowledgedResponse> startDeleteFromNonMasterClient(String repoName, String snapshotName) {

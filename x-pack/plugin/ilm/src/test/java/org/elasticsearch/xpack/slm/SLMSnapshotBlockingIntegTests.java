@@ -85,7 +85,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
     @After
     public void awaitNoMoreRunningOps() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreSnapshotRunningOperations(internalCluster().getMasterName());
     }
 
     @Override
@@ -168,7 +168,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             }
         });
 
-        awaitNoMoreRunningOperations(randomFrom(dataNodeNames));
+        awaitNoMoreSnapshotRunningOperations(randomFrom(dataNodeNames));
 
         logger.info("--> indexing more docs to force new segment files");
         for (int i = 0; i < docCount; i++) {

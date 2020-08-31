@@ -106,6 +106,10 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertEquals(1, response.getHits().getTotalHits().value);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("3.0.0").to("4.0.0")).get();
         assertEquals(0, response.getHits().getTotalHits().value);
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.rangeQuery("version").from("1.3.0+build.1234569").to("3.0.0"))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
 
         // ranges excluding edges
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("1.0.0", false).to("3.0.0")).get();

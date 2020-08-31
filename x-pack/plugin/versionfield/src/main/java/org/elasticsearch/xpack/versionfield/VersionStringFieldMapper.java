@@ -329,16 +329,21 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexed();
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
-            byte[] lowerBytes = lower == null ? MIN_VALUE : Arrays.copyOfRange(lower.bytes, lower.offset, 16);
-            byte[] upperBytes = upper == null ? MAX_VALUE : Arrays.copyOfRange(upper.bytes, upper.offset, 16);
+            byte[] lowerBytes = lower == null ? MIN_VALUE : Arrays.copyOfRange(lower.bytes, lower.offset, lower.offset + 16);
+            byte[] upperBytes = upper == null ? MAX_VALUE : Arrays.copyOfRange(upper.bytes, upper.offset, upper.offset + 16);
 
             // point query on the 16byte prefix
             Query pointPrefixQuery = BinaryPoint.newRangeQuery(name(), lowerBytes, upperBytes);
 
-            Query validationQuery = SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, includeLower, includeUpper);
             BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
             qBuilder.add(pointPrefixQuery, Occur.FILTER);
-            qBuilder.add(validationQuery, Occur.FILTER);
+            if (includeUpper == false
+                || includeLower == false
+                || (lower != null && lower.length > 16)
+                || (upper != null && upper.length > 16)) {
+                Query validationQuery = SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, includeLower, includeUpper);
+                qBuilder.add(validationQuery, Occur.FILTER);
+            }
             return new ConstantScoreQuery(qBuilder.build());
         }
     }

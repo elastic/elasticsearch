@@ -751,8 +751,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         final ProcessBuilder processBuilder = new ProcessBuilder();
         Path effectiveDistroDir = getDistroDir();
         List<String> command = OS.<List<String>>conditional()
-            .onUnix(() -> Arrays.asList(effectiveDistroDir.resolve("./bin/elasticsearch").toString()))
-            .onWindows(() -> Arrays.asList("cmd", "/c", effectiveDistroDir.resolve("bin\\elasticsearch.bat").toString()))
+            .onUnix(() -> { return Arrays.asList(effectiveDistroDir.resolve("./bin/elasticsearch").toString()); })
+            .onWindows(() -> {
+                Path relativized = project.getRootDir().toPath().relativize(effectiveDistroDir.resolve("bin\\elasticsearch.bat"));
+                return Arrays.asList("cmd", "/c", relativized.toString());
+            })
             .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());

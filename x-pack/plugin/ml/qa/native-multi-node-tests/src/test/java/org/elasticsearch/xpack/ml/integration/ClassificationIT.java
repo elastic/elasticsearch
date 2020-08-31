@@ -779,6 +779,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-2")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61704")
     public void testTooLowConfiguredMemoryStillStarts() throws Exception {
         initialize("low_memory_analysis");
         indexData(sourceIndex, 10_000, 0, NESTED_FIELD);
@@ -790,6 +791,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         putAnalytics(config);
         // Shouldn't throw
         startAnalytics(jobId);
+        waitUntilAnalyticsIsFailed(jobId);
         // It could be marked as failed...
         forceStopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);

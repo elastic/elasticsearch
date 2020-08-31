@@ -22,7 +22,7 @@ package org.elasticsearch.painless.phase;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryMathNode;
-import org.elasticsearch.painless.ir.BinaryNode;
+import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
@@ -168,9 +168,9 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
     }
 
     @Override
-    public void visitBinary(BinaryNode irBinaryNode, Consumer<ExpressionNode> scope) {
-        irBinaryNode.getLeftNode().visit(this, irBinaryNode::setLeftNode);
-        irBinaryNode.getRightNode().visit(this, irBinaryNode::setRightNode);
+    public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, Consumer<ExpressionNode> scope) {
+        irBinaryImplNode.getLeftNode().visit(this, irBinaryImplNode::setLeftNode);
+        irBinaryImplNode.getRightNode().visit(this, irBinaryImplNode::setRightNode);
     }
 
     @Override
@@ -739,31 +739,26 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
 
     @Override
     public void visitStoreDotDef(StoreDotDefNode irStoreDotDefNode, Consumer<ExpressionNode> scope) {
-        irStoreDotDefNode.getAccessNode().visit(this, irStoreDotDefNode::setAccessNode);
         irStoreDotDefNode.getChildNode().visit(this, irStoreDotDefNode::setChildNode);
     }
 
     @Override
     public void visitStoreDot(StoreDotNode irStoreDotNode, Consumer<ExpressionNode> scope) {
-        irStoreDotNode.getAccessNode().visit(this, irStoreDotNode::setAccessNode);
         irStoreDotNode.getChildNode().visit(this, irStoreDotNode::setChildNode);
     }
 
     @Override
     public void visitStoreDotShortcut(StoreDotShortcutNode irDotSubShortcutNode, Consumer<ExpressionNode> scope) {
-        irDotSubShortcutNode.getAccessNode().visit(this, irDotSubShortcutNode::setAccessNode);
         irDotSubShortcutNode.getChildNode().visit(this, irDotSubShortcutNode::setChildNode);
     }
 
     @Override
     public void visitStoreListShortcut(StoreListShortcutNode irStoreListShortcutNode, Consumer<ExpressionNode> scope) {
-        irStoreListShortcutNode.getAccessNode().visit(this, irStoreListShortcutNode::setAccessNode);
         irStoreListShortcutNode.getChildNode().visit(this, irStoreListShortcutNode::setChildNode);
     }
 
     @Override
     public void visitStoreMapShortcut(StoreMapShortcutNode irStoreMapShortcutNode, Consumer<ExpressionNode> scope) {
-        irStoreMapShortcutNode.getAccessNode().visit(this, irStoreMapShortcutNode::setAccessNode);
         irStoreMapShortcutNode.getChildNode().visit(this, irStoreMapShortcutNode::setChildNode);
     }
 
@@ -774,13 +769,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
 
     @Override
     public void visitStoreBraceDef(StoreBraceDefNode irStoreBraceDefNode, Consumer<ExpressionNode> scope) {
-        irStoreBraceDefNode.getAccessNode().visit(this, irStoreBraceDefNode::setAccessNode);
         irStoreBraceDefNode.getChildNode().visit(this, irStoreBraceDefNode::setChildNode);
     }
 
     @Override
     public void visitStoreBrace(StoreBraceNode irStoreBraceNode, Consumer<ExpressionNode> scope) {
-        irStoreBraceNode.getAccessNode().visit(this, irStoreBraceNode::setAccessNode);
         irStoreBraceNode.getChildNode().visit(this, irStoreBraceNode::setChildNode);
     }
 

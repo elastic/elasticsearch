@@ -44,6 +44,10 @@ public class FeatureTestObject {
         return number.intValue();
     }
 
+    public static int staticNumberArgument(int injected, int userArgument) {
+        return injected * userArgument;
+    }
+
     private int x;
     private int y;
     public int z;

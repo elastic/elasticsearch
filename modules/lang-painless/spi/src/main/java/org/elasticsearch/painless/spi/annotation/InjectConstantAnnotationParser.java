@@ -39,6 +39,8 @@ public class InjectConstantAnnotationParser implements WhitelistAnnotationParser
             if (arguments.containsKey(argNum) == false) {
                 throw new IllegalArgumentException("[@inject_constant] missing argument number [" + argNum + "]");
             }
+            // TODO(stu): Jack, how do I verify against CompilerSettings.
+            // answer: do validation in PainlessLookupBuilder
             argList.add(arguments.get(argNum));
         }
 

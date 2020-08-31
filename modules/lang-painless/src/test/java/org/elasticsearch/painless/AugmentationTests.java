@@ -228,6 +228,11 @@ public class AugmentationTests extends ScriptTestCase {
             " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
     }
 
+    public void testInjection() {
+        assertEquals(1968,
+            exec("org.elasticsearch.painless.FeatureTestObject.staticNumberArgument(8);"));
+    }
+
     private static class SplitCase {
         final String input;
         final String token;

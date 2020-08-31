@@ -103,6 +103,7 @@ import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AExpression;
@@ -153,6 +154,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
@@ -209,6 +211,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
@@ -1827,15 +1830,48 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
 
+            PainlessMethod method = scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod();
+            List<AExpression> userCallArgumentNodes = userCallNode.getArgumentNodes();
+            int nextUserCallArgumentNode = 0;
 
-            // TODO(stu): if annotation exists, inject constant nodes for arguments irInvokeCallNode.addArgumentNode(new ConstantNode)
-            for (AExpression userArgumentNode : userCallNode.getArgumentNodes()) {
-                irInvokeCallNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
+            if (method.annotations.containsKey(InjectConstantAnnotation.class)) {
+                if (Modifier.isStatic(method.javaMethod.getModifiers()) == false ||
+                    method.javaMethod.getDeclaringClass() != method.targetClass) {
+
+                    // argument 0 is receiver
+                    irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNodes.get(nextUserCallArgumentNode), scriptScope));
+                    nextUserCallArgumentNode++;
+                }
+
+                int nextArgument = nextUserCallArgumentNode;
+                Class<?>[] parameterTypes = method.javaMethod.getParameterTypes();
+                Map<String, Object> compilerSettings = scriptScope.getCompilerSettings().asMap();
+                for (String injectKey : ((InjectConstantAnnotation) method.annotations.get(InjectConstantAnnotation.class)).injects) {
+                    if (compilerSettings.containsKey(injectKey) == false) {
+                        throw new IllegalStateException("invalid tree structure");
+                    }
+
+                    Object injectValue = compilerSettings.get(injectKey);
+                    if (parameterTypes.length <= nextArgument ||
+                        parameterTypes[nextArgument] != PainlessLookupUtility.typeToUnboxedType(injectValue.getClass())) {
+
+                        throw new IllegalStateException("invalid tree structure");
+                    }
+                    nextArgument++;
+
+                    ConstantNode constantNode = new ConstantNode();
+                    constantNode.setConstant(injectValue);
+                    irInvokeCallNode.addArgumentNode(constantNode);
+                }
+            }
+
+            for (; nextUserCallArgumentNode < userCallArgumentNodes.size(); nextUserCallArgumentNode++) {
+                irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNodes.get(nextUserCallArgumentNode), scriptScope));
             }
 
             irInvokeCallNode.setLocation(userCallNode.getLocation());
-            irInvokeCallNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());;
-            irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod()); // TODO(stu): painless method here
+            irInvokeCallNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());
+            irInvokeCallNode.setMethod(method);
             irInvokeCallNode.setBox(boxType);
             irExpressionNode = irInvokeCallNode;
         }

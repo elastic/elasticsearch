@@ -22,6 +22,9 @@ package org.elasticsearch.painless;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Settings to use when compiling a script.
  */
@@ -143,5 +146,9 @@ public final class CompilerSettings {
 
     public void setRegexMaxChars(int regexMaxChars) {
         this.regexMaxChars = regexMaxChars;
+    }
+
+    public Map<String, Object> asMap() {
+        return Collections.singletonMap("foo", 246);
     }
 }

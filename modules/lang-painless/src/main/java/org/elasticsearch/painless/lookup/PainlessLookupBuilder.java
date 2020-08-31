@@ -30,6 +30,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -564,12 +565,21 @@ public final class PainlessLookupBuilder {
         MethodType methodType = methodHandle.type();
 
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
-        // TODO(stu) if annotation exists, subtract type parameter size
+
+        // Injections alter the type parameters required for the user to call this method, since some are injected by compiler
+        if (annotations.containsKey(InjectConstantAnnotation.class)) {
+            int numInjections = ((InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class)).injects.size();
+            int removePosition = isStatic ? 0 : 1;
+            for (int i = 0; i < numInjections; i++) {
+                typeParameters.remove(removePosition);
+            }
+            typeParametersSize = typeParameters.size();
+        }
+
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
         PainlessMethod existingPainlessMethod = isStatic ?
                 painlessClassBuilder.staticMethods.get(painlessMethodKey) :
                 painlessClassBuilder.methods.get(painlessMethodKey);
-        // TODO(stu): remove the injected parameters
         PainlessMethod newPainlessMethod =
                 new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType, annotations);
 
@@ -590,7 +600,6 @@ public final class PainlessLookupBuilder {
                     "[" + typeToCanonicalTypeName(existingPainlessMethod.returnType) + "], " +
                     typesToCanonicalTypeNames(existingPainlessMethod.typeParameters) + "]");
         }
-        // TODO(stu)
     }
 
     public void addPainlessField(String targetCanonicalClassName, String fieldName, String canonicalTypeNameParameter) {

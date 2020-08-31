@@ -28,7 +28,8 @@ class java.util.regex.Pattern {
   Predicate asPredicate()
   int flags()
   # TODO(stu): wrap with limit
-  Matcher matcher(CharSequence) @inject_constant[1="regex_limit_factor"]
+  # Matcher matcher(CharSequence) @inject_constant[1="regex_limit_factor"]
+  Matcher matcher(CharSequence)
   String pattern()
   String quote(String)
   # TODO(stu): wrap with limit

@@ -219,7 +219,7 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO(stu): Make this phase optional #60156
+        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
@@ -232,7 +232,6 @@ final class Compiler {
             for (Map.Entry<String, Object> staticConstant : scriptScope.getStaticConstants().entrySet()) {
                 clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
-            // TODO(stu): set compiler constants here
 
             return scriptScope;
         } catch (Exception exception) {
@@ -254,7 +253,7 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO(stu): Make this phase optional #60156
+        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();

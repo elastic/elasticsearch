@@ -437,7 +437,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
         assertNotNull(createTokenResponse.getRefreshToken());
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
-        final int numberOfThreads = 100;
+        final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
         final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads + 1);
         final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);

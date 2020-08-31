@@ -139,7 +139,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     }
 
     public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
-        return SnapshotsInProgress.completed(shards.values())
+        return SnapshotsInProgress.completed(shards.values(), ImmutableOpenMap.of())
                 ? randomFrom(State.SUCCESS, State.FAILED) : randomFrom(State.STARTED, State.INIT, State.ABORTED);
     }
 }

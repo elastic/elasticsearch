@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+
 /**
  * A {@link IndexInput} that can only be used to verify footer checksums.
  */
@@ -108,7 +110,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
             assert false : "unexpected read or seek at position [" + pos + "] but checksum starts at [" + checksumPosition + ']';
             throw new IllegalArgumentException("Can't read or seek before footer checksum");
         }
-        return Math.toIntExact(checksum.length - (length - pos));
+        return toIntBytes(checksum.length - (length - pos));
     }
 
     private static void ensureReadOnceChecksumContext(IOContext context) {

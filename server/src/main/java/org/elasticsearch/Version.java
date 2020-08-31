@@ -80,9 +80,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_1);
     public static final Version V_7_8_1 = new Version(7080199, org.apache.lucene.util.Version.LUCENE_8_5_1);
     public static final Version V_7_9_0 = new Version(7090099, org.apache.lucene.util.Version.LUCENE_8_6_0);
-    public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_0);
-    public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_6_0);
-    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_6_0);
+    public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_2);
+    public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_6_2);
+    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
@@ -137,9 +137,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             default:
                 // We need at least the major of the Lucene version to be correct.
                 // Our best guess is to use the same Lucene version as the previous
-                // version in the list, assuming that it didn't change. This is at
-                // least correct for patch versions of known minors since we never
-                // update the Lucene dependency for patch versions.
+                // version in the list, assuming that it didn't change.
                 List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
                 Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
                 int index = Collections.binarySearch(versions, tmp);

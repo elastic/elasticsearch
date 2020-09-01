@@ -23,8 +23,9 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BinaryMathNode;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.BinaryImplNode;
+import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.BreakNode;
@@ -426,90 +427,63 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     protected ExpressionNode buildLoadStore(int accessDepth, Location location, boolean isNullSafe,
             ExpressionNode irPrefixNode, ExpressionNode irIndexNode, ExpressionNode irLoadNode, StoreNode irStoreNode) {
 
-        ExpressionNode irExpressionNode;
+        // build out the load structure for load/compound assignment or the store structure for just store
+        ExpressionNode irExpressionNode = irLoadNode != null ? irLoadNode : irStoreNode;
 
-        // this load/store is only a load (read)
-        if (irStoreNode == null) {
-            ExpressionNode irRootNode;
+        // this load/store is a dot or brace load
+        if (irPrefixNode != null) {
+            // this load/store requires and index
+            if (irIndexNode != null) {
+                BinaryImplNode binaryImplNode = new BinaryImplNode();
+                binaryImplNode.setLocation(location);
+                binaryImplNode.setExpressionType(void.class);
 
-            // this load is a symbol or dot load with no index node
-            if (irIndexNode == null) {
-                irRootNode = irLoadNode;
-            // this load is a dot or brace load with an index node
-            } else {
-                BinaryImplNode irBinaryImplNode = new BinaryImplNode();
-                irBinaryImplNode.setLocation(location);
-                irBinaryImplNode.setExpressionType(irLoadNode.getExpressionType());
-                irBinaryImplNode.setLeftNode(irIndexNode);
-                irBinaryImplNode.setRightNode(irLoadNode);
-
-                irRootNode = irBinaryImplNode;
-            }
-
-            // this wraps the load if this is a null-safe operation
-            if (isNullSafe) {
-                NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
-                nullSafeSubNode.setChildNode(irRootNode);
-                nullSafeSubNode.setLocation(location);
-                nullSafeSubNode.setExpressionType(irRootNode.getExpressionType());
-                irRootNode = nullSafeSubNode;
-            }
-
-            // this load is a symbol access with no prefix
-            if (irPrefixNode == null) {
-                irExpressionNode = irRootNode;
-            // this load is a dot or brace access with a prefix node
-            } else {
-                BinaryImplNode irParentNode = new BinaryImplNode();
-                irParentNode.setLocation(location);
-                irParentNode.setExpressionType(irLoadNode.getExpressionType());
-                irParentNode.setLeftNode(irPrefixNode);
-                irParentNode.setRightNode(irRootNode);
-
-                irExpressionNode = irParentNode;
-            }
-        // this is a store (write) and possibly also a load (read) for compound assignment
-        } else {
-            ExpressionNode irChildNode;
-
-            // this store is a symbol or dot store with no index node
-            if (irIndexNode == null) {
-                irChildNode = irPrefixNode;
-            // this store is a dot or brace load with an index node
-            } else {
-                BinaryImplNode irBinaryImplNode = new BinaryImplNode();
-                irBinaryImplNode.setLocation(location);
-                irBinaryImplNode.setExpressionType(void.class);
-                irBinaryImplNode.setLeftNode(irPrefixNode);
-                irBinaryImplNode.setRightNode(irIndexNode);
-
-                irChildNode = irBinaryImplNode;
-            }
-
-            // this store is a dot or brace store
-            if (irChildNode != null) {
-                // this is a compound assignment
-                if (irLoadNode != null) {
-                    DupNode dupNode = new DupNode();
-                    dupNode.setLocation(location);
-                    dupNode.setExpressionType(void.class);
-                    dupNode.setSize(accessDepth);
-                    dupNode.setDepth(0);
-                    dupNode.setChildNode(irChildNode);
-                    BinaryImplNode irBinaryImplNode = new BinaryImplNode();
-                    irBinaryImplNode.setLocation(location);
-                    irBinaryImplNode.setExpressionType(irLoadNode.getExpressionType());
-                    irBinaryImplNode.setLeftNode(dupNode);
-                    irBinaryImplNode.setRightNode(irLoadNode);
-                    irChildNode = irBinaryImplNode;
+                if (isNullSafe) {
+                    binaryImplNode.setLeftNode(irIndexNode);
+                    binaryImplNode.setRightNode(irExpressionNode);
+                    irExpressionNode = binaryImplNode;
+                } else {
+                    binaryImplNode.setLeftNode(irPrefixNode);
+                    binaryImplNode.setRightNode(irIndexNode);
+                    irPrefixNode = binaryImplNode;
                 }
-
-                irStoreNode.setChildNode(irChildNode);
-            // this store is a symbol for compound assignment
-            } else if (irLoadNode != null) {
-                irStoreNode.setChildNode(irLoadNode);
             }
 
+            // this is a compound assignment and requires and additional dup to re-access the prefix
+            if (irLoadNode != null && irStoreNode != null) {
+                DupNode dupNode = new DupNode();
+                dupNode.setLocation(location);
+                dupNode.setExpressionType(void.class);
+                dupNode.setSize(accessDepth);
+                dupNode.setDepth(0);
+                dupNode.setChildNode(irPrefixNode);
+                irPrefixNode = dupNode;
+            }
+
+            // build the structure to combine the prefix and the load/store
+            BinaryImplNode binaryImplNode = new BinaryImplNode();
+            binaryImplNode.setLocation(location);
+            binaryImplNode.setExpressionType(irExpressionNode.getExpressionType());
+
+            // build the structure for a null safe load
+            if (isNullSafe) {
+                NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode();
+                irNullSafeSubNode.setLocation(location);
+                irNullSafeSubNode.setExpressionType(irExpressionNode.getExpressionType());
+                irNullSafeSubNode.setChildNode(irExpressionNode);
+                binaryImplNode.setLeftNode(irPrefixNode);
+                binaryImplNode.setRightNode(irNullSafeSubNode);
+            } else {
+                binaryImplNode.setLeftNode(irPrefixNode);
+                binaryImplNode.setRightNode(irExpressionNode);
+            }
+
+            irExpressionNode = binaryImplNode;
+        }
+
+        // this is a compound assignment and the store is the root
+        if (irLoadNode != null && irStoreNode != null) {
+            irStoreNode.setChildNode(irExpressionNode);
             irExpressionNode = irStoreNode;
         }
 
@@ -844,7 +818,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         Class<?> compoundType = scriptScope.hasDecoration(userAssignmentNode, CompoundType.class) ?
                 scriptScope.getDecoration(userAssignmentNode, CompoundType.class).getCompoundType() : null;
 
-        StoreNode irStoreNode;
+        ExpressionNode irAssignmentNode;
         // add a cast node if necessary for the value node for the assignment
         ExpressionNode irValueNode = injectCast(userAssignmentNode.getRightNode(), scriptScope);
 
@@ -852,7 +826,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (compoundType != null) {
             boolean concatenate = userAssignmentNode.getOperation() == Operation.ADD && compoundType == String.class;
             scriptScope.setCondition(userAssignmentNode.getLeftNode(), Compound.class);
-            irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
+            StoreNode irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
             ExpressionNode irLoadNode = irStoreNode.getChildNode();
             ExpressionNode irCompoundNode;
 
@@ -862,6 +836,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 stringConcatenationNode.setLocation(irStoreNode.getLocation());
                 stringConcatenationNode.setExpressionType(String.class);
                 irCompoundNode = stringConcatenationNode;
+
+                // must handle the StringBuilder case for java version <= 8
+                if (irLoadNode instanceof BinaryImplNode && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
+                    ((DupNode)((BinaryImplNode)irLoadNode).getLeftNode()).setDepth(1);
+                }
             // handles when the operation is mathematical
             } else {
                 BinaryMathNode irBinaryMathNode = new BinaryMathNode();
@@ -938,9 +917,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irBinaryMathNode.setLeftNode(irLoadNode);
                 irBinaryMathNode.setRightNode(irValueNode);
             }
+
+            irAssignmentNode = irStoreNode;
         // handles a standard assignment
         } else {
-            irStoreNode = (StoreNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
+            irAssignmentNode = (ExpressionNode)visit(userAssignmentNode.getLeftNode(), scriptScope);
 
             // the value is read from after the assignment
             if (read) {
@@ -952,23 +933,17 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irDupNode.setSize(MethodWriter.getType(irValueNode.getExpressionType()).getSize());
                 irDupNode.setDepth(accessDepth);
                 irDupNode.setChildNode(irValueNode);
-
                 irValueNode = irDupNode;
             }
 
-            if (irStoreNode.getChildNode() != null) {
-                BinaryImplNode irBinaryImplNode = new BinaryImplNode();
-                irBinaryImplNode.setLocation(irStoreNode.getLocation());
-                irBinaryImplNode.setExpressionType(irValueNode.getExpressionType());
-                irBinaryImplNode.setLeftNode(irStoreNode.getChildNode());
-                irBinaryImplNode.setRightNode(irValueNode);
-                irStoreNode.setChildNode(irBinaryImplNode);
+            if (irAssignmentNode instanceof BinaryImplNode) {
+                ((StoreNode)((BinaryImplNode)irAssignmentNode).getRightNode()).setChildNode(irValueNode);
             } else {
-                irStoreNode.setChildNode(irValueNode);
+                ((StoreNode)irAssignmentNode).setChildNode(irValueNode);
             }
         }
 
-        scriptScope.putDecoration(userAssignmentNode, new IRNodeDecoration(irStoreNode));
+        scriptScope.putDecoration(userAssignmentNode, new IRNodeDecoration(irAssignmentNode));
     }
 
     @Override

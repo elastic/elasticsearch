@@ -1142,3 +1142,9 @@ See <<joining-queries-notes>>.
 === Percolate query notes
 
 See <<percolate-query-notes>>.
+
+[role="exclude",id="point-in-time"]
+=== Point in time API
+
+See <<point-in-time-api>>.
+

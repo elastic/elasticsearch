@@ -248,7 +248,7 @@ public class AzureBlobStore implements BlobStore {
         final long limit = length == null ? blockBlobReference.getProperties().getLength() - position : length;
         return new InputStream() {
 
-            private final byte[] buffer = new byte[Math.min(4 * 1024 * 1024, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))];
+            private final byte[] buffer = new byte[Math.min(16 * 1024 * 1024, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))];
 
             private int pos = 0;
 

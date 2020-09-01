@@ -222,13 +222,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     private static class IteratorAndCurrent<B extends InternalTerms.Bucket<B>> {
         private final Iterator<B> iterator;
-        private final long docCountError;
         private B current;
 
-        IteratorAndCurrent(Iterator<B> iterator, long docCountError) {
+        IteratorAndCurrent(Iterator<B> iterator) {
             this.iterator = iterator;
             this.current = iterator.next();
-            this.docCountError = docCountError;
         }
     }
 
@@ -250,9 +248,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     private long getDocCountError(InternalTerms<?, ?> terms) {
-        if (terms.getBuckets().size() < getShardSize() || isKeyOrder(order)) {
+        if (terms.getBuckets().size() < terms.getShardSize() || isKeyOrder(terms.order)) {
             return 0;
-        } else if (InternalOrder.isCountDesc(order)) {
+        } else if (InternalOrder.isCountDesc(terms.order)) {
             if (terms.getDocCountError() > 0) {
                 // If there is an existing docCountError for this agg then
                 // use this as the error for this aggregation
@@ -260,7 +258,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             } else {
                 // otherwise use the doc count of the last term in the
                 // aggregation
-                return terms.getBuckets().get(terms.getBuckets().size() - 1).docCount;
+                return terms.getBuckets().stream().mapToLong(Bucket::getDocCount).min().getAsLong();
             }
         } else {
             return -1;
@@ -282,7 +280,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
             if (terms.getBuckets().isEmpty() == false) {
                 assert reduceOrder.equals(reduceOrder);
-                pq.add(new IteratorAndCurrent(terms.getBuckets().iterator(), getDocCountError(terms)));
+                pq.add(new IteratorAndCurrent(terms.getBuckets().iterator()));
             }
         }
         List<B> reducedBuckets = new ArrayList<>();
@@ -292,14 +290,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         while (pq.size() > 0) {
             final IteratorAndCurrent<B> top = pq.top();
             assert lastBucket == null || cmp.compare(top.current, lastBucket) >= 0;
-            // If there is already a doc count error for this bucket
-            // subtract this aggs doc count error from it to make the
-            // new value for the bucket. This then means that when the
-            // final error for the bucket is calculated below we account
-            // for the existing error calculated in a previous reduce.
-            // Note that if the error is unbounded (-1) this will be fixed
-            // later in the reduce.
-            top.current.docCountError -= top.docCountError;
             if (lastBucket != null && cmp.compare(top.current, lastBucket) != 0) {
                 // the key changes, reduce what we already buffered and reset the buffer for current buckets
                 final B reduced = reduceBucket(currentBuckets, reduceContext);
@@ -339,16 +329,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             @SuppressWarnings("unchecked")
             InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
             if (terms.getBuckets().isEmpty() == false) {
-                long docCountError = getDocCountError(terms);
                 for (B bucket : terms.getBuckets()) {
-                    // If there is already a doc count error for this bucket
-                    // subtract this aggs doc count error from it to make the
-                    // new value for the bucket. This then means that when the
-                    // final error for the bucket is calculated below we account
-                    // for the existing error calculated in a previous reduce.
-                    // Note that if the error is unbounded (-1) this will be fixed
-                    // later in this method.
-                    bucket.docCountError -= docCountError;
                     List<B> bucketList = bucketMap.get(bucket.getKey());
                     if (bucketList == null) {
                         bucketList = new ArrayList<>();
@@ -386,7 +367,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                         + "types in two different indices");
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
-            final long thisAggDocCountError = getDocCountError();
+            final long thisAggDocCountError = getDocCountError(terms);
             if (sumDocCountError != -1) {
                 if (thisAggDocCountError == -1) {
                     sumDocCountError = -1;
@@ -395,6 +376,16 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 }
             }
             setDocCountError(thisAggDocCountError);
+            for (B bucket : terms.getBuckets()) {
+                // If there is already a doc count error for this bucket
+                // subtract this aggs doc count error from it to make the
+                // new value for the bucket. This then means that when the
+                // final error for the bucket is calculated below we account
+                // for the existing error calculated in a previous reduce.
+                // Note that if the error is unbounded (-1) this will be fixed
+                // later in this method.
+                bucket.docCountError -= thisAggDocCountError;
+            }
         }
         /**
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
@@ -403,9 +394,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
          * the provided aggregations use a different {@link InternalTerms#reduceOrder}.
          */
         BucketOrder thisReduceOrder = getReduceOrder(aggregations);
-        boolean isKeyOrdered = isKeyOrder(thisReduceOrder);
-        List<B> reducedBuckets = isKeyOrdered ?
-            reduceMergeSort(aggregations, thisReduceOrder, reduceContext) : reduceLegacy(aggregations, reduceContext);
+        List<B> reducedBuckets =// isKeyOrder(thisReduceOrder) ?
+            //reduceMergeSort(aggregations, thisReduceOrder, reduceContext) :
+        reduceLegacy(aggregations, reduceContext);
         final B[] list;
         if (reduceContext.isFinalReduce()) {
             final int size = Math.min(requiredSize, reducedBuckets.size());

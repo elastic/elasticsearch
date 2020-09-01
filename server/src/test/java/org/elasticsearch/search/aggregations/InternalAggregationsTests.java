@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -21,19 +21,22 @@ import java.util.Map;
 
 final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
+    private boolean includeSort;
+
     GeoLineAggregatorFactory(String name,
                              Map<String, ValuesSourceConfig> configs,
                              DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metaData) throws IOException {
+                             Map<String, Object> metaData, boolean includeSort) throws IOException {
         super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+        this.includeSort = includeSort;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         Map<String, Object> metaData) throws IOException {
-        return new GeoLineAggregator(name, null, searchContext, parent, metaData);
+        return new GeoLineAggregator(name, null, searchContext, parent, metaData, includeSort);
     }
 
     @Override
@@ -45,7 +48,7 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
                                           Map<String, Object> metaData) throws IOException {
         MultiValuesSource.AnyMultiValuesSource valuesSources =
             new MultiValuesSource.AnyMultiValuesSource(configs, searchContext.getQueryShardContext());
-        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData);
+        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort);
     }
 
     @Override

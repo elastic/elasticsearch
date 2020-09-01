@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -41,9 +40,10 @@ final class GeoLineAggregator extends MetricsAggregator {
     private ObjectArray<long[]> paths;
     private ObjectArray<double[]> sortValues;
     private IntArray idxs;
+    private boolean includeSorts;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
-                      Aggregator parent, Map<String,Object> metaData) throws IOException {
+                      Aggregator parent, Map<String,Object> metaData, boolean includeSorts) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSources = valuesSources;
         if (valuesSources != null) {
@@ -51,6 +51,7 @@ final class GeoLineAggregator extends MetricsAggregator {
             sortValues = context.bigArrays().newObjectArray(1);
             idxs = context.bigArrays().newIntArray(1);
         }
+        this.includeSorts = includeSorts;
     }
 
     @Override
@@ -132,12 +133,12 @@ final class GeoLineAggregator extends MetricsAggregator {
         double[] sortVals = sortValues.get(bucket);
         int length = Math.min(10000, idxs.get(bucket));
         new PathArraySorter(bucketLine, sortVals, length).sort();
-        return new InternalGeoLine(name, bucketLine, sortVals, length, metadata(), idxs.get(bucket) < 10000);
+        return new InternalGeoLine(name, bucketLine, sortVals, length, metadata(), idxs.get(bucket) < 10000, includeSorts);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, null, null, 0, metadata(), true);
+        return new InternalGeoLine(name, null, null, 0, metadata(), true, includeSorts);
     }
 
     @Override

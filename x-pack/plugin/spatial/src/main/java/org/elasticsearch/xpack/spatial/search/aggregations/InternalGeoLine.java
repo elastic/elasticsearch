@@ -25,18 +25,22 @@ import java.util.Map;
  */
 public class InternalGeoLine extends InternalAggregation {
     private static final Logger logger = LogManager.getLogger(InternalGeoLine.class);
+    private static final double SCALE = Math.pow(10, 6);
 
     private long[] line;
     private double[] sortVals;
     private int length;
     private boolean complete;
+    private boolean includeSorts;
 
-    InternalGeoLine(String name, long[] line, double[] sortVals, int length, Map<String, Object> metadata, boolean complete) {
+    InternalGeoLine(String name, long[] line, double[] sortVals, int length, Map<String, Object> metadata, boolean complete,
+                    boolean includeSorts) {
         super(name, metadata);
         this.line = line;
         this.sortVals = sortVals;
         this.length = length;
         this.complete = complete;
+        this.includeSorts = includeSorts;
     }
 
     /**
@@ -47,6 +51,7 @@ public class InternalGeoLine extends InternalAggregation {
         this.line = in.readLongArray();
         this.length = in.readVInt();
         this.complete = in.readBoolean();
+        this.includeSorts = in.readBoolean();
     }
 
     @Override
@@ -54,16 +59,19 @@ public class InternalGeoLine extends InternalAggregation {
         out.writeLongArray(line);
         out.writeVInt(length);
         out.writeBoolean(complete);
+        out.writeBoolean(includeSorts);
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         int mergedSize = 0;
         boolean complete = true;
+        boolean includeSorts = true;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
             mergedSize += geoLine.length;
             complete &= geoLine.complete;
+            includeSorts &= geoLine.includeSorts;
         }
 
         complete &= mergedSize <= 10000;
@@ -83,9 +91,7 @@ public class InternalGeoLine extends InternalAggregation {
         new PathArraySorter(finalList, finalSortVals, mergedSize).sort();
         long[] finalCappedList = Arrays.copyOf(finalList, Math.min(10000, mergedSize));
         double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(10000, mergedSize));
-
-        // sort the final list
-        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, mergedSize, getMetadata(), complete);
+        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, mergedSize, getMetadata(), complete, includeSorts);
     }
 
     @Override
@@ -107,17 +113,32 @@ public class InternalGeoLine extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("type", "LineString");
         final List<double[]> coordinates = new ArrayList<>();
         for (int i = 0; i < length; i++) {
             int x = (int) (line[i] >> 32);
             int y = (int) line[i];
-            coordinates.add(new double[] { GeoEncodingUtils.decodeLongitude(x), GeoEncodingUtils.decodeLatitude(y) });
+            coordinates.add(new double[] {
+                roundDegrees(GeoEncodingUtils.decodeLongitude(x)),
+                roundDegrees(GeoEncodingUtils.decodeLatitude(y))
+            });
         }
-
-        builder.array("coordinates", coordinates.toArray());
-        builder.array("sorts", sortVals);
+        builder
+            .field("type", "Feature")
+            .startObject("geometry")
+                .field("type", "LineString")
+                .array("coordinates", coordinates.toArray())
+            .endObject()
+            .startObject("properties")
+                .field("complete", isComplete());
+        if (includeSorts) {
+            builder.field("sort_values", sortVals);
+        }
+        builder.endObject();
         return builder;
+    }
+
+    private double roundDegrees(double degree) {
+        return Math.round(degree * SCALE) / SCALE;
     }
 
     @Override

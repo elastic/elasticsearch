@@ -18,15 +18,15 @@
           - index:
               _index: locations
               _id: 1
-          - '{"location": [13.37, 47.82], "rank": 2.0 }'
+          - '{"location": [13.37139831, 47.82930284], "rank": 2.0 }'
           - index:
               _index: locations
               _id: 2
-          - '{"location": [13.37, 47.88], "rank": 0.0 }'
+          - '{"location": [13.3784208402, 47.88832084022], "rank": 0.0 }'
           - index:
               _index: locations
               _id: 3
-          - '{"location": [13.37, 48.20], "rank": 1.2 }'
+          - '{"location": [13.371830148701, 48.2084200148], "rank": 1.2 }'
 
   - do:
       search:
@@ -37,20 +37,23 @@
           aggs:
             path:
               geo_line:
+                include_sort: true
                 geo_point:
                   field: location
                 sort:
                   field: rank
   - match: { hits.total:  3 }
-  - match: { aggregations.path.type: "LineString" }
-  - length: { aggregations.path.coordinates: 3 }
-  - match: { aggregations.path.coordinates.0.0: 13.369999984279275 }
-  - match: { aggregations.path.coordinates.0.1: 47.879999969154596 }
-  - match: { aggregations.path.coordinates.1.0: 13.369999984279275 }
-  - match: { aggregations.path.coordinates.1.1: 48.19999999366701 }
-  - match: { aggregations.path.coordinates.2.0: 13.369999984279275 }
-  - match: { aggregations.path.coordinates.2.1: 47.81999995931983 }
-  - length: { aggregations.path.sorts: 3 }
-  - match: { aggregations.path.sorts.0: 0.0 }
-  - match: { aggregations.path.sorts.1: 1.2 }
-  - match: { aggregations.path.sorts.2: 2.0 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 3 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.378421 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.888321 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - match: { aggregations.path.geometry.coordinates.2.0: 13.371398 }
+  - match: { aggregations.path.geometry.coordinates.2.1: 47.829303 }
+  - is_true: aggregations.path.properties.complete
+  - length: { aggregations.path.properties.sort_values: 3 }
+  - match: { aggregations.path.properties.sort_values.0: 0.0 }
+  - match: { aggregations.path.properties.sort_values.1: 1.2 }
+  - match: { aggregations.path.properties.sort_values.2: 2.0 }

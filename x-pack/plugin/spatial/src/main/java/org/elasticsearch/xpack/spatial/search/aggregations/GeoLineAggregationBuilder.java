@@ -36,6 +36,7 @@ public class GeoLineAggregationBuilder
 
     static final ParseField GEO_POINT_FIELD = new ParseField("geo_point");
     static final ParseField SORT_FIELD = new ParseField("sort");
+    static final ParseField INCLUDE_SORT_FIELD = new ParseField("include_sort");
 
     public static final String NAME = "geo_line";
 
@@ -45,7 +46,10 @@ public class GeoLineAggregationBuilder
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(GEO_POINT_FIELD.getPreferredName(), PARSER, true, false, false);
         MultiValuesSourceParseHelper.declareField(SORT_FIELD.getPreferredName(), PARSER, true, false, false);
+        PARSER.declareBoolean(GeoLineAggregationBuilder::includeSort, INCLUDE_SORT_FIELD);
     }
+
+    private boolean includeSort;
 
     public static void registerUsage(ValuesSourceRegistry.Builder builder) {
         builder.registerUsage(NAME, CoreValuesSourceType.GEOPOINT);
@@ -65,6 +69,11 @@ public class GeoLineAggregationBuilder
      */
     public GeoLineAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public GeoLineAggregationBuilder includeSort(boolean includeSort) {
+        this.includeSort = includeSort;
+        return this;
     }
 
     @Override
@@ -94,7 +103,7 @@ public class GeoLineAggregationBuilder
                                                             DocValueFormat format,
                                                             AggregatorFactory parent,
                                                             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new GeoLineAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new GeoLineAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata, includeSort);
     }
 
     public GeoLineAggregationBuilder value(MultiValuesSourceFieldConfig valueConfig) {

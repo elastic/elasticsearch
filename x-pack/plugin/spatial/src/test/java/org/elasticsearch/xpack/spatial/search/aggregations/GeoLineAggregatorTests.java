@@ -80,7 +80,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 sortValues[i] = i;
             }
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name",
-                Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength), numPoints, null, complete));
+                Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength), numPoints, null, complete, true));
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);

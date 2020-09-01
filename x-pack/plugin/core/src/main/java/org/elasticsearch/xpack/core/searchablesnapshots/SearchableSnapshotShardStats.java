@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -180,21 +179,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.contiguousReads = new Counter(in);
             this.nonContiguousReads = new Counter(in);
             this.cachedBytesRead = new Counter(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.indexCacheBytesRead = new Counter(in);
-            } else {
-                this.indexCacheBytesRead = new Counter(0, 0, 0, 0);
-            }
+            this.indexCacheBytesRead = new Counter(in);
             this.cachedBytesWritten = new TimedCounter(in);
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.blobStoreBytesRequested = new Counter(in);
-                this.currentIndexCacheFills = in.readVLong();
-            } else {
-                this.blobStoreBytesRequested = new Counter(0, 0, 0, 0);
-                this.currentIndexCacheFills = 0;
-            }
+            this.blobStoreBytesRequested = new Counter(in);
+            this.currentIndexCacheFills = in.readVLong();
         }
 
         @Override
@@ -211,16 +201,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             contiguousReads.writeTo(out);
             nonContiguousReads.writeTo(out);
             cachedBytesRead.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                indexCacheBytesRead.writeTo(out);
-            }
+            indexCacheBytesRead.writeTo(out);
             cachedBytesWritten.writeTo(out);
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                blobStoreBytesRequested.writeTo(out);
-                out.writeVLong(currentIndexCacheFills);
-            }
+            blobStoreBytesRequested.writeTo(out);
+            out.writeVLong(currentIndexCacheFills);
         }
 
         public String getFileName() {

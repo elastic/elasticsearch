@@ -265,7 +265,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             BlockNode blockNode = new BlockNode();
             blockNode.setLocation(internalLocation);
             blockNode.setAllEscape(true);
-            blockNode.setStatementCount(1);
 
             irFunctionNode.setBlockNode(blockNode);
 
@@ -1454,7 +1453,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         BlockNode irBlockNode = new BlockNode();
         irBlockNode.setAllEscape(true);
-        irBlockNode.setStatementCount(1);
         irBlockNode.addStatementNode(irReturnNode);
 
         FunctionNode irFunctionNode = new FunctionNode();

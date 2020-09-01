@@ -253,7 +253,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             List<Map<String, Object>> bodies = List.of(
                 Map.ofEntries(
                     Map.entry("index_patterns", "*"),
-                    Map.entry("priority", Integer.MAX_VALUE),
+                    Map.entry("priority", Integer.MAX_VALUE - 1),
                     Map.entry("template", Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates)))
                 )
             );

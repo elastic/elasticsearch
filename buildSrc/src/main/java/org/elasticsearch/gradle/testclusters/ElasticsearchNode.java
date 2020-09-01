@@ -37,6 +37,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
@@ -64,7 +65,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -80,7 +80,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -1174,29 +1173,34 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void tweakJvmOptions(Path configFileRoot) {
         LOGGER.info("Tweak jvm options {}.", configFileRoot.resolve("jvm.options"));
-        Map<String, String> expansions = Map.of(
-            "-XX:HeapDumpPath=data",
-            "-XX:HeapDumpPath=" + confPathLogs.toString(),
-            "-XX:ErrorFile=logs/hs_err_pid%p.log",
-            "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString(),
-            "logs/gc.log",
-            confPathLogs.resolve("gc.log").toString()
-        );
-
         Path jvmOptions = configFileRoot.resolve("jvm.options");
         try {
             String content = new String(Files.readAllBytes(jvmOptions));
-            Set<String> keys = expansions.keySet();
-            for (String key : keys) {
-                if (!content.contains(key)) {
-                    throw new IOException("template property " + key + " not found in template.");
+            Map<String, String> expansions = jvmOptionExpansions();
+            for (String origin : expansions.keySet()) {
+                if (!content.contains(origin)) {
+                    throw new IOException("template property " + origin + " not found in template.");
                 }
-                content = content.replaceAll(key, expansions.get(key));
+                content = content.replaceAll(origin, expansions.get(origin));
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
         }
+    }
+
+    private Map<String, String> jvmOptionExpansions() {
+        Map<String, String> expansions = new HashMap<>();
+        Version version = getVersion();
+        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString());
+        if (version.onOrAfter("6.2.0")) {
+            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+        }
+        if (getVersion().getMajor() >= 7) {
+            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());
+        }
+        return expansions;
     }
 
     private void checkFrozen() {
@@ -1228,7 +1232,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Path getExtractedDistributionDir() {
-        return Paths.get(distributions.get(currentDistro).getExtracted().toString());
+        return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
@@ -1266,20 +1270,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Classpath
-    public Set<File> getDistributionClasspath() {
+    public List<FileTree> getDistributionClasspath() {
         return getDistributionFiles(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public Set<File> getDistributionFiles() {
+    public List<FileTree> getDistributionFiles() {
         return getDistributionFiles(filter -> filter.exclude("**/*.jar"));
     }
 
-    private Set<File> getDistributionFiles(Action<PatternFilterable> patternFilter) {
-        Set<File> files = new TreeSet<>();
+    private List<FileTree> getDistributionFiles(Action<PatternFilterable> patternFilter) {
+        List<FileTree> files = new ArrayList<>();
         for (ElasticsearchDistribution distribution : distributions) {
-            files.addAll(project.fileTree(Paths.get(distribution.getExtracted().toString())).matching(patternFilter).getFiles());
+            files.add(distribution.getExtracted().getAsFileTree().matching(patternFilter));
         }
         return files;
     }

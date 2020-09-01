@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
-    protected DeleteByQueryRequest buildRequest(RestRequest request) throws IOException {
+    protected DeleteByQueryRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         /*
          * Passing the search request through DeleteByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's
@@ -64,7 +65,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
         consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
-        parseInternalRequest(internal, request, consumers);
+        parseInternalRequest(internal, request, namedWriteableRegistry, consumers);
 
         return internal;
     }

@@ -31,6 +31,7 @@ import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -60,7 +61,7 @@ public final class TestUtils {
     }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
-        return numberOfRanges(Math.toIntExact(fileSize), Math.toIntExact(rangeSize));
+        return numberOfRanges(toIntBytes(fileSize), toIntBytes(rangeSize));
     }
 
     static long numberOfRanges(int fileSize, int rangeSize) {
@@ -105,7 +106,7 @@ public final class TestUtils {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
                 return Streams.limitStream(
-                    new ByteArrayInputStream(blobContent, Math.toIntExact(position), blobContent.length - Math.toIntExact(position)),
+                    new ByteArrayInputStream(blobContent, toIntBytes(position), blobContent.length - toIntBytes(position)),
                     length
                 );
             }
@@ -131,7 +132,7 @@ public final class TestUtils {
                         + partSize
                         + "]";
                     final int partNumber = Integer.parseInt(name.substring(prefix.length()));
-                    final int positionInBlob = Math.toIntExact(position) + partSize * partNumber;
+                    final int positionInBlob = toIntBytes(position) + partSize * partNumber;
                     assert positionInBlob + length <= blobContent.length : "cannot read ["
                         + positionInBlob
                         + "-"

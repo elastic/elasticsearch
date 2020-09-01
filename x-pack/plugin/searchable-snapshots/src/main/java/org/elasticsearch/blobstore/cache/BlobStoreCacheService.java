@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -252,6 +253,7 @@ public class BlobStoreCacheService {
     private static boolean isExpectedCacheGetException(Exception e) {
         return TransportActions.isShardNotAvailableException(e)
             || e instanceof ConnectTransportException
+            || e instanceof ClusterBlockException
             || ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException;
     }
 

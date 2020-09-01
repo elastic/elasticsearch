@@ -41,7 +41,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;

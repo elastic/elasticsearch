@@ -229,7 +229,7 @@ public class DataFrameAnalyticsManager {
 
                 Exception reindexError = getReindexError(task.getParams().getId(), reindexResponse);
                 if (reindexError != null) {
-                    task.markAsFailed(reindexError);
+                    task.setFailed(reindexError);
                     return;
                 }
 

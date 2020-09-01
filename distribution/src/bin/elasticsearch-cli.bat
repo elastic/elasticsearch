@@ -16,7 +16,7 @@ rem use a small heap size for the CLI tools, and thus the serial collector to
 rem avoid stealing many CPU cycles; a user can override by setting ES_JAVA_OPTS
 set ES_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %ES_JAVA_OPTS%
 
-%JAVA% ^
+"%JAVA%" ^
   %ES_JAVA_OPTS% ^
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^

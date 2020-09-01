@@ -32,26 +32,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.MultiValueMode;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -141,106 +130,106 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQueryWithNegativeBounds() {
         MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(ftInt.rangeQuery(-3, -3, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-3.5, -2.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(-3, -3, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-3.5, -2.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(0, 0, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-0.5, 0.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(0, 0, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-0.5, 0.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(1, 2, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(0.5, 2.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(1, 2, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(0.5, 2.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(0, 2, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-0.5, 2.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(0, 2, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-0.5, 2.5, false, false, null, null, null, MOCK_QSC));
+        assertEquals(ftInt.rangeQuery(-3, -3, true, true, null, null, null, null),
+                ftInt.rangeQuery(-3.5, -2.5, true, true, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(-3, -3, true, true, null, null, null, null),
+                ftInt.rangeQuery(-3.5, -2.5, false, false, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(0, 0, true, true, null, null, null, null),
+                ftInt.rangeQuery(-0.5, 0.5, true, true, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(0, 0, true, true, null, null, null, null),
+                ftInt.rangeQuery(-0.5, 0.5, false, false, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(1, 2, true, true, null, null, null, null),
+                ftInt.rangeQuery(0.5, 2.5, true, true, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(1, 2, true, true, null, null, null, null),
+                ftInt.rangeQuery(0.5, 2.5, false, false, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(0, 2, true, true, null, null, null, null),
+                ftInt.rangeQuery(-0.5, 2.5, true, true, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(0, 2, true, true, null, null, null, null),
+                ftInt.rangeQuery(-0.5, 2.5, false, false, null, null, null, null));
 
-        assertEquals(ftInt.rangeQuery(-2, 0, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-2.5, 0.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(-2, 0, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-2.5, 0.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(-2, -1, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-2.5, -0.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftInt.rangeQuery(-2, -1, true, true, null, null, null, MOCK_QSC),
-                ftInt.rangeQuery(-2.5, -0.5, false, false, null, null, null, MOCK_QSC));
+        assertEquals(ftInt.rangeQuery(-2, 0, true, true, null, null, null, null),
+                ftInt.rangeQuery(-2.5, 0.5, true, true, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(-2, 0, true, true, null, null, null, null),
+                ftInt.rangeQuery(-2.5, 0.5, false, false, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(-2, -1, true, true, null, null, null, null),
+                ftInt.rangeQuery(-2.5, -0.5, true, true, null, null, null, null));
+        assertEquals(ftInt.rangeQuery(-2, -1, true, true, null, null, null, null),
+                ftInt.rangeQuery(-2.5, -0.5, false, false, null, null, null, null));
 
         MappedFieldType ftLong = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(ftLong.rangeQuery(-3, -3, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-3.5, -2.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(-3, -3, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-3.5, -2.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(0, 0, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-0.5, 0.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(0, 0, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-0.5, 0.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(1, 2, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(0.5, 2.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(1, 2, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(0.5, 2.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(0, 2, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-0.5, 2.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(0, 2, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-0.5, 2.5, false, false, null, null, null, MOCK_QSC));
+        assertEquals(ftLong.rangeQuery(-3, -3, true, true, null, null, null, null),
+                ftLong.rangeQuery(-3.5, -2.5, true, true, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(-3, -3, true, true, null, null, null, null),
+                ftLong.rangeQuery(-3.5, -2.5, false, false, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(0, 0, true, true, null, null, null, null),
+                ftLong.rangeQuery(-0.5, 0.5, true, true, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(0, 0, true, true, null, null, null, null),
+                ftLong.rangeQuery(-0.5, 0.5, false, false, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(1, 2, true, true, null, null, null, null),
+                ftLong.rangeQuery(0.5, 2.5, true, true, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(1, 2, true, true, null, null, null, null),
+                ftLong.rangeQuery(0.5, 2.5, false, false, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(0, 2, true, true, null, null, null, null),
+                ftLong.rangeQuery(-0.5, 2.5, true, true, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(0, 2, true, true, null, null, null, null),
+                ftLong.rangeQuery(-0.5, 2.5, false, false, null, null, null, null));
 
-        assertEquals(ftLong.rangeQuery(-2, 0, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-2.5, 0.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(-2, 0, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-2.5, 0.5, false, false, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(-2, -1, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-2.5, -0.5, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ftLong.rangeQuery(-2, -1, true, true, null, null, null, MOCK_QSC),
-                ftLong.rangeQuery(-2.5, -0.5, false, false, null, null, null, MOCK_QSC));
+        assertEquals(ftLong.rangeQuery(-2, 0, true, true, null, null, null, null),
+                ftLong.rangeQuery(-2.5, 0.5, true, true, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(-2, 0, true, true, null, null, null, null),
+                ftLong.rangeQuery(-2.5, 0.5, false, false, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(-2, -1, true, true, null, null, null, null),
+                ftLong.rangeQuery(-2.5, -0.5, true, true, null, null, null, null));
+        assertEquals(ftLong.rangeQuery(-2, -1, true, true, null, null, null, null),
+                ftLong.rangeQuery(-2.5, -0.5, false, false, null, null, null, null));
     }
 
     public void testByteRangeQueryWithDecimalParts() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE);
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, false, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, false, null, null, null, MOCK_QSC));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, false, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, false, null, null, null, null));
     }
 
     public void testShortRangeQueryWithDecimalParts() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT);
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, false, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, false, null, null, null, MOCK_QSC));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, false, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, false, null, null, null, null));
     }
 
     public void testIntegerRangeQueryWithDecimalParts() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, false, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, false, null, null, null, MOCK_QSC));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, false, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, false, null, null, null, null));
     }
 
     public void testLongRangeQueryWithDecimalParts() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1.1, 10, false, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, true, null, null, null, MOCK_QSC));
-        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, MOCK_QSC),
-                ft.rangeQuery(1, 10.1, true, false, null, null, null, MOCK_QSC));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1.1, 10, false, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, true, null, null, null, null));
+        assertEquals(ft.rangeQuery(1, 10, true, true, null, null, null, null),
+                ft.rangeQuery(1, 10.1, true, false, null, null, null, null));
     }
 
     public void testRangeQuery() {
@@ -248,11 +237,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         Query expected = new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", 1, 3),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
-        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
+        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, null));
 
         MappedFieldType unsearchable = new NumberFieldType("field", NumberType.LONG, false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
+                () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
@@ -344,8 +333,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             float u = (randomFloat() * 2 - 1) * 65504;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false, MOCK_QSC);
+            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false);
+            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false);
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
         IOUtils.close(reader, dir);
@@ -353,14 +342,14 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testNegativeZero() {
         assertEquals(
-                NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_QSC),
-                NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_QSC));
+                NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false),
+                NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false));
         assertEquals(
-                NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_QSC),
-                NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_QSC));
+                NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false),
+                NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false));
         assertEquals(
-                NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_QSC),
-                NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_QSC));
+                NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false),
+                NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false));
 
         assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
         assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
@@ -412,7 +401,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             Query query = type.rangeQuery("foo",
                     random().nextBoolean() ? null : valueSupplier.get(),
                     random().nextBoolean() ? null : valueSupplier.get(),
-                    randomBoolean(), randomBoolean(), true, MOCK_QSC);
+                    randomBoolean(), randomBoolean(), true);
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
             assertEquals(
@@ -420,74 +409,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                     searcher.count(indexOrDvQuery.getRandomAccessQuery()));
         }
         reader.close();
-        dir.close();
-    }
-
-    public void testIndexSortIntRange() throws Exception {
-        doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
-    }
-
-    public void testIndexSortLongRange() throws Exception {
-        doTestIndexSortRangeQueries(NumberType.LONG, random()::nextLong);
-    }
-
-    public void doTestIndexSortRangeQueries(NumberType type, Supplier<Number> valueSupplier) throws IOException {
-        // Create index settings with an index sort.
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.sort.field", "field")
-            .build();
-
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-
-        // Create an index writer configured with the same index sort.
-        NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder("index")
-            .build(indexSettings, fieldType, null, null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
-
-        IndexWriterConfig writerConfig = new IndexWriterConfig();
-        writerConfig.setIndexSort(new Sort(sortField));
-
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, writerConfig);
-        final int numDocs = TestUtil.nextInt(random(), 100, 500);
-        for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false));
-        }
-
-        // Ensure that the optimized index sort query gives the same results as a points query.
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSearcher searcher = newSearcher(reader);
-
-        QueryShardContext context = new QueryShardContext(0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null);
-
-        final int iters = 10;
-        for (int iter = 0; iter < iters; ++iter) {
-            Query query = type.rangeQuery("field",
-                random().nextBoolean() ? null : valueSupplier.get(),
-                random().nextBoolean() ? null : valueSupplier.get(),
-                randomBoolean(), randomBoolean(), true, context);
-            assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
-
-            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
-            assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
-
-            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) fallbackQuery;
-            assertEquals(
-                searcher.count(query),
-                searcher.count(indexOrDvQuery.getIndexQuery()));
-        }
-
-        reader.close();
-        w.close();
         dir.close();
     }
 

@@ -5,16 +5,3 @@ dependencies {
   implementation project(':test:framework')
 }
 
-configurations {
-  testArtifacts.extendsFrom implementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.main.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
-

@@ -8,26 +8,7 @@
 
 experimental::[]
 
-{es} supports the following EQL functions:
-
-* <<eql-fn-add>>
-* <<eql-fn-between>>
-* <<eql-fn-cidrmatch>>
-* <<eql-fn-concat>>
-* <<eql-fn-divide>>
-* <<eql-fn-endswith>>
-* <<eql-fn-indexof>>
-* <<eql-fn-length>>
-* <<eql-fn-match>>
-* <<eql-fn-modulo>>
-* <<eql-fn-multiply>>
-* <<eql-fn-number>>
-* <<eql-fn-startswith>>
-* <<eql-fn-string>>
-* <<eql-fn-stringcontains>>
-* <<eql-fn-substring>>
-* <<eql-fn-subtract>>
-* <<eql-fn-wildcard>>
+{es} supports the following <<eql-functions,EQL functions>>.
 
 [discrete]
 [[eql-fn-add]]

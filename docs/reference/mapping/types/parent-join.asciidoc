@@ -1,5 +1,5 @@
 [[parent-join]]
-=== Join data type
+=== Join field type
 ++++
 <titleabbrev>Join</titleabbrev>
 ++++

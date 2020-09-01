@@ -1252,8 +1252,11 @@ public abstract class StreamInput extends InputStream {
      * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        return readEnum(enumClass, enumClass.getEnumConstants());
+    }
+
+    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
         int ordinal = readVInt();
-        E[] values = enumClass.getEnumConstants();
         if (ordinal < 0 || ordinal >= values.length) {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
@@ -1265,14 +1268,15 @@ public abstract class StreamInput extends InputStream {
      */
     public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
         int size = readVInt();
+        final EnumSet<E> res = EnumSet.noneOf(enumClass);
         if (size == 0) {
-             return EnumSet.noneOf(enumClass);
+            return res;
         }
-        Set<E> enums = new HashSet<>(size);
+        final E[] values = enumClass.getEnumConstants();
         for (int i = 0; i < size; i++) {
-            enums.add(readEnum(enumClass));
+            res.add(readEnum(enumClass, values));
         }
-        return EnumSet.copyOf(enums);
+        return res;
     }
 
     public static StreamInput wrap(byte[] bytes) {

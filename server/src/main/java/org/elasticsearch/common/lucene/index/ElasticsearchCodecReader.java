@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.lucene.index;
 
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
  * A {@link org.apache.lucene.index.FilterLeafReader} that exposes
  * Elasticsearch internal per shard / index information like the shard ID.
  */
-public final class ElasticsearchLeafReader extends FilterLeafReader {
+public final class ElasticsearchCodecReader extends FilterCodecReader {
 
     private final ShardId shardId;
 
@@ -36,7 +38,7 @@ public final class ElasticsearchLeafReader extends FilterLeafReader {
      *
      * @param in specified base reader.
      */
-    public ElasticsearchLeafReader(LeafReader in, ShardId shardId) {
+    public ElasticsearchCodecReader(CodecReader in, ShardId shardId) {
         super(in);
         this.shardId = shardId;
     }
@@ -58,16 +60,17 @@ public final class ElasticsearchLeafReader extends FilterLeafReader {
         return in.getReaderCacheHelper();
     }
 
-    public static ElasticsearchLeafReader getElasticsearchLeafReader(LeafReader reader) {
-        if (reader instanceof FilterLeafReader) {
-            if (reader instanceof ElasticsearchLeafReader) {
-                return (ElasticsearchLeafReader) reader;
+    public static ElasticsearchCodecReader getElasticsearchCodecReader(LeafReader reader) {
+        reader = FilterLeafReader.unwrap(reader);
+        if (reader instanceof FilterCodecReader) {
+            if (reader instanceof ElasticsearchCodecReader) {
+                return (ElasticsearchCodecReader) reader;
             } else {
-                // We need to use FilterLeafReader#getDelegate and not FilterLeafReader#unwrap, because
+                // We need to use FilterCodecReader#getDelegate and not FilterCodecReader#unwrap, because
                 // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
-                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
-                return getElasticsearchLeafReader(((FilterLeafReader) reader).getDelegate());
+                // returns the most inner leaf reader and thus skipping of over any other filtered codec reader that
+                // may be instance of ElasticsearchCodecReader. This can cause us to miss the shardId.
+                return getElasticsearchCodecReader(((FilterCodecReader) reader).getDelegate());
             }
         }
         return null;

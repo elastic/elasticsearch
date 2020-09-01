@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.search.lookup;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SlowCodecReaderWrapper;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,6 +32,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,7 @@ import static java.util.Collections.emptyMap;
 public class SourceLookup implements Map<String, Object> {
 
     private LeafReader reader;
+    private StoredFieldsReader storedFieldsReader;
 
     private int docId = -1;
 
@@ -71,7 +76,7 @@ public class SourceLookup implements Map<String, Object> {
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            reader.document(docId, sourceFieldVisitor);
+            storedFieldsReader.visitDocument(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
             if (source == null) {
                 this.source = emptyMap();
@@ -101,6 +106,15 @@ public class SourceLookup implements Map<String, Object> {
             return;
         }
         this.reader = context.reader();
+        // Lucene stored fields are really optimized for random access and don't
+        // optimize for sequential access - except for merging. So we do a
+        // little hack here and pretend we're going to do merges in order to
+        // get better sequential access.
+        try {
+            this.storedFieldsReader = SlowCodecReaderWrapper.wrap(reader).getFieldsReader().getMergeInstance();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = docId;

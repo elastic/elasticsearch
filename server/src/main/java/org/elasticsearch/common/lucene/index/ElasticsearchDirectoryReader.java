@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.lucene.index;
 
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -63,8 +64,11 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     /**
      * Wraps the given reader in a {@link org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader} as
-     * well as all it's sub-readers in {@link org.elasticsearch.common.lucene.index.ElasticsearchLeafReader} to
+     * well as all it's sub-readers in {@link org.elasticsearch.common.lucene.index.ElasticsearchCodecReader} to
      * expose the given shard Id.
+     *
+     * This uses codec readers on leaves rather than plain leaf readers in order to give a chance for SourceLookup
+     * to optimize for sequential access by using the logic that is normally reserved to merges.
      *
      * @param reader the reader to wrap
      * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
@@ -80,7 +84,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         }
         @Override
         public LeafReader wrap(LeafReader reader) {
-            return new ElasticsearchLeafReader(reader, shardId);
+            return new ElasticsearchCodecReader((CodecReader) reader, shardId);
         }
     }
 

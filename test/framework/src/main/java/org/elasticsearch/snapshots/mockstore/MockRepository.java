@@ -118,6 +118,8 @@ public class MockRepository extends FsRepository {
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
+    private volatile boolean blockOnWriteShardLevelMeta;
+
     /**
      * Writes to the blob {@code index.latest} at the repository root will fail with an {@link IOException} if {@code true}.
      */
@@ -183,6 +185,7 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
         blockOnDeleteIndexN = false;
+        blockOnWriteShardLevelMeta = false;
         this.notifyAll();
     }
 
@@ -204,6 +207,10 @@ public class MockRepository extends FsRepository {
 
     public void setBlockOnDeleteIndexFile() {
         blockOnDeleteIndexN = true;
+    }
+
+    public void setBlockOnWriteShardLevelMeta() {
+        blockOnWriteShardLevelMeta = true;
     }
 
     public boolean blocked() {
@@ -413,6 +420,10 @@ public class MockRepository extends FsRepository {
                 final Random random = RandomizedContext.current().getRandom();
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
                     throw new IOException("Random IOException");
+                }
+                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX) &&
+                        path().equals(basePath()) == false) {
+
                 }
                 if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
                     blockExecutionAndFail(blobName);

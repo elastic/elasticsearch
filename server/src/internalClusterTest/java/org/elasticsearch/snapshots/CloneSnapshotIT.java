@@ -33,6 +33,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -123,6 +124,35 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cloneFuture.get());
         assertSuccessful(snapshot2Future);
     }
+
+    public void testLongRunningCloneAllowsConcurrentSnapshot() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String indexSlow = "index-slow";
+        createIndexWithRandomDocs(indexSlow, randomIntBetween(20, 100));
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final String targetSnapshot = "target-snapshot";
+        final ActionFuture<AcknowledgedResponse> cloneFuture =
+                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexSlow).execute();
+
+        final String indexFast = "index-fast";
+        createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
+
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot")
+                .setIndices(indexFast).setWaitForCompletion(true).execute());
+
+        assertThat(cloneFuture.isDone(), is(false));
+        unblockNode(repoName, masterNode);
+
+        assertAcked(cloneFuture.get());
+    }
+
+
 
     public void testDeletePreventsClone() throws Exception {
         final String masterName = internalCluster().startMasterOnlyNode();

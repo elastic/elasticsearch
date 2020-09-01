@@ -23,8 +23,8 @@ the cluster:
 
 `indices.queries.cache.size`::
 (<<static-cluster-setting,Static>>)
-Controls the memory size for the filter cache , defaults to `10%`. Accepts
-either a percentage value, like `5%`, or an exact value, like `512mb`.
+Controls the memory size for the filter cache. Accepts
+either a percentage value, like `5%`, or an exact value, like `512mb`. Defaults to `10%`.
 
 [[query-cache-index-settings]]
 ==== Query cache index settings

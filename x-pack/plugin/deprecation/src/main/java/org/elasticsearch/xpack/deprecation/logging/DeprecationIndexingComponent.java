@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -25,8 +26,11 @@ import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.function.Consumer;
@@ -49,9 +53,9 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     private final BulkProcessor processor;
     private final RateLimitingFilter filter;
 
-    public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
-        this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN));
-        final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool);
+    public DeprecationIndexingComponent(Client client, Settings settings) {
+        this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
+        final Consumer<IndexRequest> consumer = this.processor::add;
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
@@ -101,41 +105,23 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Constructs a {@link Consumer} that knows what to do with the {@link IndexRequest} instances that the
-     * {@link DeprecationIndexingAppender} creates. This logic is separated from the service in order to make
-     * testing significantly easier, and to separate concerns.
-     * <p>
-     * Writes are done via {@link BulkProcessor}, which handles batching up writes and retries.
-     *
-     * @param threadPool due to <a href="https://github.com/elastic/elasticsearch/issues/50440">#50440</a>,
-     *                   extra care must be taken to avoid blocking the thread that writes a deprecation message.
-     * @return           a consumer that accepts an index request and handles all the details of writing it
-     *                   into the cluster
-     */
-    private Consumer<IndexRequest> buildIndexRequestConsumer(ThreadPool threadPool) {
-        return indexRequest -> {
-            try {
-                // TODO: remove the threadpool wrapping when the .add call is non-blocking
-                // (it can currently execute the bulk request occasionally)
-                // see: https://github.com/elastic/elasticsearch/issues/50440
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> this.processor.add(indexRequest));
-            } catch (Exception e) {
-                logger.error("Failed to queue deprecation message index request: " + e.getMessage(), e);
-            }
-        };
-    }
-
-    /**
      * Constructs a bulk processor for writing documents
      * @param client the client to use
+     * @param settings the settings to use
      * @return an initialised bulk processor
      */
-    private BulkProcessor getBulkProcessor(Client client) {
+    private BulkProcessor getBulkProcessor(Client client, Settings settings) {
         final OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN);
         final BulkProcessor.Listener listener = new DeprecationBulkListener();
 
+        // This configuration disables the size count and size thresholds,
+        // and instead uses a scheduled flush only. This means that calling
+        // processor.add() will not block the calling thread.
         return BulkProcessor.builder(originSettingClient::bulk, listener)
-            .setBulkActions(100)
+            .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
+            .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
+            .setBulkActions(-1)
+            .setBulkSize(new ByteSizeValue(-1, ByteSizeUnit.BYTES))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .build();
     }

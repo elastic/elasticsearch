@@ -75,7 +75,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        DeprecationIndexingComponent component = new DeprecationIndexingComponent(threadPool, client);
+        DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings());
 
         clusterService.addListener(component);
 

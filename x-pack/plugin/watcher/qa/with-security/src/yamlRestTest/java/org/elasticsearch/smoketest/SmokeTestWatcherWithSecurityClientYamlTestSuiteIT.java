@@ -29,7 +29,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends WatcherYa
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return createParameters();
     }
 
     @Before

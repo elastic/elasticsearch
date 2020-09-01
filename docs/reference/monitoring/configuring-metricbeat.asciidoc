@@ -43,7 +43,8 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 --
 
 . {metricbeat-ref}/metricbeat-installation-configuration.html[Install {metricbeat}] on each
-{es} node in the production cluster.
+{es} node in the production cluster (Monitoring data must be collected from at least the currently 
+active master node in order for Kibana to display it)
 
 . Enable the {es} {xpack} module in {metricbeat} on each {es} node.
 +

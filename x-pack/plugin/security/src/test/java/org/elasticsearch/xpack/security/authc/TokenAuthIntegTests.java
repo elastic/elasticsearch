@@ -544,7 +544,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertEquals("token has already been refreshed more than 30 seconds in the past", e.getHeader("error_description").get(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -590,7 +589,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getTokenString(), result.getRefreshToken());
                     } else {
                         tokens.add(result.getTokenString() + result.getRefreshToken());
-                        client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + result.getTokenString()))
+                        threadClient.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + result.getTokenString()))
                             .admin().cluster().health(new ClusterHealthRequest(), ActionListener.wrap(
                             r -> authStatuses.add(RestStatus.OK),
                             e -> authStatuses.add(RestStatus.BAD_REQUEST)));

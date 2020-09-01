@@ -172,6 +172,17 @@ public final class Channels {
         writeToChannel(source, 0, source.length, channel);
     }
 
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel} at the provided
+     * position.
+     *
+     * @param source          byte array to copy from
+     * @param channel         target WritableByteChannel
+     * @param channelPosition position to write at
+     */
+    public static void writeToChannel(byte[] source, FileChannel channel, long channelPosition) throws IOException {
+        channel.write(ByteBuffer.wrap(source), channelPosition);
+    }
 
     /**
      * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}

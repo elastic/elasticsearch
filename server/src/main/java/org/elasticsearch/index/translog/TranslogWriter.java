@@ -430,8 +430,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel fileChannel,
         final Path checkpointFile,
         final Checkpoint checkpoint) throws IOException {
-        // Since we used a fixed size checkpoint, we overwrite the checkpoint each time.
-        fileChannel.position(0);
         Checkpoint.write(fileChannel, checkpointFile, checkpoint);
     }
 

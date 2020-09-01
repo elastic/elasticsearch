@@ -233,7 +233,26 @@ public class AugmentationTests extends ScriptTestCase {
             exec("org.elasticsearch.painless.FeatureTestObject.staticNumberArgument(8);"));
     }
 
-    public void testInjectionOnDef() {
+    public void testInstanceInjection() {
+        assertEquals(123000,
+            exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(100, 0); f.injectTimesX(5)"));
+    }
+
+    public void testInjectionOnDefNoInject() {
+        assertEquals(123000,
+            exec("def d = new org.elasticsearch.painless.FeatureTestObject(100, 0); d.injectTimesX(5)"));
+    }
+
+    public void testInjectionOnMethodReference() {
+        assertEquals(30,
+            exec(
+                "org.elasticsearch.painless.FeatureTestObject ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
+                    "org.elasticsearch.painless.FeatureTestObject ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
+                    "ft1.timesSupplier(ft0::injectTimesX, 3, 5)"));
+    }
+
+    // TODO(stu): just make sure this works inside a lambda, it should
+    public void testInjectionOnLambda() {
         assertEquals(24600,
             exec("def d = org.elasticsearch.painless.FeatureTestObject.staticNumberArgument; d(100)"));
     }

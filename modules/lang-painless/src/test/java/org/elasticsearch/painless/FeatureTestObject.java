@@ -94,6 +94,14 @@ public class FeatureTestObject {
         this.i = i;
     }
 
+    public int injectTimesX(int injected, int user) {
+        return this.x * injected * user;
+    }
+
+    public int timesSupplier(Function<Integer, Integer> fn, int fnArg, int userArg) {
+        return fn.apply(fnArg) * userArg;
+    }
+
     public Double mixedAdd(int i, Byte b, char c, Float f) {
         return (double)(i + b + c + f);
     }

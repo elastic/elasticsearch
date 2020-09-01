@@ -8,6 +8,12 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
 class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
 }
 
+class org.elasticsearch.painless.FeatureTestObject2 {
+ ()
+ int staticNumberArgument(int, int) @inject_constant[1="foo"]
+ int staticNumberArgument2(int, int)
+}
+
 class org.elasticsearch.painless.FeatureTestObject @no_import {
   int z
   ()
@@ -25,6 +31,8 @@ class org.elasticsearch.painless.FeatureTestObject @no_import {
   Double mixedAdd(int, Byte, char, Float)
   Object twoFunctionsOfX(Function,Function)
   void listInput(List)
+  int injectTimesX(int, int) @inject_constant[1="foo"]
+  int timesSupplier(Function, int, int)
   int org.elasticsearch.painless.FeatureTestAugmentationObject getTotal()
   int org.elasticsearch.painless.FeatureTestAugmentationObject addToTotal(int)
 }

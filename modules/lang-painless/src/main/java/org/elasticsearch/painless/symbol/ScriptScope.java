@@ -67,7 +67,7 @@ public class ScriptScope extends Decorator {
         staticConstants.put("$DEFINITION", painlessLookup);
         staticConstants.put("$FUNCTIONS", functionTable);
         // TODO(stu): inject compiler settings here
-        staticConstants.put("$COMPILERSETTINGS", functionTable);
+        staticConstants.put("$COMPILERSETTINGS", compilerSettings.asMap());
     }
 
     public PainlessLookup getPainlessLookup() {

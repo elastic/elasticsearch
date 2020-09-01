@@ -262,11 +262,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.setLocation(internalLocation);
             irFunctionNode.setReturnType(CallSite.class);
             irFunctionNode.setName("$bootstrapDef");
-            // TODO(stu): pass in parameters here
             irFunctionNode.getTypeParameters().addAll(
-                    Arrays.asList(Lookup.class, String.class, Map.class, MethodType.class, int.class, int.class, Object[].class));
+                    Arrays.asList(Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class));
             irFunctionNode.getParameterNames().addAll(
-                    Arrays.asList("methodHandlesLookup", "name", "compilerSettings", "type", "initialDepth", "flavor", "args"));
+                    Arrays.asList("methodHandlesLookup", "name", "type", "initialDepth", "flavor", "args"));
             irFunctionNode.setStatic(true);
             irFunctionNode.setVarArgs(true);
             irFunctionNode.setSynthetic(true);
@@ -304,6 +303,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                             DefBootstrap.class.getMethod("bootstrap",
                                     PainlessLookup.class,
                                     FunctionTable.class,
+                                    Map.class,
                                     Lookup.class,
                                     String.class,
                                     MethodType.class,
@@ -315,6 +315,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                             Arrays.asList(
                                     PainlessLookup.class,
                                     FunctionTable.class,
+                                    Map.class,
                                     Lookup.class,
                                     String.class,
                                     MethodType.class,
@@ -344,10 +345,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irLoadFieldMemberNode.setName("$FUNCTIONS");
             irLoadFieldMemberNode.setStatic(true);
 
+            invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
+
             // TODO(stu): copy for compiler settings
             irLoadFieldMemberNode = new LoadFieldMemberNode();
             irLoadFieldMemberNode.setLocation(internalLocation);
-            irLoadFieldMemberNode.setExpressionType(FunctionTable.class);
+            irLoadFieldMemberNode.setExpressionType(Map.class);
             irLoadFieldMemberNode.setName("$COMPILERSETTINGS");
             irLoadFieldMemberNode.setStatic(true);
 

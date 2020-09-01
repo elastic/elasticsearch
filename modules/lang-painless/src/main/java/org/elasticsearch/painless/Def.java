@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
@@ -207,11 +208,22 @@ public final class Def {
                          "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
              }
 
-             // TODO(stu): modify to bind injected constants
+             // TODO(stu): modify to bind injected constants, DONE
+             if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class)) {
+                 InjectConstantAnnotation inject = (InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class);
+                 MethodHandle modified = painlessMethod.methodHandle;
+                 for (int i = 0; i < inject.injects.size(); i++) {
+                     // We know this a def type, so start injecting at 1 because there are no static defs
+                     // TODO(stu): ensure static objects aren't here and bail
+                     // TODO(stu): test multiple injections
+                     modified = MethodHandles.insertArguments(modified, i + 1, compilerSettings.get(inject.injects.get(i)));
+                 }
+                 return modified;
+             }
              return painlessMethod.methodHandle;
          }
 
-        // TODO(stu): look up constants, this handles all def calls _with_ lambdas
+        // TODO(stu): look up constants, this handles all def calls _with_ lambdas, DO THIS NEXT
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
          BitSet lambdaArgs = new BitSet(recipeString.length());
          for (int i = 0; i < recipeString.length(); i++) {

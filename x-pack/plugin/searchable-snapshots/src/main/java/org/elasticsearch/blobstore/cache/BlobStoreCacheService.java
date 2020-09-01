@@ -23,13 +23,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,58 +38,27 @@ import org.elasticsearch.transport.ConnectTransportException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 
-public class BlobStoreCacheService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class BlobStoreCacheService {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
-    public static final int DEFAULT_CACHED_BLOB_SIZE = Math.toIntExact(ByteSizeUnit.KB.toBytes(4L));
+    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(4);
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final AtomicBoolean ready;
     private final Client client;
     private final String index;
 
     public BlobStoreCacheService(ClusterService clusterService, ThreadPool threadPool, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
-        this.ready = new AtomicBoolean(false);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.index = index;
-    }
-
-    @Override
-    protected void doStart() {
-        clusterService.addListener(this);
-    }
-
-    @Override
-    protected void doStop() {
-        clusterService.removeListener(this);
-    }
-
-    @Override
-    protected void doClose() {}
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (lifecycle.started() == false || event.routingTableChanged() == false) {
-            return;
-        }
-        if (event.indexRoutingTableChanged(index)) {
-            final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(index);
-            if (indexRoutingTable == null) {
-                ready.set(false);
-                return;
-            }
-            ready.set(indexRoutingTable.allPrimaryShardsActive());
-        }
     }
 
     private void createIndexIfNecessary(ActionListener<String> listener) {
@@ -252,13 +218,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
     }
 
     protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
-        if ((lifecycle.started() && ready.get()) == false) {
-            // TODO TBD can we just execute the GET request and let it fail if the index isn't ready yet?
-            // We might get lucky and hit a started shard anyway.
-            logger.debug("not ready : [{}]", CachedBlob.generateId(repository, name, path, offset));
-            listener.onResponse(CachedBlob.CACHE_NOT_READY);
-            return;
-        }
         final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
         client.get(request, new ActionListener<>() {
             @Override
@@ -294,6 +253,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent implements
     private static boolean isExpectedCacheGetException(Exception e) {
         return TransportActions.isShardNotAvailableException(e)
             || e instanceof ConnectTransportException
+            || e instanceof ClusterBlockException
             || ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException;
     }
 

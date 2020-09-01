@@ -39,7 +39,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
 
         when:
-        def result = gradleRunner("createExtractedTestDistro").buildAndFail()
+        def result = gradleRunner("tasks").buildAndFail()
 
         then:
         assertOutputContains(result.output, "Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
@@ -62,18 +62,19 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                   architecture = Architecture.current();
               }
             }
-            tasks.register("createExtractedTestDistro") {
-                dependsOn elasticsearch_distributions.test_distro.extracted
+            tasks.register("setupDistro", Sync) {
+                from(elasticsearch_distributions.test_distro.extracted)
+                into("build/distro")
             }
         """
 
         when:
-        def result = gradleRunner("createExtractedTestDistro").build()
+        def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
         result.task(":distribution:archives:linux-tar:buildTar").outcome == TaskOutcome.SUCCESS
-        result.task(":extractElasticsearchLinux$distroVersion").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated(distroVersion, 'current-marker.txt')
+        result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
+        assertExtractedDistroIsCreated(distroVersion, "build/distro", 'current-marker.txt')
     }
 
     def "resolves bwc versions from source"() {
@@ -92,16 +93,18 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                   architecture = Architecture.current();
               }
             }
-            tasks.register("createExtractedTestDistro") {
-                dependsOn elasticsearch_distributions.test_distro.extracted
+            tasks.register("setupDistro", Sync) {
+                from(elasticsearch_distributions.test_distro.extracted)
+                into("build/distro")
             }
         """
         when:
-        def result = gradleRunner("createExtractedTestDistro").build()
+
+        def result = gradleRunner("setupDistro").build()
         then:
         result.task(":distribution:bwc:minor:buildBwcTask").outcome == TaskOutcome.SUCCESS
-        result.task(":extractElasticsearchLinux8.1.0").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated(distroVersion,'bwc-marker.txt')
+        result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
+        assertExtractedDistroIsCreated(distroVersion, "build/distro", 'bwc-marker.txt')
     }
 
     def "fails on resolving bwc versions with no bundled jdk"() {
@@ -195,8 +198,8 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
     }
 
-    boolean assertExtractedDistroIsCreated(String version, String markerFileName) {
-        File extractedFolder = new File(testProjectDir.root, "build/elasticsearch-distros/extracted_elasticsearch_${version}_archive_linux_default")
+    boolean assertExtractedDistroIsCreated(String version, String relativeDistroPath, String markerFileName) {
+        File extractedFolder = new File(testProjectDir.root, relativeDistroPath)
         assert extractedFolder.exists()
         assert new File(extractedFolder, markerFileName).exists()
         true

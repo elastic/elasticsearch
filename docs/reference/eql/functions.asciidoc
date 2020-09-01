@@ -8,34 +8,13 @@
 
 experimental::[]
 
-{es} supports the following EQL functions:
-
-* <<eql-fn-add>>
-* <<eql-fn-between>>
-* <<eql-fn-cidrmatch>>
-* <<eql-fn-concat>>
-* <<eql-fn-divide>>
-* <<eql-fn-endswith>>
-* <<eql-fn-indexof>>
-* <<eql-fn-length>>
-* <<eql-fn-match>>
-* <<eql-fn-modulo>>
-* <<eql-fn-multiply>>
-* <<eql-fn-number>>
-* <<eql-fn-startswith>>
-* <<eql-fn-string>>
-* <<eql-fn-stringcontains>>
-* <<eql-fn-substring>>
-* <<eql-fn-subtract>>
-* <<eql-fn-wildcard>>
+{es} supports the following <<eql-functions,EQL functions>>.
 
 [discrete]
 [[eql-fn-add]]
 === `add`
 Returns the sum of two provided addends.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -77,7 +56,6 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-between]]
@@ -86,8 +64,6 @@ If using a field as the argument, this parameter supports only
 Extracts a substring that's between a provided `left` and `right` text in a
 source string.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -182,7 +158,6 @@ in regular expressions. Defaults to `false`.
 If `true`, matching is case-sensitive. Defaults to `false`.
 
 *Returns:* string or `null`
-====
 
 [discrete]
 [[eql-fn-cidrmatch]]
@@ -191,8 +166,6 @@ If `true`, matching is case-sensitive. Defaults to `false`.
 Returns `true` if an IP address is contained in one or more provided
 {wikipedia}/Classless_Inter-Domain_Routing[CIDR] blocks.
 
-[%collapsible]
-====
 *Example*
 
 [source,eql]
@@ -231,7 +204,6 @@ field data type.
 CIDR block you wish to search. If `null`, the function returns `null`.
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-concat]]
@@ -239,8 +211,6 @@ CIDR block you wish to search. If `null`, the function returns `null`.
 
 Returns a concatenated string of provided values.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -282,19 +252,15 @@ If using a field as the argument, this parameter does not support the
 <<text,`text`>> field data type.
 
 *Returns:* string or `null`
-====
 
 [discrete]
 [[eql-fn-divide]]
-==== `divide`
+=== `divide`
 Returns the quotient of a provided dividend and divisor.
-
-[%collapsible]
-====
 
 [[eql-divide-fn-float-rounding]]
 [WARNING]
-=====
+====
 If both the dividend and divisor are integers, the `divide` function _rounds
 down_ any returned floating point numbers to the nearest integer.
 
@@ -303,7 +269,7 @@ either the dividend or divisor to a float.
 
 [%collapsible]
 .**Example**
-======
+=====
 The `process.args_count` field is a <<number,`long`>> integer field containing a
 count of process arguments.
 
@@ -330,8 +296,8 @@ The following EQL query changes the integer `4` to the equivalent float `4.0`.
 ----
 process where divide(4.0, process.args_count) == 1
 ----
-======
 =====
+====
 
 *Example*
 [source,eql]
@@ -387,7 +353,6 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or null
-====
 
 [discrete]
 [[eql-fn-endswith]]
@@ -395,8 +360,6 @@ If using a field as the argument, this parameter supports only
 
 Returns `true` if a source string ends with a provided substring.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -458,7 +421,6 @@ field data types:
 --
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-indexof]]
@@ -469,8 +431,6 @@ Returns the first position of a provided substring in a source string.
 If an optional start position is provided, this function returns the first
 occurrence of the substring at or after the start position.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -566,7 +526,6 @@ If using a field as the argument, this parameter supports only the following
 --
 
 *Returns:* integer or `null`
-====
 
 [discrete]
 [[eql-fn-length]]
@@ -575,8 +534,6 @@ If using a field as the argument, this parameter supports only the following
 Returns the character length of a provided string, including whitespace and
 punctuation.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -614,7 +571,6 @@ field data types:
 --
 
 *Returns:* integer or `null`
-====
 
 [discrete]
 [[eql-fn-match]]
@@ -623,8 +579,6 @@ field data types:
 Returns `true` if a source string matches one or more provided regular
 expressions.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -679,15 +633,12 @@ Fields are not supported as arguments.
 --
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-modulo]]
 === `modulo`
 Returns the remainder of the division of a provided dividend and divisor.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -739,7 +690,6 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-multiply]]
@@ -747,8 +697,6 @@ If using a field as the argument, this parameter supports only
 
 Returns the product of two provided factors.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -792,7 +740,6 @@ If using a field as the argument, this parameter supports only
 --
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-number]]
@@ -800,8 +747,6 @@ If using a field as the argument, this parameter supports only
 
 Converts a string to the corresponding integer or float.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -888,7 +833,6 @@ Fields are not supported as arguments.
 --
 
 *Returns:* integer or float or `null`
-====
 
 [discrete]
 [[eql-fn-startswith]]
@@ -896,8 +840,6 @@ Fields are not supported as arguments.
 
 Returns `true` if a source string begins with a provided substring.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -959,7 +901,6 @@ field data types:
 --
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-string]]
@@ -967,8 +908,6 @@ field data types:
 
 Converts a value to a string.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -997,7 +936,6 @@ If using a field as the argument, this parameter does not support the
 <<text,`text`>> field data type.
 
 *Returns:* string or `null`
-====
 
 [discrete]
 [[eql-fn-stringcontains]]
@@ -1005,8 +943,6 @@ If using a field as the argument, this parameter does not support the
 
 Returns `true` if a source string contains a provided substring.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -1060,7 +996,6 @@ field data types:
   <<constant-keyword,`constant_keyword`>> sub-field
 
 *Returns:* boolean or `null`
-====
 
 [discrete]
 [[eql-fn-substring]]
@@ -1070,8 +1005,6 @@ Extracts a substring from a source string at provided start and end positions.
 
 If no end position is provided, the function extracts the remaining string.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -1114,15 +1047,12 @@ function returns the remaining string.
 Positions are zero-indexed. Negative offsets are supported.
 
 *Returns:* string
-====
 
 [discrete]
 [[eql-fn-subtract]]
 === `subtract`
 Returns the difference between a provided minuend and subtrahend.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -1169,7 +1099,6 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-====
 
 [discrete]
 [[eql-fn-wildcard]]
@@ -1178,8 +1107,6 @@ If using a field as the argument, this parameter supports only
 Returns `true` if a source string matches one or more provided wildcard
 expressions.
 
-[%collapsible]
-====
 *Example*
 [source,eql]
 ----
@@ -1235,4 +1162,3 @@ returns `null`. Fields are not supported as arguments.
 --
 
 *Returns:* boolean
-====

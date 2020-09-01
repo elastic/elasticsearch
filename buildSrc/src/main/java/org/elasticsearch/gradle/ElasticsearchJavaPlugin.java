@@ -23,6 +23,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import nebula.plugin.info.InfoBrokerPlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
@@ -67,6 +68,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
 
         configureConfigurations(project);
         configureCompile(project);
@@ -74,6 +76,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
+
+        // convenience access to common versions used in dependencies
+        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
     }
 
     /**

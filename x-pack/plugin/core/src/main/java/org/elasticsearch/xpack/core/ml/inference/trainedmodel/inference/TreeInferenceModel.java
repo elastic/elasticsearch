@@ -188,14 +188,17 @@ public class TreeInferenceModel implements InferenceModel {
                 return new ClassificationInferenceResults(classificationValue.getValue(),
                     classificationLabel(classificationValue.getValue(), classificationLabels),
                     topClasses.v2(),
-                    InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, classificationLabels),
+                    InferenceHelpers.transformFeatureImportanceClassification(decodedFeatureImportance,
+                        classificationValue.getValue(),
+                        classificationLabels,
+                        classificationConfig.getPredictionFieldType()),
                     config,
                     classificationValue.getProbability(),
                     classificationValue.getScore());
             case REGRESSION:
                 return new RegressionInferenceResults(value[0],
                     config,
-                    InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, null));
+                    InferenceHelpers.transformFeatureImportanceRegression(decodedFeatureImportance));
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }

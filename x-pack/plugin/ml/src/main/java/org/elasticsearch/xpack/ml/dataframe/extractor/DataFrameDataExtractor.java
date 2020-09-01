@@ -67,6 +67,7 @@ public class DataFrameDataExtractor {
     private final Client client;
     private final DataFrameDataExtractorContext context;
     private String scrollId;
+    private String lastSortKey;
     private boolean isCancelled;
     private boolean hasNext;
     private boolean searchHasShardFailure;
@@ -122,7 +123,9 @@ public class DataFrameDataExtractor {
         }
 
         Optional<List<Row>> hits = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
-        if (!hits.isPresent()) {
+        if (hits.isPresent() && hits.get().isEmpty() == false) {
+            lastSortKey = hits.get().get(hits.get().size() - 1).getSortKey();
+        } else {
             hasNext = false;
         }
         return hits;
@@ -135,6 +138,7 @@ public class DataFrameDataExtractor {
 
     private List<Row> tryRequestWithSearchResponse(Supplier<SearchResponse> request) throws IOException {
         try {
+
             // We've set allow_partial_search_results to false which means if something
             // goes wrong the request will throw.
             SearchResponse searchResponse = request.get();
@@ -165,8 +169,19 @@ public class DataFrameDataExtractor {
                 .setAllowPartialSearchResults(false)
                 .addSort(DestinationIndex.ID_COPY, SortOrder.ASC)
                 .setIndices(context.indices)
-                .setSize(context.scrollSize)
-                .setQuery(context.query);
+                .setSize(context.scrollSize);
+
+        if (lastSortKey == null) {
+            searchRequestBuilder.setQuery(context.query);
+        } else {
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] Searching docs with [{}] greater than [{}]",
+                context.jobId, DestinationIndex.ID_COPY, lastSortKey));
+            QueryBuilder queryPlusLastSortKey = QueryBuilders.boolQuery()
+                .filter(context.query)
+                .filter(QueryBuilders.rangeQuery(DestinationIndex.ID_COPY).gt(lastSortKey));
+            searchRequestBuilder.setQuery(queryPlusLastSortKey);
+        }
+
         setFetchSource(searchRequestBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
@@ -425,6 +440,10 @@ public class DataFrameDataExtractor {
 
         public int getChecksum() {
             return Arrays.hashCode(values);
+        }
+
+        public String getSortKey() {
+            return (String) hit.getSortValues()[0];
         }
     }
 }

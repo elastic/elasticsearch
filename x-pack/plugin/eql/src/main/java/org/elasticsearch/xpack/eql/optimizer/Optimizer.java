@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -169,7 +169,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
             if ((plan instanceof KeyedFilter) == false && plan.child() instanceof LocalRelation) {
-                return new LocalRelation(plan.source(), plan.output(), Results.Type.SEARCH_HIT);
+                return new LocalRelation(plan.source(), plan.output(), Type.EVENT);
             }
             return plan;
         }
@@ -335,7 +335,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
                 if (filter.anyMatch(LocalRelation.class::isInstance)) {
-                    return new LocalRelation(plan.source(), plan.output(), Results.Type.SEQUENCE);
+                    return new LocalRelation(plan.source(), plan.output(), Type.SEQUENCE);
                 }
             }
             return plan;

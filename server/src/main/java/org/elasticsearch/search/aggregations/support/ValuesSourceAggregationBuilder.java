@@ -45,6 +45,12 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable, boolean timezoneAware) {
+        declareFields(objectParser, scriptable, formattable, timezoneAware, true);
+
+    }
+    public static <T> void declareFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
+        boolean scriptable, boolean formattable, boolean timezoneAware, boolean fieldRequired) {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
@@ -71,10 +77,15 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
                     (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
-            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
-            objectParser.declareRequiredFieldSet(fields);
+            if (fieldRequired) {
+                String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(),
+                    Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+                objectParser.declareRequiredFieldSet(fields);
+            }
         } else {
-            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
+            if (fieldRequired) {
+                objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
+            }
         }
 
         if (timezoneAware) {

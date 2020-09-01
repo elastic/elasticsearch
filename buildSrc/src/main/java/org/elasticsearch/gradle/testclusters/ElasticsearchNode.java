@@ -37,6 +37,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
@@ -64,7 +65,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -80,7 +80,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -514,7 +513,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean canUseSharedDistribution() {
-        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        // using original location can be too long due to MAX_PATH restrictions on windows CI
+        // TODO revisit when moving to shorter paths on CI by using Teamcity
+        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
     }
 
     private void logToProcessStdout(String message) {
@@ -1182,7 +1183,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (!content.contains(origin)) {
                     throw new IOException("template property " + origin + " not found in template.");
                 }
-                content = content.replaceAll(origin, expansions.get(origin));
+                content = content.replace(origin, expansions.get(origin));
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
@@ -1191,14 +1192,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Map<String, String> jvmOptionExpansions() {
-        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
         Map<String, String> expansions = new HashMap<>();
-        expansions.putAll(
-            Map.of(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString(), "logs/gc.log", confPathLogs.resolve("gc.log").toString())
-        );
+        Version version = getVersion();
+        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
+        Path relativeLogPath = workingDir.relativize(confPathLogs);
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + relativeLogPath.toString());
+        if (version.onOrAfter("6.2.0")) {
+            expansions.put("logs/gc.log", relativeLogPath.resolve("gc.log").toString());
+        }
         if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());
-
+            expansions.put(
+                "-XX:ErrorFile=logs/hs_err_pid%p.log",
+                "-XX:ErrorFile=" + relativeLogPath.resolve("hs_err_pid%p.log").toString()
+            );
         }
         return expansions;
     }
@@ -1270,20 +1276,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Classpath
-    public Set<File> getDistributionClasspath() {
+    public List<FileTree> getDistributionClasspath() {
         return getDistributionFiles(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public Set<File> getDistributionFiles() {
+    public List<FileTree> getDistributionFiles() {
         return getDistributionFiles(filter -> filter.exclude("**/*.jar"));
     }
 
-    private Set<File> getDistributionFiles(Action<PatternFilterable> patternFilter) {
-        Set<File> files = new TreeSet<>();
+    private List<FileTree> getDistributionFiles(Action<PatternFilterable> patternFilter) {
+        List<FileTree> files = new ArrayList<>();
         for (ElasticsearchDistribution distribution : distributions) {
-            files.addAll(project.fileTree(Paths.get(distribution.getExtracted().toString())).matching(patternFilter).getFiles());
+            files.add(distribution.getExtracted().getAsFileTree().matching(patternFilter));
         }
         return files;
     }

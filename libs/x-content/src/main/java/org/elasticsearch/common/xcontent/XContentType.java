@@ -24,12 +24,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -125,9 +123,9 @@ public enum XContentType {
      * 2. Media type without a version - for users not using compatible API i.e. application/json
      */
     private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
-        //type
+            //type
         "^(application|text)/" +
-            // type with custom subtype and a version: vnd.elasticsearch+json;compatible-with=7
+            // custom subtype and a version: vnd.elasticsearch+json;compatible-with=7
             "((vnd\\.elasticsearch\\+([^;\\s]+)(\\s*;\\s*compatible-with=(\\d+)))" +
             "|([^;\\s]+))" + //subtype: json,yaml,etc some of these are defined in x-pack so can't be enumerated
             "(?:\\s*;\\s*(charset=UTF-8)?)?$",

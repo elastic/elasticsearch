@@ -329,7 +329,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             Class<?>[] parameterTypes = execute.getParameterTypes();
             List<ParameterInfo> parameters = new ArrayList<>();
             if (parameterTypes.length > 0) {
-                // TODO(stu): ensure empty/no PARAMETERS if parameterTypes.length == 0?
+                // TODO: ensure empty/no PARAMETERS if parameterTypes.length == 0?
                 String parametersFieldName = "PARAMETERS";
 
                 // See ScriptClassInfo.readArgumentNamesConstant

@@ -245,6 +245,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         irClassNode.addFieldNode(irFieldNode);
 
+        // TODO(stu): add compiler settings here
+        irFieldNode = new FieldNode();
+        irFieldNode.setLocation(internalLocation);
+        irFieldNode.setModifiers(modifiers);
+        irFieldNode.setFieldType(Map.class);
+        irFieldNode.setName("$COMPILERSETTINGS");
+
+        irClassNode.addFieldNode(irFieldNode);
+
         // adds the bootstrap method required for dynamic binding for def type resolution
         internalLocation = new Location("$internal$injectDefBootstrapMethod", 0);
 
@@ -253,10 +262,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.setLocation(internalLocation);
             irFunctionNode.setReturnType(CallSite.class);
             irFunctionNode.setName("$bootstrapDef");
+            // TODO(stu): pass in parameters here
             irFunctionNode.getTypeParameters().addAll(
-                    Arrays.asList(Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class));
+                    Arrays.asList(Lookup.class, String.class, Map.class, MethodType.class, int.class, int.class, Object[].class));
             irFunctionNode.getParameterNames().addAll(
-                    Arrays.asList("methodHandlesLookup", "name", "type", "initialDepth", "flavor", "args"));
+                    Arrays.asList("methodHandlesLookup", "name", "compilerSettings", "type", "initialDepth", "flavor", "args"));
             irFunctionNode.setStatic(true);
             irFunctionNode.setVarArgs(true);
             irFunctionNode.setSynthetic(true);
@@ -335,6 +345,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irLoadFieldMemberNode.setName("$FUNCTIONS");
             irLoadFieldMemberNode.setStatic(true);
 
+            // TODO(stu): copy for compiler settings
+            irLoadFieldMemberNode = new LoadFieldMemberNode();
+            irLoadFieldMemberNode.setLocation(internalLocation);
+            irLoadFieldMemberNode.setExpressionType(FunctionTable.class);
+            irLoadFieldMemberNode.setName("$COMPILERSETTINGS");
+            irLoadFieldMemberNode.setStatic(true);
+
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
             LoadVariableNode irLoadVariableNode = new LoadVariableNode();
@@ -396,10 +413,19 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             return irExpressionNode;
         }
 
+        PainlessCast painlessCast = expressionPainlessCast.getExpressionPainlessCast();
+        Class<?> targetType = painlessCast.targetType;
+
+        if (painlessCast.boxTargetType != null) {
+            targetType = PainlessLookupUtility.typeToBoxedType(painlessCast.boxTargetType);
+        } else if (painlessCast.unboxTargetType != null) {
+            targetType = painlessCast.unboxTargetType;
+        }
+
         CastNode irCastNode = new CastNode();
         irCastNode.setLocation(irExpressionNode.getLocation());
-        irCastNode.setExpressionType(expressionPainlessCast.getExpressionPainlessCast().targetType);
-        irCastNode.setCast(expressionPainlessCast.getExpressionPainlessCast());
+        irCastNode.setExpressionType(targetType);
+        irCastNode.setCast(painlessCast);
         irCastNode.setChildNode(irExpressionNode);
 
         return irCastNode;
@@ -1870,8 +1896,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
 
             irInvokeCallNode.setLocation(userCallNode.getLocation());
-            irInvokeCallNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());
-            irInvokeCallNode.setMethod(method);
+            irInvokeCallNode.setExpressionType(scriptScope.getDecoration(userCallNode, ValueType.class).getValueType());;
+            irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod());
             irInvokeCallNode.setBox(boxType);
             irExpressionNode = irInvokeCallNode;
         }

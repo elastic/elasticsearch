@@ -118,6 +118,14 @@ public class ContextIndexSearcher extends IndexSearcher {
         this.cancellable.remove(action);
     }
 
+    public void clearQueryCancellations() {
+        this.cancellable.clear();
+    }
+
+    public boolean hasCancellations() {
+        return this.cancellable.isEnabled();
+    }
+
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
         this.aggregatedDfs = aggregatedDfs;
     }
@@ -361,6 +369,10 @@ public class ContextIndexSearcher extends IndexSearcher {
         @Override
         public boolean isEnabled() {
             return runnables.isEmpty() == false;
+        }
+
+        public void clear() {
+            runnables.clear();
         }
     }
 }

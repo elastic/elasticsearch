@@ -70,9 +70,18 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
-        this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        boolean success = false;
+        try {
+            this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+            this.precision = precision;
+            this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+            success = true;
+        } finally {
+            if (success == false) {
+                // need to ensure bytes registered with breaker in super constructor are released.
+                close();
+            }
+        }
     }
 
     @Override
@@ -124,8 +133,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (collector != null) {
             try {
                 collector.postCollect();
-                collector.close();
             } finally {
+                collector.close();
                 collector = null;
             }
         }

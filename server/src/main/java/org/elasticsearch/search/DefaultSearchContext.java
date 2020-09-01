@@ -186,6 +186,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void doClose() {
         engineSearcher.close();
+        this.searcher.clearQueryCancellations();
     }
 
     /**

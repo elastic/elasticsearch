@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -467,12 +467,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     private void ensureWatcherTemplatesAdded() throws Exception {
         // Verify that the index templates exist:
         assertBusy(() -> {
-            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(HISTORY_TEMPLATE_NAME).get();
-            assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
-            response = client().admin().indices().prepareGetTemplates(TRIGGERED_TEMPLATE_NAME).get();
-            assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
-            response = client().admin().indices().prepareGetTemplates(WATCHES_TEMPLATE_NAME).get();
-            assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+            GetComposableIndexTemplateAction.Response response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)).get();
+            assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
+            response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(TRIGGERED_TEMPLATE_NAME)).get();
+            assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
+            response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(WATCHES_TEMPLATE_NAME)).get();
+            assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });
     }
 

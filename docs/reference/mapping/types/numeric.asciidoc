@@ -1,5 +1,5 @@
 [[number]]
-=== Numeric data types
+=== Numeric field types
 ++++
 <titleabbrev>Numeric</titleabbrev>
 ++++

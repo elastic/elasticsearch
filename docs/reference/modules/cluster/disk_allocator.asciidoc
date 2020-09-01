@@ -6,36 +6,35 @@
 whether to allocate new shards to that node or to actively relocate shards away
 from that node.
 
-Below are the settings that can be configured in the `elasticsearch.yml` config
-file or updated dynamically on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API:
+You can use the following settings to control disk-based allocation:
 
 `cluster.routing.allocation.disk.threshold_enabled`::
-
+    (<<dynamic-cluster-setting,Dynamic>>)
     Defaults to `true`.  Set to `false` to disable the disk allocation decider.
 
 [[cluster-routing-disk-threshold]]
 // tag::cluster-routing-disk-threshold-tag[]
 `cluster.routing.allocation.disk.threshold_enabled` {ess-icon}::
-+
+(<<dynamic-cluster-setting,Dynamic>>)
 Defaults to `true`.  Set to `false` to disable the disk allocation decider.
 // end::cluster-routing-disk-threshold-tag[]
 
 [[cluster-routing-watermark-low]]
 // tag::cluster-routing-watermark-low-tag[]
 `cluster.routing.allocation.disk.watermark.low` {ess-icon}::
-+
+(<<dynamic-cluster-setting,Dynamic>>)
 Controls the low watermark for disk usage. It defaults to `85%`, meaning that {es} will not allocate shards to nodes that have more than 85% disk used. It can also be set to an absolute byte value (like `500mb`) to prevent {es} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
 // end::cluster-routing-watermark-low-tag[]
 
 [[cluster-routing-watermark-high]]
 // tag::cluster-routing-watermark-high-tag[]
 `cluster.routing.allocation.disk.watermark.high` {ess-icon}::
-+
+(<<dynamic-cluster-setting,Dynamic>>)
 Controls the high watermark. It defaults to `90%`, meaning that {es} will attempt to relocate shards away from a node whose disk usage is above 90%. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
 // end::cluster-routing-watermark-high-tag[]
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
+    (<<static-cluster-setting,Static>>)
     For a single data node, the default is to disregard disk watermarks when
     making an allocation decision. This is deprecated behavior and will be
     changed in 8.0. This setting can be set to `true` to enable the
@@ -46,6 +45,7 @@ Controls the high watermark. It defaults to `90%`, meaning that {es} will attemp
 `cluster.routing.allocation.disk.watermark.flood_stage` {ess-icon}::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
 Controls the flood stage watermark, which defaults to 95%. {es} enforces a read-only index block (`index.blocks.read_only_allow_delete`) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark.
 
 NOTE: You cannot mix the usage of percentage values and byte values within
@@ -65,7 +65,7 @@ PUT /my-index-000001/_settings
 // end::cluster-routing-flood-stage-tag[]
 
 `cluster.info.update.interval`::
-
+    (<<dynamic-cluster-setting,Dynamic>>)
     How often {es} should check on disk usage for each node in the
     cluster. Defaults to `30s`.
 

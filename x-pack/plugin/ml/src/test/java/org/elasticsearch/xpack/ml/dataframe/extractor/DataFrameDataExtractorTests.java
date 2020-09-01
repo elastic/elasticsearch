@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.same;
@@ -77,6 +78,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     private TrainTestSplitterFactory trainTestSplitterFactory;
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
+    private int searchHitCounter;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -196,6 +198,13 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         List<String> capturedClearScrollRequests = getCapturedClearScrollIds();
         assertThat(capturedClearScrollRequests.size(), equalTo(1));
         assertThat(capturedClearScrollRequests.get(0), equalTo(lastAndEmptyResponse.getScrollId()));
+
+        // Notice we've done two searches here
+        assertThat(dataExtractor.capturedSearchRequests, hasSize(2));
+
+        // Assert the second search did not include a range query as the failure happened on the very first search
+        String searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"query\":{\"match_all\":{\"boost\":1.0}}"));
     }
 
     public void testErrorOnSearchTwiceLeadsToFailure() {
@@ -215,14 +224,14 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         TestExtractor dataExtractor = createExtractor(true, false);
 
         // Search will succeed
-        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1), Arrays.asList(2_1));
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
         dataExtractor.setNextResponse(response1);
 
         // But the first continue scroll fails
         dataExtractor.setNextResponse(createResponseWithShardFailures());
 
         // The next one succeeds and we shall recover
-        SearchResponse response2 = createSearchResponse(Arrays.asList(1_2), Arrays.asList(2_2));
+        SearchResponse response2 = createSearchResponse(Arrays.asList(1_3), Arrays.asList(2_3));
         dataExtractor.setNextResponse(response2);
 
         // Last one
@@ -234,15 +243,16 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         // First batch expected as normally since we'll retry after the error
         Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().size(), equalTo(1));
+        assertThat(rows.get().size(), equalTo(2));
         assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
+        assertThat(rows.get().get(1).getValues(), equalTo(new String[] {"12", "22"}));
         assertThat(dataExtractor.hasNext(), is(true));
 
         // We get second batch as we retried after the error
         rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
         assertThat(rows.get().size(), equalTo(1));
-        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"12", "22"}));
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"13", "23"}));
         assertThat(dataExtractor.hasNext(), is(true));
 
         // Next batch should return empty
@@ -253,6 +263,12 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         // Notice we've done two searches and two continues here
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
         assertThat(dataExtractor.capturedContinueScrollIds.size(), equalTo(2));
+
+        // Assert the second search continued from the latest successfully processed doc
+        String searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
+        assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__id_copy\":{\"from\":\"1\",\"to\":null,\"include_lower\":false"));
 
         // Check we cleared the scroll with the latest scroll id
         List<String> capturedClearScrollRequests = getCapturedClearScrollIds();
@@ -583,6 +599,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             addField(searchHitBuilder, "field_1", field1Values.get(i));
             addField(searchHitBuilder, "field_2", field2Values.get(i));
             searchHitBuilder.setSource("{\"field_1\":" + field1Values.get(i) + ",\"field_2\":" + field2Values.get(i) + "}");
+            searchHitBuilder.setStringSortValue(String.valueOf(searchHitCounter++));
             hits.add(searchHitBuilder.build());
         }
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);

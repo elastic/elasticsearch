@@ -105,9 +105,11 @@ public final class HyperLogLogPlusPlus implements Releasable {
             throw new IllegalArgumentException();
         }
         if (thisBucket > Integer.MAX_VALUE) {
+            // This many buckets would take TB of memory anyway.
             throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
         }
         if (otherBucket > Integer.MAX_VALUE) {
+            // This many buckets would take TB of memory anyway.
             throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
         }
         hll.bucket = thisBucket;
@@ -138,6 +140,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     public void collect(long bucket, long hash) {
         if (bucket > Integer.MAX_VALUE) {
+            // This many buckets would take TB of memory anyway.
             throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
         }
         hll.ensureCapacity(bucket + 1);
@@ -155,6 +158,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     public long cardinality(long bucket) {
         if (bucket > Integer.MAX_VALUE) {
+            // This many buckets would take TB of memory anyway.
             throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
         }
         if (algorithm.get((int) bucket) == LINEAR_COUNTING) {

@@ -248,7 +248,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     private long getDocCountError(InternalTerms<?, ?> terms) {
-        if (terms.getBuckets().size() < terms.getShardSize() || isKeyOrder(terms.order)) {
+        int size = terms.getBuckets().size();
+        if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.order)) {
             return 0;
         } else if (InternalOrder.isCountDesc(terms.order)) {
             if (terms.getDocCountError() > 0) {

@@ -240,6 +240,8 @@ public class AzureBlobStore implements BlobStore {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
+    private static final int MAX_BUFFER_SIZE = 16 * 1024 * 1024;
+
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
         final OperationContext context = hookMetricCollector(client.v2().get(), getMetricsCollector);
@@ -250,7 +252,7 @@ public class AzureBlobStore implements BlobStore {
         return new InputStream() {
 
             private final ByteArrayOutputStream baos =
-                    new ByteArrayOutputStream(Math.min(16 * 1024 * 1024, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))) {
+                    new ByteArrayOutputStream(Math.min(MAX_BUFFER_SIZE, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))) {
                         @Override
                         public byte[] toByteArray() {
                             return buf;
@@ -285,11 +287,12 @@ public class AzureBlobStore implements BlobStore {
 
             private void fill() throws IOException {
                 if (pos == baos.size()) {
-                    final long toFill = Math.min(limit - this.offset, 16 * 1024 * 1024);
-                    if (toFill == 0L) {
+                    final long toFill = Math.min(limit - this.offset, MAX_BUFFER_SIZE);
+                    if (toFill <= 0L) {
                         return;
                     }
                     try {
+                        baos.reset();
                         SocketAccess.doPrivilegedVoidException(() -> blockBlobReference.downloadRange(
                                 position + this.offset, toFill, baos, null, null, context));
                     } catch (StorageException | URISyntaxException ex) {

@@ -729,7 +729,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         StringTerms buildResult(long owningBucketOrd, long otherDocCount, StringTerms.Bucket[] topBuckets) {
             final BucketOrder reduceOrder;
             if (isKeyOrder(order) == false) {
-                reduceOrder = isKeyOrder(order) ? InternalOrder.unwrap(order) : InternalOrder.key(true);
+                reduceOrder = InternalOrder.key(true);
                 Arrays.sort(topBuckets, reduceOrder.comparator());
             } else {
                 reduceOrder = order;

@@ -368,7 +368,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         LongTerms buildResult(long owningBucketOrd, long otherDocCount, LongTerms.Bucket[] topBuckets) {
             final BucketOrder reduceOrder;
             if (isKeyOrder(order) == false) {
-                reduceOrder = isKeyOrder(order) ? InternalOrder.unwrap(order) : InternalOrder.key(true);
+                reduceOrder = InternalOrder.key(true);
                 Arrays.sort(topBuckets, reduceOrder.comparator());
             } else {
                 reduceOrder = order;
@@ -450,7 +450,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         DoubleTerms buildResult(long owningBucketOrd, long otherDocCount, DoubleTerms.Bucket[] topBuckets) {
             final BucketOrder reduceOrder;
             if (isKeyOrder(order) == false) {
-                reduceOrder = isKeyOrder(order) ? InternalOrder.unwrap(order) : InternalOrder.key(true);
+                reduceOrder = InternalOrder.key(true);
                 Arrays.sort(topBuckets, reduceOrder.comparator());
             } else {
                 reduceOrder = order;

@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,7 +115,11 @@ public class InternalAggregationsTests extends ESTestCase {
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
                 in.setVersion(version);
                 InternalAggregations deserialized = InternalAggregations.readFrom(in);
-                assertEquals(aggregations.aggregations, deserialized.aggregations);
+                if (iteration > 0 || Version.CURRENT.equals(version)) {
+                    // we cannot ensure strict equality on aggregations (de)serialized by different
+                    // versions.
+                    assertEquals(aggregations.aggregations, deserialized.aggregations);
+                }
                 if (iteration < 2) {
                     writeToAndReadFrom(deserialized, iteration + 1);
                 }

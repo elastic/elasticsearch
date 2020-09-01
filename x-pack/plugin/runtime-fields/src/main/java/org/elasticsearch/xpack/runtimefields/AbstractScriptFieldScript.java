@@ -60,13 +60,8 @@ public abstract class AbstractScriptFieldScript {
     public AbstractScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
         params = new HashMap<>(params);
-        for (Map.Entry<String, Object> entry : leafSearchLookup.asMap().entrySet()) {
-            // accessing doc_values through through params._doc and params.doc is deprecated in all existing script contexts,
-            // it makes little sense to expose it deprecated for runtime fields
-            if (entry.getKey().equals("_doc") == false && entry.getKey().equals("doc") == false) {
-                params.put(entry.getKey(), entry.getValue());
-            }
-        }
+        params.put("_source", leafSearchLookup.source());
+        params.put("_fields", leafSearchLookup.fields());
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 

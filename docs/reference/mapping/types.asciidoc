@@ -23,12 +23,11 @@ type: `boolean`.
 
 <<binary,`binary`>>::   Binary value encoded as a Base64 string.
 <<boolean,`boolean`>>:: `true` and `false` values.
-Keyword::               The keyword family, including <<keyword, `keyword`>>,
-                        <<constant-keyword-field-type,`constant_keyword`>>, and
-                        <<wildcard-field-type, `wildcard`>>.
+<<keyword, Keywords>>:: The keyword family, including `keyword`, `constant_keyword`,
+                        and `wildcard`.
 <<number,Numbers>>::    Numeric types, such as `long` and `double`, used to
                         express amounts.
-Dates::                 Date types, including <<date,`date`>> and 
+Dates::                 Date types, including <<date,`date`>> and
                         <<date_nanos,`date_nanos`>>.
 <<alias,`alias`>>::     Defines an alias for an existing field.
 

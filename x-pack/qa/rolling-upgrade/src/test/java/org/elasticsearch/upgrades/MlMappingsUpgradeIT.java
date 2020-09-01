@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
@@ -112,20 +114,13 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             assertNotNull(indexLevel);
-            Map<String, Object> mappingsLevel = (Map<String, Object>) indexLevel.get("mappings");
-            assertNotNull(mappingsLevel);
-            Map<String, Object> metaLevel = (Map<String, Object>) mappingsLevel.get("_meta");
-            assertEquals(Collections.singletonMap("version", Version.CURRENT.toString()), metaLevel);
-            Map<String, Object> propertiesLevel = (Map<String, Object>) mappingsLevel.get("properties");
-            assertNotNull(propertiesLevel);
+
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
-            Map<String, Object> objectLevel = (Map<String, Object>) propertiesLevel.get("model_size_stats");
-            assertNotNull(objectLevel);
-            Map<String, Object> propertiesLevel2 = (Map<String, Object>) objectLevel.get("properties");
-            assertNotNull(propertiesLevel2);
-            Map<String, Object> fieldLevel = (Map<String, Object>) propertiesLevel2.get("peak_model_bytes");
-            assertEquals(Collections.singletonMap("type", "long"), fieldLevel);
+            assertEquals("Incorrect type for peak_model_bytes in " + responseLevel, "long",
+                extractValue("mappings.properties.model_size_stats.properties.peak_model_bytes.type", indexLevel));
         });
     }
 
@@ -140,20 +135,13 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(responseLevel);
             Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
             assertNotNull(indexLevel);
-            Map<String, Object> mappingsLevel = (Map<String, Object>) indexLevel.get("mappings");
-            assertNotNull(mappingsLevel);
-            Map<String, Object> metaLevel = (Map<String, Object>) mappingsLevel.get("_meta");
-            assertEquals(Collections.singletonMap("version", Version.CURRENT.toString()), metaLevel);
-            Map<String, Object> propertiesLevel = (Map<String, Object>) mappingsLevel.get("properties");
-            assertNotNull(propertiesLevel);
+
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
-            Map<String, Object> objectLevel = (Map<String, Object>) propertiesLevel.get("model_plot_config");
-            assertNotNull(objectLevel);
-            Map<String, Object> propertiesLevel2 = (Map<String, Object>) objectLevel.get("properties");
-            assertNotNull(propertiesLevel2);
-            Map<String, Object> fieldLevel = (Map<String, Object>) propertiesLevel2.get("annotations_enabled");
-            assertEquals(Collections.singletonMap("type", "boolean"), fieldLevel);
+            assertEquals("Incorrect type for annotations_enabled in " + responseLevel, "boolean",
+                extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel));
         });
     }
 }

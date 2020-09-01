@@ -6,7 +6,9 @@ cluster restarts.
 
 The following _static_ settings, which must be set on every master node,
 control how long a freshly elected master should wait before it tries to
-recover the cluster state and the cluster's data:
+recover the cluster state and the cluster's data.
+
+NOTE: These settings only take effect on a full cluster restart.
 
 `gateway.expected_nodes`::
 (<<static-cluster-setting,Static>>)
@@ -50,8 +52,6 @@ Recover as long as this many master nodes have joined the cluster.
 `gateway.recover_after_data_nodes`::
 (<<static-cluster-setting,Static>>)
 Recover as long as this many data nodes have joined the cluster.
-
-NOTE: These settings only take effect on a full cluster restart.
 
 [[dangling-indices]]
 ==== Dangling indices

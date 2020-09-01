@@ -11,6 +11,39 @@ experimental::[]
 {es} supports the following <<eql-pipes,EQL pipes>>.
 
 [discrete]
+[[eql-pipe-filter]]
+=== `filter`
+
+Returns events that meet a provided <<eql-basic-syntax,condition>>. The `filter`
+pipe is often used to filter sequences and other pipes.
+
+*Example*
+
+The following EQL sequence query only returns events with a `process.pid` of
+`2012`.
+
+[source,eql]
+----
+sequence by process.pid
+    [process where process.name == 'regsvr32.exe']
+    [library where dll.name == 'scrobj.dll']
+    [network where true]
+| filter process.pid == 2012
+----
+
+*Syntax*
+[source,txt]
+----
+pipe <condition>
+----
+
+*Parameters*
+
+`<condition>`::
+(Required, <<eql-basic-syntax,condition>>)
+To return an event, this condition must be `true`.
+
+[discrete]
 [[eql-pipe-head]]
 === `head`
 

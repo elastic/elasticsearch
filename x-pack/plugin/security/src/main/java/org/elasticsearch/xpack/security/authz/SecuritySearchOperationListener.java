@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGIN
 
 /**
  * A {@link SearchOperationListener} that is used to provide authorization for scroll requests.
- *
+ * <p>
  * In order to identify the user associated with a scroll request, we replace the {@link ReaderContext}
  * on creation with a custom implementation that holds the {@link Authentication} object. When
  * this context is accessed again in {@link SearchOperationListener#onPreQueryPhase(SearchContext)}
@@ -82,7 +82,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
                     // fill in the DLS and FLS permissions for the scroll search action from the scroll context
                     IndicesAccessControl scrollIndicesAccessControl =
-                        readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                            readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
                     securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
                             scrollIndicesAccessControl);
@@ -93,24 +93,22 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
-        ensureIndicesAccessControlForScrollThreadContext(searchContext.readerContext());
+        ensureIndicesAccessControlForScrollThreadContext(searchContext);
     }
 
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
-        ensureIndicesAccessControlForScrollThreadContext(searchContext.readerContext());
+        ensureIndicesAccessControlForScrollThreadContext(searchContext);
     }
 
-    void ensureIndicesAccessControlForScrollThreadContext(ReaderContext readerContext) {
-        if (licenseState.isSecurityEnabled() && readerContext.scrollContext() != null) {
-            IndicesAccessControl scrollIndicesAccessControl =
-                readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+    void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
+        if (licenseState.isSecurityEnabled() && searchContext.readerContext().scrollContext() != null) {
             IndicesAccessControl threadIndicesAccessControl =
                     securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            if (scrollIndicesAccessControl != threadIndicesAccessControl) {
-                throw new ElasticsearchSecurityException("[" + readerContext.id() + "] expected scroll indices access control [" +
-                        scrollIndicesAccessControl.toString() + "] but found [" + threadIndicesAccessControl.toString() + "] in thread " +
-                        "context");
+            if (null == threadIndicesAccessControl) {
+                throw new ElasticsearchSecurityException("Unexpected null indices access control for search context [" +
+                        searchContext.id() + "] for request [" + searchContext.request().getDescription() + "] with source [" +
+                        searchContext.source() + "]");
             }
         }
     }
@@ -131,7 +129,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
         if (original.getUser().isRunAs()) {
             if (current.getUser().isRunAs()) {
                 sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
-            }  else {
+            } else {
                 sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
             }
         } else if (current.getUser().isRunAs()) {

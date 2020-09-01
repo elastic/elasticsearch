@@ -44,4 +44,9 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
         request.indices(indices);
         return this;
     }
+
+    public CloneSnapshotRequestBuilder setIndexSettings(Settings settings) {
+        request.indexSettings(settings);
+        return this;
+    }
 }

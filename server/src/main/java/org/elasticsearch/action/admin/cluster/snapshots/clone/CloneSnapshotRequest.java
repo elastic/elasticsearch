@@ -43,7 +43,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     private final String[] excludedSettings;
 
-    private final Settings updatedSettings;
+    private Settings indexSettings;
 
     public CloneSnapshotRequest(StreamInput in) throws IOException {
         super(in);
@@ -53,17 +53,17 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         excludedSettings = in.readStringArray();
-        updatedSettings = Settings.readSettingsFromStream(in);
+        indexSettings = Settings.readSettingsFromStream(in);
     }
 
     public CloneSnapshotRequest(String repository, String source, String target, String[] indices, String[] excludedSettings,
-                                Settings updatedSettings) {
+                                Settings indexSettings) {
         this.repository = repository;
         this.source = source;
         this.target = target;
         this.indices = indices;
         this.excludedSettings = excludedSettings;
-        this.updatedSettings = updatedSettings;
+        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -75,7 +75,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(excludedSettings);
-        Settings.writeSettingsToStream(updatedSettings, out);
+        Settings.writeSettingsToStream(indexSettings, out);
     }
 
     @Override
@@ -114,5 +114,14 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     public String source() {
         return this.source;
+    }
+
+    public Settings indexSettings() {
+        return indexSettings;
+    }
+
+    public CloneSnapshotRequest indexSettings(Settings indexSettings) {
+        this.indexSettings = indexSettings;
+        return this;
     }
 }

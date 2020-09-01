@@ -1025,8 +1025,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromMap(Map<String, ?> map) {
             // TODO: do this without a serialization round-trip
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                 builder.map(map);
                 return loadFromSource(Strings.toString(builder), builder.contentType());
             } catch (IOException e) {

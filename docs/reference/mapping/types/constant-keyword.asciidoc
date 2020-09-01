@@ -1,13 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 
-[[constant-keyword]]
+[discrete]
+[[constant-keyword-field-type]]
 === Constant keyword field type
-++++
-<titleabbrev>Constant keyword</titleabbrev>
-++++
 
-Constant keyword is a specialization of the <<keyword,`keyword`>> field for
+Constant keyword is a specialization of the `keyword` field for
 the case that all documents in the index have the same value.
 
 [source,console]
@@ -71,6 +69,7 @@ document), queries on the field will not match any documents. This includes
 
 The `value` of the field cannot be changed after it has been set.
 
+[discrete]
 [[constant-keyword-params]]
 ==== Parameters for constant keyword fields
 

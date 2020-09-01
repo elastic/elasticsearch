@@ -33,7 +33,7 @@ setup:
                 runtime_type: date
                 script:
                   source: |
-                    Instant instant = Instant.ofEpochMilli(parse(source['timestamp']));
+                    Instant instant = Instant.ofEpochMilli(parse(params._source.timestamp));
                     ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
                     emitValue(toEpochMilli(dt.plus(1, ChronoUnit.DAYS)));
               # Test returning millis

@@ -33,7 +33,7 @@ setup:
                 runtime_type: long
                 script:
                   source: |
-                    emitValue((long)(source['voltage'] * params.multiplier));
+                    emitValue((long)(params._source.voltage * params.multiplier));
                   params:
                     multiplier: 10
               # Test fetching many values

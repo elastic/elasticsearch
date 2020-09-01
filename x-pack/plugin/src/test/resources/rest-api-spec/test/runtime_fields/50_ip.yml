@@ -27,7 +27,7 @@ setup:
                 runtime_type: ip
                 script:
                   source: |
-                    String m = source["message"];
+                    String m = params._source.message;
                     int end = m.indexOf(" ");
                     emitValue(m.substring(0, end));
               # Test emitting many values

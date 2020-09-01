@@ -17,6 +17,7 @@ setup:
                 type: double
               node:
                 type: keyword
+                store: true
               day_of_week:
                 type: runtime_script
                 runtime_type: keyword
@@ -27,7 +28,7 @@ setup:
                 type: runtime_script
                 runtime_type: keyword
                 script: |
-                  Instant instant = Instant.ofEpochMilli(source['timestamp']);
+                  Instant instant = Instant.ofEpochMilli(params._source.timestamp);
                   ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
                   emitValue(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching many values
@@ -45,7 +46,7 @@ setup:
                 runtime_type: keyword
                 script:
                   source: |
-                    for (String node : doc['node']) {
+                    for (String node : params._fields.node.values) {
                       emitValue(params.prefix + node);
                     }
                   params:

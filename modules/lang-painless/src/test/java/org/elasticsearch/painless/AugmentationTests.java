@@ -233,6 +233,11 @@ public class AugmentationTests extends ScriptTestCase {
             exec("org.elasticsearch.painless.FeatureTestObject.staticNumberArgument(8);"));
     }
 
+    public void testInjectionOnDef() {
+        assertEquals(24600,
+            exec("def d = org.elasticsearch.painless.FeatureTestObject.staticNumberArgument; d(100)"));
+    }
+
     private static class SplitCase {
         final String input;
         final String token;

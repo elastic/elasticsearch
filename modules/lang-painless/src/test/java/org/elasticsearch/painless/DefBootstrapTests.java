@@ -32,6 +32,7 @@ import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 public class DefBootstrapTests extends ESTestCase {
     private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
@@ -40,6 +41,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testOneType() throws Throwable {
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
                                                new FunctionTable(),
+                                               Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
                                                MethodType.methodType(String.class, Object.class),
@@ -61,6 +63,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testTwoTypes() throws Throwable {
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
                                                new FunctionTable(),
+                                               Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
                                                MethodType.methodType(String.class, Object.class),
@@ -87,6 +90,7 @@ public class DefBootstrapTests extends ESTestCase {
         assertEquals(5, DefBootstrap.PIC.MAX_DEPTH);
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
                                                new FunctionTable(),
+                                               Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
                                                MethodType.methodType(String.class, Object.class),
@@ -114,6 +118,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testMegamorphic() throws Throwable {
         DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "size",
                                                                           MethodType.methodType(int.class, Object.class),
@@ -147,6 +152,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testNullGuardAdd() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, Object.class, Object.class),
@@ -160,6 +166,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testNullGuardAddWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, Object.class, Object.class),
@@ -174,6 +181,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testNullGuardEq() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "eq",
                                                                           MethodType.methodType(boolean.class, Object.class, Object.class),
@@ -188,6 +196,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testNullGuardEqWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "eq",
                                                                           MethodType.methodType(boolean.class, Object.class, Object.class),
@@ -207,6 +216,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testNoNullGuardAdd() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, int.class, Object.class),
@@ -222,6 +232,7 @@ public class DefBootstrapTests extends ESTestCase {
     public void testNoNullGuardAddWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
                                                                           new FunctionTable(),
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, int.class, Object.class),

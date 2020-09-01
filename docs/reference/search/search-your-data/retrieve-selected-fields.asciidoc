@@ -102,9 +102,11 @@ GET /_search
 For finer control, you can specify an object containing arrays of `includes` and
 `excludes` patterns in the `_source` parameter.
 
-If the `includes` property is specified, only source fields that match one of
-its patterns are returned. You can exclude fields from this subset using the
-`excludes` property.
+The `fields` parameter handles field types like <<alias, field aliases>> and
+<<constant-keyword-field-type, `constant_keyword`>> whose values aren't always present in
+the `_source`. Other mapping options are also respected, including
+<<ignore-above, `ignore_above`>>, <<ignore-malformed, `ignore_malformed`>> and
+<<null-value, `null_value`>>.
 
 If the `includes` property is not specified, the entire document source is
 returned, excluding any fields that match a pattern in the `excludes` property.

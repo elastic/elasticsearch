@@ -146,7 +146,7 @@ Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
 +
 The event category field is typically mapped as a <<keyword,`keyword`>> or
-<<constant-keyword,constant keyword>> field.
+<<constant-keyword-field-type,constant keyword>> field.
 
 `fetch_size`::
 (Optional, integer)

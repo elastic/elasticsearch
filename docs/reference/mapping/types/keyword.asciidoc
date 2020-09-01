@@ -9,9 +9,9 @@ The keyword family includes the following field types:
 
 * <<keyword,`keyword`>>, which is used for structured content such as IDs, email
 addresses, hostnames, status codes, zip codes, or tags. 
-* <<constant-keyword,`constant_keyword`>> for keyword fields that always contain
+* <<constant-keyword-field-type,`constant_keyword`>> for keyword fields that always contain
 the same value.
-* <<wildcard,`wildcard`>>, which optimizes log lines and similar keyword values
+* <<wildcard-field-type,`wildcard`>>, which optimizes log lines and similar keyword values
 for grep-like <<query-dsl-wildcard-query,wildcard queries>>.
 
 Keyword fields are often used in <<sort-search-results,sorting>>,

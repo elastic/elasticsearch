@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 

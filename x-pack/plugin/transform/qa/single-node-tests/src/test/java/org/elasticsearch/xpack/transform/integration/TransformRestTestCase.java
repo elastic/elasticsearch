@@ -480,6 +480,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
         // the configuration index should be empty
         Request request = new Request("GET", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_search");
+        request.addParameter("allow_system_index_access", "true");
         try {
             Response searchResponse = adminClient().performRequest(request);
             Map<String, Object> searchResult = entityAsMap(searchResponse);

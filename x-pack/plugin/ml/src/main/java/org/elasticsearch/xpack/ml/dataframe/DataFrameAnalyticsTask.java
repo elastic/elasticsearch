@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -38,7 +37,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -216,23 +214,25 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 error);
             return;
         }
-        LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
-        String reason = ExceptionsHelper.unwrapCause(error).getMessage();
-        DataFrameAnalyticsTaskState newTaskState =
-            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, getAllocationId(), reason);
-        updatePersistentTaskState(
-            newTaskState,
-            ActionListener.wrap(
-                updatedTask -> {
-                    String message = Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON,
+        persistProgress(client, taskParams.getId(), () -> {
+            LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
+            String reason = ExceptionsHelper.unwrapCause(error).getMessage();
+            DataFrameAnalyticsTaskState newTaskState =
+                new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, getAllocationId(), reason);
+            updatePersistentTaskState(
+                newTaskState,
+                ActionListener.wrap(
+                    updatedTask -> {
+                        String message = Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON,
                             DataFrameAnalyticsState.FAILED, reason);
-                    auditor.info(getParams().getId(), message);
-                    LOGGER.info("[{}] {}", getParams().getId(), message);
-                },
-                e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
-                    getParams().getId(), DataFrameAnalyticsState.FAILED, reason), e)
-            )
-        );
+                        auditor.info(getParams().getId(), message);
+                        LOGGER.info("[{}] {}", getParams().getId(), message);
+                    },
+                    e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
+                        getParams().getId(), DataFrameAnalyticsState.FAILED, reason), e)
+                )
+            );
+        });
     }
 
     public void updateReindexTaskProgress(ActionListener<Void> listener) {
@@ -285,13 +285,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     // Visible for testing
-    static void persistProgress(Client client, String jobId, Runnable runnable) {
+    void persistProgress(Client client, String jobId, Runnable runnable) {
         LOGGER.debug("[{}] Persisting progress", jobId);
 
         String progressDocId = StoredProgress.documentId(jobId);
-        SetOnce<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = new SetOnce<>();
 
-        // Step 4: Run the runnable provided as the argument
+        // Step 3: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
                 LOGGER.debug("[{}] Successfully indexed progress document", jobId);
@@ -304,7 +303,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         );
 
-        // Step 3: Create or update the progress document:
+        // Step 2: Create or update the progress document:
         //   - if the document did not exist, create the new one in the current write index
         //   - if the document did exist, update it in the index where it resides (not necessarily the current write index)
         ActionListener<SearchResponse> searchFormerProgressDocListener = ActionListener.wrap(
@@ -317,9 +316,10 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .id(progressDocId)
                     .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                    LOGGER.debug("[{}] Persisting progress is: {}", jobId, stats.get().getProgress());
-                    new StoredProgress(stats.get().getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    LOGGER.debug("[{}] Persisting progress is: {}", jobId, progress);
+                    new StoredProgress(progress).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
                 executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
@@ -331,28 +331,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         );
 
-        // Step 2: Search for existing progress document in .ml-state*
-        ActionListener<GetDataFrameAnalyticsStatsAction.Response> getStatsListener = ActionListener.wrap(
-            statsResponse -> {
-                stats.set(statsResponse.getResponse().results().get(0));
-                SearchRequest searchRequest =
-                    new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-                        .source(
-                            new SearchSourceBuilder()
-                                .size(1)
-                                .query(new IdsQueryBuilder().addIds(progressDocId)));
-                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
-            },
-            e -> {
-                LOGGER.error(new ParameterizedMessage(
-                    "[{}] cannot persist progress as an error occurred while retrieving stats", jobId), e);
-                runnable.run();
-            }
-        );
-
-        // Step 1: Fetch progress to be persisted
-        GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(jobId);
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, getStatsListener);
+        // Step 1: Search for existing progress document in .ml-state*
+        SearchRequest searchRequest =
+            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .source(
+                    new SearchSourceBuilder()
+                        .size(1)
+                        .query(new IdsQueryBuilder().addIds(progressDocId)));
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
     }
 
     /**

@@ -49,6 +49,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -70,7 +71,7 @@ import java.util.Set;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
-public class ContextIndexSearcher extends IndexSearcher {
+public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
@@ -118,7 +119,8 @@ public class ContextIndexSearcher extends IndexSearcher {
         this.cancellable.remove(action);
     }
 
-    public void clearQueryCancellations() {
+    @Override
+    public void close() {
         this.cancellable.clear();
     }
 

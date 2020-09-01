@@ -54,7 +54,14 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             assert orig.length == 1;
             ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) orig[0];
             ClientYamlTestSuite suite = suites.computeIfAbsent(candidate.getTestPath(), k -> modifiedSuite(candidate));
-            modifySection(candidate.getTestPath(), candidate.getTestSection().getExecutableSections());
+            if (suite == null) {
+                // The setup section contains an unsupported option
+                continue;
+            }
+            if (false == modifySection(candidate.getTestPath(), candidate.getTestSection().getExecutableSections())) {
+                // The test section contains an unsupported option
+                continue;
+            }
             ClientYamlTestSection modified = new ClientYamlTestSection(
                 candidate.getTestSection().getLocation(),
                 candidate.getTestSection().getName(),
@@ -73,7 +80,9 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
      * with scripts that load from source.
      */
     private static ClientYamlTestSuite modifiedSuite(ClientYamlTestCandidate candidate) {
-        modifySection(candidate.getSuitePath() + "/setup", candidate.getSetupSection().getExecutableSections());
+        if (false == modifySection(candidate.getSuitePath() + "/setup", candidate.getSetupSection().getExecutableSections())) {
+            return null;
+        }
         List<ExecutableSection> setup = new ArrayList<>(candidate.getSetupSection().getExecutableSections().size() + 1);
         setup.add(ADD_TEMPLATE);
         setup.addAll(candidate.getSetupSection().getExecutableSections());
@@ -90,7 +99,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
      * Replace field configuration in {@code indices.create} with scripts
      * that load from the source.
      */
-    private static void modifySection(String sectionName, List<ExecutableSection> executables) {
+    private static boolean modifySection(String sectionName, List<ExecutableSection> executables) {
         for (ExecutableSection section : executables) {
             if (false == (section instanceof DoSection)) {
                 continue;
@@ -125,6 +134,10 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     Map<String, Object> propertyMap = (Map<String, Object>) property.getValue();
                     String name = property.getKey().toString();
                     String type = Objects.toString(propertyMap.get("type"));
+                    if ("nested".equals(type)) {
+                        // Our loading scripts can't be made to manage nested fields so we have to skip those tests.
+                        return false;
+                    }
                     if ("false".equals(Objects.toString(propertyMap.get("doc_values")))) {
                         // If doc_values is false we can't emulate with scripts. `null` and `true` are fine.
                         continue;
@@ -158,6 +171,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                 }
             }
         }
+        return true;
     }
 
     private static String painlessToLoadFromSource(String name, String type) {

@@ -196,7 +196,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
 
         private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null);
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Resolution resolution;

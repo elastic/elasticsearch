@@ -370,6 +370,20 @@ public abstract class InternalOrder extends BucketOrder {
     }
 
     /**
+     * Return the primary {@link BucketOrder} if the provided <code>order</code>
+     * is a {@link CompoundOrder}.
+     */
+    public static BucketOrder unwrap(BucketOrder order) {
+        if (order instanceof CompoundOrder) {
+            // check if its a compound order with the first element that matches
+            List<BucketOrder> orders = ((CompoundOrder) order).orderElements;
+            return orders.get(0);
+        } else {
+            return order;
+        }
+    }
+
+    /**
      * Determine if the ordering strategy matches the expected one.
      *
      * @param order    bucket ordering strategy to check. If this is a {@link CompoundOrder} the first element will be

@@ -8,14 +8,11 @@ in the same zone, it can distribute the primary shard and its replica shards to
 minimise the risk of losing all shard copies in the event of a failure.
 
 When shard allocation awareness is enabled with the
+<<dynamic-cluster-setting,dynamic>>
 `cluster.routing.allocation.awareness.attributes` setting, shards are only
-allocated to nodes that have values set for the specified awareness
-attributes. If you use multiple awareness attributes, {es} considers
-each attribute separately when allocating shards.
-
-The allocation awareness settings can be configured in
-`elasticsearch.yml` and updated dynamically with the
-<<cluster-update-settings,cluster-update-settings>> API.
+allocated to nodes that have values set for the specified awareness attributes.
+If you use multiple awareness attributes, {es} considers each attribute
+separately when allocating shards.
 
 NOTE: The number of attribute values determines how many shard copies are
 allocated in each location. If the number of nodes in each location is

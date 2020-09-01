@@ -22,8 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.RegExp87;
+import org.apache.lucene.search.RegexpQuery87;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -48,10 +50,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
 
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
     private static final ParseField FLAGS_FIELD = new ParseField("flags");
+    private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
     private static final ParseField VALUE_FIELD = new ParseField("value");
 
@@ -59,7 +63,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     private final String value;
 
-    private int flagsValue = DEFAULT_FLAGS_VALUE;
+    private int syntaxFlagsValue = DEFAULT_FLAGS_VALUE;
+    private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINIZED_STATES;
 
@@ -89,18 +94,24 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         super(in);
         fieldName = in.readString();
         value = in.readString();
-        flagsValue = in.readVInt();
+        syntaxFlagsValue = in.readVInt();
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            caseInsensitive = in.readBoolean();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeString(value);
-        out.writeVInt(flagsValue);
+        out.writeVInt(syntaxFlagsValue);
         out.writeVInt(maxDeterminizedStates);
         out.writeOptionalString(rewrite);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(caseInsensitive);
+        }
     }
 
     /** Returns the field name used in this query. */
@@ -118,7 +129,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     public RegexpQueryBuilder flags(RegexpFlag... flags) {
         if (flags == null) {
-            this.flagsValue = DEFAULT_FLAGS_VALUE;
+            this.syntaxFlagsValue = DEFAULT_FLAGS_VALUE;
             return this;
         }
         int value = 0;
@@ -129,19 +140,31 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 value |= flag.value;
             }
         }
-        this.flagsValue = value;
+        this.syntaxFlagsValue = value;
         return this;
     }
 
     public RegexpQueryBuilder flags(int flags) {
-        this.flagsValue = flags;
+        this.syntaxFlagsValue = flags;
         return this;
     }
 
     public int flags() {
-        return this.flagsValue;
+        return this.syntaxFlagsValue;
     }
+    
+    public RegexpQueryBuilder caseInsensitive(boolean caseInsensitive) {
+        if (caseInsensitive == false) {
+            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
+        }
+        this.caseInsensitive = caseInsensitive;
+        return this;
+    }    
 
+    public boolean caseInsensitive() {
+        return this.caseInsensitive;
+    }
+    
     /**
      * Sets the regexp maxDeterminizedStates.
      */
@@ -168,7 +191,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field(VALUE_FIELD.getPreferredName(), this.value);
-        builder.field(FLAGS_VALUE_FIELD.getPreferredName(), flagsValue);
+        builder.field(FLAGS_VALUE_FIELD.getPreferredName(), syntaxFlagsValue);
+        if (caseInsensitive != DEFAULT_CASE_INSENSITIVITY) {
+            builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
+        }
         builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), maxDeterminizedStates);
         if (rewrite != null) {
             builder.field(REWRITE_FIELD.getPreferredName(), rewrite);
@@ -184,6 +210,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
+        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
         int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES;
         String queryName = null;
         String currentFieldName = null;
@@ -211,6 +238,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                             maxDeterminizedStates = parser.intValue();
                         } else if (FLAGS_VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             flagsValue = parser.intValue();
+                        } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            caseInsensitive = parser.booleanValue();
+                            if (caseInsensitive == false) {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                    "[regexp] query does not support [" + currentFieldName + "] = false");
+                            }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
@@ -226,12 +259,16 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             }
         }
 
-        return new RegexpQueryBuilder(fieldName, value)
+        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)
                 .maxDeterminizedStates(maxDeterminizedStates)
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
+        if (caseInsensitive) {
+            result.caseInsensitive(caseInsensitive);
+        }
+        return result;
     }
 
     @Override
@@ -251,13 +288,18 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
+        int matchFlagsValue = caseInsensitive ? RegExp87.ASCII_CASE_INSENSITIVE : 0;
         Query query = null;
+        // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
+        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp87.ALL;
+
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            query = fieldType.regexpQuery(value, flagsValue, maxDeterminizedStates, method, context);
+            query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
+            RegexpQuery87 regexpQuery = new RegexpQuery87(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
+                matchFlagsValue, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -268,14 +310,15 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, flagsValue, maxDeterminizedStates, rewrite);
+        return Objects.hash(fieldName, value, syntaxFlagsValue, caseInsensitive, maxDeterminizedStates, rewrite);
     }
 
     @Override
     protected boolean doEquals(RegexpQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(value, other.value) &&
-                Objects.equals(flagsValue, other.flagsValue) &&
+                Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue) &&
+                Objects.equals(caseInsensitive, other.caseInsensitive) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(rewrite, other.rewrite);
     }

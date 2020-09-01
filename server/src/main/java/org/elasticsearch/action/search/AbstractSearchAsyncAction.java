@@ -32,7 +32,6 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -212,7 +211,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
+    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -221,16 +220,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
         if (shard == null) {
-            fork(() -> onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
+            fork(() -> onShardFailure(shardIndex, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
         } else {
             final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
-                pendingExecutionsPerNode.computeIfAbsent(shard.currentNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
+                pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
                 : null;
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
                     executePhaseOnShard(shardIt, shard,
-                        new SearchActionListener<Result>(shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {
+                        new SearchActionListener<Result>(shard, shardIndex) {
                             @Override
                             public void innerOnResponse(Result result) {
                                 try {
@@ -243,7 +242,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             @Override
                             public void onFailure(Exception t) {
                                 try {
-                                    onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+                                    onShardFailure(shardIndex, shard, shardIt, t);
                                 } finally {
                                     executeNext(pendingExecutions, thread);
                                 }
@@ -255,7 +254,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                          * It is possible to run into connection exceptions here because we are getting the connection early and might
                          * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
                          */
-                        fork(() -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, e));
+                        fork(() -> onShardFailure(shardIndex, shard, shardIt, e));
                     } finally {
                         executeNext(pendingExecutions, thread);
                     }
@@ -275,7 +274,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param shard the shard routing to send the request for
      * @param listener the listener to notify on response
      */
-    protected abstract void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard, SearchActionListener<Result> listener);
+    protected abstract void executePhaseOnShard(SearchShardIterator shardIt,
+                                                SearchShardTarget shard,
+                                                SearchActionListener<Result> listener);
 
     private void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
@@ -370,18 +371,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
-    private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
-                                final SearchShardIterator shardIt, Exception e) {
+    private void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);
-        onShardFailure(shardIndex, shardTarget, e);
-        final ShardRouting nextShard = shardIt.nextOrNull();
+        onShardFailure(shardIndex, shard, e);
+        final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
         logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
-            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
+            shard != null ? shard : shardIt.shardId(), request, lastShard), e);
         if (lastShard) {
-            onShardGroupFailure(shardIndex, shardTarget, e);
+            onShardGroupFailure(shardIndex, shard, e);
         }
         final int totalOps = this.totalOps.incrementAndGet();
         if (totalOps == expectedTotalOps) {

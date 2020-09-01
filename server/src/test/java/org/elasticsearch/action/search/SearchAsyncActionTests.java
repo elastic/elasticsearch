@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -117,15 +118,15 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
-                    seenShard.computeIfAbsent(shard.shardId(), (i) -> {
+                    seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per replica
                         return Boolean.TRUE;
                     });
 
                     new Thread(() -> {
-                        Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                        Transport.Connection connection = getConnection(null, shard.getNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
                             new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
                         connection.getNode());
@@ -223,9 +224,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
-                    seenShard.computeIfAbsent(shard.shardId(), (i) -> {
+                    seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per shard copy
                         return Boolean.TRUE;
                     });
@@ -236,10 +237,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                        Transport.Connection connection = getConnection(null, shard.getNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
                             new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
-                        if (shardFailures[shard.shardId().id()]) {
+                        if (shardFailures[shard.getShardId().id()]) {
                             listener.onFailure(new RuntimeException());
                         } else {
                             listener.onResponse(testSearchPhaseResult);
@@ -327,10 +328,10 @@ public class SearchAsyncActionTests extends ESTestCase {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard, SearchActionListener<TestSearchPhaseResult>
-                listener) {
-                assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
-                Transport.Connection connection = getConnection(null, shard.currentNodeId());
+            protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+                                               SearchActionListener<TestSearchPhaseResult> listener) {
+                assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
+                Transport.Connection connection = getConnection(null, shard.getNodeId());
                 TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
                     new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
                 Set<ShardSearchContextId> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
@@ -438,12 +439,12 @@ public class SearchAsyncActionTests extends ESTestCase {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt,
-                                                   ShardRouting shard,
+                                                   SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
-                    assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
-                    Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                    assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
+                    Transport.Connection connection = getConnection(null, shard.getNodeId());
                     final TestSearchPhaseResult testSearchPhaseResult;
-                    if (shard.shardId().id() == 0) {
+                    if (shard.getShardId().id() == 0) {
                         testSearchPhaseResult = new TestSearchPhaseResult(null, connection.getNode());
                     } else {
                         testSearchPhaseResult = new TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(),
@@ -538,14 +539,14 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
-                    seenShard.computeIfAbsent(shard.shardId(), (i) -> {
+                    seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per shard copy
                         return Boolean.TRUE;
                     });
                     new Thread(() -> {
-                        Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                        Transport.Connection connection = getConnection(null, shard.getNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
                             new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
                         if (shardIt.remaining() > 0) {

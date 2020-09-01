@@ -884,11 +884,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
             final List<String> matchingNodeFirst = new ArrayList<>(shards.size());
             final String nodeId = entry.getValue().getNode();
-            if (clusterState.nodes().get(nodeId) != null) {
-                // always search the matching node first even when its shard was relocated to another node
-                // because the point in time should keep the corresponding search context open.
-                matchingNodeFirst.add(nodeId);
-            }
+            // always search the matching node first even when its shard was relocated to another node
+            // because the point in time should keep the corresponding search context open.
+            matchingNodeFirst.add(nodeId);
             for (ShardRouting shard : shards) {
                 if (shard.currentNodeId().equals(nodeId) == false) {
                     matchingNodeFirst.add(shard.currentNodeId());

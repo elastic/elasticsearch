@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
   restApi {
-    includeXpack 'async_search', 'graph'
+    includeXpack 'async_search', 'graph', '*_point_in_time'
   }
   restTests {
     includeCore '*'

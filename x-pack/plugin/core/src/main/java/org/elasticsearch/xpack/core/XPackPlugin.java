@@ -36,6 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
@@ -387,6 +388,11 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return Collections.singleton(new DataTierAllocationDecider(clusterSettings));
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 
     /**

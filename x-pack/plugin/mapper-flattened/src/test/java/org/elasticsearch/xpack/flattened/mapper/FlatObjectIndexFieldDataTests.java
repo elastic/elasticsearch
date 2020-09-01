@@ -80,7 +80,9 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
 
         // Load global field data for subfield 'key'.
         KeyedFlatObjectFieldType fieldType1 = fieldMapper.keyedFieldType("key");
-        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1);
+        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, "test", () -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        });
         assertTrue(ifd1 instanceof KeyedFlatObjectFieldData);
 
         KeyedFlatObjectFieldData fieldData1 = (KeyedFlatObjectFieldData) ifd1;
@@ -90,7 +92,9 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
 
         // Load global field data for the subfield 'other_key'.
         KeyedFlatObjectFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
-        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2);
+        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, "test", () -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        });
         assertTrue(ifd2 instanceof KeyedFlatObjectFieldData);
 
         KeyedFlatObjectFieldData fieldData2 = (KeyedFlatObjectFieldData) ifd2;

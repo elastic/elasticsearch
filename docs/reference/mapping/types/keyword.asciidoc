@@ -14,8 +14,9 @@ the same value.
 * <<wildcard,`wildcard`>>, which optimizes log lines and similar keyword values
 for grep-like <<query-dsl-wildcard-query,wildcard queries>>.
 
-Keyword fields are often used in <<query-dsl-bool-query,search filters>>,
-<<sort-search-results,sorting>>, and <<search-aggregations,aggregations>>.
+Keyword fields are often used in <<sort-search-results,sorting>>,
+<<search-aggregations,aggregations>>, and <<term-level-queries,term-level
+queries>>, such as <<query-dsl-term-query,`term`>>.
 
 TIP: Avoid using keyword fields for full-text search. Use the <<text,`text`>>
 field type instead.

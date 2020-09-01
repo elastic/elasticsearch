@@ -33,13 +33,15 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After
     public void cleanExporters() throws Exception {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(Strings.toString(jsonBuilder().startObject()
+        Request cleanupSettingsRequest = new Request("PUT", "/_cluster/settings");
+        cleanupSettingsRequest.setJsonEntity(Strings.toString(jsonBuilder().startObject()
                 .startObject("transient")
                     .nullField("xpack.monitoring.exporters.*")
                 .endObject().endObject()));
-        adminClient().performRequest(request);
-        adminClient().performRequest(new Request("DELETE", "/.watch*"));
+        adminClient().performRequest(cleanupSettingsRequest);
+        final Request deleteRequest = new Request("DELETE", "/.watch*");
+        deleteRequest.addParameter("allow_system_index_access", "true");
+        adminClient().performRequest(deleteRequest);
     }
 
     public void testThatLocalExporterAddsWatches() throws Exception {

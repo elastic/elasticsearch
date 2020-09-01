@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.TimeSeriesRestDriver;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -651,8 +650,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         int numShards = 2;
         int expectedFinalShards = 1;
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createIndexWithSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .putNull(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
 
        ensureGreen(index);
 

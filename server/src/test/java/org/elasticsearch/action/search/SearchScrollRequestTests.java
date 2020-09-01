@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public class SearchScrollRequestTests extends ESTestCase {
     public void testInternalScrollSearchRequestSerialization() throws IOException {
         SearchScrollRequest searchScrollRequest = createSearchScrollRequest();
         InternalScrollSearchRequest internalScrollSearchRequest =
-            new InternalScrollSearchRequest(searchScrollRequest, new SearchContextId(UUIDs.randomBase64UUID(), randomLong()));
+            new InternalScrollSearchRequest(searchScrollRequest, new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong()));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             internalScrollSearchRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {

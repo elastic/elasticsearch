@@ -22,17 +22,22 @@ package org.elasticsearch.client.eql;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -133,6 +138,95 @@ public class EqlSearchResponse {
     public int hashCode() {
         return Objects.hash(hits, tookInMillis, isTimeout);
     }
+    
+    // Event
+    public static class Event {
+
+        private static final class Fields {
+            static final String INDEX = GetResult._INDEX;
+            static final String ID = GetResult._ID;
+            static final String SOURCE = SourceFieldMapper.NAME;
+        }
+
+        private static final ParseField INDEX = new ParseField(Fields.INDEX);
+        private static final ParseField ID = new ParseField(Fields.ID);
+        private static final ParseField SOURCE = new ParseField(Fields.SOURCE);
+
+        private static final ConstructingObjectParser<Event, Void> PARSER =
+                new ConstructingObjectParser<>("eql/search_response_event", true,
+                        args -> new Event((String) args[0], (String) args[1], (BytesReference) args[2]));
+
+        static {
+            PARSER.declareString(constructorArg(), INDEX);
+            PARSER.declareString(constructorArg(), ID);
+            PARSER.declareObject(constructorArg(), (p, c) -> {
+                try (XContentBuilder builder = XContentBuilder.builder(p.contentType().xContent())) {
+                    builder.copyCurrentStructure(p);
+                    return BytesReference.bytes(builder);
+                }
+            }, SOURCE);
+        }
+
+        private final String index;
+        private final String id;
+        private final BytesReference source;
+        private Map<String, Object> sourceAsMap;
+
+        public Event(String index, String id, BytesReference source) {
+            this.index = index;
+            this.id = id;
+            this.source = source;
+        }
+
+        public static Event fromXContent(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+        
+        public String index() {
+            return index;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public BytesReference source() {
+            return source;
+        }
+
+        public Map<String, Object> sourceAsMap() {
+            if (source == null) {
+                return null;
+            }
+            if (sourceAsMap != null) {
+                return sourceAsMap;
+            }
+
+            sourceAsMap = SourceLookup.sourceAsMap(source);
+            return sourceAsMap;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(index, id, source);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            
+            EqlSearchResponse.Event other = (EqlSearchResponse.Event) obj;
+            return Objects.equals(index, other.index)
+                    && Objects.equals(id, other.id)
+                    && Objects.equals(source, other.source);
+        }
+    }
 
     // Sequence
     public static class Sequence {
@@ -149,26 +243,39 @@ public class EqlSearchResponse {
                 args -> {
                     int i = 0;
                     @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
-                    @SuppressWarnings("unchecked") List<SearchHit> events = (List<SearchHit>) args[i];
+                    @SuppressWarnings("unchecked") List<Event> events = (List<Event>) args[i];
                     return new EqlSearchResponse.Sequence(joinKeys, events);
                 });
 
         static {
             PARSER.declareFieldArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
                 JOIN_KEYS, ObjectParser.ValueType.VALUE_ARRAY);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p), EVENTS);
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Event.fromXContent(p), EVENTS);
         }
 
         private final List<Object> joinKeys;
-        private final List<SearchHit> events;
+        private final List<Event> events;
 
-        public Sequence(List<Object> joinKeys, List<SearchHit> events) {
+        public Sequence(List<Object> joinKeys, List<Event> events) {
             this.joinKeys = joinKeys == null ? Collections.emptyList() : joinKeys;
             this.events = events == null ? Collections.emptyList() : events;
         }
 
         public static Sequence fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
+        }
+
+        public List<Object> joinKeys() {
+            return joinKeys;
+        }
+
+        public List<Event> events() {
+            return events;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(joinKeys, events);
         }
 
         @Override
@@ -182,19 +289,6 @@ public class EqlSearchResponse {
             Sequence that = (Sequence) o;
             return Objects.equals(joinKeys, that.joinKeys)
                 && Objects.equals(events, that.events);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(joinKeys, events);
-        }
-
-        public List<Object> joinKeys() {
-            return joinKeys;
-        }
-
-        public List<SearchHit> events() {
-            return events;
         }
     }
 
@@ -241,6 +335,23 @@ public class EqlSearchResponse {
             return PARSER.apply(parser, null);
         }
 
+        public int count() {
+            return count;
+        }
+
+        public List<Object> keys() {
+            return keys;
+        }
+
+        public float percent() {
+            return percent;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(count, keys, percent);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -254,30 +365,13 @@ public class EqlSearchResponse {
                 && Objects.equals(keys, that.keys)
                 && Objects.equals(percent, that.percent);
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(count, keys, percent);
-        }
-
-        public int count() {
-            return count;
-        }
-
-        public List<Object> keys() {
-            return keys;
-        }
-
-        public float percent() {
-            return percent;
-        }
     }
 
     // Hits
     public static class Hits {
         public static final Hits EMPTY = new Hits(null, null, null, null);
 
-        private final List<SearchHit> events;
+        private final List<Event> events;
         private final List<Sequence> sequences;
         private final List<Count> counts;
         private final TotalHits totalHits;
@@ -289,7 +383,7 @@ public class EqlSearchResponse {
             static final String COUNTS = "counts";
         }
 
-        public Hits(@Nullable List<SearchHit> events, @Nullable List<Sequence> sequences, @Nullable List<Count> counts,
+        public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable List<Count> counts,
                     @Nullable TotalHits totalHits) {
             this.events = events;
             this.sequences = sequences;
@@ -301,15 +395,15 @@ public class EqlSearchResponse {
             new ConstructingObjectParser<>("eql/search_response_count", true,
                 args -> {
                     int i = 0;
-                    @SuppressWarnings("unchecked") List<SearchHit> searchHits = (List<SearchHit>) args[i++];
+                    @SuppressWarnings("unchecked") List<Event> events = (List<Event>) args[i++];
                     @SuppressWarnings("unchecked") List<Sequence> sequences = (List<Sequence>) args[i++];
                     @SuppressWarnings("unchecked") List<Count> counts = (List<Count>) args[i++];
                     TotalHits totalHits = (TotalHits) args[i];
-                    return new EqlSearchResponse.Hits(searchHits, sequences, counts, totalHits);
+                    return new EqlSearchResponse.Hits(events, sequences, counts, totalHits);
                 });
 
         static {
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p),
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Event.fromXContent(p),
                 new ParseField(Fields.EVENTS));
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER,
                 new ParseField(Fields.SEQUENCES));
@@ -321,6 +415,27 @@ public class EqlSearchResponse {
 
         public static Hits fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        public List<Event> events() {
+            return this.events;
+        }
+
+        public List<Sequence> sequences() {
+            return this.sequences;
+        }
+
+        public List<Count> counts() {
+            return this.counts;
+        }
+
+        public TotalHits totalHits() {
+            return this.totalHits;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(events, sequences, counts, totalHits);
         }
 
         @Override
@@ -336,27 +451,6 @@ public class EqlSearchResponse {
                 && Objects.equals(sequences, that.sequences)
                 && Objects.equals(counts, that.counts)
                 && Objects.equals(totalHits, that.totalHits);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(events, sequences, counts, totalHits);
-        }
-
-        public List<SearchHit> events() {
-            return this.events;
-        }
-
-        public List<Sequence> sequences() {
-            return this.sequences;
-        }
-
-        public List<Count> counts() {
-            return this.counts;
-        }
-
-        public TotalHits totalHits() {
-            return this.totalHits;
         }
     }
 }

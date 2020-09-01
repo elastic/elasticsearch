@@ -119,7 +119,7 @@ public class RecyclingBytesStreamOutput extends BytesStream {
         final byte[] newBuffer = new byte[position];
         System.arraycopy(buffer, 0, newBuffer, 0, buffer.length);
         int copyPos = buffer.length;
-        final BytesRefIterator iterator = new PagedBytesReference(overflow, position - buffer.length).iterator();
+        final BytesRefIterator iterator = BytesReference.fromByteArray(overflow, position - buffer.length).iterator();
         BytesRef bytesRef;
         try {
             while ((bytesRef = iterator.next()) != null) {
@@ -142,7 +142,7 @@ public class RecyclingBytesStreamOutput extends BytesStream {
         } else {
             return CompositeBytesReference.of(
                     new BytesArray(buffer, 0, buffer.length),
-                    new PagedBytesReference(overflow, position - buffer.length));
+                    BytesReference.fromByteArray(overflow, position - buffer.length));
         }
     }
 }

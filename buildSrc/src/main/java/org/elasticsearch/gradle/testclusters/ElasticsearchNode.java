@@ -513,7 +513,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean canUseSharedDistribution() {
-        return extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        // using original location can be too long due to MAX_PATH restrictions on windows CI
+        // TODO revisit when moving to shorter paths on CI by using Teamcity
+        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
     }
 
     private void logToProcessStdout(String message) {
@@ -1181,7 +1183,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (!content.contains(origin)) {
                     throw new IOException("template property " + origin + " not found in template.");
                 }
-                content = content.replaceAll(origin, expansions.get(origin));
+                content = content.replace(origin, expansions.get(origin));
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
@@ -1193,12 +1195,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> expansions = new HashMap<>();
         Version version = getVersion();
         String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString());
+        Path relativeLogPath = workingDir.relativize(confPathLogs);
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + relativeLogPath.toString());
         if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+            expansions.put("logs/gc.log", relativeLogPath.resolve("gc.log").toString());
         }
         if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());
+            expansions.put(
+                "-XX:ErrorFile=logs/hs_err_pid%p.log",
+                "-XX:ErrorFile=" + relativeLogPath.resolve("hs_err_pid%p.log").toString()
+            );
         }
         return expansions;
     }

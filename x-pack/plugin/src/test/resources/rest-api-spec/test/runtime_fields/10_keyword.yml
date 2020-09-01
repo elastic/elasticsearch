@@ -181,3 +181,97 @@ setup:
               animal: cow
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.animal: cow}
+
+---
+"nested":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              users:
+                type: nested
+                properties:
+                  first:
+                    type: keyword
+                  last:
+                    type: keyword
+                  first_script:
+                    type: runtime_script
+                    runtime_type: keyword
+                    script: emitValue(doc['users.first'].value)
+                  last_script:
+                    type: runtime_script
+                    runtime_type: keyword
+                    script: emitValue(doc['users.last'].value)
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          {"index":{"_id": 1}}
+          {"group" : "fans", "users" : [{"first" : "John", "last" : "Smith"}, {"first": "Alice", "last": "White"}]}
+          {"index":{"_id": 2}}
+          {"group" : "fans", "users" : [{"first" : "Mark", "last" : "Doe"}]}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: users
+              query:
+                bool:
+                  must:
+                    - match:
+                        users.first_script: John
+                    - match:
+                        users.last_script: Smith
+  - match: {hits.total.value: 1}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: users
+              query:
+                bool:
+                  must:
+                    - match:
+                        users.first_script: John
+                    - match:
+                        users.last_script: White
+  - match: {hits.total.value: 0}
+
+  - do:
+      search:
+        body:
+          aggs:
+            to-users:
+              nested:
+                path: users
+              aggs:
+                users:
+                  top_hits:
+                    sort: users.last_script
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.to-users.users.hits.hits: 3 }
+  - match: { aggregations.to-users.users.hits.hits.0._id: "2" }
+  - match: { aggregations.to-users.users.hits.hits.0._index: test }
+  - match: { aggregations.to-users.users.hits.hits.0._nested.field: users }
+  - match: { aggregations.to-users.users.hits.hits.0._nested.offset: 0 }
+  - match: { aggregations.to-users.users.hits.hits.1._id: "1" }
+  - match: { aggregations.to-users.users.hits.hits.1._index: test }
+  - match: { aggregations.to-users.users.hits.hits.1._nested.field: users }
+  - match: { aggregations.to-users.users.hits.hits.1._nested.offset: 0 }
+  - match: { aggregations.to-users.users.hits.hits.2._id: "1" }
+  - match: { aggregations.to-users.users.hits.hits.2._index: test }
+  - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
+  - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }

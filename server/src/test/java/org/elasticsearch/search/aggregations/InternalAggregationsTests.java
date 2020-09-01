@@ -103,24 +103,22 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, 0);
+        // we cannot ensure strict equality on aggregations (de)serialized by different
+        // versions so we pick a unique random version for the test
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        writeToAndReadFrom(aggregations, version, 0);
     }
 
-    private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+    private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             aggregations.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
                 in.setVersion(version);
                 InternalAggregations deserialized = InternalAggregations.readFrom(in);
-                if (iteration > 0 || Version.CURRENT.equals(version)) {
-                    // we cannot ensure strict equality on aggregations (de)serialized by different
-                    // versions.
-                    assertEquals(aggregations.aggregations, deserialized.aggregations);
-                }
+                assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (iteration < 2) {
-                    writeToAndReadFrom(deserialized, iteration + 1);
+                    writeToAndReadFrom(deserialized, version, iteration + 1);
                 }
             }
         }

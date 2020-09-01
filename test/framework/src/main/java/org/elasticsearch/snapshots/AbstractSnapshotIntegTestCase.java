@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -428,6 +429,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 
+    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+    }
+
     protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
@@ -452,5 +457,35 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName,
+                                                                                      String dataNode) throws InterruptedException {
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        return fut;
+    }
+
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName) {
+        return startFullSnapshot(repoName, snapshotName, false);
+    }
+
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
+        logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
+        return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                .setPartial(partial).execute();
+    }
+
+    protected void awaitNSnapshotsInProgress(int count) throws Exception {
+        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
+        awaitClusterState(state ->
+                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
+    }
+
+    protected static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+        final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        return snapshotInfo;
     }
 }

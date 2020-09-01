@@ -18,15 +18,20 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -57,6 +62,66 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final SnapshotIndexStatus status2 = status.get(1).getIndices().get(indexName);
         assertEquals(status1.getStats().getTotalFileCount(), status2.getStats().getTotalFileCount());
         assertEquals(status1.getStats().getTotalSize(), status2.getStats().getTotalSize());
+    }
+
+    public void testClonePreventsSnapshotDelete() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "repo-name";
+        createRepository(repoName, "mock");
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        indexRandomDocs(indexName, randomIntBetween(20, 100));
+
+        final String targetSnapshot = "target-snapshot";
+        blockNodeOnAnyFiles(repoName, masterName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture =
+                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute();
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        assertFalse(cloneFuture.isDone());
+
+        ConcurrentSnapshotExecutionException ex = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
+                client().admin().cluster().prepareDeleteSnapshot(repoName, sourceSnapshot).execute().actionGet());
+        assertThat(ex.getMessage(), containsString("cannot delete snapshot while it is being cloned"));
+
+        unblockNode(repoName, masterName);
+        assertAcked(cloneFuture.get());
+        final List<SnapshotStatus> status = client().admin().cluster().prepareSnapshotStatus(repoName)
+                .setSnapshots(sourceSnapshot, targetSnapshot).get().getSnapshots();
+        assertThat(status, hasSize(2));
+        final SnapshotIndexStatus status1 = status.get(0).getIndices().get(indexName);
+        final SnapshotIndexStatus status2 = status.get(1).getIndices().get(indexName);
+        assertEquals(status1.getStats().getTotalFileCount(), status2.getStats().getTotalFileCount());
+        assertEquals(status1.getStats().getTotalSize(), status2.getStats().getTotalSize());
+    }
+
+    public void testConcurrentCloneAndSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "repo-name";
+        createRepository(repoName, "mock");
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        indexRandomDocs(indexName, randomIntBetween(20, 100));
+
+        final String targetSnapshot = "target-snapshot";
+        final ActionFuture<CreateSnapshotResponse> snapshot2Future =
+                startFullSnapshotBlockedOnDataNode("snapshot-2", repoName, dataNode);
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> cloneFuture =
+                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute();
+        awaitNSnapshotsInProgress(2);
+        unblockNode(repoName, dataNode);
+        assertAcked(cloneFuture.get());
+        assertSuccessful(snapshot2Future);
     }
 
     @AwaitsFix(bugUrl = "TODO if we want it")

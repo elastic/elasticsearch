@@ -333,7 +333,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
-        // TODO: do not allow delete of source of in-progress-clone
         // TODO: Clone DS? (probably no, not relevant for searchable snapshots ...)
         // TODO: shards are snapshot shard-by-shard on the master node, no need for coordination here
         // TODO: throw when no indices match
@@ -1394,6 +1393,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         snapshotNames, repoName);
                 if (snapshotIds.isEmpty()) {
                     return currentState;
+                }
+                final Set<SnapshotId> activeCloneSources = snapshots.entries()
+                        .stream()
+                        .filter(entry -> entry.source() != null)
+                        .map(SnapshotsInProgress.Entry::source
+                        ).collect(Collectors.toSet());
+                for (SnapshotId snapshotId : snapshotIds) {
+                    if (activeCloneSources.contains(snapshotId)) {
+                        throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotId),
+                                "cannot delete snapshot while it is being cloned");
+                    }
                 }
                 final SnapshotDeletionsInProgress deletionsInProgress =
                         currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);

@@ -29,13 +29,13 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegExp87;
+import org.apache.lucene.search.RegExp87.Kind;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.RegExp;
-import org.apache.lucene.util.automaton.RegExp.Kind;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -60,10 +60,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -292,12 +295,13 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
+            RewriteMethod method, QueryShardContext context) {
             if (value.length() == 0) {
                 return new MatchNoDocsQuery();
             }
 
-            RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), flags);
+            RegExp87 ngramRegex = new RegExp87(addLineEndChars(toLowerCase(value)), syntaxFlags, matchFlags);
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
@@ -308,7 +312,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return existsQuery(context);
             }
             Supplier<Automaton> deferredAutomatonSupplier = ()-> {
-                RegExp regex = new RegExp(value, flags);
+                RegExp87 regex = new RegExp87(value, syntaxFlags, matchFlags);
                 return regex.toAutomaton(maxDeterminizedStates);
             };
 
@@ -337,7 +341,7 @@ public class WildcardFieldMapper extends FieldMapper {
         // * If an expression resolves to a RegExpQuery eg ?? then only the verification
         //   query is run.
         // * Anything else is a concrete query that should be run on the ngram index.
-        public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
+        public static Query toApproximationQuery(RegExp87 r) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
                 case REGEXP_UNION:
@@ -398,7 +402,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
 
-        private static Query createConcatenationQuery(RegExp r) {
+        private static Query createConcatenationQuery(RegExp87 r) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
             findLeaves(r.exp1, Kind.REGEXP_CONCATENATION, queries);
@@ -429,7 +433,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
-        private static Query createUnionQuery(RegExp r) {
+        private static Query createUnionQuery(RegExp87 r) {
             // Create an OR of clauses
             ArrayList<Query> queries = new ArrayList<>();
             findLeaves(r.exp1, Kind.REGEXP_UNION, queries);
@@ -456,7 +460,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return new MatchAllButRequireVerificationQuery();
         }
 
-        private static void findLeaves(RegExp exp, Kind kind, List<Query> queries) {
+        private static void findLeaves(RegExp87 exp, Kind kind, List<Query> queries) {
             if (exp.kind == kind) {
                 findLeaves(exp.exp1, kind, queries);
                 findLeaves( exp.exp2, kind, queries);
@@ -858,7 +862,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
                 @Override
@@ -939,16 +943,21 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        String keywordValue = value.toString();
-        if (keywordValue.length() > ignoreAbove) {
-            return null;
-        }
-        return keywordValue;
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                String keywordValue = value.toString();
+                if (keywordValue.length() > ignoreAbove) {
+                    return null;
+                }
+                return keywordValue;
+            }
+        };
     }
 
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {
@@ -979,11 +988,6 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected String nullValue() {
-        return nullValue;
     }
 
     @Override

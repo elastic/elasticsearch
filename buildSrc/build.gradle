@@ -93,7 +93,7 @@ dependencies {
 
   api 'commons-codec:commons-codec:1.12'
   api 'org.apache.commons:commons-compress:1.19'
-
+  api 'org.apache.ant:ant:1.10.8'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   api 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   api 'com.netflix.nebula:gradle-info-plugin:7.1.3'

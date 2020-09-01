@@ -7,24 +7,32 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.nio.file.Path;
+import java.util.Collection;
 
 public class LocalStateSearchableSnapshots extends LocalStateCompositeXPackPlugin {
 
+    private final SearchableSnapshots plugin;
+
     public LocalStateSearchableSnapshots(final Settings settings, final Path configPath) {
         super(settings, configPath);
-        LocalStateSearchableSnapshots thisVar = this;
-
-        plugins.add(new SearchableSnapshots(settings) {
+        this.plugin = new SearchableSnapshots(settings) {
 
             @Override
             protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
+                return LocalStateSearchableSnapshots.this.getLicenseState();
             }
 
-        });
+        };
+        plugins.add(plugin);
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return plugin.getSystemIndexDescriptors(settings);
     }
 }

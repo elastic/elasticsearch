@@ -19,11 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -34,8 +37,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.client.Requests.createSnapshotRequest;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
@@ -61,9 +62,26 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
                 request.param("repository"), request.param("source_snapshot"), request.param("target_snapshot"),
                 XContentMapValues.nodeStringArrayValue(body.getOrDefault("indices", Collections.emptyList())),
                 XContentMapValues.nodeStringArrayValue(body.getOrDefault("excluded_settings", Collections.emptyList())),
-                Settings.EMPTY
-                );
+                settings(body.get("index_settings")));
         cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
+    }
+
+    // TODO: Dry up via https://github.com/elastic/elasticsearch/pull/61778
+    @SuppressWarnings("unchecked")
+    private static Settings settings(Object raw) {
+        if (raw == null) {
+            return Settings.EMPTY;
+        }
+        if (raw instanceof Map) {
+            try {
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                builder.map((Map<String, Object>) raw);
+                return Settings.builder().loadFromSource(Strings.toString(builder), XContentType.JSON).build();
+            } catch (IOException e) {
+                throw new ElasticsearchGenerationException("Failed to generate [" + raw + "]", e);
+            }
+        }
+        throw new IllegalArgumentException("[settings] must be a map or empty");
     }
 }

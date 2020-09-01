@@ -214,6 +214,10 @@ public class DockerTests extends PackagingTestCase {
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/failed").intValue(), equalTo(0));
 
+            // Ensure container is stopped before we remove tempEsDataDir, so nothing
+            // is using the directory.
+            removeContainer();
+
             rmDirWithPrivilegeEscalation(tempEsDataDir);
         });
     }

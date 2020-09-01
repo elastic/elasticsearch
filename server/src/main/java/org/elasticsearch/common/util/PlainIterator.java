@@ -58,7 +58,7 @@ public class PlainIterator<T> implements Iterable<T>, Countable {
     }
 
 
-    public List<T> list() {
+    public List<T> asList() {
         return Collections.unmodifiableList(elements);
     }
 

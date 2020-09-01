@@ -38,6 +38,6 @@ public class PlainShardsIterator extends PlainIterator<ShardRouting> implements 
 
     @Override
     public List<ShardRouting> getShardRoutings() {
-        return list();
+        return asList();
     }
 }

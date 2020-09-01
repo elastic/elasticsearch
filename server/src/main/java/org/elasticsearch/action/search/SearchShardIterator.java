@@ -117,7 +117,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     }
 
     List<String> getTargetNodeIds() {
-        return targetNodesIterator.list();
+        return targetNodesIterator.asList();
     }
 
     /**

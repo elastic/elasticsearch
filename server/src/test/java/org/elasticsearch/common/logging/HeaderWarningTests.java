@@ -32,18 +32,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests {@link HeaderWarning}
@@ -51,6 +47,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class HeaderWarningTests extends ESTestCase {
 
     private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
+
+    private final HeaderWarning logger = new HeaderWarning();
 
     @Override
     protected boolean enableWarningsCheck() {
@@ -239,7 +237,8 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(HeaderWarning.encode(s), IsSame.sameInstance(s));
     }
 
-    public void testWarningHeaderCountSetting() throws IOException {
+
+    public void testWarningHeaderCountSetting() throws IOException{
         // Test that the number of warning headers don't exceed 'http.max_warning_header_count'
         final int maxWarningHeaderCount = 2;
         Settings settings = Settings.builder()
@@ -261,13 +260,13 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(responses.get(1), containsString("\"A simple message 2"));
     }
 
-    public void testWarningHeaderSizeSetting() throws IOException {
+    public void testWarningHeaderSizeSetting() throws IOException{
         // Test that the size of warning headers don't exceed 'http.max_warning_header_size'
         Settings settings = Settings.builder()
             .put("http.max_warning_header_size", "1Kb")
             .build();
 
-        byte[] arr = new byte[300];
+        byte [] arr = new byte[300];
         String message1 = new String(arr, StandardCharsets.UTF_8) + "1";
         String message2 = new String(arr, StandardCharsets.UTF_8) + "2";
         String message3 = new String(arr, StandardCharsets.UTF_8) + "3";
@@ -282,39 +281,12 @@ public class HeaderWarningTests extends ESTestCase {
         final List<String> responses = responseHeaders.get("Warning");
 
         long warningHeadersSize = 0L;
-        for (String response : responses) {
+        for (String response : responses){
             warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length +
                 response.getBytes(StandardCharsets.UTF_8).length;
         }
         // assert that the size of all warning headers is less or equal to 1Kb
         assertTrue(warningHeadersSize <= 1024);
-    }
-
-    public void testLongWarning() {
-        String warningMessage =
-            "299 Elasticsearch-7.8.0-757314695644ea9a1dc2fecd26d1a43856725e65 \"legacy template [default] has index patterns [*] " +
-            "matching patterns from existing composable templates [template-1,template-2,template-3,template-4,template-5,template-6," +
-            "template-7,template-8,template-9,template-10,template-11,template-12,template-13,template-14,template-15,template-16," +
-            "template-17,template-18,template-19,template-20,template-21,template-22,template-23,template-24,template-25,template-26," +
-            "template-27,template-28,template-29,template-30,template-31,template-32,template-33,template-34,template-35,template-36] " +
-            "with patterns (template-1 => [template-1*],template-2 => [template-2*],template-3 => [template-3*],template-4 => " +
-            "[template-4*],template-5 => [template-5*],template-6 => [template-6*],template-7 => [template-7*],template-8 => " +
-            "[template-8*],template-9 => [template-9*],template-10 => [template-10*],template-11 => [template-11*],template-12 => " +
-            "[template-12*],template-13 => [template-13*],template-14 => [template-14*],template-15 => [template-15*],template-16 => " +
-            "[template-16*],template-17 => [template-17*],template-18 => [template-18*],template-19 => [template-19*],template-20 => " +
-            "[template-20*],template-21 => [template-21*],template-22 => [template-22*],template-23 => [template-23*],template-24 => " +
-            "[template-24*],template-25 => [template-25*],template-26 => [template-26*],template-27 => [template-27*],template-28 => " +
-            "[template-28*],template-29 => [template-29*],template-30 => [template-30*],template-31 => [template-31*],template-32 => " +
-            "[template-32*],template-33 => [template-33*],template-34 => [template-34*],template-35 => [template-35*],template-36 => " +
-            "[template-36*]); this template [default] may be ignored in favor of a composable template at index creation time\" " +
-            "\"Sun, 21 Oct 2018 12:16:24 GMT\"";
-        Matcher matcher = WARNING_HEADER_PATTERN.matcher(warningMessage);
-        assertThat(matcher.matches(), is(true));
-        String message = matcher.group(1);
-        assertThat(message, startsWith("legacy template [default] has index patterns"));
-        assertThat(message, endsWith("this template [default] may be ignored in favor of a composable template at index creation time"));
-        String date = matcher.group(2);
-        assertThat(date, is(" \"Sun, 21 Oct 2018 12:16:24 GMT\""));
     }
 
     private String range(int lowerInclusive, int upperInclusive) {

@@ -272,12 +272,12 @@ public class IndexingSlowLogTests extends ESTestCase {
             () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\\n"
-            + " at [Source: (org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper)")));
+            + " at [Source: ")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(JsonParseException.class));
         assertThat(e.getCause(), hasToString(containsString("Unrecognized token 'invalid':"
                 + " was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\n"
-                + " at [Source: (org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper)")));
+                + " at [Source: ")));
     }
 
     public void testReformatSetting() {

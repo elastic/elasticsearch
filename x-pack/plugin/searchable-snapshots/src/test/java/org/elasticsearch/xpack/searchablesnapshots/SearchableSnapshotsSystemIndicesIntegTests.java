@@ -94,7 +94,9 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+            return org.elasticsearch.common.collect.List.of(
+                new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
+            );
         }
     }
 }

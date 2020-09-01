@@ -143,7 +143,8 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.RestCompatibility;
+import org.elasticsearch.plugins.RestCompatibilityPlugin;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -689,16 +690,15 @@ public class Node implements Closeable {
     /**
      * @return A function that can be used to determine the requested REST compatible version
      */
-    private RestCompatibility getRestCompatibleFunction(){
-        List<RestCompatibility> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibility.class);
-        RestCompatibility restCompatibleFunction = RestCompatibility.CURRENT_VERSION;
+    private CompatibleVersion getRestCompatibleFunction() {
+        List<RestCompatibilityPlugin> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibilityPlugin.class);
+        CompatibleVersion compatibleVersion = CompatibleVersion.CURRENT_VERSION;
         if (restCompatibilityPlugins.size() > 1) {
-            throw new IllegalStateException("Only one rest compatibility plugin is allowed");
-        } else if (restCompatibilityPlugins.size() == 1){
-            restCompatibleFunction =
-                restCompatibilityPlugins.get(0);
+            throw new IllegalStateException("Only one RestCompatibilityPlugin is allowed");
+        } else if (restCompatibilityPlugins.size() == 1) {
+            compatibleVersion = restCompatibilityPlugins.get(0)::getCompatibleVersion;
         }
-        return restCompatibleFunction;
+        return compatibleVersion;
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

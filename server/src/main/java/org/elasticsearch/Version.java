@@ -241,6 +241,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte revision;
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
+    public final int previousMajorId;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
@@ -249,6 +250,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
+        this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
     public boolean after(Version version) {
@@ -278,7 +280,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public Version previousMajor() {
-        return Version.fromString(this.major - 1 + ".0.0");
+        return Version.fromId(previousMajorId);
     }
 
     /*

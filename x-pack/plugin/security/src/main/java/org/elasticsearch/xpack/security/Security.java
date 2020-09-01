@@ -57,7 +57,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RestCompatibility;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -979,7 +979,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
                                                                         ClusterSettings clusterSettings,
-                                                                        RestCompatibility restCompatibleFunction) {
+                                                                        CompatibleVersion restCompatibleFunction) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }

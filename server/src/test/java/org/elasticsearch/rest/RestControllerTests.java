@@ -40,7 +40,6 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.plugins.RestCompatibility;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
@@ -600,7 +599,7 @@ public class RestControllerTests extends ESTestCase {
             public Exception getInboundException() {
                 return null;
             }
-        }, null, RestCompatibility.CURRENT_VERSION);
+        }, null, CompatibleVersion.CURRENT_VERSION);
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
         assertFalse(channel.getSendResponseCalled());

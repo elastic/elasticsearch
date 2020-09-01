@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.plugins.RestCompatibility;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,7 +75,7 @@ public class RestRequest implements ToXContent.Params {
     private boolean contentConsumed = false;
 
     private final long requestId;
-    private RestCompatibility restCompatibilityFunction;
+    private CompatibleVersion compatibleVersion;
 
     public boolean isContentConsumed() {
         return contentConsumed;
@@ -85,24 +84,24 @@ public class RestRequest implements ToXContent.Params {
     // for testing
     protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                           Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,
-                          RestCompatibility restCompatibilityFunction) {
+                          CompatibleVersion compatibleVersion) {
         this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet(),
-            restCompatibilityFunction);
+            compatibleVersion);
     }
 
     protected RestRequest(RestRequest restRequest) {
         this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
             restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId(),
-            restRequest.getRestCompatibilityFunction());
+            restRequest.getCompatibleVersionFunction());
     }
 
-    private RestCompatibility getRestCompatibilityFunction() {
-        return restCompatibilityFunction;
+    private CompatibleVersion getCompatibleVersionFunction() {
+        return compatibleVersion;
     }
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId,
-                        RestCompatibility restCompatibilityFunction) {
+                        CompatibleVersion compatibleVersion) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
@@ -119,7 +118,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        this.restCompatibilityFunction = restCompatibilityFunction;
+        this.compatibleVersion = compatibleVersion;
     }
 
 
@@ -145,7 +144,7 @@ public class RestRequest implements ToXContent.Params {
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel,
-                                      RestCompatibility restCompatibleFunction) {
+                                      CompatibleVersion restCompatibleFunction) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
         return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
@@ -185,24 +184,14 @@ public class RestRequest implements ToXContent.Params {
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
-                                                       HttpChannel httpChannel, RestCompatibility restCompatibleFunction) {
+                                                       HttpChannel httpChannel, CompatibleVersion restCompatibleFunction) {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet(), restCompatibleFunction);
     }
 
     public Version getCompatibleVersion() {
-        //TODO why not header() instead of getSingleHeader?
-        return restCompatibilityFunction.getCompatibleVersion(getSingleHeader("Accept"), getSingleHeader("Content-Type"), hasContent());
-    }
-
-    private String getSingleHeader(String name) {
-        //TODO: is this case sensitive ?
-        List<String> values = headers.get(name);
-        if (values != null && values.isEmpty() == false) {
-            return values.get(0);
-        }
-        return null;
+        return compatibleVersion.get(header("Accept"), header("Content-Type"), hasContent());
     }
 
     public enum Method {

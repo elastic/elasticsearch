@@ -41,7 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.plugins.RestCompatibility;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +76,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler.Config corsConfig;
-    private final RestCompatibility restCompatibleFunction;
+    private final CompatibleVersion restCompatibleFunction;
     private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
@@ -93,7 +93,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings,
-                                          RestCompatibility restCompatibleFunction) {
+                                          CompatibleVersion restCompatibleFunction) {
         this.settings = settings;
         this.networkService = networkService;
         this.bigArrays = bigArrays;

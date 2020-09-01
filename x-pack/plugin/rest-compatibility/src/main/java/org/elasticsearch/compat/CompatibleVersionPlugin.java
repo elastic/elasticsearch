@@ -8,13 +8,13 @@ package org.elasticsearch.compat;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RestCompatibility;
+import org.elasticsearch.plugins.RestCompatibilityPlugin;
 
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CompatRestRequest extends Plugin implements RestCompatibility {
+public class CompatibleVersionPlugin extends Plugin implements RestCompatibilityPlugin {
 
     private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
         "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",

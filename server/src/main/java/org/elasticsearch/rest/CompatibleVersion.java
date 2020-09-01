@@ -17,15 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.rest;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 
 @FunctionalInterface
-public interface RestCompatibility {
-    Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent);
+public interface CompatibleVersion {
+    Version get(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent);
 
-    RestCompatibility CURRENT_VERSION = (acceptHeader, contentTypeHeader, hasContent) -> Version.CURRENT;
-
+    CompatibleVersion CURRENT_VERSION = (acceptHeader, contentTypeHeader, hasContent) -> Version.CURRENT;
 }

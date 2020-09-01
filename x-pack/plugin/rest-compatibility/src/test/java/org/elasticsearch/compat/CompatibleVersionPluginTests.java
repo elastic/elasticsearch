@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class CompatRestRequestTests extends ESTestCase {
+public class CompatibleVersionPluginTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
@@ -227,7 +227,7 @@ public class CompatRestRequestTests extends ESTestCase {
             // xContentType header is set explicitly in headers
             builder.withContent(new BytesArray(body), null);
         }
-        builder.withRestCompatibility(new CompatRestRequest());
+        builder.withRestCompatibility(new CompatibleVersionPlugin()::getCompatibleVersion);
         FakeRestRequest request = builder.build();
         Version version = request.getCompatibleVersion();
         return Tuple.tuple(request, version);

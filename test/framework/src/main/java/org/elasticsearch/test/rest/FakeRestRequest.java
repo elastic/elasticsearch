@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.plugins.RestCompatibility;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -41,11 +41,11 @@ public class FakeRestRequest extends RestRequest {
 
     public FakeRestRequest() {
         this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(),
-            new FakeHttpChannel(null), RestCompatibility.CURRENT_VERSION);
+            new FakeHttpChannel(null), CompatibleVersion.CURRENT_VERSION);
     }
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
-                            HttpChannel httpChannel, RestCompatibility currentVersion) {
+                            HttpChannel httpChannel, CompatibleVersion currentVersion) {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
             currentVersion);
     }
@@ -193,7 +193,7 @@ public class FakeRestRequest extends RestRequest {
         private InetSocketAddress address = null;
 
         private Exception inboundException;
-        private RestCompatibility restCompatibility = RestCompatibility.CURRENT_VERSION;
+        private CompatibleVersion compatibleVersion = CompatibleVersion.CURRENT_VERSION;
 
         public Builder(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;
@@ -237,13 +237,13 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withRestCompatibility(RestCompatibility restCompatibility){
-            this.restCompatibility = restCompatibility;
+        public Builder withRestCompatibility(CompatibleVersion compatibleVersion){
+            this.compatibleVersion = compatibleVersion;
             return this;
         }
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
-            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address), restCompatibility);
+            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address), compatibleVersion);
         }
     }
 

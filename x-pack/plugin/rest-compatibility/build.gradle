@@ -3,7 +3,7 @@ evaluationDependsOn(xpackModule('core'))
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-  name 'compat-rest-request'
+  name 'rest-compatibility'
   description 'A plugin for Compatible Rest API'
   classname 'org.elasticsearch.compat.CompatRestRequest'
   extendedPlugins = ['x-pack-core']

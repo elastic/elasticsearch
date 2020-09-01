@@ -43,7 +43,7 @@ import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.plugins.RestCompatibility;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.PageAllocator;
@@ -88,7 +88,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                   PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
                                   Dispatcher dispatcher, NioGroupFactory nioGroupFactory, ClusterSettings clusterSettings,
-                                  RestCompatibility restCompatibleFunction) {
+                                  CompatibleVersion restCompatibleFunction) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, restCompatibleFunction);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.nioGroupFactory = nioGroupFactory;

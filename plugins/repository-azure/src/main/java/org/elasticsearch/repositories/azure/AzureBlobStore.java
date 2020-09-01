@@ -52,6 +52,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -248,51 +249,53 @@ public class AzureBlobStore implements BlobStore {
         final long limit = length == null ? blockBlobReference.getProperties().getLength() - position : length;
         return new InputStream() {
 
-            private final byte[] buffer = new byte[Math.min(16 * 1024 * 1024, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))];
+            private final ByteArrayOutputStream baos =
+                    new ByteArrayOutputStream(Math.min(16 * 1024 * 1024, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))) {
+                        @Override
+                        public byte[] toByteArray() {
+                            return buf;
+                        }
+                    };
 
             private int pos = 0;
 
             private long offset = 0;
 
-            private int count = 0;
-
             @Override
             public int read() throws IOException {
                 fill();
-                if (pos == count) {
+                if (pos == baos.size()) {
                     return -1;
                 }
-                return buffer[pos++];
+                return baos.toByteArray()[pos++];
             }
 
             @Override
             public int read(byte[] b, int off, int len) throws IOException {
                 fill();
-                if (len > 0 && pos == count) {
+                if (len > 0 && pos == baos.size()) {
                     return -1;
                 }
-                int remaining = count - pos;
+                int remaining = baos.size() - pos;
                 final int toRead = Math.min(remaining, len);
-                System.arraycopy(buffer, pos, b, off, toRead);
+                System.arraycopy(baos.toByteArray(), pos, b, off, toRead);
                 pos += toRead;
                 return toRead;
             }
 
             private void fill() throws IOException {
-                if (pos == count) {
-                    final long toFill = Math.min(limit - this.offset, buffer.length);
+                if (pos == baos.size()) {
+                    final long toFill = Math.min(limit - this.offset, 16 * 1024 * 1024);
                     if (toFill == 0L) {
                         return;
                     }
-                    final int read;
                     try {
-                        read = SocketAccess.doPrivilegedException(() -> blockBlobReference.downloadRangeToByteArray(
-                                position + this.offset, toFill, buffer, 0, null, null, context));
-                    } catch (StorageException ex) {
+                        SocketAccess.doPrivilegedVoidException(() -> blockBlobReference.downloadRange(
+                                position + this.offset, toFill, baos, null, null, context));
+                    } catch (StorageException | URISyntaxException ex) {
                         throw new IOException(ex);
                     }
-                    count = read;
-                    this.offset += read;
+                    this.offset += baos.size();
                     pos = 0;
                 }
             }

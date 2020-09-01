@@ -21,16 +21,19 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Countable;
+import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
@@ -38,32 +41,36 @@ import java.util.Objects;
  * the cluster alias.
  * @see OriginalIndices
  */
-public final class SearchShardIterator extends PlainShardIterator {
+public final class SearchShardIterator implements Comparable<SearchShardIterator>, Countable {
 
     private final OriginalIndices originalIndices;
     private final String clusterAlias;
+    private final ShardId shardId;
     private boolean skip = false;
 
     private final ShardSearchContextId searchContextId;
     private final TimeValue searchContextKeepAlive;
+    private final PlainIterator<String> targetNodesIterator;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
      *
-     * @param clusterAlias the alias of the cluster where the shard is located
-     * @param shardId shard id of the group
-     * @param shards  shards to iterate
+     * @param clusterAlias    the alias of the cluster where the shard is located
+     * @param shardId         shard id of the group
+     * @param shards          shards to iterate
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(clusterAlias, shardId, shards, originalIndices, null, null);
+        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
+            originalIndices, null, null);
     }
 
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
-                               List<ShardRouting> shards, OriginalIndices originalIndices,
+                               List<String> targetNodeIds, OriginalIndices originalIndices,
                                ShardSearchContextId searchContextId, TimeValue searchContextKeepAlive) {
-        super(shardId, shards);
+        this.shardId = shardId;
+        this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
@@ -86,12 +93,16 @@ public final class SearchShardIterator extends PlainShardIterator {
         return clusterAlias;
     }
 
-    /**
-     * Creates a new shard target from this iterator, pointing at the node identified by the provided identifier.
-     * @see SearchShardTarget
-     */
-    SearchShardTarget newSearchShardTarget(String nodeId) {
-        return new SearchShardTarget(nodeId, shardId(), clusterAlias, originalIndices);
+    SearchShardTarget nextOrNull() {
+        final String nodeId = targetNodesIterator.nextOrNull();
+        if (nodeId != null) {
+            return new SearchShardTarget(nodeId, shardId, clusterAlias, originalIndices);
+        }
+        return null;
+    }
+
+    int remaining() {
+        return targetNodesIterator.remaining();
     }
 
     /**
@@ -105,6 +116,10 @@ public final class SearchShardIterator extends PlainShardIterator {
         return searchContextKeepAlive;
     }
 
+    List<String> getTargetNodeIds() {
+        return targetNodesIterator.asList();
+    }
+
     /**
      * Reset the iterator and mark it as skippable
      * @see #skip()
@@ -114,6 +129,10 @@ public final class SearchShardIterator extends PlainShardIterator {
         skip = true;
     }
 
+    void reset() {
+        targetNodesIterator.reset();
+    }
+
     /**
      * Returns <code>true</code> if the search execution should skip this shard since it can not match any documents given the query.
      */
@@ -121,42 +140,33 @@ public final class SearchShardIterator extends PlainShardIterator {
         return skip;
     }
 
+
+    @Override
+    public int size() {
+        return targetNodesIterator.size();
+    }
+
+    ShardId shardId() {
+        return shardId;
+    }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         SearchShardIterator that = (SearchShardIterator) o;
-        return Objects.equals(clusterAlias, that.clusterAlias);
+        return shardId.equals(that.shardId) && Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), clusterAlias);
+        return Objects.hash(clusterAlias, shardId);
     }
 
     @Override
-    public int compareTo(ShardIterator o) {
-        int superCompareTo = super.compareTo(o);
-        if (superCompareTo != 0 || (o instanceof SearchShardIterator == false)) {
-            return superCompareTo;
-        }
-        SearchShardIterator searchShardIterator = (SearchShardIterator)o;
-        if (clusterAlias == null && searchShardIterator.getClusterAlias() == null) {
-            return 0;
-        }
-        if (clusterAlias == null) {
-            return -1;
-        }
-        if (searchShardIterator.getClusterAlias() == null) {
-            return 1;
-        }
-        return clusterAlias.compareTo(searchShardIterator.getClusterAlias());
+    public int compareTo(SearchShardIterator o) {
+        return Comparator.comparing(SearchShardIterator::shardId)
+            .thenComparing(SearchShardIterator::getClusterAlias, Comparator.nullsFirst(String::compareTo))
+            .compare(this, o);
     }
 }

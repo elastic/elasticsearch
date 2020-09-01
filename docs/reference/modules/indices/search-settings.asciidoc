@@ -6,7 +6,7 @@ limits.
 
 [[indices-query-bool-max-clause-count]]
 `indices.query.bool.max_clause_count`::
-(integer)
+(<<static-cluster-setting,Static>>, integer)
 Maximum number of clauses a Lucene BooleanQuery can contain. Defaults to `1024`.
 +
 This setting limits the number of clauses a Lucene BooleanQuery can have. The

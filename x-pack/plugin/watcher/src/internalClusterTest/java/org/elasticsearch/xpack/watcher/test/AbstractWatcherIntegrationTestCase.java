@@ -105,8 +105,6 @@ import static org.mockito.Mockito.mock;
 @ClusterScope(scope = SUITE, numClientNodes = 0, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
 
-    public static final String WATCHER_LANG = Script.DEFAULT_SCRIPT_LANG;
-
     private TimeWarp timeWarp;
 
     @Override
@@ -338,6 +336,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return internalCluster().getInstance(IndexNameExpressionResolver.class);
     }
 
+    @SuppressWarnings("unchecked")
     protected void assertValue(XContentSource source, String path, Matcher<?> matcher) {
         assertThat(source.getValue(path), (Matcher<Object>) matcher);
     }

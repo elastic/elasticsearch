@@ -232,6 +232,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
         assertThat(ObjectPath.eval(path, map), (Matcher<Object>) matcher);
     }

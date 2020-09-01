@@ -80,6 +80,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         // The result of the search input will be a failure, because a missing index does not exist when
         // the query is executed
+        @SuppressWarnings({"rawtypes"})
         Input.Builder input = searchInput(request);
         // wrapping this randomly into a chained input to test this as well
         boolean useChained = randomBoolean();
@@ -119,6 +120,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     // See https://github.com/elastic/x-plugins/issues/2913
     public void testPayloadInputWithDotsInFieldNameWorks() throws Exception {
+        @SuppressWarnings({"rawtypes"})
         Input.Builder input = simpleInput("foo.bar", "bar");
 
         // wrapping this randomly into a chained input to test this as well

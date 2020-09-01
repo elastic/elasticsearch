@@ -1197,7 +1197,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
         expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs.toString());
         if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+            expansions.put("logs/gc.log", "'" + confPathLogs.resolve("gc.log").toString() + "'");
         }
         if (getVersion().getMajor() >= 7) {
             expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log").toString());

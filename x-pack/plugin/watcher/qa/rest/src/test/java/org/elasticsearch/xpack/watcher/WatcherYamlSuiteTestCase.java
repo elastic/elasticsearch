@@ -97,6 +97,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
     private static void deleteWatcherIndices() throws IOException {
         Request deleteWatchesIndexRequest = new Request("DELETE", ".watches");
         deleteWatchesIndexRequest.addParameter("ignore_unavailable", "true");
+        deleteWatchesIndexRequest.addParameter("allow_system_index_access", "true");
         adminClient().performRequest(deleteWatchesIndexRequest);
 
         Request deleteWatchHistoryRequest = new Request("DELETE", ".watcher-history-*");

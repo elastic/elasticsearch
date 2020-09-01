@@ -16,7 +16,7 @@ teardown:
   - do:
       watcher.put_watch:
         id: "my_watch"
-        body:  > 
+        body:  >
           {
             "trigger": {
               "schedule": {
@@ -54,6 +54,7 @@ teardown:
   - do:
       search:
         rest_total_hits_as_int: true
+        allow_system_index_access: true
         index: .watches
         body: { "query": { "term": { "_id": "my_watch" } } }
   - match: { hits.total: 0 }

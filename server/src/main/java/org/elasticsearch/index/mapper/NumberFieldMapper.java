@@ -111,7 +111,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             this.coerce
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
-                (n, c, o) -> type.parse(o, false), m -> toType(m).nullValue);
+                (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
         }
 
         Builder nullValue(Number number) {

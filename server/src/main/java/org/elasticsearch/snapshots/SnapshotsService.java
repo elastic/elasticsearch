@@ -334,7 +334,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         // TODO: Clone DS? (probably no, not relevant for searchable snapshots ...)
-        // TODO: shards are snapshot shard-by-shard on the master node, no need for coordination here
         // TODO: throw when no indices match
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
@@ -347,6 +346,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
                 }
+                final RepositoryCleanupInProgress repositoryCleanupInProgress =
+                        currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
+                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                            "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+                }
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 if (runningSnapshots.stream().anyMatch(s -> {
@@ -357,19 +362,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name is already in-progress");
                 }
                 validate(repositoryName, snapshotName, currentState);
-                final SnapshotDeletionsInProgress deletionsInProgress =
-                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
-                // TODO: check that no delete for the source snapshot is running
+
                 final SnapshotId sourceSnapshotId = repositoryData.getSnapshotIds()
                         .stream()
                         .filter(src -> src.getName().equals(request.source()))
                         .findAny()
                         .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
-                final RepositoryCleanupInProgress repositoryCleanupInProgress =
-                        currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
-                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
-                            "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+                final SnapshotDeletionsInProgress deletionsInProgress =
+                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(sourceSnapshotId))) {
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, sourceSnapshotId.getName(),
+                            "cannot clone from snapshot that is being deleted");
                 }
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
 

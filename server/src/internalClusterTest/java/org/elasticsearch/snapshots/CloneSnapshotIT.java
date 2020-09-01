@@ -124,6 +124,35 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(snapshot2Future);
     }
 
+    public void testDeletePreventsClone() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "repo-name";
+        createRepository(repoName, "mock");
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        indexRandomDocs(indexName, randomIntBetween(20, 100));
+
+        final String targetSnapshot = "target-snapshot";
+        blockNodeOnAnyFiles(repoName, masterName);
+        final ActionFuture<AcknowledgedResponse> deleteFuture =
+                client().admin().cluster().prepareDeleteSnapshot(repoName, sourceSnapshot).execute();
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        assertFalse(deleteFuture.isDone());
+
+        ConcurrentSnapshotExecutionException ex = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
+                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute()
+                        .actionGet());
+        assertThat(ex.getMessage(), containsString("cannot clone from snapshot that is being deleted"));
+
+        unblockNode(repoName, masterName);
+        assertAcked(deleteFuture.get());
+    }
+
     @AwaitsFix(bugUrl = "TODO if we want it")
     public void testCloneSnapshotWithIndexSettingUpdates() throws Exception {
         internalCluster().startMasterOnlyNode();

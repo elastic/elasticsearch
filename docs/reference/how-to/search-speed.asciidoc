@@ -36,6 +36,7 @@ queries hundreds of times slower. So if the same questions can be answered witho
 joins by denormalizing documents, significant speedups can be expected.
 
 [discrete]
+[[search-as-few-fields-as-possible]]
 === Search as few fields as possible
 
 The more fields a <<query-dsl-query-string-query,`query_string`>> or
@@ -165,7 +166,7 @@ include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 === Avoid scripts
 
 If possible, avoid using <<modules-scripting,scripts>> or
-<<request-body-search-script-fields,scripted fields>> in searches. See
+<<script-fields,scripted fields>> in searches. See
 <<scripts-and-search-speed>>.
 
 
@@ -351,11 +352,11 @@ in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 === Use `preference` to optimize cache utilization
 
 There are multiple caches that can help with search performance, such as the
-https://en.wikipedia.org/wiki/Page_cache[filesystem cache], the
+{wikipedia}/Page_cache[filesystem cache], the
 <<shard-request-cache,request cache>> or the <<query-cache,query cache>>. Yet
 all these caches are maintained at the node level, meaning that if you run the
 same request twice in a row, have 1 <<glossary-replica-shard,replica>> or more
-and use https://en.wikipedia.org/wiki/Round-robin_DNS[round-robin], the default
+and use {wikipedia}/Round-robin_DNS[round-robin], the default
 routing algorithm, then those two requests will go to different shard copies,
 preventing node-level caches from helping.
 

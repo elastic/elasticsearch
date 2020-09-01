@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -29,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -102,7 +104,12 @@ public class TrainedModelStatsService {
                 stop();
             }
         });
-        clusterService.addListener((event) -> this.clusterState = event.state());
+        clusterService.addListener(this::setClusterState);
+    }
+
+    // visible for testing
+    void setClusterState(ClusterChangedEvent event) {
+        clusterState = event.state();
     }
 
     /**
@@ -146,6 +153,13 @@ public class TrainedModelStatsService {
         if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
+
+        boolean isInUpgradeMode = MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
+        if (isInUpgradeMode) {
+            logger.debug("Model stats not persisted as ml upgrade mode is enabled");
+            return;
+        }
+
         if (verifyIndicesExistAndPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
                 logger.debug("About to create the stats index as it does not exist yet");
@@ -251,5 +265,4 @@ public class TrainedModelStatsService {
         }
         return null;
     }
-
 }

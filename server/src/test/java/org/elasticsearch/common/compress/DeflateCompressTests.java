@@ -390,7 +390,7 @@ public class DeflateCompressTests extends ESTestCase {
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         OutputStreamStreamOutput rawOs = new OutputStreamStreamOutput(bos);
-        StreamOutput os = c.streamOutput(rawOs);
+        StreamOutput os = c.threadLocalStreamOutput(rawOs);
 
         Random r = random();
         int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(random(), 1, 70000);
@@ -410,7 +410,7 @@ public class DeflateCompressTests extends ESTestCase {
         byte compressed[] = bos.toByteArray();
         ByteBuffer bb2 = ByteBuffer.wrap(compressed);
         StreamInput compressedIn = new ByteBufferStreamInput(bb2);
-        StreamInput in = c.streamInput(compressedIn);
+        StreamInput in = c.threadLocalStreamInput(compressedIn);
 
         // randomize constants again
         bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(random(), 1, 70000);

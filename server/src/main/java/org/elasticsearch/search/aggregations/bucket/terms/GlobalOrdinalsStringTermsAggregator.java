@@ -106,10 +106,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (remapGlobalOrds) {
             this.collectionStrategy = new RemapGlobalOrds(cardinality);
         } else {
-            if (cardinality == CardinalityUpperBound.MANY) {
-                throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
-            }
-            this.collectionStrategy = new DenseGlobalOrds();
+            this.collectionStrategy = cardinality.map(estimate -> {
+                if (estimate > 1) {
+                    throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
+                }
+                return new DenseGlobalOrds();
+            });
         }
     }
 
@@ -561,7 +563,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
                 collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
                     TB spare = null;
-    
+
                     @Override
                     public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
                         otherDocCount[finalOrdIdx] += docCount;
@@ -574,7 +576,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                     }
                 });
-    
+
                 // Get the top buckets
                 topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
                 for (int i = ordered.size() - 1; i >= 0; --i) {
@@ -797,9 +799,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
         }
 
+        private long subsetSize(long owningBucketOrd) {
+            // if the owningBucketOrd is not in the array that means the bucket is empty so the size has to be 0
+            return owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
+        }
+
         @Override
         BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) throws IOException {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
+            long subsetSize = subsetSize(owningBucketOrd);
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.bucketOrd = bucketOrd;
                 oversizedCopy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
@@ -839,7 +846,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                subsetSizes.get(owningBucketOrd),
+                subsetSize(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
                 Arrays.asList(topBuckets)

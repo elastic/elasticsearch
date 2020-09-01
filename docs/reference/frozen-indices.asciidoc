@@ -64,9 +64,9 @@ or sorted search requests.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_forcemerge?max_num_segments=1
+POST /my-index-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [role="xpack"]
 [testenv="basic"]
@@ -81,9 +81,9 @@ the query parameter `ignore_throttled=false`.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_search?q=user:kimchy&ignore_throttled=false
+GET /my-index-000001/_search?q=user.id:kimchy&ignore_throttled=false
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [role="xpack"]
 [testenv="basic"]
@@ -95,16 +95,16 @@ Frozen indices are ordinary indices that use search throttling and a memory effi
 
 [source,console]
 --------------------------------------------------
-GET /_cat/indices/twitter?v&h=i,sth
+GET /_cat/indices/my-index-000001?v&h=i,sth
 --------------------------------------------------
-// TEST[s/^/PUT twitter\nPOST twitter\/_freeze\n/]
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_freeze\n/]
 
 The response looks like:
 
 [source,txt]
 --------------------------------------------------
-i         sth
-twitter   true
+i                 sth
+my-index-000001   true
 --------------------------------------------------
 // TESTRESPONSE[non_json]
 

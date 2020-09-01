@@ -76,10 +76,10 @@ query rewrites to `match_none` on every shard.
 
 
 The types used in the response describe _families_ of field types.
-Normally a family type is the same as the field type declared in the mapping,
+Normally a type family is the same as the field type declared in the mapping,
 but to simplify matters certain field types that behave identically are
-described using a family type. For example, `keyword`, `constant_keyword` and `wildcard`
-field types are all described as the `keyword` family type.
+described using a type family. For example, `keyword`, `constant_keyword` and `wildcard`
+field types are all described as the `keyword` type family.
 
 
 
@@ -90,8 +90,8 @@ field types are all described as the `keyword` family type.
   Whether this field can be aggregated on all indices.
 
 `indices`::
-  The list of indices where this field has the same family type, or null if all indices
-  have the same family type for the field.
+  The list of indices where this field has the same type family, or null if all indices
+  have the same type family for the field.
 
 `non_searchable_indices`::
   The list of indices where this field is not searchable, or null if all indices
@@ -116,9 +116,9 @@ The request can be restricted to specific data streams and indices:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_field_caps?fields=rating
+GET my-index-000001/_field_caps?fields=rating
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 The next example API call requests information about the `rating` and the
@@ -228,7 +228,7 @@ It is also possible to filter indices with a query:
 
 [source,console]
 --------------------------------------------------
-POST twitter*/_field_caps?fields=rating
+POST my-index-*/_field_caps?fields=rating
 {
   "index_filter": {
     "range": {
@@ -239,7 +239,7 @@ POST twitter*/_field_caps?fields=rating
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 In which case indices that rewrite the provided filter to `match_none` on every shard

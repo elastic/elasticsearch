@@ -302,19 +302,23 @@ exist in the mapping:
 
 [source,console]
 --------------------------------------------------
-PUT /test1
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "user" : {
-        "type": "keyword"
+      "user": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          }
+        }
       }
     }
   }
 }
 --------------------------------------------------
 
-Now we can create an alias that uses a filter on field `user`:
+Now we can create an alias that uses a filter on field `user.id`:
 
 [source,console]
 --------------------------------------------------
@@ -323,7 +327,7 @@ POST /_aliases
   "actions": [
     {
       "add": {
-        "index": "test1",
+        "index": "my-index-000001",
         "alias": "alias2",
         "filter": { "term": { "user.id": "kimchy" } }
       }

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.inference.utils.Statistics;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +59,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNo
 
 public class TreeInferenceModel implements InferenceModel {
 
+    private static final Logger LOGGER = LogManager.getLogger(TreeInferenceModel.class);
     public static final long SHALLOW_SIZE = shallowSizeOfInstance(TreeInferenceModel.class);
 
     @SuppressWarnings("unchecked")
@@ -184,14 +188,17 @@ public class TreeInferenceModel implements InferenceModel {
                 return new ClassificationInferenceResults(classificationValue.getValue(),
                     classificationLabel(classificationValue.getValue(), classificationLabels),
                     topClasses.v2(),
-                    InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, classificationLabels),
+                    InferenceHelpers.transformFeatureImportanceClassification(decodedFeatureImportance,
+                        classificationValue.getValue(),
+                        classificationLabels,
+                        classificationConfig.getPredictionFieldType()),
                     config,
                     classificationValue.getProbability(),
                     classificationValue.getScore());
             case REGRESSION:
                 return new RegressionInferenceResults(value[0],
                     config,
-                    InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, null));
+                    InferenceHelpers.transformFeatureImportanceRegression(decodedFeatureImportance));
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }
@@ -304,6 +311,7 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+        LOGGER.debug("rewriting features {}", newFeatureIndexMapping);
         if (preparedForInference) {
             return;
         }
@@ -356,6 +364,20 @@ public class TreeInferenceModel implements InferenceModel {
 
     public Node[] getNodes() {
         return nodes;
+    }
+
+    @Override
+    public String toString() {
+        return "TreeInferenceModel{" +
+            "nodes=" + Arrays.toString(nodes) +
+            ", featureNames=" + Arrays.toString(featureNames) +
+            ", targetType=" + targetType +
+            ", classificationLabels=" + classificationLabels +
+            ", highOrderCategory=" + highOrderCategory +
+            ", maxDepth=" + maxDepth +
+            ", leafSize=" + leafSize +
+            ", preparedForInference=" + preparedForInference +
+            '}';
     }
 
     private static int getDepth(Node[] nodes, int nodeIndex, int depth) {
@@ -519,6 +541,19 @@ public class TreeInferenceModel implements InferenceModel {
         public long ramBytesUsed() {
             return SHALLOW_SIZE;
         }
+
+        @Override
+        public String toString() {
+            return "InnerNode{" +
+                "operator=" + operator +
+                ", threshold=" + threshold +
+                ", splitFeature=" + splitFeature +
+                ", defaultLeft=" + defaultLeft +
+                ", leftChild=" + leftChild +
+                ", rightChild=" + rightChild +
+                ", numberSamples=" + numberSamples +
+                '}';
+        }
     }
 
     public static class LeafNode extends Node {
@@ -543,6 +578,14 @@ public class TreeInferenceModel implements InferenceModel {
 
         public double[] getLeafValue() {
             return leafValue;
+        }
+
+        @Override
+        public String toString() {
+            return "LeafNode{" +
+                "leafValue=" + Arrays.toString(leafValue) +
+                ", numberSamples=" + numberSamples +
+                '}';
         }
     }
 }

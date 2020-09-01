@@ -179,6 +179,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -337,7 +338,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-job-request
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); // <1>
-            request.setAllowNoJobs(true); // <2>
+            request.setAllowNoMatch(true); // <2>
             // end::get-job-request
 
             // tag::get-job-execute
@@ -510,7 +511,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::close-job-request
             CloseJobRequest closeJobRequest = new CloseJobRequest("closing-my-first-machine-learning-job", "otherjobs*"); // <1>
             closeJobRequest.setForce(false); // <2>
-            closeJobRequest.setAllowNoJobs(true); // <3>
+            closeJobRequest.setAllowNoMatch(true); // <3>
             closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10)); // <4>
             // end::close-job-request
 
@@ -833,7 +834,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-datafeed-request
             GetDatafeedRequest request = new GetDatafeedRequest(datafeedId); // <1>
-            request.setAllowNoDatafeeds(true); // <2>
+            request.setAllowNoMatch(true); // <2>
             // end::get-datafeed-request
 
             // tag::get-datafeed-execute
@@ -1068,7 +1069,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             request = StopDatafeedRequest.stopAllDatafeedsRequest();
 
             // tag::stop-datafeed-request-options
-            request.setAllowNoDatafeeds(true); // <1>
+            request.setAllowNoMatch(true); // <1>
             request.setForce(true); // <2>
             request.setTimeout(TimeValue.timeValueMinutes(10)); // <3>
             // end::stop-datafeed-request-options
@@ -1137,7 +1138,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-datafeed-stats-request
             GetDatafeedStatsRequest request =
                 new GetDatafeedStatsRequest("get-machine-learning-datafeed-stats1-feed", "get-machine-learning-datafeed*"); // <1>
-            request.setAllowNoDatafeeds(true); // <2>
+            request.setAllowNoMatch(true); // <2>
             //end::get-datafeed-stats-request
 
             //tag::get-datafeed-stats-execute
@@ -1437,7 +1438,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-job-stats-request
             GetJobStatsRequest request = new GetJobStatsRequest("get-machine-learning-job-stats1", "get-machine-learning-job-*"); // <1>
-            request.setAllowNoJobs(true); // <2>
+            request.setAllowNoMatch(true); // <2>
             // end::get-job-stats-request
 
             // tag::get-job-stats-execute
@@ -3003,6 +3004,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setRandomizeSeed(1234L) // <10>
                 .setClassAssignmentObjective(Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY) // <11>
                 .setNumTopClasses(1) // <12>
+                .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
+                    .addOneHot("cat", "cat_column")
+                    .build()))
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3019,6 +3023,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setRandomizeSeed(1234L) // <10>
                 .setLossFunction(Regression.LossFunction.MSE) // <11>
                 .setLossFunctionParameter(1.0) // <12>
+                .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
+                    .addOneHot("cat", "cat_column")
+                    .build()))
                 .build();
             // end::put-data-frame-analytics-regression
 

@@ -148,8 +148,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
-    private Supplier<Sort> indexSortSupplier;
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final Supplier<Sort> indexSortSupplier;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
             IndexSettings indexSettings,
@@ -199,7 +199,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // The sort order is validated right after the merge of the mapping later in the process.
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
                     mapperService::fieldType,
-                    indexFieldData::getForField
+                    fieldType -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), () -> {
+                        throw new UnsupportedOperationException("search lookup not available for index sorting");
+                    })
                 );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -406,7 +408,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexShard indexShard = null;
         ShardLock lock = null;
         try {
-            lock = nodeEnv.shardLock(shardId, "shard creation", TimeUnit.SECONDS.toMillis(5));
+            lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
@@ -515,6 +517,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
+        if (store != null) {
+            store.beforeClose();
+        }
         try {
             try {
                 listener.beforeIndexShardClosed(sId, indexShard, indexSettings);

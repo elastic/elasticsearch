@@ -51,13 +51,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ===== Example with an individual data stream or index
 
 The following `count` API request retrieves the document count for the 
-`twitter` data stream or index.
+`my-index-000001` data stream or index.
 
 [source,console,id=cat-count-individual-example]
 --------------------------------------------------
-GET /_cat/count/twitter?v
+GET /_cat/count/my-index-000001?v
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 
 The API returns the following response:
@@ -79,7 +79,7 @@ streams and indices in the cluster.
 --------------------------------------------------
 GET /_cat/count?v
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 // TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:

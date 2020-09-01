@@ -95,9 +95,10 @@ public class EqlSession {
         if(configuration.isCancelled()){
             throw new TaskCancelledException("cancelled");
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), wrap(r -> {
-            listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
-        }, listener::onFailure));
+        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), configuration.filter(),
+            wrap(r -> {
+                listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
+            }, listener::onFailure));
     }
 
     private LogicalPlan doParse(String eql, ParserParams params) {

@@ -26,7 +26,6 @@ import com.microsoft.azure.storage.RequestCompletedEvent;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageEvent;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlob;
@@ -245,9 +244,60 @@ public class AzureBlobStore implements BlobStore {
         final OperationContext context = hookMetricCollector(client.v2().get(), getMetricsCollector);
         final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
-        final BlobInputStream is = SocketAccess.doPrivilegedException(() ->
-            blockBlobReference.openInputStream(position, length, null, null, context));
-        return giveSocketPermissionsToStream(is);
+        SocketAccess.doPrivilegedVoidException(() -> blockBlobReference.downloadAttributes(null, null, context));
+        final long limit = length == null ? blockBlobReference.getProperties().getLength() - position : length;
+        return new InputStream() {
+
+            private final byte[] buffer = new byte[Math.min(4 * 1024 * 1024, Math.toIntExact(
+                    Math.min(length == null ? Integer.MAX_VALUE : length, Integer.MAX_VALUE)))];
+
+            private int pos = 0;
+
+            private long offset = 0;
+
+            private int count = 0;
+
+            @Override
+            public int read() throws IOException {
+                fill();
+                if (pos == count) {
+                    return -1;
+                }
+                return buffer[pos++];
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                fill();
+                if (len > 0 && pos == count) {
+                    return -1;
+                }
+                int remaining = count - pos;
+                final int toRead = Math.min(remaining, len);
+                System.arraycopy(buffer, pos, b, off, toRead);
+                pos += toRead;
+                return toRead;
+            }
+
+            private void fill() throws IOException {
+                if (pos == count) {
+                    final long toFill = Math.min(limit - this.offset, buffer.length);
+                    if (toFill == 0L) {
+                        return;
+                    }
+                    final int read;
+                    try {
+                        read = SocketAccess.doPrivilegedException(() -> blockBlobReference.downloadRangeToByteArray(
+                                position + this.offset, toFill, buffer, 0, null, null, context));
+                    } catch (StorageException ex) {
+                        throw new IOException(ex);
+                    }
+                    count = read;
+                    this.offset += read;
+                    pos = 0;
+                }
+            }
+        };
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix)
@@ -345,25 +395,6 @@ public class AzureBlobStore implements BlobStore {
             }
         });
         return context;
-    }
-
-    static InputStream giveSocketPermissionsToStream(final InputStream stream) {
-        return new InputStream() {
-            @Override
-            public int read() throws IOException {
-                return SocketAccess.doPrivilegedIOException(stream::read);
-            }
-
-            @Override
-            public int read(byte[] b) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> stream.read(b));
-            }
-
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
-            }
-        };
     }
 
     @Override

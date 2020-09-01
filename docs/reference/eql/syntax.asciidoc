@@ -530,7 +530,7 @@ until [ event_category_3 where condition_3 ]
 ----
 
 *Example* +
-A dataset contains following event sequences, grouped by a shared ID:
+A dataset contains the following event sequences, grouped by a shared ID:
 
 [source,txt]
 ----

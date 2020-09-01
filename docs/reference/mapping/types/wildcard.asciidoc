@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [discrete]
-[[wildcard]]
+[[wildcard-field-type]]
 === Wildcard field type
 
 A `wildcard` field stores values optimised for wildcard grep-like queries.

@@ -275,6 +275,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         public LegacyGeoShapeFieldMapper build(BuilderContext context) {
+            if (name.isEmpty()) {
+                // Check for an empty name early so we can throw a consistent error message
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
             return new LegacyGeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context),
                 coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);

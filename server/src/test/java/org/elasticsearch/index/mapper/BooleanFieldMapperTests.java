@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
@@ -59,6 +58,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
@@ -300,22 +300,19 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
     }
 
-    public void testParseSourceValue() {
+    public void testFetchSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
-        assertTrue(mapper.parseSourceValue(true, null));
-        assertFalse(mapper.parseSourceValue("false", null));
-        assertFalse(mapper.parseSourceValue("", null));
+        assertEquals(List.of(true), fetchSourceValue(mapper, true));
+        assertEquals(List.of(false), fetchSourceValue(mapper, "false"));
+        assertEquals(List.of(false), fetchSourceValue(mapper, ""));
 
         Map<String, Object> mapping = Map.of("type", "boolean", "null_value", true);
         BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder("field");
         builder.parse("field", null, new HashMap<>(mapping));
         BooleanFieldMapper nullValueMapper = builder.build(context);
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(List.of(true), nullValueMapper.lookupValues(sourceLookup, null));
+        assertEquals(List.of(true), fetchSourceValue(nullValueMapper, null));
     }
 }

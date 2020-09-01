@@ -76,10 +76,10 @@ query rewrites to `match_none` on every shard.
 
 
 The types used in the response describe _families_ of field types.
-Normally a family type is the same as the field type declared in the mapping,
+Normally a type family is the same as the field type declared in the mapping,
 but to simplify matters certain field types that behave identically are
-described using a family type. For example, `keyword`, `constant_keyword` and `wildcard`
-field types are all described as the `keyword` family type.
+described using a type family. For example, `keyword`, `constant_keyword` and `wildcard`
+field types are all described as the `keyword` type family.
 
 
 
@@ -90,8 +90,8 @@ field types are all described as the `keyword` family type.
   Whether this field can be aggregated on all indices.
 
 `indices`::
-  The list of indices where this field has the same family type, or null if all indices
-  have the same family type for the field.
+  The list of indices where this field has the same type family, or null if all indices
+  have the same type family for the field.
 
 `non_searchable_indices`::
   The list of indices where this field is not searchable, or null if all indices

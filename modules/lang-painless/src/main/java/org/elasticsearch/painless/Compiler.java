@@ -24,6 +24,7 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
 import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
 import org.elasticsearch.painless.phase.DocFieldsPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
@@ -224,6 +225,7 @@ final class Compiler {
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         byte[] bytes = classNode.write();
 
         try {
@@ -258,6 +260,7 @@ final class Compiler {
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         classNode.setDebugStream(debugStream);
 
         return classNode.write();

@@ -622,13 +622,6 @@ as its build system. Since the switch to Gradle though, this is no longer possib
 the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
 For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
 
-== Debugging remotely from an IDE
-
-If you want to run Elasticsearch and be able to remotely attach the process
-for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPTS`:
-
----------------------------------------------------------------------------
-ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
 ---------------------------------------------------------------------------
 
 Read your IDE documentation for how to attach a debugger to a JVM process.

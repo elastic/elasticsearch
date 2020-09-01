@@ -13,7 +13,6 @@ archivesBaseName = 'x-pack-searchable-snapshots'
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
- // testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

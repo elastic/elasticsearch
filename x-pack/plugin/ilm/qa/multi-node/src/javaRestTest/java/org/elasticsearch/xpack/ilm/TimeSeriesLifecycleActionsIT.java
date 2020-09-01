@@ -116,7 +116,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "integTest-0")
+            .put("index.routing.allocation.include._name", "javaRestTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // create policy
@@ -144,7 +144,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "integTest-0")
+            .put("index.routing.allocation.include._name", "javaRestTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // create policy
@@ -178,7 +178,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "integTest-0")
+            .put("index.routing.allocation.include._name", "javaRestTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         createFullPolicy(client(), policy, TimeValue.timeValueHours(10));
@@ -355,7 +355,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testAllocateOnlyAllocation() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String allocateNodeName = "integTest-" + randomFrom(0, 1);
+        String allocateNodeName = "javaRestTest-" + randomFrom(0, 1);
         AllocateAction allocateAction = new AllocateAction(null, null, null, singletonMap("_name", allocateNodeName));
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
@@ -617,7 +617,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             // required so the shrink doesn't wait on SetSingleNodeAllocateStep
-            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "integTest-0"));
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "javaRestTest-0"));
         // index document so snapshot actually does something
         indexDocument(client(), index);
         // start snapshot

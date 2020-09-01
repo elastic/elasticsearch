@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
@@ -44,6 +45,17 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
     @Override
     public Object valueForDisplay(Object value) {
         return value; // These should come back as a Double
+    }
+
+    @Override
+    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        if (timeZone != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
+        }
+        if (format == null) {
+            return DocValueFormat.RAW;
+        }
+        return new DocValueFormat.Decimal(format);
     }
 
     @Override

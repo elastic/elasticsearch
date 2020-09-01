@@ -1623,9 +1623,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder =
                                     ImmutableOpenMap.builder(entry.shards());
                             for (ShardId shardId : canBeUpdated) {
-                                final boolean added = reassignedShardIds.add(shardId);
-                                assert added;
-                                updatedAssignmentsBuilder.put(shardId, shardAssignments.get(shardId));
+                                final ShardSnapshotStatus updated = shardAssignments.get(shardId);
+                                if (updated == null) {
+                                    // We don't have a new assignment for this shard because its index was concurrently deleted
+                                    assert currentState.routingTable().hasIndex(shardId.getIndex()) == false :
+                                            "Missing assignment for [" + shardId + "]";
+                                    updatedAssignmentsBuilder.put(shardId, ShardSnapshotStatus.MISSING);
+                                } else {
+                                    final boolean added = reassignedShardIds.add(shardId);
+                                    assert added;
+                                    updatedAssignmentsBuilder.put(shardId, updated);
+                                }
                             }
                             snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
                             changed = true;
@@ -1715,8 +1723,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             IndexMetadata indexMetadata = metadata.index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
-                builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                    new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "missing index", null));
+                builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
             } else {
                 final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
                 assert indexRoutingTable != null;

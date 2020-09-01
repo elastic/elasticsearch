@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.transport.filter;
+package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;

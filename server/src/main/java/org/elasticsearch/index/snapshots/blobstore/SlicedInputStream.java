@@ -27,21 +27,21 @@ import java.io.InputStream;
  *  A {@link SlicedInputStream} is a logical
  * concatenation one or more input streams. In contrast to the JDKs
  * {@link java.io.SequenceInputStream} this stream doesn't require the instantiation
- * of all logical sub-streams ahead of time. Instead, {@link #openSlice(long)} is called
+ * of all logical sub-streams ahead of time. Instead, {@link #openSlice(int)} is called
  * if a new slice is required. Each slice is closed once it's been fully consumed or if
  * close is called before.
  */
 public abstract class SlicedInputStream extends InputStream {
-    private long slice = 0;
+    private int slice = 0;
     private InputStream currentStream;
-    private final long numSlices;
+    private final int numSlices;
     private boolean initialized = false;
 
     /**
      * Creates a new SlicedInputStream
      * @param numSlices the number of slices to consume
      */
-    protected SlicedInputStream(final long numSlices) {
+    protected SlicedInputStream(final int numSlices) {
         this.numSlices = numSlices;
     }
 
@@ -60,7 +60,7 @@ public abstract class SlicedInputStream extends InputStream {
     /**
      * Called for each logical slice given a zero based slice ordinal.
      */
-    protected abstract InputStream openSlice(long slice) throws IOException;
+    protected abstract InputStream openSlice(int slice) throws IOException;
 
     private InputStream currentStream() throws IOException {
         if (currentStream == null) {

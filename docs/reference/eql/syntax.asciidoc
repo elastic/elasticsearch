@@ -8,7 +8,7 @@
 
 experimental::[]
 
-[IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>.
+IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>>.
 
 [discrete]
 [[eql-basic-syntax]]

@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Supplier;
 
-
 public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_index";

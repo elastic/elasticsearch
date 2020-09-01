@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -20,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("date_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "date_whitelist.txt"));
@@ -29,42 +30,48 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
     }
 
     public interface LeafFactory {
         DateScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    public DateScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    private final DateFormatter formatter;
+
+    public DateScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
+        this.formatter = formatter;
     }
 
-    public static class Millis {
+    public static long toEpochMilli(TemporalAccessor v) {
+        // TemporalAccessor is a nanos API so we have to convert.
+        long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1000);
+        millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
+        return millis;
+    }
+
+    public static class EmitValue {
         private final DateScriptFieldScript script;
 
-        public Millis(DateScriptFieldScript script) {
+        public EmitValue(DateScriptFieldScript script) {
             this.script = script;
         }
 
-        public void millis(long v) {
-            script.collectValue(v);
+        public void emitValue(long v) {
+            script.emitValue(v);
         }
     }
 
-    public static class Date {
+    public static class Parse {
         private final DateScriptFieldScript script;
 
-        public Date(DateScriptFieldScript script) {
+        public Parse(DateScriptFieldScript script) {
             this.script = script;
         }
 
-        public void date(TemporalAccessor v) {
-            // TemporalAccessor is a nanos API so we have to convert.
-            long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1000);
-            millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
-            script.collectValue(millis);
+        public long parse(Object str) {
+            return script.formatter.parseMillis(str.toString());
         }
     }
-
 }

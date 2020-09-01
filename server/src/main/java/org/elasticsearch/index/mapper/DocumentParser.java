@@ -622,16 +622,12 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?> newLongBuilder(String name) {
-        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
+    private static Mapper.Builder<?> newLongBuilder(String name, Settings settings) {
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, settings);
     }
 
-    private static Mapper.Builder<?> newFloatBuilder(String name) {
-        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
-    }
-
-    private static Mapper.Builder<?> newDateBuilder(String name, DateFormatter dateTimeFormatter, boolean ignoreMalformedByDefault) {
-        return new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS, dateTimeFormatter, ignoreMalformedByDefault);
+    private static Mapper.Builder<?> newFloatBuilder(String name, Settings settings) {
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, settings);
     }
 
     private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
@@ -659,13 +655,13 @@ final class DocumentParser {
             if (parseableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (parseableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
-                    builder = newFloatBuilder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
@@ -704,7 +700,7 @@ final class DocumentParser {
                     || numberType == XContentParser.NumberType.BIG_INTEGER) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT
@@ -715,7 +711,7 @@ final class DocumentParser {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = newFloatBuilder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             }

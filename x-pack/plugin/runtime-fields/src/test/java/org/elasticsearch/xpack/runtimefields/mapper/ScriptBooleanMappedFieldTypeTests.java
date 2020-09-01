@@ -413,7 +413,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new BooleanScriptFieldScript.Value(this).value(parse(foo));
+                                            emitValue(parse(foo));
                                         }
                                     }
                                 };
@@ -422,9 +422,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new BooleanScriptFieldScript.Value(this).value(
-                                                (Boolean) foo ^ ((Boolean) getParams().get("param"))
-                                            );
+                                            emitValue((Boolean) foo ^ ((Boolean) getParams().get("param")));
                                         }
                                     }
                                 };

@@ -315,8 +315,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
             }), circuitBreakerService, mapperService);
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
-            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
-
+            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0],
+                indexSettings.getIndex().getName(),
+                () -> {
+                    throw new UnsupportedOperationException("search lookup not available");
+                }));
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
@@ -342,7 +345,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
              * close their sub-aggregations. This is fairly similar to what the production code does. */
             releasables.add((Releasable) invocation.getArguments()[0]);
             return null;
-        }).when(searchContext).addReleasable(anyObject(), anyObject());
+        }).when(searchContext).addReleasable(anyObject());
         return searchContext;
     }
 

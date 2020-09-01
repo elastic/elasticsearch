@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("long_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
@@ -38,15 +38,15 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
         super(params, searchLookup, ctx);
     }
 
-    public static class Value {
+    public static class EmitValue {
         private final LongScriptFieldScript script;
 
-        public Value(LongScriptFieldScript script) {
+        public EmitValue(LongScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(long v) {
-            script.collectValue(v);
+        public void emitValue(long v) {
+            script.emitValue(v);
         }
     }
 }

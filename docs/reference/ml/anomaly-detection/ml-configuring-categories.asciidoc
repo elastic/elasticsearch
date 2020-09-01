@@ -99,6 +99,29 @@ example, you might create a filter like `[ "\\[statement:.*\\]"]` to remove the
 SQL statement from the categorization algorithm.
 
 [discrete]
+[[ml-per-partition-categorization]]
+== Per-partition categorization
+
+If you enable per-partition categorization, categories are determined
+independently for each partition. For example, if your data includes messages
+from multiple types of logs from different applications, you can use a field
+like the ECS {ecs-ref}/ecs-event.html[`event.dataset` field] as the 
+`partition_field_name` and categorize the messages for each type of log
+separately.
+
+If your job has multiple detectors, every detector that uses the `mlcategory`
+keyword must also define a `partition_field_name`. You must use the same
+`partition_field_name` value in all of these detectors. Otherwise, when you
+create or update a job and enable per-partition categorization, it fails.
+
+When per-partition categorization is enabled, you can also take advantage of a
+`stop_on_warn` configuration option. If the categorization status for a
+partition changes to `warn`, it doesn't categorize well and can cause a lot of 
+unnecessary resource usage. When you set `stop_on_warn` to `true`, the job stops
+analyzing these problematic partitions. You can thus avoid an ongoing
+performance cost for partitions that are unsuitable for categorization.
+
+[discrete]
 [[ml-configuring-analyzer]]
 == Customizing the categorization analyzer
 

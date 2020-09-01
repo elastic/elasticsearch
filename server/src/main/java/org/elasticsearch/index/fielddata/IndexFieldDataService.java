@@ -109,17 +109,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     /**
-     * Returns fielddata for the provided field type. Same as {@link #getForField(MappedFieldType, String, Supplier)} but does not take
-     * the index name and the search lookup supplier as arguments. Does not support runtime fields.
-     */
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        assert fieldType.isRuntimeField() == false;
-        return getForField(fieldType, index().getName(), () ->  {
-            throw new UnsupportedOperationException("SearchLookup not available");
-        });
-    }
-
-    /**
      * Returns fielddata for the provided field type, given the provided fully qualified index name, while also making
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */

@@ -1,26 +1,33 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
+  restApi {
+    includeXpack 'async_search', 'graph'
+  }
   restTests {
     includeCore '*'
+    includeXpack 'async_search', 'graph'
   }
 }
 
 testClusters.yamlRestTest {
   testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
 }
 
 yamlRestTest {
   systemProperty 'tests.rest.suite',
     [
+      'async_search',
+      'field_caps',
+      'graph',
+      'msearch',
       'search',
       'search.aggregation',
       'search.highlight',
       'search.inner_hits',
       'search_shards',
       'suggest',
-      'msearch',
-      'field_caps',
     ].join(',')
   systemProperty 'tests.rest.blacklist',
     [
@@ -33,6 +40,7 @@ yamlRestTest {
       'search/10_source_filtering/docvalue_fields with explicit format',
       'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
       'search.aggregation/200_top_hits_metric/top_hits aggregation with nested documents',
+      'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
       /////// TO FIX ///////
 
       /////// NOT SUPPORTED ///////

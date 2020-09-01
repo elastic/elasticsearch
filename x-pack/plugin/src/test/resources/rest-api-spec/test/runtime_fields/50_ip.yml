@@ -20,7 +20,7 @@ setup:
                   source: |
                     String m = doc["message"].value;
                     int end = m.indexOf(" ");
-                    stringValue(m.substring(0, end));
+                    emitValue(m.substring(0, end));
               # Test fetching from _source
               ip_from_source:
                 type: runtime_script
@@ -29,7 +29,7 @@ setup:
                   source: |
                     String m = source["message"];
                     int end = m.indexOf(" ");
-                    stringValue(m.substring(0, end));
+                    emitValue(m.substring(0, end));
               # Test emitting many values
               ip_many:
                 type: runtime_script
@@ -41,7 +41,7 @@ setup:
                     end = m.lastIndexOf(".", end);
                     String stem = m.substring(0, end + 1);
                     for (int i = 0; i < 5; i++) {
-                      stringValue(stem + i);
+                      emitValue(stem + i);
                     }
   - do:
       bulk:
@@ -73,7 +73,7 @@ setup:
       http_logs.mappings.properties.ip.script.source: |
         String m = doc["message"].value;
         int end = m.indexOf(" ");
-        stringValue(m.substring(0, end));
+        emitValue(m.substring(0, end));
   - match: {http_logs.mappings.properties.ip.script.lang: painless }
 
 ---
@@ -109,6 +109,24 @@ setup:
   - match: {aggregations.ip.buckets.0.key: 247.37.0.0}
   - match: {aggregations.ip.buckets.0.doc_count: 2}
   - match: {aggregations.ip.buckets.1.key: 26.1.0.0}
+  - match: {aggregations.ip.buckets.1.doc_count: 1}
+
+---
+"use in scripts":
+  - do:
+      search:
+        index: http_logs
+        body:
+          aggs:
+            ip:
+              terms:
+                script:
+                  String v = doc['ip'].value;
+                  return v.substring(0, v.indexOf('.'));
+  - match: {hits.total.value: 6}
+  - match: {aggregations.ip.buckets.0.key: '247'}
+  - match: {aggregations.ip.buckets.0.doc_count: 2}
+  - match: {aggregations.ip.buckets.1.key: '232'}
   - match: {aggregations.ip.buckets.1.doc_count: 1}
 
 ---

@@ -19,8 +19,17 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
+    public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
+
+    /**
+     * The maximum number of {@code char}s we support collecting in a string
+     * runtime field.
+     * <p>
+     * Note: This is calculated with {@link String#length()} so it is a fairly
+     * direct measure of memory usage but, because java uses utf-16 for these
+     * chars it is fairly esoteric to talk about.
+     */
     public static final long MAX_CHARS = 1024 * 1024;
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
@@ -57,22 +66,26 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         return results;
     }
 
-    public static class Value {
+    protected final void emitValue(String v) {
+        if (results.size() >= MAX_VALUES) {
+            throw new IllegalArgumentException("too many runtime values");
+        }
+        chars += v.length();
+        if (chars >= MAX_CHARS) {
+            throw new IllegalArgumentException("too many characters in runtime values [" + chars + "]");
+        }
+        results.add(v);
+    }
+
+    public static class EmitValue {
         private final StringScriptFieldScript script;
 
-        public Value(StringScriptFieldScript script) {
+        public EmitValue(StringScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(String v) {
-            if (script.results.size() >= MAX_VALUES) {
-                throw new IllegalArgumentException("too many runtime values");
-            }
-            script.chars += v.length();
-            if (script.chars >= MAX_CHARS) {
-                throw new IllegalArgumentException("too many characters in runtime values [" + script.chars + "]");
-            }
-            script.results.add(v);
+        public void emitValue(String v) {
+            script.emitValue(v);
         }
     }
 }

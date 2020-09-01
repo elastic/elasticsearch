@@ -40,7 +40,7 @@ import java.util.Map;
  * </ul>
  */
 public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("ip_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("ip_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "ip_whitelist.txt"));
@@ -92,22 +92,22 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
         return count;
     }
 
-    private void collectValue(String v) {
+    protected final void emitValue(String v) {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
         values[count++] = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
     }
 
-    public static class StringValue {
+    public static class EmitValue {
         private final IpScriptFieldScript script;
 
-        public StringValue(IpScriptFieldScript script) {
+        public EmitValue(IpScriptFieldScript script) {
             this.script = script;
         }
 
-        public void stringValue(String v) {
-            script.collectValue(v);
+        public void emitValue(String v) {
+            script.emitValue(v);
         }
     }
 }

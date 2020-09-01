@@ -272,7 +272,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new DoubleScriptFieldScript.Value(this).value(((Number) foo).doubleValue());
+                                            emitValue(((Number) foo).doubleValue());
                                         }
                                     }
                                 };
@@ -281,9 +281,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            new DoubleScriptFieldScript.Value(this).value(
-                                                ((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue()
-                                            );
+                                            emitValue(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                                         }
                                     }
                                 };

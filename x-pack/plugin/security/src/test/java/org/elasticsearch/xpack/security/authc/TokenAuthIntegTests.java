@@ -428,7 +428,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("token has already been refreshed more than 30 seconds in the past"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
@@ -455,16 +454,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     return;
                 }
 
-                try {
+                try (RestHighLevelClient threadRestClient = new TestRestHighLevelClient()){
                     // safe to use same rest client across threads since it round robins between nodes
-                    CreateTokenResponse result = restClient.security()
+                    CreateTokenResponse result = threadRestClient.security()
                         .createToken(CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()), SECURITY_REQUEST_OPTIONS);
                     final Instant t2 = clock.instant();
                     if (t1.plusSeconds(30L).isBefore(t2)) {
                         logger.warn("Tokens [{}], [{}] were received more than 30 seconds after the request, not checking them",
                             result.getAccessToken(), result.getRefreshToken());
                     } else {
-                        authStatuses.add(getAuthenticationResponseCode(result.getAccessToken()));
+                        authStatuses.add(getAuthenticationResponseCode(threadRestClient, result.getAccessToken()));
                         tokens.add(result.getAccessToken() + result.getRefreshToken());
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.getAccessToken(), result.getRefreshToken());
@@ -525,8 +524,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
 
         AuthenticateResponse response = restClient.security().authenticate(superuserOptions);
-        ;
+
         assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.getUser().getUsername());
+        assertEquals("realm", response.getAuthenticationType());
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
@@ -604,6 +604,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             "Bearer " + accessToken).build());
         assertThat(authResponse.getUser().getUsername(), equalTo(expectedUser));
+        assertThat(authResponse.getAuthenticationType(), equalTo("token"));
     }
 
     private void assertUnauthorizedToken(String accessToken) {
@@ -614,10 +615,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
     }
 
-    private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+    private RestStatus getAuthenticationResponseCode(RestHighLevelClient client, String accessToken) throws IOException {
+
         try {
-            restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            client.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
                 "Bearer " + accessToken).build());
             return RestStatus.OK;
         } catch (ElasticsearchStatusException esse) {

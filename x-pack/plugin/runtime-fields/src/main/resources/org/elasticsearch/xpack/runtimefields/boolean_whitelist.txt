@@ -6,15 +6,16 @@
 
 # The whitelist for boolean-valued runtime fields
 
+# These two whitelists are required for painless to find the classes
 class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript @no_import {
-
+}
+class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Factory @no_import {
 }
 
 static_import {
-    void value(org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Value
+    # The `emitValue` callback to collect values for the field
+    void emitValue(org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$EmitValue
+    # Parse a value from the source to a boolean
     boolean parse(def) from_class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript
 }
 
-# This import is required to make painless happy and it isn't 100% clear why
-class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Factory @no_import {
-}

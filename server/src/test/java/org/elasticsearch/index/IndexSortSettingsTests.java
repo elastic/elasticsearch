@@ -19,19 +19,10 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
-import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
@@ -40,28 +31,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexSortSettingsTests extends ESTestCase {
     private static IndexSettings indexSettings(Settings settings) {
-        return indexSettings(settings, null);
+        return new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
     }
 
-    private static IndexSettings indexSettings(Settings settings, Version version) {
-        final Settings newSettings;
-        if (version != null) {
-            newSettings = Settings.builder()
-                .put(settings)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-        } else {
-            newSettings = settings;
-        }
-        return new IndexSettings(newIndexMeta("test", newSettings), Settings.EMPTY);
-    }
-
-    public void testNoIndexSort() throws IOException {
+    public void testNoIndexSort() {
         IndexSettings indexSettings = indexSettings(EMPTY_SETTINGS);
         assertFalse(indexSettings.getIndexSortConfig().hasIndexSort());
     }
 
-    public void testSimpleIndexSort() throws IOException {
+    public void testSimpleIndexSort() {
         Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
             .put("index.sort.order", "asc")
@@ -79,7 +57,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MAX));
     }
 
-    public void testIndexSortWithArrays() throws IOException {
+    public void testIndexSortWithArrays() {
         Settings settings = Settings.builder()
             .putList("index.sort.field", "field1", "field2")
             .putList("index.sort.order", "asc", "desc")
@@ -100,7 +78,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertNull(config.sortSpecs[1].mode);
     }
 
-    public void testInvalidIndexSort() throws IOException {
+    public void testInvalidIndexSort() {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
             .put("index.sort.order", "asc, desc")
@@ -110,7 +88,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("index.sort.field:[field1] index.sort.order:[asc, desc], size mismatch"));
     }
 
-    public void testInvalidIndexSortWithArray() throws IOException {
+    public void testInvalidIndexSortWithArray() {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
             .putList("index.sort.order", new String[] {"asc", "desc"})
@@ -121,7 +99,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             containsString("index.sort.field:[field1] index.sort.order:[asc, desc], size mismatch"));
     }
 
-    public void testInvalidOrder() throws IOException {
+    public void testInvalidOrder() {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
             .put("index.sort.order", "invalid")
@@ -131,7 +109,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("Illegal sort order:invalid"));
     }
 
-    public void testInvalidMode() throws IOException {
+    public void testInvalidMode() {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
             .put("index.sort.mode", "invalid")
@@ -141,7 +119,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("Illegal sort mode: invalid"));
     }
 
-    public void testInvalidMissing() throws IOException {
+    public void testInvalidMissing() {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
             .put("index.sort.missing", "default")
@@ -150,42 +128,5 @@ public class IndexSortSettingsTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
         assertThat(exc.getMessage(), containsString("Illegal missing value:[default]," +
             " must be one of [_last, _first]"));
-    }
-
-    public void testIndexSortOnRuntimeField() {
-        final Settings settings = Settings.builder()
-            .put("index.sort.field", "runtime")
-            .build();
-        IndexSettings indexSettings = indexSettings(settings);
-        IndexSortConfig config = indexSettings.getIndexSortConfig();
-        assertTrue(config.hasIndexSort());
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(RuntimeField::new, null));
-        assertEquals("index sort on runtime field:[runtime] not supported", iae.getMessage());
-    }
-
-    private static class RuntimeField extends MappedFieldType {
-        RuntimeField(String name) {
-            super(name, false, false, TextSearchInfo.NONE, Collections.emptyMap());
-        }
-
-        @Override
-        public boolean isRuntimeField() {
-            return true;
-        }
-
-        @Override
-        public String typeName() {
-            return "runtime";
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
     }
 }

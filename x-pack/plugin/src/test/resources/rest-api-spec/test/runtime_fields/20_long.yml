@@ -23,7 +23,7 @@ setup:
                 script:
                   source: |
                     for (double v : doc['voltage']) {
-                      value((long)(v * params.multiplier));
+                      emitValue((long)(v * params.multiplier));
                     }
                   params:
                     multiplier: 10
@@ -33,7 +33,7 @@ setup:
                 runtime_type: long
                 script:
                   source: |
-                    value((long)(source['voltage'] * params.multiplier));
+                    emitValue((long)(source['voltage'] * params.multiplier));
                   params:
                     multiplier: 10
               # Test fetching many values
@@ -45,7 +45,7 @@ setup:
                     for (long temperature : doc['temperature']) {
                       long t = temperature;
                       while (t != 0) {
-                        value(t % 10);
+                        emitValue(t % 10);
                         t /= 10;
                       }
                     }
@@ -78,7 +78,7 @@ setup:
   - match:
       sensor.mappings.properties.voltage_times_ten.script.source: |
         for (double v : doc['voltage']) {
-          value((long)(v * params.multiplier));
+          emitValue((long)(v * params.multiplier));
         }
   - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
   - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }

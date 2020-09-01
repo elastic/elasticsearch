@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -183,17 +184,17 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     }
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
-        // TODO implement dates against the parser
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "value(parse(value));"),
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emitValue(parse(value));"),
+        Map.entry(DateFieldMapper.CONTENT_TYPE, "emitValue(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
-            "value(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
+            "emitValue(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
         ),
-        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "value(value.toString());"),
-        Map.entry(IpFieldMapper.CONTENT_TYPE, "stringValue(value.toString());"),
+        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emitValue(value.toString());"),
+        Map.entry(IpFieldMapper.CONTENT_TYPE, "emitValue(value.toString());"),
         Map.entry(
             NumberType.LONG.typeName(),
-            "value(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
+            "emitValue(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
         )
     );
 
@@ -238,7 +239,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             List<Map<String, Object>> bodies = List.of(
                 Map.ofEntries(
                     Map.entry("index_patterns", "*"),
-                    Map.entry("priority", Integer.MAX_VALUE),
+                    Map.entry("priority", Integer.MAX_VALUE - 1),
                     Map.entry("template", Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates)))
                 )
             );

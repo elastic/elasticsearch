@@ -351,11 +351,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object nullValue() {
-        return nullValue;
-    }
-
-    @Override
     protected IpFieldMapper clone() {
         return (IpFieldMapper) super.clone();
     }
@@ -408,18 +403,22 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-
-        InetAddress address;
-        if (value instanceof InetAddress) {
-            address = (InetAddress) value;
-        } else {
-            address = InetAddresses.forString(value.toString());
-        }
-        return InetAddresses.toAddrString(address);
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                InetAddress address;
+                if (value instanceof InetAddress) {
+                    address = (InetAddress) value;
+                } else {
+                    address = InetAddresses.forString(value.toString());
+                }
+                return InetAddresses.toAddrString(address);
+            }
+        };
     }
 
     @Override

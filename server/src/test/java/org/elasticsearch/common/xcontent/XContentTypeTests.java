@@ -22,8 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class XContentTypeTests extends ESTestCase {
     public void testFromJson() throws Exception {
@@ -86,13 +85,15 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testMediaType() {
-        byte version = randomByte();
+        String version = String.valueOf(Math.abs(randomByte()));
         assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
             equalTo("application/json"));
         assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
             equalTo("application/cbor"));
         assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version),
             equalTo("application/smile"));
+        assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+yaml;compatible-with=" + version),
+            equalTo("application/yaml"));
         assertThat(XContentType.parseMediaType("application/json"),
             equalTo("application/json"));
 
@@ -119,6 +120,22 @@ public class XContentTypeTests extends ESTestCase {
             equalTo(version));
         assertThat(XContentType.parseVersion("APPLICATION/JSON"),
             nullValue());
+
+        assertThat(XContentType.parseVersion("application/json;compatible-with=" + version+".0"),
+            is(nullValue()));
+    }
+
+    public void testMediaTypeWithoutESSubtype() {
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.fromMediaTypeOrFormat("application/json;compatible-with=" + version), nullValue());
+    }
+
+    public void testAnchoring(){
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.fromMediaTypeOrFormat("sth_application/json;compatible-with=" + version+".0"), nullValue());
+        assertThat(XContentType.fromMediaTypeOrFormat("sth_application/json;compatible-with=" + version+"_sth"), nullValue());
+        //incorrect parameter not validated at the moment, just ignored
+        assertThat(XContentType.fromMediaTypeOrFormat("application/json;compatible-with=" + version+"_sth"), nullValue());
     }
 
     public void testVersionParsingOnText() {

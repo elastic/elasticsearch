@@ -24,10 +24,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -116,10 +118,26 @@ public enum XContentType {
         }
     };
 
+    /**
+     * A regexp to allow parsing media types. It covers two use cases.
+     * 1. Media type with a version - requires a custom vnd.elasticserach subtype and a compatible-with parameter
+     * i.e. application/vnd.elasticsearch+json;compatible-with
+     * 2. Media type without a version - for users not using compatible API i.e. application/json
+     */
     private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
-        "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
+        //type
+        "^(application|text)/" +
+            // type with custom subtype and a version: vnd.elasticsearch+json;compatible-with=7
+            "((vnd\\.elasticsearch\\+([^;\\s]+)(\\s*;\\s*compatible-with=(\\d+)))" +
+            "|([^;\\s]+))" + //subtype: json,yaml,etc some of these are defined in x-pack so can't be enumerated
+            "(?:\\s*;\\s*(charset=UTF-8)?)?$",
         Pattern.CASE_INSENSITIVE);
 
+
+    /*Pattern.compile(
+        "^(application|text)/(vnd\\.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?$",
+        Pattern.CASE_INSENSITIVE);
+*/
     /**
      * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
      * parameters and attempts to match the value to an {@link XContentType}. The comparisons are done in lower case format and this method
@@ -172,19 +190,21 @@ public enum XContentType {
         if (mediaType != null) {
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find()) {
-                return (matcher.group(1) + "/" + matcher.group(3)).toLowerCase(Locale.ROOT);
+                if(matcher.group(2).toLowerCase(Locale.ROOT).startsWith("vnd.elasticsearch")){
+                    return (matcher.group(1) + "/" + matcher.group(4)).toLowerCase(Locale.ROOT);
+                }
+                return (matcher.group(1) + "/" + matcher.group(7)).toLowerCase(Locale.ROOT);
             }
         }
 
-        return mediaType;
+        return null;
     }
 
     public static String parseVersion(String mediaType){
         if(mediaType != null){
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
-            if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(2))) {
-
-                return matcher.group(5);
+            if (matcher.find() && matcher.group(2).toLowerCase(Locale.ROOT).startsWith("vnd.elasticsearch")) {
+                return matcher.group(6);
             }
         }
         return null;

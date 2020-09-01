@@ -146,6 +146,7 @@
       indices.refresh: {}
   - do:
       search:
+        allow_system_index_access: true
         rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }
@@ -249,6 +250,7 @@
       indices.refresh: {}
   - do:
       search:
+        allow_system_index_access: true
         rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }

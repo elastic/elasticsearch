@@ -2,7 +2,7 @@
 [testenv="basic"]
 
 [discrete]
-[[constant-keyword]]
+[[constant-keyword-field-type]]
 === Constant keyword field type
 
 Constant keyword is a specialization of the `keyword` field for

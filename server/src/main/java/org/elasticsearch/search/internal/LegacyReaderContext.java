@@ -59,8 +59,11 @@ public class LegacyReaderContext extends ReaderContext {
             // This ensures that we wrap the searcher's reader with the user's permissions
             // when they are available.
             if (searcher == null) {
-                searcher = searcherSupplier.acquireSearcher(source);
-                onClose = searcher::close;
+                Engine.Searcher delegate = searcherSupplier.acquireSearcher(source);
+                onClose = delegate::close;
+                // wrap the searcher so that closing is a noop, the actual closing happens when this context is closed
+                searcher = new Engine.Searcher(delegate.source(), delegate.getDirectoryReader(),
+                    delegate.getSimilarity(), delegate.getQueryCache(), delegate.getQueryCachingPolicy(), () -> {});
             }
             return searcher;
         }

@@ -37,34 +37,6 @@ public class JavaDateMathParserTests extends ESTestCase {
     private final DateFormatter formatter = DateFormatter.forPattern("date_optional_time||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();
 
-    public void testInvalidAMPM() {
-        {
-            DateFormatter formatter = DateFormatter.forPattern("MM/dd/yyyy hh:mm a");
-            DateMathParser parser = formatter.toDateMathParser();
-            String date = "04/30/2020 05:48 PM";
-            parser.parse(date, () -> 0, true, ZoneId.systemDefault());
-        }
-
-    }
-    public void testInvalidAMPM2() {
-
-            DateFormatter formatter = DateFormatter.forPattern("MM/dd/yyyy N");
-            DateMathParser parser = formatter.toDateMathParser();
-            String date = "04/30/2020 1";
-            parser.parse(date, () -> 0, true, ZoneId.systemDefault());
-
-
-    }
-
-    public void testInvalidAMPM3() {
-//xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ
-        DateFormatter formatter = DateFormatter.forPattern("weekyear_week");
-        DateMathParser parser = formatter.toDateMathParser();
-        String date = "2020-W08";
-        parser.parse(date, () -> 0, true, ZoneId.systemDefault());
-
-
-    }
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
         //the pattern has to be composite and the match should not be on the first one
         DateFormatter formatter = DateFormatter.forPattern("date||epoch_millis").withLocale(randomLocale(random()));

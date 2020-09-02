@@ -65,13 +65,10 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -125,16 +122,12 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -560,7 +553,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
                     ensureClusterStateCanBeReadByNodeTool();
-                    unblockRepositories();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -581,27 +573,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // afterTestRule.forceFailure();
             }
         }
-    }
-
-    public void unblockRepositories() throws Exception {
-        if (isInternalCluster() == false || cluster().size() == 0) {
-            return;
-        }
-        List<RepositoryMetadata> repositories = admin().cluster().prepareGetRepositories().get().repositories();
-        for (RepositoriesService repositoriesService : internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
-            for (RepositoryMetadata repositoryMetadata : repositories) {
-                try {
-                    Repository repository = repositoriesService.repository(repositoryMetadata.name());
-                    if (repository instanceof MockRepository) {
-                        ((MockRepository) repository).unblock();
-                    }
-                } catch (RepositoryMissingException e) {
-                    // ignore missing repositories
-                }
-            }
-        }
-
-        awaitNoMoreRunningSnapshotOperations(internalCluster().getMasterName());
     }
 
     /**
@@ -2239,12 +2210,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
-    }
-
-    protected void awaitNoMoreRunningSnapshotOperations(String viaNode) throws Exception {
-        logger.info("--> verify no more operations in the cluster state");
-        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
-            state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 
     protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {

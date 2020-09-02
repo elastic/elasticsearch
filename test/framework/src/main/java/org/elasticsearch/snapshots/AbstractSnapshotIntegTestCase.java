@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -25,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,8 +68,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -77,6 +82,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
+
+    private static final Map<String, List<String>> blockedRepos = ConcurrentCollections.newConcurrentMap();
 
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
@@ -92,6 +99,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockRepository.Plugin.class);
+    }
+
+    @After
+    public synchronized void unblockRepos() throws Exception {
+        for (Map.Entry<String, List<String>> nodeBlockedRepos : blockedRepos.entrySet()) {
+            for (String repoName : nodeBlockedRepos.getValue()) {
+                logger.info("--> unblocking blocked repository [{}] in node [{}] after test",
+                    repoName,
+                    nodeBlockedRepos.getKey());
+
+                ((MockRepository) internalCluster()
+                    .getInstance(RepositoriesService.class, nodeBlockedRepos.getKey())
+                    .repository(repoName)).unblock();
+            }
+        }
+
+        blockedRepos.clear();
+        awaitNoMoreRunningSnapshotOperations(internalCluster().getMasterName());
     }
 
     @After
@@ -222,6 +247,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
             .repository(repositoryName)).setBlockOnWriteIndexFile(true);
+        trackBlockedRepo(repositoryName, masterName);
         return masterName;
     }
 
@@ -229,12 +255,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
             .repository(repositoryName)).setBlockOnDeleteIndexFile();
+        trackBlockedRepo(repositoryName, masterName);
     }
 
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
             .repository(repositoryName)).setBlockAndFailOnWriteSnapFiles(true);
+        trackBlockedRepo(repositoryName, masterName);
         return masterName;
     }
 
@@ -242,6 +270,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         for(String node : internalCluster().nodesInclude(indexName)) {
             ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
                 .blockOnDataFiles(true);
+            trackBlockedRepo(repositoryName, node);
             return node;
         }
         fail("No nodes for the index " + indexName + " found");
@@ -251,22 +280,31 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public static void blockNodeOnAnyFiles(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
                 .repository(repository)).setBlockOnAnyFiles(true);
+        trackBlockedRepo(repository, nodeName);
     }
 
     public static void blockDataNode(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
                 .repository(repository)).blockOnDataFiles(true);
+        trackBlockedRepo(repository, nodeName);
     }
 
     public static void blockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+
+        }
+        for (String dataNodeName : getDataNodeNames()) {
+            trackBlockedRepo(repository, dataNodeName);
         }
     }
 
     public static void unblockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).unblock();
+        }
+        for (String dataNodeName : getDataNodeNames()) {
+            unTrackBlockedRepo(repository, dataNodeName);
         }
     }
 
@@ -287,12 +325,29 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public void unblockNode(final String repository, final String node) {
         logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
+        unTrackBlockedRepo(repository, node);
+    }
+
+    private static Set<String> getDataNodeNames() {
+        Set<String> nodeNames = new HashSet<>();
+        for (ObjectCursor<String> nodeName : client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().keys()) {
+            nodeNames.add(nodeName.value);
+        }
+        return nodeNames;
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings) {
         logger.info("--> creating repository [{}] [{}]", repoName, type);
         assertAcked(client().admin().cluster().preparePutRepository(repoName)
             .setType(type).setSettings(settings));
+    }
+
+    private static synchronized void trackBlockedRepo(String repositoryName, String masterName) {
+        blockedRepos.computeIfAbsent(masterName, k -> new ArrayList<>()).add(repositoryName);
+    }
+
+    private static synchronized void unTrackBlockedRepo(String repository, String dataNodeName) {
+        blockedRepos.getOrDefault(dataNodeName, new ArrayList<>()).remove(repository);
     }
 
     protected void createRepository(String repoName, String type, Path location) {
@@ -413,5 +468,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+    }
+
+    protected void awaitNoMoreRunningSnapshotOperations(String viaNode) throws Exception {
+        logger.info("--> verify no more operations in the cluster state");
+        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
+            state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 }

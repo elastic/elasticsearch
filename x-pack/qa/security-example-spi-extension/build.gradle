@@ -9,7 +9,7 @@ esplugin {
 }
 
 dependencies {
-  implementation project(':x-pack:plugin:core')
+  compileOnly project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':client:rest-high-level')
   // let the javaRestTest see the classpath of main

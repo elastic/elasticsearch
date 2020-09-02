@@ -121,6 +121,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void close() {
+        // clear the list of cancellables when closing the owning search context, since the ExitableDirectoryReader might be cached (for
+        // instance in fielddata cache).
+        // A cancellable can contain an indirect reference to the search context, which potentially retains a significant amount
+        // of memory.
         this.cancellable.clear();
     }
 

@@ -191,7 +191,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        Releasables.close(engineSearcher);
+        Releasables.close(engineSearcher, searcher);
     }
 
     /**

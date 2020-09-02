@@ -53,13 +53,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
 
             LEGACY_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             LEGACY_FIELD_TYPE.setTokenized(false);
-            LEGACY_FIELD_TYPE.setStored(false);
+            LEGACY_FIELD_TYPE.setStored(true);
             LEGACY_FIELD_TYPE.setOmitNorms(true);
             LEGACY_FIELD_TYPE.freeze();
         }
@@ -133,9 +133,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             if (fieldType().hasDocValues()) {
                 final BytesRef binaryValue = new BytesRef(field);
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-            } else {
-                context.doc().add(new Field(NAME, field, fieldType));
             }
+            context.doc().add(new Field(NAME, field, fieldType));
         }
     }
 

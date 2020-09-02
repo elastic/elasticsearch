@@ -137,9 +137,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             default:
                 // We need at least the major of the Lucene version to be correct.
                 // Our best guess is to use the same Lucene version as the previous
-                // version in the list, assuming that it didn't change. This is at
-                // least correct for patch versions of known minors since we never
-                // update the Lucene dependency for patch versions.
+                // version in the list, assuming that it didn't change.
                 List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
                 Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
                 int index = Collections.binarySearch(versions, tmp);

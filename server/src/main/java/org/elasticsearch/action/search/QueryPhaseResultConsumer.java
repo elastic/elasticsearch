@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.ArrayDeque;
@@ -43,6 +44,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
 
@@ -52,7 +54,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.setShardInde
  * This implementation can be configured to batch up a certain amount of results and reduce
  * them asynchronously in the provided {@link Executor} iff the buffer is exhausted.
  */
-class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
+public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
@@ -76,35 +78,31 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
      */
-    QueryPhaseResultConsumer(Executor executor,
-                             SearchPhaseController controller,
-                             SearchProgressListener progressListener,
-                             ReduceContextBuilder aggReduceContextBuilder,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             int expectedResultSize,
-                             int bufferSize,
-                             boolean hasTopDocs,
-                             boolean hasAggs,
-                             int trackTotalHitsUpTo,
-                             int topNSize,
-                             boolean performFinalReduce,
-                             Consumer<Exception> onPartialMergeFailure) {
+    public QueryPhaseResultConsumer(SearchRequest request,
+                                    Executor executor,
+                                    SearchPhaseController controller,
+                                    SearchProgressListener progressListener,
+                                    NamedWriteableRegistry namedWriteableRegistry,
+                                    int expectedResultSize,
+                                    Consumer<Exception> onPartialMergeFailure) {
         super(expectedResultSize);
         this.executor = executor;
         this.controller = controller;
         this.progressListener = progressListener;
-        this.aggReduceContextBuilder = aggReduceContextBuilder;
+        this.aggReduceContextBuilder = controller.getReduceContext(request);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.topNSize = topNSize;
-        this.pendingMerges = new PendingMerges(bufferSize, trackTotalHitsUpTo);
-        this.hasTopDocs = hasTopDocs;
-        this.hasAggs = hasAggs;
-        this.performFinalReduce = performFinalReduce;
+        this.topNSize = getTopDocsSize(request);
+        this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
+        SearchSourceBuilder source = request.source();
+        this.hasTopDocs = source == null || source.size() != 0;
+        this.hasAggs = source != null && source.aggregations() != null;
+        int bufferSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize)  : expectedResultSize;
+        this.pendingMerges = new PendingMerges(bufferSize, request.resolveTrackTotalHitsUpTo());
     }
 
     @Override
-    void consumeResult(SearchPhaseResult result, Runnable next) {
+    public void consumeResult(SearchPhaseResult result, Runnable next) {
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex());
@@ -112,7 +110,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
     }
 
     @Override
-    SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
+    public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
         if (pendingMerges.hasPendingMerges()) {
             throw new AssertionError("partial reduce in-flight");
         } else if (pendingMerges.hasFailure()) {

@@ -1,9 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
   restApi {
@@ -13,11 +9,10 @@ restResources {
 }
 
 dependencies {
-  testImplementation project(path: xpackModule('eql'))
-  testImplementation project(path: xpackModule('eql:qa:common'))
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.eql.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'

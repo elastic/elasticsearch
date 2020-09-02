@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'flattened'

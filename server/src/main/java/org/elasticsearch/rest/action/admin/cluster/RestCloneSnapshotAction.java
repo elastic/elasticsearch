@@ -42,7 +42,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, "/_snapshot/{repository}/{source_snapshot}/_clone/{target_snapshot}"));
+            new Route(PUT, "/_snapshot/{repository}/{snapshot}/_clone/{target_snapshot}"));
     }
 
     @Override
@@ -55,7 +55,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
         Map<String, Object> body = request.contentParser().mapOrdered();
         final Object indexSettings = body.get("index_settings");
         final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
-                request.param("repository"), request.param("source_snapshot"), request.param("target_snapshot"),
+                request.param("repository"), request.param("snapshot"), request.param("target_snapshot"),
                 XContentMapValues.nodeStringArrayValue(body.getOrDefault("indices", Collections.emptyList())),
                 XContentMapValues.nodeStringArrayValue(body.getOrDefault("excluded_settings", Collections.emptyList())),
                 indexSettings == null ? Settings.EMPTY :

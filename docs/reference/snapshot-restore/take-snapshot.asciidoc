@@ -125,4 +125,4 @@ PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
 -----------------------------------
 // TEST[continued]
 
-NOTE: You can also create snapshots that are copies of part of an existing snapshot using the <<clone-snapshot-api, clone snapshot API>>.
+NOTE: You can also create snapshots that are copies of part of an existing snapshot using the <<clone-snapshot-api,clone snapshot API>>.

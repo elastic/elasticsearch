@@ -6,7 +6,6 @@
 
 Clones part or all of a snapshot into a new snapshot.
 
-////
 [source,console]
 ----
 PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
@@ -18,13 +17,7 @@ PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
   }
 }
 ----
-// TEST[skip:TODO must add relevant test setup]
-////
-
-[source,console]
-----
-PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
-----
+// TEST[skip:TODO]
 
 [[clone-snapshot-api-request]]
 ==== {api-request-title}

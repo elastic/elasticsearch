@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
@@ -40,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -220,16 +220,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     @Override
     public abstract B getBucketByKey(String term);
 
-    private static class IteratorAndCurrent<B extends InternalTerms.Bucket<B>> {
-        private final Iterator<B> iterator;
-        private B current;
-
-        IteratorAndCurrent(Iterator<B> iterator) {
-            this.iterator = iterator;
-            this.current = iterator.next();
-        }
-    }
-
     private BucketOrder getReduceOrder(List<InternalAggregation> aggregations) {
         BucketOrder thisReduceOrder = null;
         for (InternalAggregation aggregation : aggregations) {
@@ -273,7 +263,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<B> a, IteratorAndCurrent<B> b) {
-                return cmp.compare(a.current, b.current) < 0;
+                return cmp.compare(a.current(), b.current()) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
@@ -290,19 +280,19 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         B lastBucket = null;
         while (pq.size() > 0) {
             final IteratorAndCurrent<B> top = pq.top();
-            assert lastBucket == null || cmp.compare(top.current, lastBucket) >= 0;
-            if (lastBucket != null && cmp.compare(top.current, lastBucket) != 0) {
+            assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
+            if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changes, reduce what we already buffered and reset the buffer for current buckets
                 final B reduced = reduceBucket(currentBuckets, reduceContext);
                 reducedBuckets.add(reduced);
                 currentBuckets.clear();
             }
-            lastBucket = top.current;
-            currentBuckets.add(top.current);
-            if (top.iterator.hasNext()) {
-                final B next = top.iterator.next();
-                assert cmp.compare(next, top.current) > 0 : "shards must return data sorted by key";
-                top.current = next;
+            lastBucket = top.current();
+            currentBuckets.add(top.current());
+            if (top.hasNext()) {
+                final B prev = top.current();
+                top.next();
+                assert top.current().compareKey(prev) > 0 : "shards must return data sorted by key";
                 pq.updateTop();
             } else {
                 pq.pop();

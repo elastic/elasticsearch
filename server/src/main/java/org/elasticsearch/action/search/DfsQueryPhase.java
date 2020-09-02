@@ -40,7 +40,7 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final ArraySearchPhaseResults<SearchPhaseResult> queryResult;
+    private final QueryPhaseResultConsumer queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;

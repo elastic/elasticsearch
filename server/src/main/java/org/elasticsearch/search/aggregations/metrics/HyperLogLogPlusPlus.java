@@ -104,23 +104,15 @@ public final class HyperLogLogPlusPlus implements Releasable {
         if (precision() != other.precision()) {
             throw new IllegalArgumentException();
         }
-        if (thisBucket > Integer.MAX_VALUE) {
-            // This many buckets would take TB of memory anyway.
-            throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
-        }
-        if (otherBucket > Integer.MAX_VALUE) {
-            // This many buckets would take TB of memory anyway.
-            throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
-        }
         hll.bucket = thisBucket;
         lc.bucket = thisBucket;
         hll.ensureCapacity(thisBucket + 1);
-        if (other.algorithm.get((int) otherBucket) == LINEAR_COUNTING) {
+        if (other.algorithm.get(otherBucket) == LINEAR_COUNTING) {
             other.lc.bucket = otherBucket;
             final AbstractLinearCounting.HashesIterator values = other.lc.values();
             while (values.next()) {
                 final int encoded = values.value();
-                if (algorithm.get((int) thisBucket) == LINEAR_COUNTING) {
+                if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
                     final int newSize = lc.addEncoded(encoded);
                     if (newSize > lc.threshold) {
                         upgradeToHll(thisBucket);
@@ -130,7 +122,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
                 }
             }
         } else {
-            if (algorithm.get((int) thisBucket) != HYPERLOGLOG) {
+            if (algorithm.get(thisBucket) != HYPERLOGLOG) {
                 upgradeToHll(thisBucket);
             }
             other.hll.bucket = otherBucket;
@@ -139,12 +131,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public void collect(long bucket, long hash) {
-        if (bucket > Integer.MAX_VALUE) {
-            // This many buckets would take TB of memory anyway.
-            throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
-        }
         hll.ensureCapacity(bucket + 1);
-        if (algorithm.get((int) bucket) == LINEAR_COUNTING) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
             lc.bucket = bucket;
             final int newSize = lc.collect(hash);
             if (newSize > lc.threshold) {
@@ -157,11 +145,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public long cardinality(long bucket) {
-        if (bucket > Integer.MAX_VALUE) {
-            // This many buckets would take TB of memory anyway.
-            throw new UnsupportedOperationException("Cardinality only supports collecting up to [" + Integer.MAX_VALUE + "] buckets.");
-        }
-        if (algorithm.get((int) bucket) == LINEAR_COUNTING) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
             lc.bucket = bucket;
             return lc.cardinality();
         } else {
@@ -189,7 +173,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
                 final int encoded = values.get(j);
                 hll.collectEncoded(encoded);
             }
-            algorithm.set((int) bucket);
+            algorithm.set(bucket);
         } finally {
             Releasables.close(values);
         }
@@ -201,7 +185,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     private Object getComparableData(long bucket) {
-        if (algorithm.get((int) bucket) == LINEAR_COUNTING) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
             lc.bucket = bucket;
             return lc.getComparableData();
         } else {
@@ -211,18 +195,18 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public int hashCode(long bucket) {
-        return Objects.hash(precision(), algorithm.get((int) bucket), getComparableData(bucket));
+        return Objects.hash(precision(), algorithm.get(bucket), getComparableData(bucket));
     }
 
     public boolean equals(long bucket, HyperLogLogPlusPlus other) {
         return Objects.equals(precision(), other.precision())
-            && Objects.equals(algorithm.get((int) bucket), other.algorithm.get((int) bucket))
+            && Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket))
             && Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
     }
 
     public void writeTo(long bucket, StreamOutput out) throws IOException {
         out.writeVInt(precision());
-        if (algorithm.get((int) bucket) == LINEAR_COUNTING) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
             out.writeBoolean(LINEAR_COUNTING);
             lc.bucket = bucket;
             AbstractLinearCounting.HashesIterator hashes = lc.values();

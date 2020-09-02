@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -44,8 +42,6 @@ import java.util.List;
  * a write operation is about to happen in a non existing index.
  */
 public final class AutoCreateIndex {
-    private static final Logger logger = LogManager.getLogger(AutoCreateIndex.class);
-
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
         new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
 
@@ -68,9 +64,7 @@ public final class AutoCreateIndex {
         }
 
         // Templates can override the AUTO_CREATE_INDEX_SETTING setting
-        logger.warn("Looking for template for {}", index);
         final ComposableIndexTemplate template = findTemplate(index, state.metadata());
-        logger.warn("Results: {}", template);
         if (template != null && template.getAllowAutoCreate()) {
             return true;
         }

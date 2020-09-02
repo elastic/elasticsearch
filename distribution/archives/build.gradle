@@ -17,14 +17,7 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.EmptyDirTask
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -81,88 +74,114 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   }
 }
 
-tasks.register('buildIntegTestZip', Zip) {
-  with archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
+distribution_archives {
+  buildIntegTestZip {
+    content {
+      archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
+    }
+  }
+
+  buildWindowsZip {
+    archiveClassifier = 'windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
+    }
+  }
+
+  buildOssWindowsZip {
+    archiveClassifier = 'windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
+    }
+  }
+
+  buildNoJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
+    }
+  }
+
+
+  buildOssNoJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
+    }
+  }
+
+  buildDarwinTar {
+    archiveClassifier = 'darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
+    }
+  }
+
+  buildOssDarwinTar {
+    archiveClassifier = 'darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
+    }
+  }
+
+  buildNoJdkDarwinTar {
+    archiveClassifier = 'no-jdk-darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
+    }
+  }
+
+  buildOssNoJdkDarwinTar {
+    archiveClassifier = 'no-jdk-darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
+    }
+  }
+
+  buildLinuxAarch64Tar {
+    archiveClassifier = 'linux-aarch64'
+    content {
+      archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
+    }
+  }
+
+  buildLinuxTar {
+    archiveClassifier = 'linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
+    }
+  }
+
+  buildOssLinuxAarch64Tar {
+    archiveClassifier = 'linux-aarch64'
+    content {
+      archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
+    }
+  }
+
+  buildOssLinuxTar {
+    archiveClassifier = 'linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
+    }
+  }
+
+  buildNoJdkLinuxTar {
+    archiveClassifier = 'no-jdk-linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
+    }
+  }
+
+  buildOssNoJdkLinuxTar {
+    archiveClassifier = 'no-jdk-linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
+    }
+  }
 }
 
-tasks.register('buildWindowsZip', Zip) {
-  archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
-}
 
-tasks.register('buildOssWindowsZip', Zip) {
-  archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
-}
-
-tasks.register('buildNoJdkWindowsZip', Zip) {
-  archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
-}
-
-tasks.register('buildOssNoJdkWindowsZip', Zip) {
-  archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
-}
-
-tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
-}
-
-tasks.register('buildDarwin', Copy) {
-    into("build/buildDarwin")
-    with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
-}
-
-tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
-}
-
-tasks.register('buildNoJdkDarwinTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
-}
-
-tasks.register('buildOssNoJdkDarwinTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
-}
-
-tasks.register('buildLinuxAarch64Tar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'linux-aarch64'
-  with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
-}
-
-tasks.register('buildLinuxTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
-}
-
-tasks.register('buildOssLinuxAarch64Tar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'linux-aarch64'
-  with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
-}
-
-tasks.register('buildOssLinuxTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
-}
-
-tasks.register('buildNoJdkLinuxTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
-}
-
-tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
-  archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
-}
-
-tasks.register("buildAllTars") {
-  dependsOn tasks.withType(SymbolicLinkPreservingTar)
-}
 // This configures the default artifact for the distribution specific
 // subprojects. We have subprojects for two reasons:
 // 1. Gradle project substitutions can only bind to the default

@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
-    private static final Map<String, List<String>> blockedRepos = ConcurrentCollections.newConcurrentMap();
+    private static final Set<String> blockedRepos = new HashSet<>();
 
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
@@ -103,15 +103,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public synchronized void unblockRepos() throws Exception {
-        for (Map.Entry<String, List<String>> nodeBlockedRepos : blockedRepos.entrySet()) {
-            for (String repoName : nodeBlockedRepos.getValue()) {
-                logger.info("--> unblocking blocked repository [{}] in node [{}] after test",
-                    repoName,
-                    nodeBlockedRepos.getKey());
+        for (String blockedRepository : blockedRepos) {
+            logger.info("--> unblocking blocked repository [{}] after test", blockedRepository);
 
-                ((MockRepository) internalCluster()
-                    .getInstance(RepositoriesService.class, nodeBlockedRepos.getKey())
-                    .repository(repoName)).unblock();
+            for (RepositoriesService repositoriesService : internalCluster().getInstances(RepositoriesService.class)) {
+                ((MockRepository) repositoriesService.repository(blockedRepository)).unblock();
             }
         }
 
@@ -247,7 +243,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
             .repository(repositoryName)).setBlockOnWriteIndexFile(true);
-        trackBlockedRepo(repositoryName, masterName);
+        trackBlockedRepo(repositoryName);
         return masterName;
     }
 
@@ -255,14 +251,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
             .repository(repositoryName)).setBlockOnDeleteIndexFile();
-        trackBlockedRepo(repositoryName, masterName);
+        trackBlockedRepo(repositoryName);
     }
 
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
             .repository(repositoryName)).setBlockAndFailOnWriteSnapFiles(true);
-        trackBlockedRepo(repositoryName, masterName);
+        trackBlockedRepo(repositoryName);
         return masterName;
     }
 
@@ -270,7 +266,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         for(String node : internalCluster().nodesInclude(indexName)) {
             ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
                 .blockOnDataFiles(true);
-            trackBlockedRepo(repositoryName, node);
+            trackBlockedRepo(repositoryName);
             return node;
         }
         fail("No nodes for the index " + indexName + " found");
@@ -280,32 +276,29 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public static void blockNodeOnAnyFiles(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
                 .repository(repository)).setBlockOnAnyFiles(true);
-        trackBlockedRepo(repository, nodeName);
+        trackBlockedRepo(repository);
     }
 
     public static void blockDataNode(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
                 .repository(repository)).blockOnDataFiles(true);
-        trackBlockedRepo(repository, nodeName);
+        trackBlockedRepo(repository);
     }
 
     public static void blockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+        }
 
-        }
-        for (String dataNodeName : getDataNodeNames()) {
-            trackBlockedRepo(repository, dataNodeName);
-        }
+        trackBlockedRepo(repository);
     }
 
     public static void unblockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).unblock();
         }
-        for (String dataNodeName : getDataNodeNames()) {
-            unTrackBlockedRepo(repository, dataNodeName);
-        }
+
+        unTrackBlockedRepo(repository);
     }
 
     public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
@@ -325,15 +318,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public void unblockNode(final String repository, final String node) {
         logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
-        unTrackBlockedRepo(repository, node);
-    }
-
-    private static Set<String> getDataNodeNames() {
-        Set<String> nodeNames = new HashSet<>();
-        for (ObjectCursor<String> nodeName : client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().keys()) {
-            nodeNames.add(nodeName.value);
-        }
-        return nodeNames;
+        unTrackBlockedRepo(repository);
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings) {
@@ -342,12 +327,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .setType(type).setSettings(settings));
     }
 
-    private static synchronized void trackBlockedRepo(String repositoryName, String masterName) {
-        blockedRepos.computeIfAbsent(masterName, k -> new ArrayList<>()).add(repositoryName);
+    private static synchronized void trackBlockedRepo(String repositoryName) {
+        blockedRepos.add(repositoryName);
     }
 
-    private static synchronized void unTrackBlockedRepo(String repository, String dataNodeName) {
-        blockedRepos.getOrDefault(dataNodeName, new ArrayList<>()).remove(repository);
+    private static synchronized void unTrackBlockedRepo(String repository) {
+        blockedRepos.remove(repository);
     }
 
     protected void createRepository(String repoName, String type, Path location) {

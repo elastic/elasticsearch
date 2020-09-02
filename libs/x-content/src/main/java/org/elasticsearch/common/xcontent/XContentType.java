@@ -183,8 +183,8 @@ public enum XContentType {
         return null;
     }
 
-    //public scope needed for text formats hack
-    public static String parseMediaType(String mediaType) {
+    // package private for testing
+    static String parseMediaType(String mediaType) {
         if (mediaType != null) {
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find()) {
@@ -198,7 +198,8 @@ public enum XContentType {
         return null;
     }
 
-    public static String parseVersion(String mediaType){
+    // package private for testing
+    static String parseVersion(String mediaType){
         if(mediaType != null){
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find() && matcher.group(2).toLowerCase(Locale.ROOT).startsWith("vnd.elasticsearch")) {

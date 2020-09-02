@@ -37,7 +37,7 @@ artifacts {
 
 def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
-  duplicatesStrategy = DuplicatesStrategy.INCLUDE 
+  duplicatesStrategy = DuplicatesStrategy.INCLUDE
   from sourceSets.test.output
   from sourceSets.yamlRestTest.output
   from sourceSets.javaRestTest.output

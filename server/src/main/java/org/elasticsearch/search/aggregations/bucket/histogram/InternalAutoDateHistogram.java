@@ -329,7 +329,7 @@ public final class InternalAutoDateHistogram extends
                 if (top.hasNext()) {
                     final Bucket prev = top.current();
                     top.next();
-                    assert prev.key > top.current().key : "shards must return data sorted by key";
+                    assert top.current().key > prev.key: "shards must return data sorted by key";
                     pq.updateTop();
                 } else {
                     pq.pop();

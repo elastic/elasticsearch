@@ -871,8 +871,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
+    private boolean isScrollContext(ReaderContext context) {
+        return context instanceof LegacyReaderContext && context.singleSession() == false;
+    }
+
     private void processFailure(ReaderContext context, Exception e) {
-        if (context.singleSession()) {
+        if (context.singleSession() || isScrollContext(context)) {
             // we release the reader on failure if the request is a normal search or a scroll
             freeReaderContext(context.id());
         }

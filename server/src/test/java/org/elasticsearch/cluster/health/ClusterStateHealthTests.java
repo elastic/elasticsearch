@@ -144,7 +144,7 @@ public class ClusterStateHealthTests extends ESTestCase {
 
         TransportClusterHealthAction action = new TransportClusterHealthAction(transportService,
             clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver,
-            new AllocationService(null, new TestGatewayAllocator(), null, null));
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null));
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);
 

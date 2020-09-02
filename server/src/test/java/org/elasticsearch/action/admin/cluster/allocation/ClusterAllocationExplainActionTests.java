@@ -56,7 +56,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), shardRoutingState);
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            clusterState.getRoutingNodes(), clusterState, null, System.nanoTime());
+            clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(shard, allocation, null, randomBoolean(),
             new AllocationService(null, new TestGatewayAllocator(), new ShardsAllocator() {
                 @Override
@@ -72,7 +72,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null));
+            }, null, null));
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
         assertFalse(cae.getShardAllocationDecision().isDecisionTaken());
@@ -178,6 +178,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(NOOP_DECIDERS, clusterState.getRoutingNodes(), clusterState, null, System.nanoTime());
+        return new RoutingAllocation(NOOP_DECIDERS, clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
     }
 }

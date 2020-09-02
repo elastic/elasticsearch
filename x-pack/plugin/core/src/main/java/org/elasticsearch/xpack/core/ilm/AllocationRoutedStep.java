@@ -63,7 +63,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, clusterState.getRoutingNodes(), clusterState, null,
-                System.nanoTime());
+                null, System.nanoTime());
 
         int allocationPendingAllShards = 0;
 

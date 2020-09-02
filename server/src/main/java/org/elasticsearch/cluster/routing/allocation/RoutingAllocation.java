@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,6 +63,8 @@ public class RoutingAllocation {
 
     private final ClusterInfo clusterInfo;
 
+    private final SnapshotShardSizeInfo shardSizeInfo;
+
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
@@ -88,7 +91,7 @@ public class RoutingAllocation {
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             long currentNanoTime) {
+                             SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metadata = clusterState.metadata();
@@ -96,6 +99,7 @@ public class RoutingAllocation {
         this.nodes = clusterState.nodes();
         this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
+        this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
     }
 
@@ -146,6 +150,10 @@ public class RoutingAllocation {
 
     public ClusterInfo clusterInfo() {
         return clusterInfo;
+    }
+
+    public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+        return shardSizeInfo;
     }
 
     public <T extends ClusterState.Custom> T custom(String key) {

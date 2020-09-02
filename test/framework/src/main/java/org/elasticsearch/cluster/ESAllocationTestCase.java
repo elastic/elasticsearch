@@ -37,6 +37,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -70,19 +72,22 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, Random random) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, clusterSettings, random),
-                new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+                new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
+                EmptySnapshotsInfoService.INSTANCE);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService,
+            EmptySnapshotsInfoService.INSTANCE);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-                gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+                gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
+                EmptySnapshotsInfoService.INSTANCE);
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
@@ -230,8 +235,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         private volatile long nanoTimeOverride = -1L;
 
         public MockAllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
-                                     ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService);
+                                     ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService,
+                                     SnapshotsInfoService snapshotsInfoService) {
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {

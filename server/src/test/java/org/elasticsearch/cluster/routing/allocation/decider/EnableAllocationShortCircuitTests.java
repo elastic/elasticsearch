@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
@@ -166,7 +167,8 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
                 Collections.singletonList(plugin)));
         return new MockAllocationService(
             new AllocationDeciders(deciders),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
     }
 
     private static class RebalanceShortCircuitPlugin implements ClusterPlugin {

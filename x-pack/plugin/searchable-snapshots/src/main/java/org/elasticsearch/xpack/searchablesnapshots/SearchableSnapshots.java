@@ -155,6 +155,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final Settings settings;
 
@@ -215,6 +216,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 SNAPSHOT_BLOB_CACHE_INDEX
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
+            this.clusterService.set(clusterService);
             this.failShardsListener.set(
                 new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService())
             );

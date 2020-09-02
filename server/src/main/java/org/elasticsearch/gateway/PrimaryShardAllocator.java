@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
@@ -83,6 +84,16 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
 
         final boolean explain = allocation.debugDecision();
+
+        if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
+            allocation.snapshotShardSizeInfo().getShardSize(unassignedShard) == null) {
+            List<NodeAllocationResult> nodeDecisions = null;
+            if (explain) {
+                nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
+            }
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
+        }
+
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();

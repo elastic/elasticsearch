@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.List;
 import java.util.Set;
@@ -120,7 +121,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
             // free space
             if (actualPath == null || actualPath.equals(dataPath)) {
-                totalSize += getExpectedShardSize(routing, 0L, clusterInfo, metadata, routingTable);
+                totalSize += getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
             }
         }
 
@@ -132,7 +133,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     actualPath = clusterInfo.getDataPath(routing.cancelRelocation());
                 }
                 if (dataPath.equals(actualPath)) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, metadata, routingTable);
+                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
                 }
             }
         }
@@ -270,7 +271,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
         final long shardSize = getExpectedShardSize(shardRouting, 0L,
-            allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
+            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
         assert shardSize >= 0 : shardSize;
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
@@ -461,8 +462,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      * Returns the expected shard size for the given shard or the default value provided if not enough information are available
      * to estimate the shards size.
      */
-    public static long getExpectedShardSize(ShardRouting shard, long defaultValue, ClusterInfo clusterInfo, Metadata metadata,
-                                            RoutingTable routingTable) {
+    public static long getExpectedShardSize(ShardRouting shard, long defaultValue, ClusterInfo clusterInfo,
+                                            SnapshotShardSizeInfo snapshotShardSizeInfo,
+                                            Metadata metadata, RoutingTable routingTable) {
         final IndexMetadata indexMetadata = metadata.getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null && shard.active() == false &&
             shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
@@ -482,6 +484,12 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
             return targetShardSize == 0 ? defaultValue : targetShardSize;
         } else {
+            if (shard.active() == false &&
+                shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                Long shardSize = snapshotShardSizeInfo.getShardSize(shard);
+                assert shardSize != null : "no shard size provided for " + shard;
+                return shardSize;
+            }
             return clusterInfo.getShardSize(shard, defaultValue);
         }
     }

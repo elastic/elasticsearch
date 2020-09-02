@@ -515,7 +515,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 processFailure(readerContext, e);
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, ActionListener.runAfter(listener, markAsUsed::close));
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
@@ -586,7 +586,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 processFailure(readerContext, e);
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, ActionListener.runAfter(listener, markAsUsed::close));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
@@ -875,17 +875,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context instanceof LegacyReaderContext && context.singleSession() == false;
     }
 
-    private void processFailure(ReaderContext context, Exception e) {
+    private void processFailure(ReaderContext context, Exception exc) {
         if (context.singleSession() || isScrollContext(context)) {
             // we release the reader on failure if the request is a normal search or a scroll
             freeReaderContext(context.id());
         }
         try {
-            if (Lucene.isCorruptionException(e)) {
-                context.indexShard().failShard("search execution corruption failure", e);
+            if (Lucene.isCorruptionException(exc)) {
+                context.indexShard().failShard("search execution corruption failure", exc);
             }
         } catch (Exception inner) {
-            inner.addSuppressed(e);
+            inner.addSuppressed(exc);
             logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", inner);
         }
     }

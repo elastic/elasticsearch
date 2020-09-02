@@ -294,18 +294,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (lastBucket != null && cmp.compare(top.current, lastBucket) != 0) {
                 // the key changes, reduce what we already buffered and reset the buffer for current buckets
                 final B reduced = reduceBucket(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                    reducedBuckets.add(reduced);
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
-                }
+                reducedBuckets.add(reduced);
                 currentBuckets.clear();
             }
             lastBucket = top.current;
             currentBuckets.add(top.current);
             if (top.iterator.hasNext()) {
                 final B next = top.iterator.next();
-                // assert next.getKey() > top.current.key : "shards must return data sorted by key";
+                assert cmp.compare(next, top.current) > 0 : "shards must return data sorted by key";
                 top.current = next;
                 pq.updateTop();
             } else {
@@ -315,11 +311,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         if (currentBuckets.isEmpty() == false) {
             final B reduced = reduceBucket(currentBuckets, reduceContext);
-            if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                reducedBuckets.add(reduced);
-            } else {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
-            }
+            reducedBuckets.add(reduced);
         }
         return reducedBuckets;
     }
@@ -425,7 +417,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 list[i] = ordered.pop();
             }
         } else {
-            int size = isKeyOrder(order) ? Math.min(requiredSize, reducedBuckets.size()) : reducedBuckets.size();
+            // we can prune the list on partial reduce if the aggregation is ordered by key
+            // and not filtered (minDocCount == 0)
+            int size = isKeyOrder(order) && minDocCount == 0 ? Math.min(requiredSize, reducedBuckets.size()) : reducedBuckets.size();
             list = createBucketsArray(size);
             for (int i = 0; i < size; i++) {
                 reduceContext.consumeBucketsAndMaybeBreak(1);

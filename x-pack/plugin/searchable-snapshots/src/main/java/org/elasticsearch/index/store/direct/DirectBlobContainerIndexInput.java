@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+
 /**
  * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
  * large Lucene file might be split into multiple parts during the snapshot, {@link DirectBlobContainerIndexInput} requires a
@@ -103,18 +105,18 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     @Override
     protected void readInternal(ByteBuffer b) throws IOException {
         ensureOpen();
-        if (fileInfo.numberOfParts() == 1L) {
+        if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
         } else {
             while (b.hasRemaining()) {
                 int currentPart = Math.toIntExact(position / fileInfo.partSize().getBytes());
-                int remainingBytesInPart;
+                long remainingBytesInPart;
                 if (currentPart < (fileInfo.numberOfParts() - 1)) {
-                    remainingBytesInPart = Math.toIntExact(((currentPart + 1L) * fileInfo.partSize().getBytes()) - position);
+                    remainingBytesInPart = ((currentPart + 1) * fileInfo.partSize().getBytes()) - position;
                 } else {
-                    remainingBytesInPart = Math.toIntExact(fileInfo.length() - position);
+                    remainingBytesInPart = toIntBytes(fileInfo.length() - position);
                 }
-                final int read = Math.min(b.remaining(), remainingBytesInPart);
+                final int read = toIntBytes(Math.min(b.remaining(), remainingBytesInPart));
                 readInternalBytes(currentPart, position % fileInfo.partSize().getBytes(), b, read);
             }
         }
@@ -209,8 +211,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         // it and keep it open for future reads
         final InputStream inputStream = openBlobStream(part, pos, streamLength);
         streamForSequentialReads = new StreamForSequentialReads(new FilterInputStream(inputStream) {
-            private LongAdder bytesRead = new LongAdder();
-            private LongAdder timeNanos = new LongAdder();
+            private final LongAdder bytesRead = new LongAdder();
+            private final LongAdder timeNanos = new LongAdder();
 
             private int onOptimizedRead(CheckedSupplier<Integer, IOException> read) throws IOException {
                 final long startTimeNanos = stats.currentTimeNanos();

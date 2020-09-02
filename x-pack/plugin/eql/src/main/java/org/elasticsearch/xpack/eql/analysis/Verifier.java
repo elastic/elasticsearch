@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
@@ -17,10 +18,8 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -34,7 +33,6 @@ import java.util.Set;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_UNTIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_ONE;
@@ -44,15 +42,16 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FIVE_
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_TWO;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_UNTIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_HEAD;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_TAIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_MAXSPAN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FIVE_OR_MORE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -140,15 +139,33 @@ public class Verifier {
             failures.addAll(localFailures);
         });
 
+        // Concrete verifications
+
+        // if there are no (major) unresolved failures, do more in-depth analysis
+
+        if (failures.isEmpty()) {
+
+            plan.forEachDown(p -> {
+                Set<Failure> localFailures = new LinkedHashSet<>();
+
+                checkNoPipesAfterLimit(p, localFailures);
+
+                failures.addAll(localFailures);
+
+                // mark the plan as analyzed
+                // if everything checks out
+                if (failures.isEmpty()) {
+                    p.setAnalyzed();
+                }
+            });
+        }
+
         // gather metrics
         if (failures.isEmpty()) {
             BitSet b = new BitSet(FeatureMetric.values().length);
-            Holder<Boolean> isLikelyAnEventQuery = new Holder<>(false);
 
             plan.forEachDown(p -> {
-                if (p instanceof Project) {
-                    isLikelyAnEventQuery.set(true);
-                } else if (p instanceof Head) {
+                if (p instanceof Head) {
                     b.set(PIPE_HEAD.ordinal());
                 } else if (p instanceof Tail) {
                     b.set(PIPE_TAIL.ordinal());
@@ -212,7 +229,7 @@ public class Verifier {
                 }
             });
 
-            if (isLikelyAnEventQuery.get() && b.get(SEQUENCE.ordinal()) == false && b.get(JOIN.ordinal()) == false) {
+            if (b.get(SEQUENCE.ordinal()) == false && b.get(JOIN.ordinal()) == false) {
                 b.set(EVENT.ordinal());
             }
 
@@ -222,5 +239,13 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkNoPipesAfterLimit(LogicalPlan p, Set<Failure> localFailures) {
+        if ((p instanceof LimitWithOffset) == false) {
+            if (p.anyMatch(LimitWithOffset.class::isInstance)) {
+                localFailures.add(fail(p, "Pipe [{}] not allowed (yet) after head/tail", p.sourceText()));
+            }
+        }
     }
 }

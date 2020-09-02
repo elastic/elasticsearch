@@ -21,6 +21,10 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
+    <properties>
+        <teamcity-server>https://ci.elastic.dev</teamcity-server>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>co.elastic.teamcity</groupId>

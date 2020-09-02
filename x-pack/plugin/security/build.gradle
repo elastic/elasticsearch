@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -19,6 +20,7 @@ dependencies {
   testImplementation project(path: xpackModule('sql:sql-action'))
 
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 
   api 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
@@ -132,10 +134,16 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
+processInternalClusterTestResources {
+  from(project(xpackModule('core')).file('src/main/config'))
+  from(project(xpackModule('core')).file('src/test/resources'))
+}
+
 processTestResources {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))
 }
+
 
 configurations {
   testArtifacts.extendsFrom testRuntime
@@ -462,7 +470,7 @@ thirdPartyAudit.ignoreMissingClasses(
 )
 
 
-test {
+internalClusterTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.

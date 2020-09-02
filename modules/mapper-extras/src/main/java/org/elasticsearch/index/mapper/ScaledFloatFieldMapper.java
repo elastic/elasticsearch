@@ -92,7 +92,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 }
             });
         private final Parameter<Double> nullValue = new Parameter<>("null_value", false, () -> null,
-            (n, c, o) -> XContentMapValues.nodeDoubleValue(o), m -> toType(m).nullValue);
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o), m -> toType(m).nullValue).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

@@ -1,10 +1,8 @@
 [role="xpack"]
 [testenv="basic"]
-[[wildcard]]
+[discrete]
+[[wildcard-field-type]]
 === Wildcard field type
-++++
-<titleabbrev>Wildcard</titleabbrev>
-++++
 
 A `wildcard` field stores values optimised for wildcard grep-like queries.
 Wildcard queries are possible on other field types but suffer from constraints:
@@ -52,6 +50,7 @@ GET my-index-000001/_search
 --------------------------------------------------
 
 
+[discrete]
 [[wildcard-params]]
 ==== Parameters for wildcard fields
 
@@ -64,6 +63,7 @@ The following parameters are accepted by `wildcard` fields:
     Do not index any string longer than this value.  Defaults to `2147483647`
     so that all values would be accepted.
 
+[discrete]
 ==== Limitations
 
 * `wildcard` fields are untokenized like keyword fields, so do not support queries that rely on word positions such as phrase queries.

@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -139,13 +140,20 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
      * from the keys of the sub-maps appended to the parent key.
      * This makes diffing the 2 maps easier and diffs more comprehensible.
      *
+     * The _meta field is not compared as it contains version numbers that
+     * change even when the mappings don't
+     *
      * @param templateName The template
      * @param indexName The index
+     * @param notAnErrorIfIndexDoesNotExist The index may or may not have been created from
+     *                                      the template. If {@code true} then the missing
+     *                                      index does not cause an error
      * @throws IOException Yes
      */
     @SuppressWarnings("unchecked")
-    public void assertLegacyTemplateMatchesIndexMappings(String templateName,
-                                                         String indexName) throws IOException {
+    protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
+                                                            String indexName,
+                                                            boolean notAnErrorIfIndexDoesNotExist) throws IOException {
 
         Request getTemplate = new Request("GET", "_template/" + templateName);
         Response templateResponse = client().performRequest(getTemplate);
@@ -155,12 +163,25 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             templateName, "mappings");
 
         Request getIndexMapping = new Request("GET", indexName + "/_mapping");
-        Response indexMappingResponse = client().performRequest(getIndexMapping);
+        Response indexMappingResponse;
+        try {
+            indexMappingResponse = client().performRequest(getIndexMapping);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404 && notAnErrorIfIndexDoesNotExist) {
+                return;
+            } else {
+                throw e;
+            }
+        }
         assertEquals("error getting mappings for index [" + indexName + "]",
             200, indexMappingResponse.getStatusLine().getStatusCode());
 
         Map<String, Object> indexMappings = (Map<String, Object>) XContentMapValues.extractValue(entityAsMap(indexMappingResponse),
             indexName, "mappings");
+
+        // ignore the _meta field
+        indexMappings.remove("_meta");
+        templateMappings.remove("_meta");
 
         // We cannot do a simple comparison of mappings e.g
         // Objects.equals(indexMappings, templateMappings) because some
@@ -232,6 +253,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         if (isEqual == false) {
             fail(errorMesssage.toString());
         }
+    }
+
+    protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
+                                                            String indexName) throws IOException {
+        assertLegacyTemplateMatchesIndexMappings(templateName, indexName, false);
     }
 
     private Map<String, Object> flattenMap(Map<String, Object> map) {

@@ -53,6 +53,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedResultsMappings();
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
+                assertMappingsMatchTemplates();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -143,5 +144,27 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertEquals("Incorrect type for annotations_enabled in " + responseLevel, "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel));
         });
+    }
+
+    /**
+     * Assert that the mappings of the ml indices are the same as in the
+     * templates. If different this is either a consequence of an unintended
+     * write (dynamic update) or the mappings have not been updated after
+     * upgrade.
+     *
+     * A failure here will be very difficult to reproduce as it may be a side
+     * effect of one of the other tests running in the cluster.
+     *
+     * @throws IOException On error
+     */
+    private void assertMappingsMatchTemplates() throws IOException {
+        assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config");
+        assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true);    // true means the index may not have been created
+        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true);
+        assertLegacyTemplateMatchesIndexMappings(".ml-state", ".ml-state-000001");
+        assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
+        assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true);
+        // .ml-annotations-6 does not use a template
+        // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
     }
 }

@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -113,6 +115,18 @@ public enum XContentType {
             return CborXContent.cborXContent;
         }
     };
+    /**
+     * A regexp to allow parsing media types. It covers two use cases.
+     * 1. Media type with a version - requires a custom vnd.elasticserach subtype and a compatible-with parameter
+     * i.e. application/vnd.elasticsearch+json;compatible-with
+     * 2. Media type without a version - for users not using compatible API i.e. application/json
+     */
+    private static final Pattern MEDIA_TYPE_PATTERN = Pattern.compile(
+        //type
+        "^(application|text)/" +
+            "([^;\\s]+)" + //subtype: json,yaml,etc some of these are defined in x-pack so can't be enumerated
+            "(?:\\s*;\\s*(charset=UTF-8)?)?$",
+        Pattern.CASE_INSENSITIVE);
 
     /**
      * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
@@ -144,16 +158,34 @@ public enum XContentType {
      * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
      * HTTP header. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaType(String mediaType) {
-        final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
+    public static XContentType fromMediaType(String mediaTypeHeaderValue) {
+        if (mediaTypeHeaderValue == null) {
+            return null;
+        }
+        // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
+        if (mediaTypeHeaderValue.toLowerCase(Locale.ROOT).equals("application/x-ndjson")) {
+            return XContentType.JSON;
+        }
+        if (mediaTypeHeaderValue.toLowerCase(Locale.ROOT).startsWith("application/*")) {
+            return JSON;
+        }
+
+        String mediaType = parseMediaType(mediaTypeHeaderValue);
         for (XContentType type : values()) {
-            if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
+            if (type.mediaTypeWithoutParameters().equals(mediaType)) {
                 return type;
             }
         }
-        // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
-        if (lowercaseMediaType.toLowerCase(Locale.ROOT).equals("application/x-ndjson")) {
-            return XContentType.JSON;
+
+        return null;
+    }
+
+    public static String parseMediaType(String mediaType) {
+        if (mediaType != null) {
+            Matcher matcher = MEDIA_TYPE_PATTERN.matcher(mediaType);
+            if (matcher.find()) {
+                return (matcher.group(1) + "/" + matcher.group(2)).toLowerCase(Locale.ROOT);
+            }
         }
 
         return null;

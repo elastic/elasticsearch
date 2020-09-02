@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.highlight;
+package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.highlight.AnnotatedPassageFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
@@ -69,7 +68,6 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
         Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
         HitContext mockHitContext = new HitContext();
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer, mockHitContext);
         
         AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
         for (int i = 0; i < markedUpInputs.length; i++) {
@@ -77,8 +75,12 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         }
         mockHitContext.cache().put(AnnotatedText.class.getName(), annotations);
 
-        AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(annotations,new DefaultEncoder());
-        
+        AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
+        passageFormatter.setAnnotations(annotations);
+
+        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
+        hiliteAnalyzer.setAnnotations(annotations);
+
         ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
         for (int i = 0; i < annotations.length; i++) {
             plainTextForHighlighter.add(annotations[i].textMinusMarkup);
@@ -109,12 +111,24 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
         
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, hiliteAnalyzer, null,
-                passageFormatter, locale,
-                breakIterator, rawValue, noMatchSize);
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            searcher,
+            hiliteAnalyzer,
+            null,
+            passageFormatter,
+            locale,
+            breakIterator,
+            "index",
+            "text",
+            query,
+            noMatchSize,
+            expectedPassages.length,
+            name -> "text".equals(name),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
         highlighter.setFieldMatcher((name) -> "text".equals(name));
-        final Snippet[] snippets =
-            highlighter.highlightField("text", query, topDocs.scoreDocs[0].doc, expectedPassages.length);
+        final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
         assertEquals(expectedPassages.length, snippets.length);
         for (int i = 0; i < snippets.length; i++) {
             assertEquals(expectedPassages[i], snippets[i].getText());

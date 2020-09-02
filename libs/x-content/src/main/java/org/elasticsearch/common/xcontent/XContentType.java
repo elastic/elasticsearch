@@ -135,19 +135,14 @@ public enum XContentType {
      * format query string parameter. This method will return {@code null} if no match is found
      */
     public static XContentType fromFormat(String mediaType) {
-//        String mediaType = parseMediaType(mediaTypeHeaderValue);
 
         if (mediaType == null) {
             return null;
         }
         for (XContentType type : values()) {
-            if (isSameMediaTypeOrFormatAs(mediaType, type)) {
+            if (type.shortName().equalsIgnoreCase(mediaType)) {
                 return type;
             }
-        }
-        final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
-        if (lowercaseMediaType.startsWith("application/*")) {
-            return JSON;
         }
 
         return null;

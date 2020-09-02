@@ -124,8 +124,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (collector != null) {
             try {
                 collector.postCollect();
-                collector.close();
             } finally {
+                collector.close();
                 collector = null;
             }
         }

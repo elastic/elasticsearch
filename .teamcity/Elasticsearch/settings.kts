@@ -19,9 +19,16 @@
 
 package Elasticsearch
 
+import co.elastic.teamcity.common.TeamLevelProject
 import jetbrains.buildServer.configs.kotlin.v2019_2.project
 import jetbrains.buildServer.configs.kotlin.v2019_2.version
 
 version = "2020.1"
 
-project(Elasticsearch)
+project(TeamLevelProject {
+    id("Elasticsearch")
+    uuid = "7ec11a10-4663-40da-8b01-bb9bcc3c82c7"
+    name = "Elasticsearch"
+
+    includeDevelopmentBranchProjects()
+})

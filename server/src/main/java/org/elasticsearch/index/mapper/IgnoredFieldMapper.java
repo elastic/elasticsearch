@@ -133,8 +133,9 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             if (fieldType().hasDocValues()) {
                 final BytesRef binaryValue = new BytesRef(field);
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            } else {
+                context.doc().add(new Field(NAME, field, fieldType));
             }
-            context.doc().add(new Field(NAME, field, fieldType));
         }
     }
 

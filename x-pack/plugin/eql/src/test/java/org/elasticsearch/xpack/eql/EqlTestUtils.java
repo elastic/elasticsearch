@@ -27,35 +27,32 @@ public final class EqlTestUtils {
     private EqlTestUtils() {
     }
 
-    public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[]{"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), -1, false, false, "",
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomTask());
+    public static final EqlConfiguration TEST_CFG_CASE_INSENSITIVE = new EqlConfiguration(new String[] {"none"},
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, false,
+            123, "", new TaskId("test", 123), null);
+
+    public static final EqlConfiguration TEST_CFG_CASE_SENSITIVE = new EqlConfiguration(new String[] {"none"},
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, true,
+            123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
-        return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
-            randomZone(),
-            randomAlphaOfLength(16),
-            randomAlphaOfLength(16),
-            null,
-            new TimeValue(randomNonNegativeLong()),
-            randomIntBetween(5, 100),
-            randomBoolean(),
-            randomBoolean(),
-            randomAlphaOfLength(16),
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
-            randomTask());
+        return internalRandomConfiguration(randomBoolean());
     }
 
     public static EqlConfiguration randomConfigurationWithCaseSensitive(boolean isCaseSensitive) {
+        return internalRandomConfiguration(isCaseSensitive);
+    }
+
+    private static EqlConfiguration internalRandomConfiguration(boolean isCaseSensitive) {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
             randomZone(),
             randomAlphaOfLength(16),
             randomAlphaOfLength(16),
             null,
             new TimeValue(randomNonNegativeLong()),
-            randomIntBetween(5, 100),
             randomBoolean(),
             isCaseSensitive,
+            randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomTask());

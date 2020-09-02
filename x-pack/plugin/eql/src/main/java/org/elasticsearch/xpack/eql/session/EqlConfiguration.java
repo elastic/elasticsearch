@@ -19,29 +19,30 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     private final String[] indices;
     private final TimeValue requestTimeout;
-    private final int size;
     private final String clientId;
     private final boolean includeFrozenIndices;
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final boolean isCaseSensitive;
+    private final int fetchSize;
 
     @Nullable
     private final QueryBuilder filter;
 
     public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                         int size, boolean includeFrozen, boolean isCaseSensitive, String clientId, TaskId taskId, EqlSearchTask task) {
+                            boolean includeFrozen, boolean isCaseSensitive, int fetchSize, String clientId, TaskId taskId,
+                            EqlSearchTask task) {
         super(zi, username, clusterName);
 
         this.indices = indices;
         this.filter = filter;
         this.requestTimeout = requestTimeout;
-        this.size = size;
         this.clientId = clientId;
         this.includeFrozenIndices = includeFrozen;
         this.isCaseSensitive = isCaseSensitive;
         this.taskId = taskId;
         this.task = task;
+        this.fetchSize = fetchSize;
     }
 
     public String[] indices() {
@@ -56,12 +57,12 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return requestTimeout;
     }
 
-    public QueryBuilder filter() {
-        return filter;
+    public int fetchSize() {
+        return fetchSize;
     }
 
-    public int size() {
-        return size;
+    public QueryBuilder filter() {
+        return filter;
     }
 
     public String clientId() {

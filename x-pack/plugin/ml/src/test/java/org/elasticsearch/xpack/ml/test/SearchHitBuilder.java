@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.test;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Arrays;
@@ -38,6 +39,11 @@ public class SearchHitBuilder {
 
     public SearchHitBuilder setSource(String sourceJson) {
         hit.sourceRef(new BytesArray(sourceJson));
+        return this;
+    }
+
+    public SearchHitBuilder setStringSortValue(String sortValue) {
+        hit.sortValues(new String[] { sortValue }, new DocValueFormat[] { DocValueFormat.RAW });
         return this;
     }
 

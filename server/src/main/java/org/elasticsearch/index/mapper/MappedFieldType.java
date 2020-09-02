@@ -43,16 +43,20 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * This defines the core properties and functions to operate on a field.
@@ -63,25 +67,10 @@ public abstract class MappedFieldType {
     private final boolean docValues;
     private final boolean isIndexed;
     private final TextSearchInfo textSearchInfo;
+    private final Map<String, String> meta;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
-    private NamedAnalyzer searchAnalyzer;
-    private NamedAnalyzer searchQuoteAnalyzer;
     private boolean eagerGlobalOrdinals;
-    private Map<String, String> meta;
-
-    protected MappedFieldType(MappedFieldType ref) {
-        this.name = ref.name();
-        this.boost = ref.boost();
-        this.isIndexed = ref.isIndexed;
-        this.docValues = ref.hasDocValues();
-        this.indexAnalyzer = ref.indexAnalyzer();
-        this.searchAnalyzer = ref.searchAnalyzer();
-        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
-        this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
-        this.meta = ref.meta;
-        this.textSearchInfo = ref.textSearchInfo;
-    }
 
     public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         setBoost(1.0f);
@@ -92,50 +81,22 @@ public abstract class MappedFieldType {
         this.meta = meta;
     }
 
-    @Override
-    public abstract MappedFieldType clone();
-
     /**
      * Return a fielddata builder for this field
      *
      * @param fullyQualifiedIndexName the name of the index this field-data is build for
-     *
+     * @param searchLookup a {@link SearchLookup} supplier to allow for accessing other fields values in the context of runtime fields
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      */
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MappedFieldType fieldType = (MappedFieldType) o;
-
-        return boost == fieldType.boost &&
-            docValues == fieldType.docValues &&
-            Objects.equals(name, fieldType.name) &&
-            Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
-            Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
-            Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
-            Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
-            Objects.equals(meta, fieldType.meta);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, meta);
-    }
-
-    // TODO: we need to override freeze() and add safety checks that all settings are actually set
-
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-    
+
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
         return typeName();
@@ -165,22 +126,6 @@ public abstract class MappedFieldType {
         this.indexAnalyzer = analyzer;
     }
 
-    public NamedAnalyzer searchAnalyzer() {
-        return searchAnalyzer;
-    }
-
-    public void setSearchAnalyzer(NamedAnalyzer analyzer) {
-        this.searchAnalyzer = analyzer;
-    }
-
-    public NamedAnalyzer searchQuoteAnalyzer() {
-        return searchQuoteAnalyzer == null ? searchAnalyzer : searchQuoteAnalyzer;
-    }
-
-    public void setSearchQuoteAnalyzer(NamedAnalyzer analyzer) {
-        this.searchQuoteAnalyzer = analyzer;
-    }
-
     /** Given a value that comes from the stored fields API, convert it to the
      *  expected type. For instance a date field would store dates as longs and
      *  format it back to a string in this method. */
@@ -195,12 +140,25 @@ public abstract class MappedFieldType {
         return isIndexed;
     }
 
+    /**
+     * If the field supports using the indexed data to speed up operations related to ordering of data, such as sorting or aggs, return
+     * a function for doing that.  If it is unsupported for this field type, there is no need to override this method.
+     *
+     * @return null if the optimization cannot be applied, otherwise a function to use for the optimization
+     */
+    @Nullable
+    public Function<byte[], Number> pointReaderIfPossible() {
+        return null;
+    }
+
     /** Returns true if the field is aggregatable.
      *
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder("");
+            fielddataBuilder("", () -> {
+                throw new UnsupportedOperationException("SearchLookup not available");
+            });
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -260,8 +218,8 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method,
-                             QueryShardContext context) {
+    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
+        @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
@@ -286,6 +244,11 @@ public abstract class MappedFieldType {
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
         throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        throw new IllegalArgumentException("Illegal data type of [" + typeName() + "]!"+
+            "[" + DistanceFeatureQueryBuilder.NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }
 
     /**
@@ -393,13 +356,6 @@ public abstract class MappedFieldType {
      */
     public Map<String, String> meta() {
         return meta;
-    }
-
-    /**
-     * Associate metadata with this field.
-     */
-    public void updateMeta(Map<String, String> meta) {
-        this.meta = Map.copyOf(Objects.requireNonNull(meta));
     }
 
     /**

@@ -1,0 +1,31 @@
+---
+"Test get empty autoscaling decision":
+  - do:
+      autoscaling.get_autoscaling_decision: {}
+
+  - match: { "decisions": [] }
+
+---
+"Test get always autoscaling decision":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          policy:
+            deciders:
+              always: {}
+
+  - match: { "acknowledged": true }
+
+  - do:
+      autoscaling.get_autoscaling_decision: {}
+
+  - match: { decisions.0.my_autoscaling_policy.decision: scale_up }
+  - match: { decisions.0.my_autoscaling_policy.decisions.0.name: always }
+  - match: { decisions.0.my_autoscaling_policy.decisions.0.type: scale_up }
+  - match: { decisions.0.my_autoscaling_policy.decisions.0.reason: always }
+
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy

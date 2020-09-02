@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -67,7 +68,10 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.singletonList(new ClassificationInferenceResults(1.0,
                 "foo",
                 null,
-                ClassificationConfig.EMPTY_PARAMS)),
+                Collections.emptyList(),
+                ClassificationConfig.EMPTY_PARAMS,
+                1.0,
+                1.0)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -92,17 +96,23 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
+        List<TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                Collections.emptyList(),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat((List<Map<?,?>>)document.getFieldValue("ml.my_processor.top_classes", List.class),
-            contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
+            contains(classes.stream().map(TopClassEntry::asValueMap).toArray(Map[]::new)));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
         assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
     }
@@ -122,9 +132,9 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
+        List<TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         List<FeatureImportance> featureInfluence = new ArrayList<>();
         featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
@@ -135,7 +145,9 @@ public class InferenceProcessorTests extends ESTestCase {
                 "foo",
                 classes,
                 featureInfluence,
-                classificationConfig)),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -163,17 +175,23 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
+        List<TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                Collections.emptyList(),
+                classificationConfig,
+                0.6,
+                0.6)),
             true);
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat((List<Map<?,?>>)document.getFieldValue("ml.my_processor.tops", List.class),
-            contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
+            contains(classes.stream().map(TopClassEntry::asValueMap).toArray(Map[]::new)));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
         assertThat(document.getFieldValue("ml.my_processor.result", String.class), equalTo("foo"));
     }
@@ -253,6 +271,13 @@ public class InferenceProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(source));
+
+        ingestMetadata = Collections.singletonMap("_value", 3);
+        document = new IngestDocument(source, ingestMetadata);
+
+        Map<String, Object> expected = new HashMap<>(source);
+        expected.put("_ingest", ingestMetadata);
+        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expected));
     }
 
     public void testGenerateWithMapping() {
@@ -263,6 +288,7 @@ public class InferenceProcessorTests extends ESTestCase {
             put("value1", "new_value1");
             put("value2", "new_value2");
             put("categorical", "new_categorical");
+            put("_ingest._value", "metafield");
         }};
 
         InferenceProcessor processor = new InferenceProcessor(client,
@@ -288,6 +314,13 @@ public class InferenceProcessorTests extends ESTestCase {
             put("new_categorical", "foo");
             put("un_touched", "bar");
         }};
+        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+
+        ingestMetadata = Collections.singletonMap("_value", "baz");
+        document = new IngestDocument(source, ingestMetadata);
+        expectedMap = new HashMap<>(expectedMap);
+        expectedMap.put("metafield", "baz");
+        expectedMap.put("_ingest", ingestMetadata);
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
     }
 

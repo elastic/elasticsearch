@@ -22,10 +22,11 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
  */
 
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
   'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
   'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
   'reference/ml/anomaly-detection/apis/get-category.asciidoc',
@@ -53,7 +54,6 @@ testClusters.integTest {
     setting 'indices.lifecycle.history_index_enabled', 'false'
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-      systemProperty 'es.eql_feature_flag_registered', 'true'
       systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
@@ -126,46 +126,106 @@ listSnippets.docs = buildRestTests.docs
 
 listConsoleCandidates.docs = buildRestTests.docs
 
-Closure setupTwitter = { String name, int count ->
+Closure setupMyIndex = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
         indices.create:
-          index: twitter
+          index: my-index-000001
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
               properties:
-                user:
-                  type: keyword
-                  doc_values: true
-                date:
+                "@timestamp":
                   type: date
-                likes:
-                  type: long
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
   - do:
         bulk:
-          index: twitter
+          index: my-index-000001
           refresh: true
           body: |'''
   for (int i = 0; i < count; i++) {
-    String user, text
+    String ip, user_id
     if (i == 0) {
-      user = 'kimchy'
-      text = 'trying out Elasticsearch'
+      ip = '127.0.0.1'
+      user_id = 'kimchy'
     } else {
-      user = 'test'
-      text = "some message with the number $i"
+      ip = '10.42.42.42'
+      user_id= 'elkbee'
     }
     buildRestTests.setups[name] += """
-            {"index":{"_id": "$i"}}
-            {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+            { "index":{"_id": "$i"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
   }
 }
-setupTwitter('twitter', 5)
-setupTwitter('big_twitter', 120)
-setupTwitter('huge_twitter', 1200)
+setupMyIndex('my_index', 5)
+setupMyIndex('my_index_big', 120)
+setupMyIndex('my_index_huge', 1200)
+
+// Used for several full-text search and agg examples
+buildRestTests.setups['messages'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4"}'''
+
+// Used for EQL
+buildRestTests.setups['sec_logs'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{}}
+            {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.
@@ -287,7 +347,7 @@ buildRestTests.setups['user_hits'] = '''
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
 
 
-// Dummy bank account data used by getting-started.asciidoc
+// Fake bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
   - do:
         indices.create:
@@ -316,20 +376,6 @@ buildRestTests.doFirst {
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
-// Used by index boost doc
-buildRestTests.setups['index_boost'] = '''
-  - do:
-      indices.create:
-          index:  index1
-  - do:
-      indices.create:
-          index:  index2
-
-  - do:
-      indices.put_alias:
-        index: index1
-        name: alias1
-'''
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:
@@ -1399,3 +1445,30 @@ buildRestTests.setups['setup-repository'] = '''
           settings:
             location: buildDir/cluster/shared/repo
 '''
+
+// Fake sec logs data used by EQL search
+buildRestTests.setups['atomic_red_regsvr32'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 5
+              number_of_routing_shards: 5
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+#atomic_red_data#
+'''
+/* Load the actual events only if we're going to use them. */
+File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+buildRestTests.inputs.file(atomicRedRegsvr32File)
+buildRestTests.doFirst {
+  String events = atomicRedRegsvr32File.getText('UTF-8')
+  // Indent like a yaml test needs
+  events = events.replaceAll('(?m)^', '            ')
+  buildRestTests.setups['atomic_red_regsvr32'] =
+    buildRestTests.setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+}

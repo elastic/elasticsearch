@@ -39,9 +39,13 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
@@ -77,20 +81,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "annotated_text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends TextFieldMapper.Builder {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name);
             builder = this;
         }
 
@@ -107,30 +103,28 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (docValues) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support doc values");
             }
-            return super.docValues(docValues);
+            return this;
+        }
+
+        private NamedAnalyzer wrapAnalyzer(NamedAnalyzer in, int positionIncrementGap) {
+            return new NamedAnalyzer(in.name(), AnalyzerScope.INDEX,
+                new AnnotationAnalyzerWrapper(in.analyzer()), positionIncrementGap);
         }
 
         private AnnotatedTextFieldType buildFieldType(BuilderContext context) {
-            boolean hasPositions = fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(buildFullName(context), hasPositions, meta);
-            if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
-                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                    throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
-                        + name + "] without positions enabled");
-                }
-                ft.setIndexAnalyzer(indexAnalyzer, positionIncrementGap);
-                ft.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer, positionIncrementGap));
-                ft.setSearchQuoteAnalyzer(new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap));
+            int posGap;
+            if (positionIncrementGap == POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                posGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             } else {
-                //Using the analyzer's default BUT need to do the same thing AnalysisRegistry.processAnalyzerFactory
-                // does to splice in new default of posIncGap=100 by wrapping the analyzer
-                if (hasPositions) {
-                    int overrideInc = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
-                    ft.setIndexAnalyzer(indexAnalyzer, overrideInc);
-                    ft.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer, overrideInc));
-                    ft.setSearchQuoteAnalyzer(new NamedAnalyzer(searchQuoteAnalyzer,overrideInc));
+                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                    throw new IllegalArgumentException("Cannot set position_increment_gap on field [" + name()
+                        + "] without positions enabled");
                 }
+                posGap = positionIncrementGap;
             }
+            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(buildFullName(context), fieldType, similarity,
+                wrapAnalyzer(searchAnalyzer, posGap), wrapAnalyzer(searchQuoteAnalyzer, posGap), meta);
+            ft.setIndexAnalyzer(indexAnalyzer, posGap);
             return ft;
         }
 
@@ -147,7 +141,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<AnnotatedTextFieldMapper.Builder> parse(
+        public Mapper.Builder<?> parse(
                 String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
             builder.indexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
@@ -521,12 +515,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        public AnnotatedTextFieldType(String name, boolean hasPositions, Map<String, String> meta) {
-            super(name, hasPositions, meta);
+        public AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
+            NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+            super(name, fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer, meta);
         }
 
-        protected AnnotatedTextFieldType(AnnotatedTextFieldType ref) {
-            super(ref);
+        public AnnotatedTextFieldType(String name, Map<String, String> meta) {
+            super(name, true, meta);
         }
 
         public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
@@ -538,10 +533,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 super.setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
                     new AnnotationAnalyzerWrapper(delegate.analyzer()), positionIncrementGap));
             }
-        }
-
-        public AnnotatedTextFieldType clone() {
-            return new AnnotatedTextFieldType(this);
         }
 
         @Override
@@ -593,6 +584,19 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 createFieldNamesField(context);
             }
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
     }
 
     @Override

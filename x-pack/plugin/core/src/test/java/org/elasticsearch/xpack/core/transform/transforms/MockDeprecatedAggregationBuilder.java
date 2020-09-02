@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -20,6 +19,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -30,8 +30,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     public static final String NAME = "deprecated_agg";
     public static final String DEPRECATION_MESSAGE = "expected deprecation message from MockDeprecatedAggregationBuilder";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(MockDeprecatedAggregationBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MockDeprecatedAggregationBuilder.class);
 
     protected MockDeprecatedAggregationBuilder(MockDeprecatedAggregationBuilder clone, Builder factoriesBuilder,
             Map<String, Object> metadata) {
@@ -62,6 +61,11 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return ValuesSourceRegistry.UNREGISTERED_KEY;
     }
 
     @Override

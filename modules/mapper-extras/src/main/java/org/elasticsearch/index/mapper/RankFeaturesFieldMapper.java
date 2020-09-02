@@ -27,10 +27,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
@@ -78,15 +80,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
             super(name, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected RankFeaturesFieldType(RankFeaturesFieldType ref) {
-            super(ref);
-        }
-
-        public RankFeaturesFieldType clone() {
-            return new RankFeaturesFieldType(this);
         }
 
         @Override
@@ -100,7 +93,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException("[rank_features] fields do not support sorting, scripting or aggregating");
         }
 
@@ -166,6 +159,19 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new AssertionError("parse is implemented directly");
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

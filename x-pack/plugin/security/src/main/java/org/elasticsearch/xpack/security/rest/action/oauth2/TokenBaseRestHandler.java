@@ -31,7 +31,7 @@ abstract class TokenBaseRestHandler extends SecurityBaseRestHandler {
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)) {
+        } else if (licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)) {
             return null;
         } else {
             logger.info("Security tokens are not available under the current [{}] license", licenseState.getOperationMode().description());

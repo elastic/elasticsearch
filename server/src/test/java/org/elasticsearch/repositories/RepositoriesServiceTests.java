@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +42,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -51,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -160,17 +157,16 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
-                                     int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                     boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                     Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
-                                     ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+        public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                     SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                     Function<ClusterState, ClusterState> stateTransformer,
+                                     ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 
         @Override
         public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                                    ActionListener<Void> listener) {
+                                    ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 

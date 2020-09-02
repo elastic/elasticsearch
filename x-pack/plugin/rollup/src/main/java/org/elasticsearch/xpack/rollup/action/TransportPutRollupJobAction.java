@@ -68,8 +68,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private static final DeprecationLogger deprecationLogger
-        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
@@ -97,7 +96,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     protected void masterOperation(Task task, PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
 
-        if (!licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP)) {
+        if (!licenseState.checkFeature(XPackLicenseState.Feature.ROLLUP)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
             return;
         }

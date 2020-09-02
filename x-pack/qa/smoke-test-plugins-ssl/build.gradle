@@ -6,6 +6,7 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
@@ -13,7 +14,7 @@ dependencies {
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-task copyXPackPluginProps(type: Copy) {
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
@@ -30,7 +31,7 @@ File clientKey = file("$keystoreDir/testclient.pem")
 File clientCert = file("$keystoreDir/testclient.crt")
 
 // Add keystores to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   from('./') {
     include '*.crt', '*.pem', '*.jks'
   }
@@ -40,7 +41,7 @@ task copyKeyCerts(type: Copy) {
 sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
-integTest.runner.dependsOn(copyKeyCerts)
+integTest.dependsOn(copyKeyCerts)
 
 def pluginsCount = 0
 testClusters.integTest {
@@ -82,8 +83,9 @@ ext.expansions = [
   'expected.plugins.count': pluginsCount
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from(sourceSets.test.resources.srcDirs) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

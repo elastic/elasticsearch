@@ -11,7 +11,7 @@
 * Use the <<watcher-api-deactivate-watch,deactivate watch API>> to deactivate watches
 * Use the <<watcher-api-ack-watch,ack watch API>> to acknowledge watches
 
-[float]
+[discrete]
 [[listing-watches]]
 === Listing watches
 

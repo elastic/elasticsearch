@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,6 +31,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -68,17 +68,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(QueryShardContext.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QueryShardContext.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
         "in queries and aggregations is deprecated, prefer to use a field instead.";
 
@@ -88,7 +87,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final MapperService mapperService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
+    private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexSearcher searcher;
     private boolean cacheable = true;
@@ -108,7 +107,7 @@ public class QueryShardContext extends QueryRewriteContext {
                              IndexSettings indexSettings,
                              BigArrays bigArrays,
                              BitsetFilterCache bitsetFilterCache,
-                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                             TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
                              MapperService mapperService,
                              SimilarityService similarityService,
                              ScriptService scriptService,
@@ -138,7 +137,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               IndexSettings indexSettings,
                               BigArrays bigArrays,
                               BitsetFilterCache bitsetFilterCache,
-                              BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                              TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
                               MapperService mapperService,
                               SimilarityService similarityService,
                               ScriptService scriptService,
@@ -210,7 +209,8 @@ public class QueryShardContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
+        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
+            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -248,8 +248,8 @@ public class QueryShardContext extends QueryRewriteContext {
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.searchAnalyzer() != null) {
-            return fieldType.searchAnalyzer();
+        if (fieldType.getTextSearchInfo().getSearchAnalyzer() != null) {
+            return fieldType.getTextSearchInfo().getSearchAnalyzer();
         }
         return getMapperService().searchAnalyzer();
     }
@@ -259,8 +259,8 @@ public class QueryShardContext extends QueryRewriteContext {
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.searchQuoteAnalyzer() != null) {
-            return fieldType.searchQuoteAnalyzer();
+        if (fieldType.getTextSearchInfo().getSearchQuoteAnalyzer() != null) {
+            return fieldType.getTextSearchInfo().getSearchQuoteAnalyzer();
         }
         return getMapperService().searchQuoteAnalyzer();
     }
@@ -291,11 +291,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private SearchLookup lookup = null;
 
     public SearchLookup lookup() {
-        if (lookup == null) {
-            lookup = new SearchLookup(getMapperService(),
-                    mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()));
+        if (this.lookup == null) {
+            this.lookup = new SearchLookup(
+                getMapperService(),
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup));
         }
-        return lookup;
+        return this.lookup;
     }
 
     public NestedScope nestedScope() {

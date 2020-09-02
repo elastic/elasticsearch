@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -78,8 +79,8 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     public BinaryRangeAggregator(String name, AggregatorFactories factories,
             ValuesSource valuesSource, DocValueFormat format,
             List<Range> ranges, boolean keyed, SearchContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+            Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, cardinality.multiply(ranges.size()), metadata);
         this.valuesSource = (ValuesSource.Bytes) valuesSource;
         this.format = format;
         this.keyed = keyed;

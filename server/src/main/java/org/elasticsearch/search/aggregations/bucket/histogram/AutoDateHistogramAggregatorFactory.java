@@ -21,12 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -41,9 +40,11 @@ import java.util.function.Function;
 public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(AutoDateHistogramAggregationBuilder.NAME,
+        builder.register(
+            AutoDateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (AutoDateHistogramAggregatorSupplier) AutoDateHistogramAggregator::build);
+            AutoDateHistogramAggregator::build,
+                true);
     }
 
     private final int numBuckets;
@@ -65,18 +66,24 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            AutoDateHistogramAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof AutoDateHistogramAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected AutoDateHistogramAggregationSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
+        AutoDateHistogramAggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(AutoDateHistogramAggregationBuilder.REGISTRY_KEY, config);
         Function<Rounding, Rounding.Prepared> roundingPreparer =
                 config.getValuesSource().roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
-        return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos,
-                roundingPreparer, config, searchContext, parent, collectsFromSingleBucket, metadata);
+        return aggregatorSupplier.build(
+            name,
+            factories,
+            numBuckets,
+            roundingInfos,
+            roundingPreparer,
+            config,
+            searchContext,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 
     @Override
@@ -92,7 +99,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             config,
             searchContext,
             parent,
-            false,
+            CardinalityUpperBound.NONE,
             metadata
         );
     }

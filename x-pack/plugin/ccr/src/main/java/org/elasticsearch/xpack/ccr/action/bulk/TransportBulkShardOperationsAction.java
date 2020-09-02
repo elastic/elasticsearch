@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
@@ -36,6 +38,8 @@ import java.util.List;
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
+    private final IndexingPressure indexingPressure;
+
     @Inject
     public TransportBulkShardOperationsAction(
             final Settings settings,
@@ -45,7 +49,7 @@ public class TransportBulkShardOperationsAction
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
-            final WriteMemoryLimits writeMemoryLimits) {
+            final IndexingPressure indexingPressure) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -57,7 +61,20 @@ public class TransportBulkShardOperationsAction
                 actionFilters,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE, false, writeMemoryLimits);
+                ThreadPool.Names.WRITE, false, indexingPressure);
+        this.indexingPressure = indexingPressure;
+    }
+
+    @Override
+    protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
+        // This is executed on the follower coordinator node and we need to mark the bytes.
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationSize(request));
+        ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            super.doExecute(task, request, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
     }
 
     @Override
@@ -93,7 +110,6 @@ public class TransportBulkShardOperationsAction
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
                     delete.id(),
-                    delete.uid(),
                     delete.seqNo(),
                     primaryTerm,
                     delete.version());

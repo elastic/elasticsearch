@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -18,8 +17,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -37,7 +39,7 @@ import java.util.Map;
  */
 @Deprecated
 public class SparseVectorFieldMapper extends FieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SparseVectorFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     static final String ERROR_MESSAGE = "The [sparse_vector] field type is no longer supported.";
     static final String ERROR_MESSAGE_7X = "The [sparse_vector] field type is no longer supported. Old 7.x indices are allowed to " +
         "contain [sparse_vector] fields, but they cannot be indexed or searched.";
@@ -86,14 +88,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         public SparseVectorFieldType(String name, Map<String, String> meta) {
             super(name, false, false, TextSearchInfo.NONE, meta);
-        }
-
-        protected SparseVectorFieldType(SparseVectorFieldType ref) {
-            super(ref);
-        }
-
-        public SparseVectorFieldType clone() {
-            return new SparseVectorFieldType(this);
         }
 
         @Override
@@ -146,10 +140,22 @@ public class SparseVectorFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
-
     @Override
     protected void parseCreateField(ParseContext context) {
         throw new IllegalStateException("parse is implemented directly");
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

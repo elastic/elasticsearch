@@ -26,15 +26,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Simple field mapper hack to ensure that there is a one and only {@link ParentJoinFieldMapper} per mapping.
@@ -82,24 +86,15 @@ public class MetaJoinFieldMapper extends FieldMapper {
             this.joinField = joinField;
         }
 
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-            this.joinField = ref.joinField;
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -142,6 +137,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
     }
 
     @Override

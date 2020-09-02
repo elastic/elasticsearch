@@ -56,6 +56,11 @@ public final class OriginalIndices implements IndicesRequest {
         return indicesOptions;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
         return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
     }

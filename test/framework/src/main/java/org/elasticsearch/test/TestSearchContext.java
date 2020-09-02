@@ -46,13 +46,15 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -112,12 +114,18 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {
+        this(queryShardContext, indexShard, searcher, null);
+    }
+
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard,
+                             ContextIndexSearcher searcher, ScrollContext scrollContext) {
         this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
+        this.scrollContext = scrollContext;
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {
@@ -134,8 +142,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextId id() {
-        return new SearchContextId("", 0);
+    public ShardSearchContextId id() {
+        return new ShardSearchContextId("", 0);
     }
 
     @Override
@@ -169,19 +177,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public long getOriginNanoTime() {
-        return originNanoTime;
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return scrollContext;
-    }
-
-    @Override
-    public SearchContext scrollContext(ScrollContext scrollContext) {
-        this.scrollContext = scrollContext;
-        return this;
     }
 
     @Override
@@ -206,12 +203,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextHighlight highlight() {
+    public SearchHighlightContext highlight() {
         return null;
     }
 
     @Override
-    public void highlight(SearchContextHighlight highlight) {
+    public void highlight(SearchHighlightContext highlight) {
     }
 
     @Override
@@ -226,10 +223,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public List<RescoreContext> rescore() {
         return Collections.emptyList();
-    }
-
-    @Override
-    public void addRescore(RescoreContext rescore) {
     }
 
     @Override
@@ -269,6 +262,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
+        return null;
+    }
+
+    @Override
+    public FetchFieldsContext fetchFieldsContext() {
+        return null;
+    }
+
+    @Override
+    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
         return null;
     }
 
@@ -540,24 +543,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void accessed(long accessTime) {
-    }
-
-    @Override
-    public long lastAccessTime() {
-        return 0;
-    }
-
-    @Override
-    public long keepAlive() {
-        return 0;
-    }
-
-    @Override
-    public void keepAlive(long keepAlive) {
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return null;
     }
@@ -628,5 +613,15 @@ public class TestSearchContext extends SearchContext {
     @Override
     public boolean isCancelled() {
         return task.isCancelled();
+    }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+
+    }
+
+    @Override
+    public ReaderContext readerContext() {
+        throw new UnsupportedOperationException();
     }
 }

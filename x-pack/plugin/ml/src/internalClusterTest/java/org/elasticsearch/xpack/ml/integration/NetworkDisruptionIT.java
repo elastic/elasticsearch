@@ -63,8 +63,8 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         restOfClusterSide.remove(origJobNode);
         String notIsolatedNode = restOfClusterSide.iterator().next();
 
-        NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(isolatedSide, restOfClusterSide),
-                new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption networkDisruption =
+            new NetworkDisruption(new NetworkDisruption.TwoPartitions(isolatedSide, restOfClusterSide), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         ensureStableCluster(4, notIsolatedNode);

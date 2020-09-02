@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,13 +29,6 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
 
     private PostDataAction() {
         super(NAME, PostDataAction.Response::new);
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, PostDataAction action) {
-            super(client, action, new Request());
-        }
     }
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
@@ -112,9 +103,6 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
         private DataDescription dataDescription;
         private XContentType xContentType;
         private BytesReference content;
-
-        public Request() {
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);

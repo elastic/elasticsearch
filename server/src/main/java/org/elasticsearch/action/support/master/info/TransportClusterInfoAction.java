@@ -50,13 +50,13 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request, true));
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
     protected final void masterOperation(Task task, final Request request, final ClusterState state,
                                          final ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request, true);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         doMasterOperation(request, concreteIndices, state, listener);
     }
 

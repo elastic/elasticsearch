@@ -1,6 +1,5 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'vectors'

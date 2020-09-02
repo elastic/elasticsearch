@@ -853,7 +853,7 @@ public class HttpExporter extends Exporter {
 
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
-        final boolean canUseClusterAlerts = config.licenseState().isAllowed(Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canUseClusterAlerts = config.licenseState().checkFeature(Feature.MONITORING_CLUSTER_ALERTS);
 
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {

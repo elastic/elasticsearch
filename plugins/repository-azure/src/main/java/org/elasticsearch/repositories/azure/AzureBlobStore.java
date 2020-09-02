@@ -48,6 +48,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -240,7 +241,10 @@ public class AzureBlobStore implements BlobStore {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
-    private static final int MAX_BUFFER_SIZE = 16 * 1024 * 1024;
+    /**
+     * Maximum number of bytes to fetch per read request and thus to buffer on heap at a time.
+     */
+    private static final int MAX_READ_CHUNK_SIZE = ByteSizeUnit.MB.toIntBytes(4);
 
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
@@ -249,10 +253,12 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         SocketAccess.doPrivilegedVoidException(() -> blockBlobReference.downloadAttributes(null, null, context));
         final long limit = length == null ? blockBlobReference.getProperties().getLength() - position : length;
+        // Building our own input stream instead of using the SDK's com.microsoft.azure.storage.blob.BlobInputStream.BlobInputStream
+        // because that stream is highly inefficient in both memory and CPU use.
         return new InputStream() {
 
             private final ByteArrayOutputStream baos =
-                    new ByteArrayOutputStream(Math.min(MAX_BUFFER_SIZE, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))) {
+                    new ByteArrayOutputStream(Math.min(MAX_READ_CHUNK_SIZE, Math.toIntExact(Math.min(limit, Integer.MAX_VALUE)))) {
                         @Override
                         public byte[] toByteArray() {
                             return buf;
@@ -275,10 +281,11 @@ public class AzureBlobStore implements BlobStore {
             @Override
             public int read(byte[] b, int off, int len) throws IOException {
                 fill();
-                if (len > 0 && pos == baos.size()) {
+                final int buffered = baos.size();
+                if (len > 0 && pos == buffered) {
                     return -1;
                 }
-                int remaining = baos.size() - pos;
+                int remaining = buffered - pos;
                 final int toRead = Math.min(remaining, len);
                 System.arraycopy(baos.toByteArray(), pos, b, off, toRead);
                 pos += toRead;
@@ -287,12 +294,12 @@ public class AzureBlobStore implements BlobStore {
 
             private void fill() throws IOException {
                 if (pos == baos.size()) {
-                    final long toFill = Math.min(limit - this.offset, MAX_BUFFER_SIZE);
+                    final long toFill = Math.min(limit - this.offset, MAX_READ_CHUNK_SIZE);
                     if (toFill <= 0L) {
                         return;
                     }
+                    baos.reset();
                     try {
-                        baos.reset();
                         SocketAccess.doPrivilegedVoidException(() -> blockBlobReference.downloadRange(
                                 position + this.offset, toFill, baos, null, null, context));
                     } catch (StorageException | URISyntaxException ex) {

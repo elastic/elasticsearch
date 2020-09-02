@@ -1148,3 +1148,12 @@ See <<percolate-query-notes>>.
 
 See <<point-in-time-api>>.
 
+[role="exclude",id="constant-keyword"]
+=== Constant keyword field type
+
+See <<constant-keyword-field-type>>.
+
+[role="exclude",id="wildcard"]
+=== Wildcard field type
+
+See <<wildcard-field-type>>.

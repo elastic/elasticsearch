@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
@@ -126,19 +128,22 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testLongRunningCloneAllowsConcurrentSnapshot() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
+        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         final String indexSlow = "index-slow";
-        createIndexWithRandomDocs(indexSlow, randomIntBetween(20, 100));
+        createSingleShardIndexWithContent(indexSlow);
 
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
         final String targetSnapshot = "target-snapshot";
+        blockMasterOnShardClone(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture =
                 client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexSlow).execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
 
         final String indexFast = "index-fast";
         createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
@@ -151,8 +156,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertAcked(cloneFuture.get());
     }
-
-
 
     public void testDeletePreventsClone() throws Exception {
         final String masterName = internalCluster().startMasterOnlyNode();
@@ -210,5 +213,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Settings settings =
                 client().admin().indices().prepareGetIndex().setIndices(restoredIndex).get().getSettings().get(restoredIndex);
         assertEquals(settings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), "1");
+    }
+
+    private void blockMasterOnShardClone(String repoName) {
+        ((MockRepository)internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName))
+                .setBlockOnWriteShardLevelMeta();
     }
 }

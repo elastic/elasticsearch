@@ -88,6 +88,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
+    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
+    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
+    protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+            .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
@@ -487,5 +492,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
+    }
+
+    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
+
+    protected void createSingleShardIndexWithContent(String indexName) {
+        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
+    }
+
+    protected void createIndexWithContent(String indexName, Settings indexSettings) {
+        logger.info("--> creating index [{}]", indexName);
+        createIndex(indexName, indexSettings);
+        ensureGreen(indexName);
+        indexDoc(indexName, "some_id", "foo", "bar");
     }
 }

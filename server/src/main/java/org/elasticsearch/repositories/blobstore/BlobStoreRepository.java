@@ -405,6 +405,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(index, shardId);
             final BlobStoreIndexShardSnapshots existingSnapshots =
                     buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+            for (SnapshotFiles existingSnapshot : existingSnapshots) {
+                if (existingSnapshot.snapshot().equals(target.getName())) {
+                    throw new RepositoryException(metadata.name(), "Can't create clone of [" + index + "][" + shardId + "] for snapshot ["
+                            + target + "]. A snapshot by that name already exists for this shard.");
+                }
+            }
             final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
             final String newGen;
             if (shardGeneration == null) {

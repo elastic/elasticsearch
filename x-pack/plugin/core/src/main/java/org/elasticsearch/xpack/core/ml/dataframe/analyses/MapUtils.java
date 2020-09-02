@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,38 +19,42 @@ import java.util.Map;
 
 final class MapUtils {
 
-    private static Map<String, Object> createFeatureImportanceMapping(Map<String, Object> featureImportanceMappingProperties){
-        featureImportanceMappingProperties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
-        Map<String, Object> featureImportanceMapping = new HashMap<>();
-        // TODO sorted indices don't support nested types
-        //featureImportanceMapping.put("dynamic", true);
-        //featureImportanceMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
-        featureImportanceMapping.put("properties", featureImportanceMappingProperties);
-        return featureImportanceMapping;
-    }
-
     private static final Map<String, Object> CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING;
     static {
-        Map<String, Object> classImportancePropertiesMapping = new HashMap<>();
-        // TODO sorted indices don't support nested types
-        //classImportancePropertiesMapping.put("dynamic", true);
-        //classImportancePropertiesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
-        classImportancePropertiesMapping.put("class_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
-        classImportancePropertiesMapping.put("importance",
-            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
-        Map<String, Object> featureImportancePropertiesMapping = new HashMap<>();
-        featureImportancePropertiesMapping.put("classes", Collections.singletonMap("properties", classImportancePropertiesMapping));
-        CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING =
-            Collections.unmodifiableMap(createFeatureImportanceMapping(featureImportancePropertiesMapping));
+        Map<String, Object> classesProperties = new HashMap<>();
+        classesProperties.put("class_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        classesProperties.put("importance", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> classesMapping = new HashMap<>();
+        classesMapping.put("dynamic", false);
+        classesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        classesMapping.put("properties", classesProperties);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        properties.put("importance", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        properties.put("classes", classesMapping);
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("dynamic", false);
+        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("properties", properties);
+
+        CLASSIFICATION_FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(mapping);
     }
 
     private static final Map<String, Object> REGRESSION_FEATURE_IMPORTANCE_MAPPING;
     static {
-        Map<String, Object> featureImportancePropertiesMapping = new HashMap<>();
-        featureImportancePropertiesMapping.put("importance",
-            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
-        REGRESSION_FEATURE_IMPORTANCE_MAPPING =
-            Collections.unmodifiableMap(createFeatureImportanceMapping(featureImportancePropertiesMapping));
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        properties.put("importance", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("dynamic", false);
+        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("properties", properties);
+
+        REGRESSION_FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(mapping);
     }
 
     static Map<String, Object> regressionFeatureImportanceMapping() {

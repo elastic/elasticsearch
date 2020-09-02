@@ -42,7 +42,7 @@ GET _search
 --------------------------------------------------
 
 
-The field can be used in aggregations for versions => 7.10
+The field can be used in aggregations.
 [source,console]
 --------------------------------------------------
 GET my_index/_search

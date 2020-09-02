@@ -316,11 +316,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 final List<SearchShardIterator> remoteShardIterators;
                                 if (searchContext != null) {
                                     remoteAliasFilters = searchContext.aliasFilter();
-                                    remoteShardIterators =
-                                        getRemoteShardsIteratorFromPointInTime(searchShardsResponses, searchContext, searchRequest.pointInTimeBuilder().getKeepAlive(), remoteClusterIndices);
+                                    remoteShardIterators = getRemoteShardsIteratorFromPointInTime(searchShardsResponses,
+                                        searchContext, searchRequest.pointInTimeBuilder().getKeepAlive(), remoteClusterIndices);
                                 } else {
                                     remoteAliasFilters = getRemoteAliasFilters(searchShardsResponses);
-                                    remoteShardIterators = getRemoteShardsIterator(searchShardsResponses, remoteClusterIndices, remoteAliasFilters);
+                                    remoteShardIterators = getRemoteShardsIterator(searchShardsResponses, remoteClusterIndices,
+                                        remoteAliasFilters);
                                 }
                                 int localClusters = localIndices == null ? 0 : 1;
                                 int totalClusters = remoteClusterIndices.size() + localClusters;
@@ -627,8 +628,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             aliasFilter = searchContext.aliasFilter();
             indexRoutings = Map.of();
             asyncSearchExecutor = asyncSearchExecutor(localIndices.indices(), clusterState);
-            localShardIterators = getLocalLocalShardsIteratorFromPointInTime(clusterState, localIndices, searchRequest.getLocalClusterAlias(),
-                searchContext, searchRequest.pointInTimeBuilder().getKeepAlive());
+            localShardIterators = getLocalLocalShardsIteratorFromPointInTime(clusterState, localIndices,
+                searchRequest.getLocalClusterAlias(), searchContext, searchRequest.pointInTimeBuilder().getKeepAlive());
             preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, localIndices.indices(),
                 localShardIterators.size() + remoteShardIterators.size());
         } else {

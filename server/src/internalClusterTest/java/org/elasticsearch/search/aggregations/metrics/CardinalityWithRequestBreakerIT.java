@@ -21,28 +21,19 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.lessThan;
 
 public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
 

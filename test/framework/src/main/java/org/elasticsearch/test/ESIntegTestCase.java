@@ -601,7 +601,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
 
-        awaitNoMoreSnapshotRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreRunningSnapshotOperations(internalCluster().getMasterName());
     }
 
     /**
@@ -2241,7 +2241,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
-    protected void awaitNoMoreSnapshotRunningOperations(String viaNode) throws Exception {
+    protected void awaitNoMoreRunningSnapshotOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
             state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);

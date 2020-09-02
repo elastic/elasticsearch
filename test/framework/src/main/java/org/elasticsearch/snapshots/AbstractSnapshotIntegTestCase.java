@@ -112,7 +112,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public void assertRepoConsistency() {
-        if (skipRepoConsistencyCheckReason == null && getSuiteFailureMarker().wasSuccessful()) {
+        if (skipRepoConsistencyCheckReason == null) {
             client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
                 final String name = repositoryMetadata.name();
                 if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {

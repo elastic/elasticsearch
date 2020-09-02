@@ -7,6 +7,7 @@ For more information, see
 {kibana-ref}/managing-licenses.html[License management].
 
 `xpack.license.self_generated.type`::
+(<<static-cluster-setting,Static>>)
 Set to `basic` (default) to enable basic {xpack} features. +
 +
 --

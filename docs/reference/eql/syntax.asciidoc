@@ -514,10 +514,11 @@ sequence by user.name with maxspan=15m
 [[eql-until-keyword]]
 ==== `until` keyword
 
-You can use the `until` keyword to specify an expiration event for sequences.
-Matching sequences must end before this event, which is not included the
-results. If this event occurs within a sequence, the sequence is not considered
-a match.
+You can use the `until` keyword to specify an expiration event for a sequence.
+If this expiration event occurs _between_ matching events in a sequence, the
+sequence expires and is not considered a match. If the expiration event occurs
+_after_ matching events in a sequence, the sequence is still considered a
+match. The expiration event is not included in the results.
 
 [source,eql]
 ----
@@ -525,30 +526,36 @@ sequence
   [ event_category_1 where condition_1 ]
   [ event_category_2 where condition_2 ]
   ...
-until [ event_category_2 where condition_2 ]
+until [ event_category_3 where condition_3 ]
 ----
 
-.*Example*
-[%collapsible]
-====
-The following EQL sequence query uses the `until` keyword to end sequences
-before a process termination event. Process termination events have an event
-category of `process` and `event.type` value of `termination`.
+*Example* +
+A dataset contains the following event sequences, grouped by shared IDs:
+
+[source,txt]
+----
+A, B
+A, B, C
+A, C, B
+----
+
+The following EQL query searches the dataset for sequences containing
+event `A` followed by event `B`. Event `C` is used as an expiration event.
 
 [source,eql]
 ----
-sequence
-  [ file where file.extension == "exe" ]
-  [ process where true ]
-until [ process where event.type == "termination" ]
+sequence by ID
+  A
+  B
+until C
 ----
-====
+
+The query matches sequences `A, B` and `A, B, C` but not `A, C, B`.
 
 [TIP]
 ====
-The `until` keyword can be helpful when searching for process sequences in
-Windows event logs, such as those ingested using
-{winlogbeat-ref}/index.html[Winlogbeat].
+The `until` keyword can be useful when searching for process sequences in
+Windows event logs.
 
 In Windows, a process ID (PID) is unique only while a process is running. After
 a process terminates, its PID can be reused.
@@ -559,14 +566,14 @@ and `sequence by` keywords.
 .*Example*
 [%collapsible]
 =====
-The following EQL query uses the `sequence by` keyword to match a sequence of
-events that share the same `process.pid` value.
+The following EQL query uses the `sequence by` keyword to match a
+sequence of events that share the same `process.pid` value.
 
 [source,eql]
 ----
 sequence by process.pid
-  [ process where process.name == "cmd.exe" ]
-  [ process where process.name == "whoami.exe" ]
+  [ process where event.type == "start" and process.name == "cmd.exe" ]
+  [ process where file.extension == "exe" ]
 ----
 =====
 
@@ -579,15 +586,15 @@ event.
 [%collapsible]
 =====
 The following EQL query uses the `until` keyword to end sequences before
-`process` events with an `event.type` of `termination`. These events indicate a
-process has been terminated.
+`process` events with an `event.type` of `stop`. These events indicate a process
+has been terminated.
 
 [source,eql]
 ----
 sequence by process.pid
-  [ process where process.name == "cmd.exe" ]
-  [ process where process.name == "whoami.exe" ]
-until [ process where event.type == "termination" ]
+  [ process where event.type == "start" and process.name == "cmd.exe" ]
+  [ process where file.extension == "exe" ]
+until [ process where event.type == "stop" ]
 ----
 =====
 

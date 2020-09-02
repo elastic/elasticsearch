@@ -136,6 +136,19 @@ public class DocCountFieldMapper extends FieldMapper {
     }
 
     @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
+    }
+
+    @Override
     public DocCountFieldType fieldType() {
         return (DocCountFieldType) super.fieldType();
     }
@@ -150,14 +163,4 @@ public class DocCountFieldMapper extends FieldMapper {
         // nothing to do
     }
 
-    public void validate(DocumentFieldMappers lookup) {
-        // Make sure that only one doc_count field exists in the mapping
-        for (Mapper mapper : lookup) {
-            if (typeName().equals(mapper.typeName()) && name().equals(mapper.name()) == false) {
-                throw new IllegalArgumentException(
-                    "Field [" + name() + "] conflicts with field [" + mapper.name()
-                        + "]. Only one field of type [" + typeName() + "] is allowed.");
-            }
-        }
-    }
 }

@@ -60,6 +60,17 @@ public class BitArrayTests extends ESTestCase {
         }
     }
 
+    public void testVeryLarge() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            long index = randomLongBetween(Integer.MAX_VALUE, ((long) Integer.MAX_VALUE) * 2);
+            assertFalse(bitArray.get(index));
+            bitArray.set(index);
+            assertTrue(bitArray.get(index));
+            bitArray.clear(index);
+            assertFalse(bitArray.get(index));
+        }
+    }
+
     public void testTooBigIsNotSet() {
         try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
             for (int i = 0; i < 1000; i++) {

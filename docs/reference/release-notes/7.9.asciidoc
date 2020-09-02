@@ -9,7 +9,7 @@ Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 [float]
 === New features
 
-MULTIPLE AREA LABELS::
+Search::
 * QL: wildcard field type support {es-pull}58062[#58062] (issues: {es-issue}54184[#54184], {es-issue}58044[#58044])
 
 

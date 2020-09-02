@@ -372,6 +372,7 @@ public class InternalVariableWidthHistogram
 
                 if (top.hasNext()) {
                     Bucket prev = top.current();
+                    top.next();
                     assert top.current().compareKey(prev) >= 0 : "shards must return data sorted by centroid";
                     pq.updateTop();
                 } else {

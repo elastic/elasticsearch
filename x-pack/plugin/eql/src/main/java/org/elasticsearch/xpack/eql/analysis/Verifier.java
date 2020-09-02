@@ -244,7 +244,7 @@ public class Verifier {
     private void checkNoPipesAfterLimit(LogicalPlan p, Set<Failure> localFailures) {
         if ((p instanceof LimitWithOffset) == false) {
             if (p.anyMatch(LimitWithOffset.class::isInstance)) {
-                localFailures.add(fail(p, "Pipe [{}] not allowed (yet) after head/tail", p.nodeName()));
+                localFailures.add(fail(p, "Pipe [{}] not allowed (yet) after head/tail", p.sourceText()));
             }
         }
     }

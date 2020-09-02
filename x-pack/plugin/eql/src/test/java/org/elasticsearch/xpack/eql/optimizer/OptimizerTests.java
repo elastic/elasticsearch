@@ -342,7 +342,6 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(pipe.condition(), and.right());
 
         Expression rule2Condition = condition(seq.children().get(1));
-
         and = (And) rule2Condition;
         assertEquals(filter.condition(), and.left());
         assertEquals(pipe.condition(), and.right());

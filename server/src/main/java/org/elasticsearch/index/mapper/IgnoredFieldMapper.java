@@ -40,6 +40,7 @@ import java.util.Collections;
  * A field mapper that records fields that have been ignored because they were malformed.
  */
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
+    public static final Version DOC_VALUES_VERSION = Version.V_8_0_0;
     public static final String NAME = "_ignored";
     public static final String CONTENT_TYPE = "_ignored";
 
@@ -80,7 +81,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         public static IgnoredFieldType getInstance(Version version) {
-            return version.onOrAfter(Version.V_8_0_0)
+            return version.onOrAfter(DOC_VALUES_VERSION)
                 ? INSTANCE
                 : INSTANCE_LEGACY;
         }

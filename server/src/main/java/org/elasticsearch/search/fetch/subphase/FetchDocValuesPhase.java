@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -59,7 +60,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             docValueFields.add(new FieldAndFormat(context.collapse().getFieldName(), null));
         } else {
             // add _ignored field
-            if (context.indexShard().indexSettings().getIndexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+            if (context.indexShard().indexSettings().getIndexVersionCreated().onOrAfter(IgnoredFieldMapper.DOC_VALUES_VERSION)) {
                 docValueFields.add(new FieldAndFormat("_ignored", null));
             }
         }

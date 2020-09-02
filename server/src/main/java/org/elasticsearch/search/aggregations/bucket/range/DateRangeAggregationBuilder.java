@@ -38,6 +38,10 @@ import java.util.Map;
 
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
+    public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        RangeAggregatorSupplier.class
+    );
 
     public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
@@ -53,7 +57,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        AbstractRangeAggregatorFactory.registerAggregators(builder, NAME);
+        AbstractRangeAggregatorFactory.registerAggregators(builder, REGISTRY_KEY);
     }
 
     public DateRangeAggregationBuilder(String name) {
@@ -81,6 +85,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     @Override

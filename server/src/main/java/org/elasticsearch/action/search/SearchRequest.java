@@ -202,11 +202,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            preFilterShardSize = in.readOptionalVInt();
-        } else {
-            preFilterShardSize = in.readVInt();
-        }
+        preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -236,11 +232,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalVInt(preFilterShardSize);
-        } else {
-            out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
-        }
+        out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
@@ -281,6 +273,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (source != null) {
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
+            }
+        }
+        if (pointInTimeBuilder() != null) {
+            if (scroll) {
+                validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with point in time", validationException);
             }
         }
         return validationException;
@@ -435,6 +438,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public SearchSourceBuilder.PointInTimeBuilder pointInTimeBuilder() {
+        if (source != null) {
+            return source.pointInTimeBuilder();
+        }
+        return null;
     }
 
     /**

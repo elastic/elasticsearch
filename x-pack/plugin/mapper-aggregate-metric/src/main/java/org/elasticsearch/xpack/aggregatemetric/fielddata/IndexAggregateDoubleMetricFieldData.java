@@ -26,14 +26,4 @@ public abstract class IndexAggregateDoubleMetricFieldData implements IndexFieldD
     public final String getFieldName() {
         return fieldName;
     }
-
-    @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
-    }
 }

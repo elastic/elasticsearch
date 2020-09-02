@@ -3,14 +3,14 @@
 
 Mapper plugins allow new field data types to be added to Elasticsearch.
 
-[float]
+[discrete]
 === Core mapper plugins
 
 The core mapper plugins are:
 
 <<mapper-size>>::
 
-The mapper-size plugin provides the `_size` meta field which, when enabled,
+The mapper-size plugin provides the `_size` metadata field which, when enabled,
 indexes the size in bytes of the original
 {ref}/mapping-source-field.html[`_source`] field.
 

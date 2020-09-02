@@ -14,7 +14,7 @@ scripts, and when sorting:
 --------------------------
 # Example documents
 
-PUT my_index/_doc/1?refresh=true
+PUT my-index-000001/_doc/1?refresh=true
 {
   "text": "Document with type 'doc'"
 }
@@ -23,7 +23,7 @@ PUT my_index/_doc/1?refresh=true
 
 [source,console]
 --------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -57,6 +58,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1700,10 +1702,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> execution was blocked on node [{}], trying to delete repository", blockedNode);
 
         try {
-            client.admin().cluster().prepareDeleteRepository("test-repo").execute().get();
+            client.admin().cluster().prepareDeleteRepository(randomFrom("test-repo", "test-*", "*")).execute().actionGet();
             fail("shouldn't be able to delete in-use repository");
         } catch (Exception ex) {
             logger.info("--> in-use repository deletion failed");
+            assertThat(ex.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
         }
 
         logger.info("--> trying to move repository to another location");
@@ -1822,10 +1825,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         cluster().wipeIndices("test-idx");
 
         logger.info("--> restore index");
-        if (throttleRestoreViaRecoverySettings) {
-            client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "10k").build()).get();
-        }
+        client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                        throttleRestoreViaRecoverySettings ? "10k" : "0").build()).get();
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
@@ -2030,38 +2032,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
-        logger.info("--> done");
-    }
-
-    public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
-        final String repoName = "test-repo";
-        createRepository(repoName, "fs");
-
-        // Create index on two nodes and make sure each node has a primary by setting no replicas
-        final String indexName = "test-idx";
-        assertAcked(prepareCreate(indexName, 2, indexSettingsNoReplicas(between(2, 10))));
-        ensureGreen(indexName);
-        indexRandomDocs(indexName, 100);
-
-        logger.info("--> start relocations");
-        allowNodes(indexName, 1);
-
-        logger.info("--> wait for relocations to start");
-
-        assertBusy(() -> assertThat(
-                client().admin().cluster().prepareHealth(indexName).execute().actionGet().getRelocatingShards(), greaterThan(0)),
-                1L, TimeUnit.MINUTES);
-
-        logger.info("--> snapshot");
-        client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
-                .setWaitForCompletion(false).setPartial(true).setIndices(indexName).get();
-
-        assertAcked(client().admin().indices().prepareDelete(indexName));
-
-        logger.info("--> wait for snapshot to complete");
-        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
-        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
         logger.info("--> done");
     }
 
@@ -3553,6 +3523,34 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(false));
             assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(true));
         }
+    }
+
+    public void testIndexLatestFailuresIgnored() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        final MockRepository repository =
+                (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        repository.setFailOnIndexLatest(true);
+        createFullSnapshot(repoName, "snapshot-1");
+        repository.setFailOnIndexLatest(false);
+        createFullSnapshot(repoName, "snapshot-2");
+        final long repoGenInIndexLatest =
+                Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
+        assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest);
+
+        createRepository(repoName, "fs", Settings.builder()
+                .put("location", repoPath).put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false));
+        createFullSnapshot(repoName, "snapshot-3");
+        final long repoGenInIndexLatest2 =
+                Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
+        assertEquals("index.latest should not have been written to", repoGenInIndexLatest, repoGenInIndexLatest2);
+
+        createRepository(repoName, "fs", repoPath);
+        createFullSnapshot(repoName, "snapshot-4");
+        final long repoGenInIndexLatest3 =
+                Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
+        assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest3);
     }
 
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {

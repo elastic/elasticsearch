@@ -52,18 +52,13 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     public static final long NO_INGEST_TOOK = -1L;
 
-    private BulkItemResponse[] responses;
-    private long tookInMillis;
-    private long ingestTookInMillis;
-
-    BulkResponse() {}
+    private final BulkItemResponse[] responses;
+    private final long tookInMillis;
+    private final long ingestTookInMillis;
 
     public BulkResponse(StreamInput in) throws IOException {
         super(in);
-        responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = new BulkItemResponse(in);
-        }
+        responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
     }
@@ -140,10 +135,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(responses.length);
-        for (BulkItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
     }

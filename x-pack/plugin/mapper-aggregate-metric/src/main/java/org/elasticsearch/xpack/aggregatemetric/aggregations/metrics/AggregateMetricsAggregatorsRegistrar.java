@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -21,41 +20,46 @@ public class AggregateMetricsAggregatorsRegistrar {
 
     public static void registerSumAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
-            SumAggregationBuilder.NAME,
+            SumAggregationBuilder.REGISTRY_KEY,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) AggregateMetricBackedSumAggregator::new
+            AggregateMetricBackedSumAggregator::new,
+            true
         );
     }
 
     public static void registerAvgAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
-            AvgAggregationBuilder.NAME,
+            AvgAggregationBuilder.REGISTRY_KEY,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) AggregateMetricBackedAvgAggregator::new
+            AggregateMetricBackedAvgAggregator::new,
+            true
         );
     }
 
     public static void registerMinAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
-            MinAggregationBuilder.NAME,
+            MinAggregationBuilder.REGISTRY_KEY,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) AggregateMetricBackedMinAggregator::new
+            AggregateMetricBackedMinAggregator::new,
+            true
         );
     }
 
     public static void registerMaxAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
-            MaxAggregationBuilder.NAME,
+            MaxAggregationBuilder.REGISTRY_KEY,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) AggregateMetricBackedMaxAggregator::new
+            AggregateMetricBackedMaxAggregator::new,
+            true
         );
     }
 
     public static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
-            ValueCountAggregationBuilder.NAME,
+            ValueCountAggregationBuilder.REGISTRY_KEY,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) AggregateMetricBackedValueCountAggregator::new
+            AggregateMetricBackedValueCountAggregator::new,
+            true
         );
     }
 }

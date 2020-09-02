@@ -340,14 +340,18 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("--> waiting for snapshot to complete");
             successfulSnapshotName.set(snapshotResponse.get().getSnapshotName());
             assertNotNull(successfulSnapshotName.get());
-            Thread.sleep(TimeValue.timeValueSeconds(10).millis());
             logger.info("-->  verify that snapshot [{}] succeeded", successfulSnapshotName.get());
             assertBusy(() -> {
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                    .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().actionGet();
+                final SnapshotInfo snapshotInfo;
+                try {
+                    snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                } catch (SnapshotMissingException sme) {
+                    throw new AssertionError(sme);
+                }
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-            });
+            }, 30L, TimeUnit.SECONDS);
         }
 
         // Check that the failed snapshot from before still exists, now that retention has run
@@ -378,7 +382,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
                 SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-            });
+            }, 30L, TimeUnit.SECONDS);
         }
     }
 
@@ -429,14 +433,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 // This is what we want to happen
             }
             logger.info("--> snapshot [{}] has been deleted", snapshotName);
-        });
-
-        // Cancel/delete the snapshot
-        try {
-            client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotName).get();
-        } catch (SnapshotMissingException e) {
-            // ignore
-        }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {

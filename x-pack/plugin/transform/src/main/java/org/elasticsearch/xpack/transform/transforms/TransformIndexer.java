@@ -347,6 +347,21 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         if (isContinuous()) {
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
+
+            if (changeCollector.isOptimized() == false) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "[{}] could not find any optimizations for continuous execution, "
+                            + "this transform might run slowly, please check your configuration.",
+                        getJobId()
+                    )
+                );
+                auditor.warning(
+                    getJobId(),
+                    "could not find any optimizations for continuous execution, "
+                        + "this transform might run slowly, please check your configuration."
+                );
+            }
         }
     }
 
@@ -370,7 +385,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // reset the page size, so we do not memorize a low page size forever
             pageSize = function.getInitialPageSize();
             // reset the changed bucket to free memory
-            if (isContinuous()) {
+            if (changeCollector != null) {
                 changeCollector.clear();
             }
 
@@ -749,7 +764,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
-        QueryBuilder filter = changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+        QueryBuilder filter = changeCollector != null
+            ? changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound())
+            : null;
 
         if (filter != null) {
             filteredQuery.filter(filter);

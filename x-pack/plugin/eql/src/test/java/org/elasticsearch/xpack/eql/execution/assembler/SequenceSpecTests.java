@@ -218,7 +218,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        SequenceMatcher matcher = new SequenceMatcher(stages, TimeValue.MINUS_ONE, null);
+        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
         
         QueryClient testClient = new TestQueryClient();
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);

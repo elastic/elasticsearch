@@ -25,8 +25,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -43,8 +41,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -321,7 +321,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new KeyedFlatObjectFieldData.Builder(key, CoreValuesSourceType.BYTES);
+            return new KeyedFlatObjectFieldData.Builder(name(), key, CoreValuesSourceType.BYTES);
         }
 
     }
@@ -377,11 +377,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public void clear() {
-            delegate.clear();
-        }
-
-        @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
             return new KeyedFlatObjectLeafFieldData(key, fieldData);
@@ -400,8 +395,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-            IndexOrdinalsFieldData fieldData = delegate.localGlobalDirect(indexReader);
+        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+            IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
             return new KeyedFlatObjectFieldData(key, fieldData);
         }
 
@@ -416,28 +411,20 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return false;
         }
 
-        @Override
-        public Index index() {
-            return delegate.index();
-        }
-
         public static class Builder implements IndexFieldData.Builder {
+            private final String fieldName;
             private final String key;
             private final ValuesSourceType valuesSourceType;
 
-            Builder(String key, ValuesSourceType valuesSourceType) {
+            Builder(String fieldName, String key, ValuesSourceType valuesSourceType) {
+                this.fieldName = fieldName;
                 this.key = key;
                 this.valuesSourceType = valuesSourceType;
             }
 
             @Override
-            public IndexFieldData<?> build(IndexSettings indexSettings,
-                                           MappedFieldType fieldType,
-                                           IndexFieldDataCache cache,
-                                           CircuitBreakerService breakerService,
-                                           MapperService mapperService) {
-                String fieldName = fieldType.name();
-                IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(indexSettings,
+            public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+                IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(
                     cache, fieldName, valuesSourceType, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }
@@ -493,7 +480,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
     }
@@ -572,6 +559,19 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         if (mappedFieldType.hasDocValues() == false) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

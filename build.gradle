@@ -427,16 +427,13 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
-  apply plugin: 'elasticsearch.enforce-deprecation-use-failures'
-
   tasks.register('resolveAllDependencies') {
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
       configurations.findAll { it.isCanBeResolved() &&
-        it.name.equals("testCompile") == false &&
-        it.name.equals("compile") == false
+        ((it instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) && it.canSafelyBeResolved())
       }.each { it.resolve() }
     }
   }

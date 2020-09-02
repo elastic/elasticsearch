@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -80,7 +81,7 @@ public class Decorations {
     }
 
     // standard input for user expression nodes during semantic phase
-    
+
     public interface Read extends Condition {
 
     }
@@ -115,7 +116,7 @@ public class Decorations {
     }
 
     // standard output for user expression node during semantic phase
-    
+
     public static class ValueType implements Decoration {
 
         private final Class<?> valueType;
@@ -240,7 +241,7 @@ public class Decorations {
             return PainlessLookupUtility.typeToCanonicalTypeName(unaryType);
         }
     }
-    
+
     public static class BinaryType implements Decoration {
 
         private final Class<?> binaryType;
@@ -291,7 +292,7 @@ public class Decorations {
             return PainlessLookupUtility.typeToCanonicalTypeName(comparisonType);
         }
     }
-    
+
     public static class CompoundType implements Decoration {
 
         private final Class<?> compoundType;
@@ -335,10 +336,6 @@ public class Decorations {
         }
     }
 
-    public interface Concatenate extends Condition {
-
-    }
-
     public static class StandardPainlessField implements Decoration {
 
         private final PainlessField standardPainlessField;
@@ -364,7 +361,7 @@ public class Decorations {
             return standardPainlessConstructor;
         }
     }
-    
+
     public static class StandardPainlessMethod implements Decoration {
 
         private final PainlessMethod standardPainlessMethod;
@@ -416,15 +413,15 @@ public class Decorations {
             return standardConstant;
         }
     }
-    
+
     public static class StandardLocalFunction implements Decoration {
-        
+
         private final LocalFunction localFunction;
-        
+
         public StandardLocalFunction(LocalFunction localFunction) {
             this.localFunction = Objects.requireNonNull(localFunction);
         }
-        
+
         public LocalFunction getLocalFunction() {
             return localFunction;
         }
@@ -468,7 +465,7 @@ public class Decorations {
             return methodName;
         }
     }
-    
+
     public static class ReturnType implements Decoration {
 
         private final Class<?> returnType;
@@ -566,5 +563,58 @@ public class Decorations {
         public String getInstanceCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
         }
+    }
+
+    public interface Negate extends Condition {
+
+    }
+
+    public interface Compound extends Condition {
+
+    }
+
+    public static class AccessDepth implements Decoration {
+
+        private final int accessDepth;
+
+        public AccessDepth(int accessDepth) {
+            this.accessDepth = accessDepth;
+        }
+
+        public int getAccessDepth() {
+            return accessDepth;
+        }
+    }
+
+    // standard output for user tree to ir tree phase
+
+    public static class IRNodeDecoration implements Decoration {
+
+        private final IRNode irNode;
+
+        public IRNodeDecoration(IRNode irNode) {
+            this.irNode = Objects.requireNonNull(irNode);
+        }
+
+        public IRNode getIRNode() {
+            return irNode;
+        }
+    }
+
+    public static class Converter implements Decoration {
+        private final LocalFunction converter;
+        public Converter(LocalFunction converter) {
+            this.converter = converter;
+        }
+
+        public LocalFunction getConverter() {
+            return converter;
+        }
+    }
+
+    // collect additional information about where doc is used
+
+    public interface IsDocument extends Condition {
+
     }
 }

@@ -58,6 +58,9 @@ using metrics.
   `http`::
       HTTP connection information.
 
+  `indexing_pressure`::
+        Statistics about the node's indexing load and related rejections.
+
   `indices`::
       Indices stats about size, document count, indexing and deletion times,
       search times, field cache size, merges and flushes.
@@ -179,7 +182,7 @@ Contains statistics for the node.
 `timestamp`::
 (integer)
 Time the node stats were collected for this response. Recorded in milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+since the {wikipedia}/Unix_time[Unix Epoch].
 
 `name`::
 (string)
@@ -821,7 +824,7 @@ type filters for <<parent-join,join>> fields.
 `max_unsafe_auto_id_timestamp`::
 (integer)
 Time of the most recently retried indexing request. Recorded in milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+since the {wikipedia}/Unix_time[Unix Epoch].
 
 `file_sizes`::
 (object)
@@ -950,7 +953,7 @@ Contains statistics about the operating system for the node.
 `timestamp`::
 (integer)
 Last time the operating system statistics were refreshed. Recorded in
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
 
 `cpu`::
 (object)
@@ -1175,7 +1178,7 @@ Contains process statistics for the node.
 `timestamp`::
 (integer)
 Last time the statistics were refreshed. Recorded in milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+since the {wikipedia}/Unix_time[Unix Epoch].
 
 `open_file_descriptors`::
 (integer)
@@ -1647,7 +1650,7 @@ Contains file store statistics for the node.
 `timestamp`::
 (integer)
 Last time the file stores statistics were refreshed. Recorded in
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
 
 `total`::
 (object)
@@ -1687,17 +1690,6 @@ less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======
 
-`least_usage_estimate`::
-(object)
-Contains statistics for the file store with the least estimated usage. See
-<<cluster-nodes-stats-fs-data,`fs.data`>> for a list of child parameters.
-
-
-`most_usage_estimate`::
-(object)
-Contains statistics for the file store with the most estimated usage. See
-<<cluster-nodes-stats-fs-data,`fs.data`>> for a list of child parameters.
-
 [[cluster-nodes-stats-fs-data]]
 `data`::
 (array of objects)
@@ -1713,9 +1705,6 @@ Path to the file store.
 `mount`::
 (string)
 Mount point of the file store (ex: /dev/sda2).
-+
-NOTE: This parameter is not provided for the `least_usage_estimate` or
-`most_usage_estimate` file stores.
 
 `type`::
 (string)
@@ -1829,7 +1818,15 @@ Contains transport statistics for the node.
 ======
 `server_open`::
 (integer)
-Number of open TCP connections used for internal communication between nodes.
+Current number of inbound TCP connections used for internal communication between nodes.
+
+`total_outbound_connections`::
+(integer)
+The cumulative number of outbound transport connections that this node has
+opened since it started. Each transport connection may comprise multiple TCP
+connections but is only counted once in this statistic. Transport connections
+are typically <<long-lived-connections,long-lived>> so this statistic should
+remain constant in a stable cluster.
 
 `rx_count`::
 (integer)
@@ -2096,6 +2093,149 @@ Number of failed operations for the processor.
 ==========
 =========
 ========
+=======
+======
+
+[[cluster-nodes-stats-api-response-body-indexing-pressure]]
+`indexing_pressure`::
+(object)
+Contains <<index-modules-indexing-pressure,indexing pressure>> statistics for the node.
++
+.Properties of `indexing_pressure`
+[%collapsible%open]
+======
+`memory`::
+(object)
+Contains statistics for memory consumption from indexing load.
++
+.Properties of `<memory>`
+[%collapsible%open]
+=======
+`current`::
+(object)
+Contains statistics for current indexing load.
++
+.Properties of `<current>`
+[%collapsible%open]
+========
+`combined_coordinating_and_primary`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating and primary as a node can reuse the
+coordinating memory if the primary stage is executed locally.
+
+`combined_coordinating_and_primary_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating or primary
+stage. This value is not the sum of coordinating and primary as a node can
+reuse the coordinating memory if the primary stage is executed locally.
+
+`coordinating`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating stage.
+
+`coordinating_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating stage.
+
+`primary`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the primary stage.
+
+`primary_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the primary stage.
+
+`replica`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the replica stage.
+
+`replica_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the replica stage.
+
+`all`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating, primary, or replica stage.
+
+`all_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating, primary,
+or replica stage.
+========
+`total`::
+(object)
+Contains statistics for the cumulative indexing load since the node started.
++
+.Properties of `<total>`
+[%collapsible%open]
+========
+`combined_coordinating_and_primary`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating and primary as a node can reuse the
+coordinating memory if the primary stage is executed locally.
+
+`combined_coordinating_and_primary_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating or primary
+stage. This value is not the sum of coordinating and primary as a node can
+reuse the coordinating memory if the primary stage is executed locally.
+
+`coordinating`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating stage.
+
+`coordinating_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating stage.
+
+`primary`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the primary stage.
+
+`primary_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the primary stage.
+
+`replica`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the replica stage.
+
+`replica_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the replica stage.
+
+`all`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating, primary, or replica stage.
+
+`all_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating, primary,
+or replica stage.
+
+`coordinating_rejections`::
+(integer)
+Number of indexing requests rejected in the coordinating stage.
+
+`primary_rejections`::
+(integer)
+Number of indexing requests rejected in the primary stage.
+
+`replica_rejections`::
+(integer)
+Number of indexing requests rejected in the replica stage.
+========
+`limit`::
+(<<byte-units,byte value>>)
+Configured memory limit for the indexing requests. Replica requests have an
+automatic limit that is 1.5x this value.
+
+`limit_in_bytes`::
+(integer)
+Configured memory limit, in bytes, for the indexing requests. Replica requests
+have an automatic limit that is 1.5x this value.
 =======
 ======
 

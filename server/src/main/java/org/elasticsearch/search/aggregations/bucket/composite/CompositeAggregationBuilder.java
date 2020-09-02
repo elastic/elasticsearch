@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,6 +60,14 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             (p, c) -> CompositeValuesSourceParserHelper.fromXContent(p), SOURCES_FIELD_NAME);
         PARSER.declareInt(CompositeAggregationBuilder::size, SIZE_FIELD_NAME);
         PARSER.declareObject(CompositeAggregationBuilder::aggregateAfter, (p, context) -> p.map(), AFTER_FIELD_NAME);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        DateHistogramValuesSourceBuilder.register(builder);
+        HistogramValuesSourceBuilder.register(builder);
+        GeoTileGridValuesSourceBuilder.register(builder);
+        TermsValuesSourceBuilder.register(builder);
+        builder.registerUsage(NAME);
     }
 
     private List<CompositeValuesSourceBuilder<?>> sources;

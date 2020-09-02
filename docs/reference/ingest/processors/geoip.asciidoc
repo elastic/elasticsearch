@@ -1,5 +1,8 @@
 [[geoip-processor]]
-=== GeoIP Processor
+=== GeoIP processor
+++++
+<titleabbrev>GeoIP</titleabbrev>
+++++
 
 The `geoip` processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
 This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and
@@ -55,11 +58,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my_index/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Which returns:
@@ -68,7 +71,7 @@ Which returns:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-000001",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 55,
@@ -104,11 +107,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my_index/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 returns this:
@@ -117,7 +120,7 @@ returns this:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-000001",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 65,
@@ -154,12 +157,12 @@ PUT _ingest/pipeline/geoip
   ]
 }
 
-PUT my_index/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
   "ip": "80.231.5.0"
 }
 
-GET my_index/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Which returns:
@@ -167,7 +170,7 @@ Which returns:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index" : "my_index",
+  "_index" : "my-index-000001",
   "_id" : "my_id",
   "_version" : 1,
   "_seq_no" : 71,
@@ -227,22 +230,22 @@ PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
 
 GET /my_ip_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "1m",
-                    "geoip.location" : {
-                        "lon" : -97.822,
-                        "lat" : 37.751
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "1m",
+          "geoip.location": {
+            "lon": -97.822,
+            "lat": 37.751
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]

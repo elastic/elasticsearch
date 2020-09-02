@@ -52,6 +52,7 @@ import java.net.UnknownHostException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -215,7 +216,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
         }
 
         @Override
@@ -371,6 +372,37 @@ public class RangeFieldMapper extends FieldMapper {
         if (docValued == false && (indexed || stored)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
+        DateFormatter formatter = format != null
+            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+            : defaultFormatter;
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+
+            @Override
+            @SuppressWarnings("unchecked")
+            protected Object parseSourceValue(Object value) {
+                RangeType rangeType = fieldType().rangeType();
+                if (!(value instanceof Map)) {
+                    assert rangeType == RangeType.IP;
+                    Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                    return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                }
+
+                Map<String, Object> range = (Map<String, Object>) value;
+                Map<String, Object> parsedRange = new HashMap<>();
+                for (Map.Entry<String, Object> entry : range.entrySet()) {
+                    Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+                    Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                    parsedRange.put(entry.getKey(), formattedValue);
+                }
+                return parsedRange;
+            }
+        };
     }
 
     @Override

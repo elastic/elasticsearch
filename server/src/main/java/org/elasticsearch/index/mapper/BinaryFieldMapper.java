@@ -81,15 +81,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public BinaryFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(name);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class BinaryFieldType extends MappedFieldType {
 
@@ -133,7 +125,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -195,7 +187,19 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
             // no doc values
             createFieldNamesField(context);
         }
+    }
 
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

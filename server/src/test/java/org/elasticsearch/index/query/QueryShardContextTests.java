@@ -30,10 +30,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -117,8 +115,7 @@ public class QueryShardContextTests extends ESTestCase {
         final String clusterAlias = randomBoolean() ? null : "remote_cluster";
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, clusterAlias);
 
-        Mapper.BuilderContext ctx = new Mapper.BuilderContext(context.getIndexSettings().getSettings(), new ContentPath());
-        IndexFieldMapper mapper = new IndexFieldMapper.Builder().build(ctx);
+        IndexFieldMapper mapper = new IndexFieldMapper();
 
         IndexFieldData<?> forField = context.getForField(mapper.fieldType());
         String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
@@ -172,8 +169,7 @@ public class QueryShardContextTests extends ESTestCase {
 
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName) ->
-                    mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
+                (mappedFieldType, idxName) -> mappedFieldType.fielddataBuilder(idxName).build(null, null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }

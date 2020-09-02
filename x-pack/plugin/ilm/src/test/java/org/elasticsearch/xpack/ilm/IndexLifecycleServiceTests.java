@@ -437,7 +437,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         if (useOnMaster) {
             when(clusterService.state()).thenReturn(currentState);
-            indexLifecycleService.onMaster();
+            indexLifecycleService.onMaster(currentState);
         } else {
             indexLifecycleService.triggerPolicies(currentState, randomBoolean());
         }

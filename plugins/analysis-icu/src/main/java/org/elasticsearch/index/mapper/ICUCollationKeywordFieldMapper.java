@@ -107,7 +107,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -731,4 +731,23 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             createFieldNamesField(context);
         }
     }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                String keywordValue = value.toString();
+                if (keywordValue.length() > ignoreAbove) {
+                    return null;
+                }
+                return keywordValue;
+            }
+        };
+    }
+
 }

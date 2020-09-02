@@ -201,6 +201,16 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
+    }
+
+    @Override
     public Iterator<Mapper> iterator() {
         return Iterators.concat(super.iterator(), Arrays.asList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
     }

@@ -55,6 +55,18 @@ You will need to fork the main Elasticsearch code or documentation repository an
 
 Further instructions for specific projects are given below.
 
+### Tips for code changes
+Following these tips prior to raising a pull request will speed up the review
+cycle.
+
+* Add appropriate unit tests (details on writing tests can be found in the
+  [TESTING](TESTING.asciidoc) file)
+* Add integration tests, if applicable
+* Make sure the code you add follows the [formatting guidelines](#java-language-formatting-guidelines)
+* Lines that are not part of your change should not be edited (e.g. don't format
+  unchanged lines, don't reorder existing imports)
+* Add the appropriate [license headers](#license-headers) to any new files
+
 ### Submitting your changes
 
 Once your changes and tests are ready to submit for review:
@@ -179,7 +191,7 @@ dependencies. Fix them:
 Next you'll want to import our auto-formatter:
 
  - Select **Window > Preferences**
- - Select **Java > Code Style > Formater**
+ - Select **Java > Code Style > Formatter**
  - Click **Import**
  - Import the file at **buildSrc/formatterConfig.xml**
  - Make sure it is the **Active profile**
@@ -575,10 +587,14 @@ allows you to use these configurations arbitrarily. Here are some of the most
 common configurations in our build and how we use them:
 
 <dl>
-<dt>`compile`</dt><dd>Code that is on the classpath at both compile and
-runtime.</dd>
-<dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
-on the classpath at runtime. We mostly use this configuration to make sure that
+<dt>`implementation`</dt><dd>Dependencies that are used by the project 
+at compile and runtime but are not exposed as a compile dependency to other dependent projects.
+Dependencies added to the `implementation` configuration are considered an implementation detail 
+that can be changed at a later date without affecting any dependent projects.</dd>
+<dt>`api`</dt><dd>Dependencies that are used as compile and runtime depdendencies of a project
+ and are considered part of the external api of the project.
+<dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but 
+are on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
 <dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that

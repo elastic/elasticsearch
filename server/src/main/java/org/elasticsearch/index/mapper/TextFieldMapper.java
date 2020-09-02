@@ -497,6 +497,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -519,6 +524,11 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -754,6 +764,7 @@ public class TextFieldMapper extends FieldMapper {
                     + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
             return new PagedBytesIndexFieldData.Builder(
+                name(),
                 fielddataMinFrequency,
                 fielddataMaxFrequency,
                 fielddataMinSegmentSize,
@@ -821,6 +832,19 @@ public class TextFieldMapper extends FieldMapper {
                 context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
     }
 
     @Override

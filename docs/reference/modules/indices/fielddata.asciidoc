@@ -21,7 +21,7 @@ and  perform poorly.
 NOTE: These are static settings which must be configured on every data node in
 the cluster.
 
-[float]
+[discrete]
 [[fielddata-monitoring]]
 ==== Monitoring field data
 

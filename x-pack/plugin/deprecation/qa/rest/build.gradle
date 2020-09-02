@@ -1,8 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   description 'Deprecated query plugin'
@@ -10,8 +7,10 @@ esplugin {
 }
 
 dependencies {
-  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
 restResources {
@@ -20,18 +19,9 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
-  // add the deprecated query plugin
-  plugin file(project(':x-pack:plugin:deprecation:qa:rest').tasks.bundlePlugin.archiveFile)
   setting 'xpack.security.enabled', 'false'
 }
 
 test.enabled = false
-
-check.dependsOn integTest
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
-}
-

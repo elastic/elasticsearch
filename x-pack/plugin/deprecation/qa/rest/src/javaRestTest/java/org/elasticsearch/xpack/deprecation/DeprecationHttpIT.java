@@ -35,9 +35,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -59,10 +56,19 @@ public class DeprecationHttpIT extends ESRestTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
             .startObject("transient")
-            .field(TEST_DEPRECATED_SETTING_TRUE1.getKey(), !TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
-            .field(TEST_DEPRECATED_SETTING_TRUE2.getKey(), !TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
+            .field(
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
+                !TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY)
+            )
+            .field(
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(),
+                !TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY)
+            )
             // There should be no warning for this field
-            .field(TEST_NOT_DEPRECATED_SETTING.getKey(), !TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY))
+            .field(
+                TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(),
+                !TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY)
+            )
             .endObject()
             .endObject();
 
@@ -73,7 +79,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
         final List<Matcher<String>> headerMatchers = new ArrayList<>(2);
 
-        for (Setting<Boolean> setting : List.of(TEST_DEPRECATED_SETTING_TRUE1, TEST_DEPRECATED_SETTING_TRUE2)) {
+        for (Setting<Boolean> setting : List.of(
+            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
+            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2
+        )) {
             headerMatchers.add(
                 equalTo(
                     "["
@@ -170,14 +179,14 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         // deprecated settings should also trigger a deprecation warning
         final List<Setting<Boolean>> settings = new ArrayList<>(3);
-        settings.add(TEST_DEPRECATED_SETTING_TRUE1);
+        settings.add(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1);
 
         if (randomBoolean()) {
-            settings.add(TEST_DEPRECATED_SETTING_TRUE2);
+            settings.add(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2);
         }
 
         if (useNonDeprecatedSetting) {
-            settings.add(TEST_NOT_DEPRECATED_SETTING);
+            settings.add(TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING);
         }
 
         Collections.shuffle(settings, random());
@@ -216,7 +225,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             configureWriteDeprecationLogsToIndex(true);
 
             Request request = new Request("GET", "/_test_cluster/deprecated_settings");
-            request.setEntity(buildSettingsRequest(List.of(TEST_DEPRECATED_SETTING_TRUE1), true));
+            request.setEntity(buildSettingsRequest(List.of(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), true));
             assertOK(client().performRequest(request));
 
             assertBusy(() -> {

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -174,7 +175,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         if (hasExistingAuthentication) {
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
-            threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+            threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
             if (hasExistingAccessControl) {
                 threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
             }

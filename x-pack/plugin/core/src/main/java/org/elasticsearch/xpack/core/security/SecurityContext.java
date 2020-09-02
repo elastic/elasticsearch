@@ -17,10 +17,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -148,6 +150,18 @@ public class SecurityContext {
             setAuthentication(authentication);
             return consumer.apply(original);
         }
+    }
+
+    /**
+     * Compared to {@code ThreadContext#stashContext} this only clears the specific transient headers that are used to convey the
+     * authorization outcome, leaving the other headers in place, just like {@code ThreadContext#newStoredContext(true)}
+     */
+    public StoredContext stashAuthorizationContext() {
+        final StoredContext original = threadContext.newStoredContext(true);
+        for (String authorizationHeader : AuthorizationServiceField.ALL_AUTHORIZATION_KEYS) {
+            threadContext.removeTransient(authorizationHeader);
+        }
+        return original;
     }
 
     /**

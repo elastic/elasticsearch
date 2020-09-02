@@ -172,7 +172,6 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            threadContext.removeTransient(INDICES_PERMISSIONS_KEY);
             authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> listener.onResponse(null),
                 listener::onFailure));
         }

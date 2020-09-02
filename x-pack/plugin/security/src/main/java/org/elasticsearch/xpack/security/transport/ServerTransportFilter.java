@@ -107,11 +107,9 @@ final class ServerTransportFilter {
                     SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = securityContext.getAuthentication();
-                        threadContext.removeTransient(INDICES_PERMISSIONS_KEY);
                         authzService.authorize(replaced, securityAction, request, listener);
                     }, version);
                 } else {
-                    threadContext.removeTransient(INDICES_PERMISSIONS_KEY);
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
             } else if (licenseState.isSecurityEnabled() == false) {

@@ -248,10 +248,8 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             Object index = flatIndexMap.get(key);
             if (Objects.equals(template, index) ==  false) {
                 // Both maybe be booleans but different representations
-                if (index instanceof Boolean && template instanceof String) {
-                    if (index.equals(Boolean.parseBoolean((String)template))) {
-                        continue;
-                    }
+                if (areBooleanObjectsAndEqual(index, template)) {
+                    continue;
                 }
 
                 mappingsAreTheSame = false;
@@ -272,6 +270,37 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
                                                             String indexName) throws IOException {
         assertLegacyTemplateMatchesIndexMappings(templateName, indexName, false, Collections.emptySet());
+    }
+
+    private boolean areBooleanObjectsAndEqual(Object a, Object b) {
+        Boolean left;
+        Boolean right;
+
+        if (a instanceof Boolean) {
+            left = (Boolean)a;
+        } else if (a instanceof String && isBooleanValueString((String)a)) {
+            left = Boolean.parseBoolean((String)a);
+        } else {
+            return false;
+        }
+
+        if (b instanceof Boolean) {
+            right = (Boolean)b;
+        } else if (b instanceof String && isBooleanValueString((String)b)) {
+            right = Boolean.parseBoolean((String)b);
+        } else {
+            return false;
+        }
+
+        return left.equals(right);
+    }
+
+    /* Boolean.parseBoolean is not strict anything that isn't
+     * "true" is returned as false. Here we want to know if
+     * s is a boolean.
+     */
+    private boolean isBooleanValueString(String s) {
+        return s.equalsIgnoreCase("true") || s.equalsIgnoreCase("false");
     }
 
     private Map<String, Object> flattenMap(Map<String, Object> map) {

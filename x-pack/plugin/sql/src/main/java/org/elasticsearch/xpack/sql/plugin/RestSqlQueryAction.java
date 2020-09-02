@@ -65,6 +65,8 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * isn't then we use the {@code Content-Type} header which is required.
          */
         String accept = null;
+        XContentType acceptHeader = null;
+        XContentType contentTypeHeader = null;
 
         if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
                 && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
@@ -79,13 +81,12 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 // */* means "I don't care" which we should treat like not specifying the header
                 accept = null;
             } else {
-                XContentType xContentType = XContentType.fromMediaType(accept);
-                accept = xContentType.shortName();
+                acceptHeader = XContentType.fromMediaType(accept);
             }
         }
         if (accept == null) {
-            XContentType xContentType = XContentType.fromMediaType(request.header("Content-Type"));
-            accept = xContentType.shortName();
+            accept = request.header("Content-Type");
+            contentTypeHeader = XContentType.fromMediaType(accept);
         }
         assert accept != null : "The Content-Type header is required";
 
@@ -96,7 +97,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * that doesn't parse it'll throw an {@link IllegalArgumentException}
          * which we turn into a 400 error.
          */
-        XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromFormat(accept);
+        XContentType xContentType = getXContentType(accept, acceptHeader, contentTypeHeader);
         textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {
@@ -132,6 +133,17 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 return restResponse;
             }
         });
+    }
+
+    private XContentType getXContentType(String accept, XContentType acceptHeader, XContentType contentTypeHeader) {
+        if (accept == null) {
+            return XContentType.JSON;
+        }
+        XContentType xContentType = XContentType.fromFormat(accept);
+        if (xContentType != null) {
+            return xContentType;
+        }
+        return acceptHeader != null ? acceptHeader : contentTypeHeader;
     }
 
     @Override

@@ -124,7 +124,7 @@ public enum XContentType {
         //type
         "^(application|text)/" +
             "([^;\\s]+)" + //subtype: json,yaml,etc some of these are defined in x-pack so can't be enumerated
-            "(?:\\s*;\\s*(charset=UTF-8)?)?$",
+            "(?:\\s*;.*)?$",
         Pattern.CASE_INSENSITIVE);
 
     /**

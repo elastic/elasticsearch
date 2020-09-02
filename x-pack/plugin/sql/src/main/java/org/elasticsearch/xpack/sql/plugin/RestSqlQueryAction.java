@@ -78,10 +78,14 @@ public class RestSqlQueryAction extends BaseRestHandler {
             if ("*/*".equals(accept)) {
                 // */* means "I don't care" which we should treat like not specifying the header
                 accept = null;
+            } else {
+                XContentType xContentType = XContentType.fromMediaType(accept);
+                accept = xContentType.shortName();
             }
         }
         if (accept == null) {
-            accept = request.header("Content-Type");
+            XContentType xContentType = XContentType.fromMediaType(request.header("Content-Type"));
+            accept = xContentType.shortName();
         }
         assert accept != null : "The Content-Type header is required";
 
@@ -92,7 +96,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * that doesn't parse it'll throw an {@link IllegalArgumentException}
          * which we turn into a 400 error.
          */
-        XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
+        XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromFormat(accept);
         textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {

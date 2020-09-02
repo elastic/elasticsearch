@@ -89,7 +89,7 @@ public class TextTemplate implements ToXContent {
             return null;
         }
 
-        return XContentType.fromMediaTypeOrFormat(mediaType);
+        return XContentType.fromFormat(mediaType);
     }
 
     public ScriptType getType() {

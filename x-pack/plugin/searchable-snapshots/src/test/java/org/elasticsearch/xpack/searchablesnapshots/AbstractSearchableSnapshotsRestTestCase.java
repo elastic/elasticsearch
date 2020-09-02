@@ -407,7 +407,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        final XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        final XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         assertThat("Unknown XContentType", xContentType, notNullValue());
 
         BytesReference bytesReference = Streams.readFully(response.getEntity().getContent());

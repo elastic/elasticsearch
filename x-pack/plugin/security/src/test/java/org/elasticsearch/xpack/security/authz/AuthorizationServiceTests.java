@@ -169,6 +169,9 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationExce
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -181,6 +184,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -262,9 +266,41 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizationService.authorize(authentication, action, request, future);
-        future.actionGet();
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        PlainActionFuture<IndicesAccessControl> indicesPermissions  = new PlainActionFuture<>();
+        PlainActionFuture<Object> originatingAction  = new PlainActionFuture<>();
+        PlainActionFuture<Object> authorizationInfo  = new PlainActionFuture<>();
+        IndicesAccessControl mockAccessControlHeader = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
+        if (mockAccessControlHeader == null) {
+            mockAccessControlHeader = mock(IndicesAccessControl.class);
+            threadContext.putTransient(INDICES_PERMISSIONS_KEY, mockAccessControlHeader);
+        }
+        String originatingActionHeader = threadContext.getTransient(ORIGINATING_ACTION_KEY);
+        if (originatingActionHeader == null) {
+            originatingActionHeader = randomAlphaOfLength(8);
+            threadContext.putTransient(ORIGINATING_ACTION_KEY, originatingActionHeader);
+        }
+        AuthorizationInfo authorizationInfoHeader = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
+        if (authorizationInfoHeader == null) {
+            authorizationInfoHeader = mock(AuthorizationInfo.class);
+            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
+        }
+        ActionListener<Void> listener = ActionListener.wrap(response -> {
+            originatingAction.onResponse(threadContext.getTransient(ORIGINATING_ACTION_KEY));
+            authorizationInfo.onResponse(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
+            indicesPermissions.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+            done.onResponse(response);
+        }, e -> {
+            done.onFailure(e);
+        });
+        authorizationService.authorize(authentication, action, request, listener);
+        done.actionGet();
+        assertThat(threadContext.getTransient(INDICES_PERMISSIONS_KEY), sameInstance(mockAccessControlHeader));
+        assertThat(threadContext.getTransient(ORIGINATING_ACTION_KEY), sameInstance(originatingActionHeader));
+        assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), sameInstance(authorizationInfoHeader));
+        assertThat(indicesPermissions.actionGet(), not(sameInstance(mockAccessControlHeader)));
+        assertThat(originatingAction.actionGet(), not(sameInstance(originatingActionHeader)));
+        assertThat(authorizationInfo.actionGet(), not(sameInstance(authorizationInfoHeader)));
     }
 
     public void testActionsForSystemUserIsAuthorized() throws IOException {

@@ -9,7 +9,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -18,7 +17,6 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,7 +42,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -126,35 +123,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
-    }
-
-    public void testApplyClearsThenRestoresIndicesAccessControl() throws Exception {
-        ActionRequest request = mock(ActionRequest.class);
-        PlainActionFuture<IndicesAccessControl> chainFuture = new PlainActionFuture<>();
-        ActionFilterChain chain = (task, action, req, listener) -> {
-            chainFuture.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-            listener.onResponse(null);
-        };
-        PlainActionFuture<IndicesAccessControl> listenerFuture = new PlainActionFuture<>();
-        ActionListener<? extends ActionResponse> listener = ActionListener.wrap(() -> {
-            listenerFuture.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-        });
-        Task task = mock(Task.class);
-        User user = new User("username", "r1", "r2");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
-        IndicesAccessControl mockOriginal = mock(IndicesAccessControl.class);
-        IndicesAccessControl mockAuthz = mock(IndicesAccessControl.class);
-        mockAuthentication(request, authentication);
-        mockAuthorize(mockAuthz);
-
-        assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-        threadContext.putTransient(INDICES_PERMISSIONS_KEY, mockOriginal);
-
-        filter.apply(task, "_action", request, listener, chain);
-
-        assertThat(chainFuture.get(10, TimeUnit.SECONDS), sameInstance(mockAuthz));
-        assertThat(listenerFuture.get(10, TimeUnit.SECONDS), sameInstance(mockOriginal));
-        assertThat(threadContext.getTransient(INDICES_PERMISSIONS_KEY), sameInstance(mockOriginal));
     }
 
     public void testApplyAsSystemUser() throws Exception {

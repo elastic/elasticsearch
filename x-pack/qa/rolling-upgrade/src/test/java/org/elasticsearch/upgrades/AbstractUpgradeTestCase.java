@@ -188,7 +188,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         // templates use strings for the boolean values - "true" and "false"
         // which are automatically converted to Booleans causing the equality
         // to fail.
-        boolean isEqual = true;
+        boolean mappingsAreTheSame = true;
 
         // flatten the map of maps
         Map<String, Object> flatTemplateMap = flattenMap(templateMappings);
@@ -203,7 +203,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         // In the case of object fields the 'type: object' mapping is set by default.
         // If this does not explicitly appear in the template it is not an error
         // as ES has added the default to the index mappings
-        keysMissingFromTemplate.removeIf(key -> key.endsWith(".type") && "object".equals(flatIndexMap.get(key)));
+        keysMissingFromTemplate.removeIf(key -> key.endsWith("type") && "object".equals(flatIndexMap.get(key)));
 
         StringBuilder errorMesssage = new StringBuilder("Error the template mappings [")
             .append(templateName)
@@ -213,14 +213,14 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             .append(System.lineSeparator());
 
         if (keysMissingFromIndex.isEmpty() == false) {
-            isEqual = false;
+            mappingsAreTheSame = false;
             errorMesssage.append("Keys in the template missing from the index mapping: ")
                 .append(keysMissingFromIndex)
                 .append(System.lineSeparator());
         }
 
         if (keysMissingFromTemplate.isEmpty() == false) {
-            isEqual = false;
+            mappingsAreTheSame = false;
             errorMesssage.append("Keys in the index missing from the template mapping: ")
                 .append(keysMissingFromTemplate)
                 .append(System.lineSeparator());
@@ -240,7 +240,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
                     }
                 }
 
-                isEqual = false;
+                mappingsAreTheSame = false;
 
                 errorMesssage.append("Values for key [").append(key).append("] are different").append(System.lineSeparator());
                 errorMesssage.append("    template value [").append(template).append("] ").append(template.getClass().getSimpleName())
@@ -250,7 +250,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             }
         }
 
-        if (isEqual == false) {
+        if (mappingsAreTheSame == false) {
             fail(errorMesssage.toString());
         }
     }

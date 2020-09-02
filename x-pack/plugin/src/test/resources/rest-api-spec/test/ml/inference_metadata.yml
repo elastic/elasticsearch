@@ -1,0 +1,107 @@
+setup:
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
+      headers:
+        Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        id: trained_model_metadata-a-regression-model0
+        index: .ml-inference-000003
+        body:
+          model_id: "a-regression-model0"
+          doc_type: "trained_model_metadata"
+          total_feature_importance:
+            - { feature_name: "foo", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 }}
+            - { feature_name: "bar", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 }}
+  - do:
+      allowed_warnings:
+        - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
+      headers:
+        Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        id: trained_model_metadata-a-regression-model1
+        index: .ml-inference-000003
+        body:
+          model_id: "a-regression-model1"
+          doc_type: "trained_model_metadata"
+          total_feature_importance:
+            - { feature_name: "foo", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 } }
+            - { feature_name: "bar", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 } }
+  - do:
+      allowed_warnings:
+        - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
+      headers:
+        Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        id: trained_model_metadata-a-classification-model
+        index: .ml-inference-000003
+        body:
+          model_id: "a-classification-model"
+          doc_type: "trained_model_metadata"
+          total_feature_importance:
+            - { feature_name: "foo", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 } }
+            - { feature_name: "bar", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 } }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: { }
+
+---
+"Test get given missing trained model metadata":
+
+  - do:
+      catch: missing
+      ml.get_trained_models_metadata:
+        model_id: "missing-trained-model"
+---
+"Test get given expression without matches and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_trained_models_metadata:
+        model_id: "missing-trained-model*"
+        allow_no_match: false
+
+---
+"Test get given expression without matches and allow_no_match is true":
+
+  - do:
+      ml.get_trained_models_metadata:
+        model_id: "missing-trained-model*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { trained_models_metadata: [] }
+---
+"Test get models metadata":
+  - do:
+      ml.get_trained_models_metadata:
+        model_id: "*"
+        size: 3
+  - match: { count: 3 }
+  - length: { trained_models_metadata: 3 }
+
+  - do:
+      ml.get_trained_models_metadata:
+        model_id: "a-regression*"
+  - match: { count: 2 }
+  - length: { trained_models_metadata: 2 }
+  - match: { trained_models_metadata.0.model_id: "a-regression-model0" }
+  - match: { trained_models_metadata.1.model_id: "a-regression-model1" }
+
+  - do:
+      ml.get_trained_models_metadata:
+        model_id: "*"
+        from: 0
+        size: 2
+  - match: { count: 3 }
+  - length: { trained_models_metadata: 2 }
+  - match: { trained_models_metadata.0.model_id: "a-classification-model" }
+  - match: { trained_models_metadata.1.model_id: "a-regression-model0" }

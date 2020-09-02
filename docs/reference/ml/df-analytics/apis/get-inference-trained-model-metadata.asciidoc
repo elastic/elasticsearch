@@ -1,0 +1,736 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-inference-metadata]]
+= Get {infer} trained model metadata API
+[subs="attributes"]
+++++
+<titleabbrev>Get {infer} trained model metadata</titleabbrev>
+++++
+
+Retrieves training metadata information for trained {infer} models.
+
+experimental[]
+
+
+[[ml-get-inference-metadata-request]]
+== {api-request-title}
+
+`GET _ml/inference/_metadata` +
+
+`GET _ml/inference/_all/_metadata` +
+
+`GET _ml/inference/<model_id>/_metadata` +
+
+`GET _ml/inference/<model_id>,<model_id_2>/_metadata` +
+
+`GET _ml/inference/<model_id_pattern*>,<model_id_2>/_metadata`
+
+
+[[ml-get-inference-metadata-prereq]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following
+privileges:
+
+* cluster: `monitor_ml`
+
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+
+[[ml-get-inference-metadata-desc]]
+== {api-description-title}
+
+You can get training metadata information for multiple trained models in a single API
+request by using a comma-separated list of model IDs or a wildcard expression.
+
+
+[[ml-get-inference-metadata-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+
+[[ml-get-inference-metadata-query-params]]
+== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+`from`::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
+
+`size`::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+
+[role="child_attributes"]
+[[ml-get-inference-metadata-results]]
+== {api-response-body-title}
+
+`count`::
+(integer)
+The total number of trained model metadata objects that matched the requested ID patterns.
+Could be higher than the number of items in the `trained_models_metadata` array as the
+size of the array is restricted by the supplied `size` parameter.
+
+`trained_models_metadata`::
+(array)
+An array of trained model metadata objects, which are sorted by the `model_id` value in
+ascending order.
++
+.Properties of trained model metadata
+[%collapsible%open]
+====
+`model_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`total_feature_importance`:::
+(array)
+An array of the total feature importance for each training feature used from
+the training data set.
++
+.Properties of total feature importance
+[%collapsible%open]
+=====
+
+`feature_name`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-feature-name]
+
+`importance`:::
+(object)
+A collection of feature importance statistics related to the training data set for this particular feature.
++
+.Properties of feature importance
+[%collapsible%open]
+======
+`mean_magnitude`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-magnitude]
+
+`max`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-max]
+
+`min`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-min]
+
+======
+
+`classes`:::
+(array)
+If the trained model is a classification model, feature importance stastics are gathered
+per target class value.
++
+.Properties of class feature importance
+[%collapsible%open]
+
+======
+
+`class_name`:::
+(string)
+The target class value. Could be a string, boolean, or number.
+
+`importance`:::
+(object)
+A collection of feature importance statistics related to the training data set for this particular feature.
++
+.Properties of feature importance
+[%collapsible%open]
+=======
+`mean_magnitude`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-magnitude]
+
+`max`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-max]
+
+`min`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-min]
+
+=======
+
+======
+
+=====
+
+====
+
+[[ml-get-inference-metadata-response-codes]]
+== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+[[ml-get-inference-metadata-example]]
+== {api-examples-title}
+
+The following example gets training metadata for all the trained models:
+
+[source,console]
+--------------------------------------------------
+GET _ml/inference/_metadata
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count" : 2,
+  "trained_models_metadata" : [
+    {
+      "model_id" : "avg_price_prediction-1599149443166",
+      "total_feature_importance" : [
+        {
+          "feature_name" : "Origin",
+          "importance" : {
+            "mean_magnitude" : 25.862683737654795,
+            "min" : -188.93284143727874,
+            "max" : 162.8783518094679
+          }
+        },
+        {
+          "feature_name" : "FlightTimeMin",
+          "importance" : {
+            "mean_magnitude" : 62.2776962970226,
+            "min" : -421.09965377789365,
+            "max" : 92.53225055842458
+          }
+        },
+        {
+          "feature_name" : "DestAirportID",
+          "importance" : {
+            "mean_magnitude" : 14.392208812683114,
+            "min" : -103.91799718753263,
+            "max" : 122.63483137469528
+          }
+        },
+        {
+          "feature_name" : "Dest",
+          "importance" : {
+            "mean_magnitude" : 9.06018758454092,
+            "min" : -64.35766760965463,
+            "max" : 60.60458858708342
+          }
+        },
+        {
+          "feature_name" : "Carrier",
+          "importance" : {
+            "mean_magnitude" : 1.5131352419114026,
+            "min" : -7.980966972560515,
+            "max" : 14.407986213341761
+          }
+        },
+        {
+          "feature_name" : "Cancelled",
+          "importance" : {
+            "mean_magnitude" : 0.17951893871195423,
+            "min" : -4.543996246002224,
+            "max" : 2.058692610259091
+          }
+        }
+      ]
+    },
+    {
+      "model_id" : "dest_weather_prediction-1599149568413",
+      "total_feature_importance" : [
+        {
+          "feature_name" : "dayOfWeek",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 0.0033597810869050483,
+                "min" : -0.034589509802599394,
+                "max" : 0.013677011897069439
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 0.003549516620011909,
+                "min" : -0.06736294734141816,
+                "max" : 0.088650519638185
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 0.004471474339413112,
+                "min" : -0.08060353377909144,
+                "max" : 0.1045130657148837
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 0.007072062864425885,
+                "min" : -0.05044235221609796,
+                "max" : 0.038623432806435085
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.0065139540458721236,
+                "min" : -0.018591621408001358,
+                "max" : 0.03543735929759353
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 0.0066567969304509155,
+                "min" : -0.059528507259167134,
+                "max" : 0.03628958395628503
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 0.0038758238618025985,
+                "min" : -0.07831548102713791,
+                "max" : 0.05696179640413974
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 0.0113605093018583,
+                "min" : -0.053221001966268555,
+                "max" : 0.07941614599243701
+              }
+            }
+          ]
+        },
+        {
+          "feature_name" : "OriginWeather",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 0.06392838735937217,
+                "min" : -0.44856958621186466,
+                "max" : 0.42934605429030326
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 0.06548971082123245,
+                "min" : -0.46779188319269366,
+                "max" : 0.3269667496467847
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 0.07518686267467585,
+                "min" : -0.4986094320082847,
+                "max" : 0.3404830347301714
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 0.06737171171799335,
+                "min" : -0.3852291982170536,
+                "max" : 0.49072939677488925
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.07489704791170221,
+                "min" : -0.37509109477738595,
+                "max" : 0.4972213932685191
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 0.0648427860499252,
+                "min" : -0.31609773937218777,
+                "max" : 0.4794272326778727
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 0.06543521178087627,
+                "min" : -0.4873899965919118,
+                "max" : 0.3184995190663039
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 0.06431059549346163,
+                "min" : -0.36484599829883496,
+                "max" : 0.5219289190181048
+              }
+            }
+          ]
+        },
+        {
+          "feature_name" : "DistanceMiles",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 0.009925586997272603,
+                "min" : -0.08532219495991693,
+                "max" : 0.09596509857596312
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 0.011475354752337826,
+                "min" : -0.1458542416877272,
+                "max" : 0.04519866025045433
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 0.017019258694374224,
+                "min" : -0.1343486867487768,
+                "max" : 0.0676285675758164
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 0.009749089329601059,
+                "min" : -0.09006103474994831,
+                "max" : 0.09877363346016879
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.01993894846496605,
+                "min" : -0.127674403426739,
+                "max" : 0.09865171214017159
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 0.009096504130883604,
+                "min" : -0.07760903289433295,
+                "max" : 0.13980510402261984
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 0.012863797177808878,
+                "min" : -0.14990727286801117,
+                "max" : 0.11846604888692423
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 0.007294683069837484,
+                "min" : -0.06705195480257278,
+                "max" : 0.10814781489010294
+              }
+            }
+          ]
+        },
+        {
+          "feature_name" : "Dest",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 0.03089277559418831,
+                "min" : -0.17919680669966132,
+                "max" : 0.167862580693223
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 0.03658129232621677,
+                "min" : -0.155731965346974,
+                "max" : 0.17282348853252674
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 0.02229143893127944,
+                "min" : -0.15452751654480057,
+                "max" : 0.14704877249575932
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 0.013451198623124975,
+                "min" : -0.1287421471051356,
+                "max" : 0.13386295301827233
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.036670909357557686,
+                "min" : -0.33043825398026216,
+                "max" : 0.1572790533667184
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 0.028455360035722868,
+                "min" : -0.15675473094058942,
+                "max" : 0.24669584585029877
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 0.026467930340461993,
+                "min" : -0.16937095134002386,
+                "max" : 0.17950423023794768
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 0.034070565798177105,
+                "min" : -0.13793993299792928,
+                "max" : 0.24210805402819272
+              }
+            }
+          ]
+        },
+        {
+          "feature_name" : "FlightDelayType",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 7.813653012241237E-5,
+                "min" : -0.0045297876576326414,
+                "max" : 2.5684363007195195E-4
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 9.785459733302982E-5,
+                "min" : -3.2165915172928015E-4,
+                "max" : 0.005672897766861862
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 5.032178416705874E-4,
+                "min" : -0.0016541340774815561,
+                "max" : 0.02917291009376577
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 3.63823768372713E-5,
+                "min" : -1.1959299604027548E-4,
+                "max" : 0.002109185566528496
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.0016573267593305596,
+                "min" : -0.09607975024381649,
+                "max" : 0.005447820890113283
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 3.4449616677222154E-4,
+                "min" : -0.01997138191191523,
+                "max" : 0.0011323979434591043
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 4.584110411208903E-4,
+                "min" : -0.0015068490459212258,
+                "max" : 0.026575337718974523
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 9.840935992634046E-4,
+                "min" : -0.00323482719247201,
+                "max" : 0.057050588667233865
+              }
+            }
+          ]
+        },
+        {
+          "feature_name" : "Carrier",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 0.0012995391420598974,
+                "min" : -0.013357673650648202,
+                "max" : 0.023657332277930914
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 0.0014234549202827422,
+                "min" : -0.033921439965674836,
+                "max" : 0.023421720514381957
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 9.447133417656426E-4,
+                "min" : -0.0075229254876170775,
+                "max" : 0.023581652672635692
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 8.183424711633941E-4,
+                "min" : -0.030286317042075447,
+                "max" : 0.013849212287877942
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.0018377370367460909,
+                "min" : -0.04887551961182662,
+                "max" : 0.03160356785017506
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 0.0034037867051541835,
+                "min" : -0.06663044595498299,
+                "max" : 0.059412001243895896
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 0.001136804656696952,
+                "min" : -0.02694085974354727,
+                "max" : 0.02252112557408638
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 0.003395020854090613,
+                "min" : -0.025753019025261337,
+                "max" : 0.019039925129197034
+              }
+            }
+          ]
+        },
+        {
+          "feature_name" : "Cancelled",
+          "classes" : [
+            {
+              "class_name" : "Clear",
+              "importance" : {
+                "mean_magnitude" : 0.1904078803726547,
+                "min" : -1.029665279625464,
+                "max" : 0.14991369698887452
+              }
+            },
+            {
+              "class_name" : "Cloudy",
+              "importance" : {
+                "mean_magnitude" : 0.15793833367609444,
+                "min" : -0.9111582524995818,
+                "max" : 0.13245342733344687
+              }
+            },
+            {
+              "class_name" : "Sunny",
+              "importance" : {
+                "mean_magnitude" : 0.129943186439382,
+                "min" : -0.797881090878788,
+                "max" : 0.11748185308604056
+              }
+            },
+            {
+              "class_name" : "Hail",
+              "importance" : {
+                "mean_magnitude" : 0.13058547362388567,
+                "min" : -0.11956949426762936,
+                "max" : 0.8212854176126191
+              }
+            },
+            {
+              "class_name" : "Heavy Fog",
+              "importance" : {
+                "mean_magnitude" : 0.17295029075472754,
+                "min" : -0.14916418886135357,
+                "max" : 0.9957120466372638
+              }
+            },
+            {
+              "class_name" : "Thunder & Lightning",
+              "importance" : {
+                "mean_magnitude" : 0.16999279667691086,
+                "min" : -0.14367032363243962,
+                "max" : 0.9779631405571727
+              }
+            },
+            {
+              "class_name" : "Rain",
+              "importance" : {
+                "mean_magnitude" : 0.16103302679957027,
+                "min" : -0.9461364792231481,
+                "max" : 0.1418523995372967
+              }
+            },
+            {
+              "class_name" : "Damaging Wind",
+              "importance" : {
+                "mean_magnitude" : 0.16579386623218015,
+                "min" : -0.1393484508575312,
+                "max" : 0.9577442733774155
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+----
+// NOTCONSOLE

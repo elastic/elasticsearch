@@ -91,6 +91,8 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsMetadataRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsMetadataResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
@@ -182,6 +184,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.client.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -214,6 +217,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.junit.After;
 
 import java.io.IOException;
@@ -3863,6 +3867,81 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             client.machineLearning()
                 .getTrainedModelsStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-trained-models-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetTrainedModelsMetadata() throws Exception {
+        String modelId = "my-trained-model";
+        putTrainedModel(modelId);
+        IndexRequest indexRequest = new IndexRequest(InferenceIndexConstants.LATEST_INDEX_NAME).id("trained_model_metadata-" + modelId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"model_id\":\"" + modelId + "\", \"doc_type\": \"trained_model_metadata\",\n" +
+            "    \"total_feature_importance\": [\n" +
+            "        {\n" +
+            "            \"feature_name\": \"foo\",\n" +
+            "            \"importance\": {\n" +
+            "                \"mean_magnitude\": 6.0,\n" +
+            "                \"min\": -3.0,\n" +
+            "                \"max\": 3.0\n" +
+            "            }\n" +
+            "        },\n" +
+            "        {\n" +
+            "            \"feature_name\": \"bar\",\n" +
+            "            \"importance\": {\n" +
+            "                \"mean_magnitude\": 5.0,\n" +
+            "                \"min\": -2.0,\n" +
+            "                \"max\": 3.0\n" +
+            "            }\n" +
+            "        }\n" +
+            "    ]}", XContentType.JSON);
+        highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::get-trained-models-metadata-request
+            GetTrainedModelsMetadataRequest request =
+                new GetTrainedModelsMetadataRequest("my-trained-model") // <1>
+                    .setPageParams(new PageParams(0, 1)) // <2>
+                    .setAllowNoMatch(true); // <3>
+            // end::get-trained-models-metadata-request
+
+            // tag::get-trained-models-metadata-execute
+            GetTrainedModelsMetadataResponse response =
+                client.machineLearning().getTrainedModelsMetadata(request, RequestOptions.DEFAULT);
+            // end::get-trained-models-metadata-execute
+
+            // tag::get-trained-models-metadata-response
+            List<TrainedModelMetadata> models = response.getTrainedModelsMetadata();
+            // end::get-trained-models-metadata-response
+
+            assertThat(models, hasSize(1));
+        }
+        {
+            GetTrainedModelsMetadataRequest request = new GetTrainedModelsMetadataRequest("my-trained-model");
+
+            // tag::get-trained-models-metadata-execute-listener
+            ActionListener<GetTrainedModelsMetadataResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(GetTrainedModelsMetadataResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-trained-models-metadata-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-trained-models-metadata-execute-async
+            client.machineLearning()
+                .getTrainedModelsMetadataAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-trained-models-metadata-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

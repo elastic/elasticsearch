@@ -61,6 +61,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsMetadataRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
@@ -813,6 +814,31 @@ final class MLRequestConverters {
         if (getTrainedModelsStatsRequest.getAllowNoMatch() != null) {
             params.putParam(GetTrainedModelsStatsRequest.ALLOW_NO_MATCH,
                 Boolean.toString(getTrainedModelsStatsRequest.getAllowNoMatch()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getTrainedModelsMetadata(GetTrainedModelsMetadataRequest getTrainedModelsMetadataRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsMetadataRequest.getIds()))
+            .addPathPart("_metadata")
+            .build();
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsMetadataRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsMetadataRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsMetadataRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsMetadataRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsMetadataRequest.getAllowNoMatch()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

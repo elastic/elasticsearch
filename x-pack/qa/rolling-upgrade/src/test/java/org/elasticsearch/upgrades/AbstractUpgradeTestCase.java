@@ -141,19 +141,28 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
      * This makes diffing the 2 maps easier and diffs more comprehensible.
      *
      * The _meta field is not compared as it contains version numbers that
-     * change even when the mappings don't
+     * change even when the mappings don't.
+     *
+     * Mistakes happen and some indices may be stuck with the incorrect mappings
+     * that cannot be fixed without re-index. In this case use the {@code exceptions}
+     * parameter to filter out fields in the index mapping that are not in the
+     * template. Each exception should be a '.' separated path to the value
+     * e.g. {@code properties.analysis.analysis_field.type}.
      *
      * @param templateName The template
      * @param indexName The index
      * @param notAnErrorIfIndexDoesNotExist The index may or may not have been created from
      *                                      the template. If {@code true} then the missing
      *                                      index does not cause an error
+     * @param exceptions List of keys to ignore in the index mappings.
+     *                   The key is a '.' separated path.
      * @throws IOException Yes
      */
     @SuppressWarnings("unchecked")
     protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
                                                             String indexName,
-                                                            boolean notAnErrorIfIndexDoesNotExist) throws IOException {
+                                                            boolean notAnErrorIfIndexDoesNotExist,
+                                                            Set<String> exceptions) throws IOException {
 
         Request getTemplate = new Request("GET", "_template/" + templateName);
         Response templateResponse = client().performRequest(getTemplate);
@@ -196,16 +205,19 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         Map<String, Object> flatTemplateMap = flattenMap(templateMappings);
         Map<String, Object> flatIndexMap = flattenMap(indexMappings);
 
-        SortedSet<String> keysMissingFromIndex = new TreeSet<>(flatTemplateMap.keySet());
-        keysMissingFromIndex.removeAll(flatIndexMap.keySet());
+        SortedSet<String> keysInTemplateMissingFromIndex = new TreeSet<>(flatTemplateMap.keySet());
+        keysInTemplateMissingFromIndex.removeAll(flatIndexMap.keySet());
 
-        SortedSet<String> keysMissingFromTemplate = new TreeSet<>(flatIndexMap.keySet());
-        keysMissingFromTemplate.removeAll(flatTemplateMap.keySet());
+        SortedSet<String> keysInIndexMissingFromTemplate = new TreeSet<>(flatIndexMap.keySet());
+        keysInIndexMissingFromTemplate.removeAll(flatTemplateMap.keySet());
 
         // In the case of object fields the 'type: object' mapping is set by default.
         // If this does not explicitly appear in the template it is not an error
         // as ES has added the default to the index mappings
-        keysMissingFromTemplate.removeIf(key -> key.endsWith("type") && "object".equals(flatIndexMap.get(key)));
+        keysInIndexMissingFromTemplate.removeIf(key -> key.endsWith("type") && "object".equals(flatIndexMap.get(key)));
+
+        // Remove the exceptions
+        keysInIndexMissingFromTemplate.removeAll(exceptions);
 
         StringBuilder errorMesssage = new StringBuilder("Error the template mappings [")
             .append(templateName)
@@ -214,17 +226,17 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             .append("] are not the same")
             .append(System.lineSeparator());
 
-        if (keysMissingFromIndex.isEmpty() == false) {
+        if (keysInTemplateMissingFromIndex.isEmpty() == false) {
             mappingsAreTheSame = false;
             errorMesssage.append("Keys in the template missing from the index mapping: ")
-                .append(keysMissingFromIndex)
+                .append(keysInTemplateMissingFromIndex)
                 .append(System.lineSeparator());
         }
 
-        if (keysMissingFromTemplate.isEmpty() == false) {
+        if (keysInIndexMissingFromTemplate.isEmpty() == false) {
             mappingsAreTheSame = false;
             errorMesssage.append("Keys in the index missing from the template mapping: ")
-                .append(keysMissingFromTemplate)
+                .append(keysInIndexMissingFromTemplate)
                 .append(System.lineSeparator());
         }
 
@@ -259,7 +271,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
                                                             String indexName) throws IOException {
-        assertLegacyTemplateMatchesIndexMappings(templateName, indexName, false);
+        assertLegacyTemplateMatchesIndexMappings(templateName, indexName, false, Collections.emptySet());
     }
 
     private Map<String, Object> flattenMap(Map<String, Object> map) {
@@ -274,10 +286,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private Stream<Map.Entry<String, Object>> extractValue(String path, Map.Entry<String, Object> entry) {
+        String nextPath = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
         if (entry.getValue() instanceof Map<?, ?>) {
-            return flatten(path + "." + entry.getKey(), (Map<String, Object>) entry.getValue());
+            return flatten(nextPath, (Map<String, Object>) entry.getValue());
         } else {
-            return Stream.of(new AbstractMap.SimpleEntry<>(path + "." + entry.getKey(), entry.getValue()));
+            return Stream.of(new AbstractMap.SimpleEntry<>(nextPath, entry.getValue()));
         }
     }
 }

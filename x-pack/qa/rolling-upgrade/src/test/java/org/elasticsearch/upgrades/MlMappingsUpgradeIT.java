@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -158,12 +160,26 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * @throws IOException On error
      */
     private void assertMappingsMatchTemplates() throws IOException {
-        assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config");
-        assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true);    // true means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true);
+        // Keys that have been dynamically mapped in the .ml-config index
+        // but are not in the template. These can only be fixed with
+        // re-index and should be addressed at the next major upgrade.
+        // For now this serves as documentation of the missing fields
+        Set<String> configIndexExceptions = new HashSet<>();
+        configIndexExceptions.add("properties.allow_lazy_start.type");
+        configIndexExceptions.add("properties.analysis.properties.classification.properties.randomize_seed.type");
+        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.compute_feature_influence.type");
+        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.outlier_fraction.type");
+        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.standardization_enabled.type");
+        configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
+        configIndexExceptions.add("properties.model_memory_limit.type");
+
+        assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config", false, configIndexExceptions);
+        // the true parameter means the index may not have been created
+        assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, Collections.emptySet());
         assertLegacyTemplateMatchesIndexMappings(".ml-state", ".ml-state-000001");
         assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
-        assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true);
+        assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
     }

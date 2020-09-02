@@ -33,7 +33,7 @@ setup:
                 runtime_type: double
                 script:
                   source: |
-                    emitValue(source['voltage'] / params.max);
+                    emitValue(params._source.voltage / params.max);
                   params:
                     max: 5.8
               # Test fetching many values

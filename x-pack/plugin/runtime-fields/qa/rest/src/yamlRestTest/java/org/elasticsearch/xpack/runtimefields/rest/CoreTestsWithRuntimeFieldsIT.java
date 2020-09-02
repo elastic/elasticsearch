@@ -180,7 +180,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
             return null;
         }
         StringBuilder b = new StringBuilder();
-        b.append("def v = source['").append(name).append("'];\n");
+        b.append("def v = params._source['").append(name).append("'];\n");
         b.append("if (v instanceof Iterable) {\n");
         b.append("  for (def vv : ((Iterable) v)) {\n");
         b.append("    if (vv != null) {\n");

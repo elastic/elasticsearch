@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -45,13 +49,20 @@ public abstract class AbstractScriptFieldScript {
         );
     }
 
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
+        "_source",
+        value -> ((SourceLookup) value).loadSourceIfNeeded()
+    );
+
     private final Map<String, Object> params;
     private final LeafSearchLookup leafSearchLookup;
 
     public AbstractScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
-        // TODO how do other scripts get stored fields exposed? Through asMap? I don't see any getters for them.
-        this.params = params;
+        params = new HashMap<>(params);
+        params.put("_source", leafSearchLookup.source());
+        params.put("_fields", leafSearchLookup.fields());
+        this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 
     /**
@@ -71,7 +82,7 @@ public abstract class AbstractScriptFieldScript {
     /**
      * Expose the {@code _source} to the script.
      */
-    public final Map<String, Object> getSource() {
+    protected final Map<String, Object> getSource() {
         return leafSearchLookup.source();
     }
 

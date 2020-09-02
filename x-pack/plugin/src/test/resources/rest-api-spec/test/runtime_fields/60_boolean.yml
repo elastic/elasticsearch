@@ -33,7 +33,7 @@ setup:
                 runtime_type: boolean
                 script:
                   source: |
-                    emitValue(source['voltage'] >= 5.0);
+                    emitValue(params._source.voltage >= 5.0);
               # Test many booleans
               big_vals:
                 type: runtime_script

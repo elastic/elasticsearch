@@ -21,11 +21,11 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -161,6 +161,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
         Map<String, Object> templateMappings = (Map<String, Object>) XContentMapValues.extractValue(entityAsMap(templateResponse),
             templateName, "mappings");
+        assertNotNull(templateMappings);
 
         Request getIndexMapping = new Request("GET", indexName + "/_mapping");
         Response indexMappingResponse;
@@ -178,6 +179,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
         Map<String, Object> indexMappings = (Map<String, Object>) XContentMapValues.extractValue(entityAsMap(indexMappingResponse),
             indexName, "mappings");
+        assertNotNull(indexMappings);
 
         // ignore the _meta field
         indexMappings.remove("_meta");
@@ -194,10 +196,10 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         Map<String, Object> flatTemplateMap = flattenMap(templateMappings);
         Map<String, Object> flatIndexMap = flattenMap(indexMappings);
 
-        Set<String> keysMissingFromIndex = new HashSet<>(flatTemplateMap.keySet());
+        SortedSet<String> keysMissingFromIndex = new TreeSet<>(flatTemplateMap.keySet());
         keysMissingFromIndex.removeAll(flatIndexMap.keySet());
 
-        Set<String> keysMissingFromTemplate = new HashSet<>(flatIndexMap.keySet());
+        SortedSet<String> keysMissingFromTemplate = new TreeSet<>(flatIndexMap.keySet());
         keysMissingFromTemplate.removeAll(flatTemplateMap.keySet());
 
         // In the case of object fields the 'type: object' mapping is set by default.

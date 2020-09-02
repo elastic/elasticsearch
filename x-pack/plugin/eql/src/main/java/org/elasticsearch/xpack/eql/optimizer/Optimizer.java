@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunct
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
@@ -51,6 +53,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -60,7 +63,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE, new ReplaceSurrogateFunction());
+        Batch substitutions = new Batch("Substitution", Limiter.ONCE,
+                new ReplaceSurrogateFunction());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -76,7 +80,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
-                new CombineLimits());
+                new CombineLimits(),
+                new PushDownFilterPipe());
 
         Batch ordering = new Batch("Implicit Order",
                 new SortByLimit(),
@@ -92,8 +97,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         return Arrays.asList(substitutions, operators, ordering, local, label);
     }
-
-
+    
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
@@ -234,6 +238,42 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             Literal literal = new Literal(primary.limit().source(), primaryLimit, DataTypes.INTEGER);
             return new LimitWithOffset(primary.source(), literal, primaryOffset, primary.child());
+        }
+    }
+
+    /**
+     * Push down filter pipes.
+     */
+    static class PushDownFilterPipe extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            LogicalPlan child = filter.child();
+
+            // can't push it down further
+            if (child instanceof LeafPlan) {
+                return filter;
+            }
+            // combine filters if possible
+            if (child instanceof Filter) {
+                Filter f = (Filter) child;
+                return new Filter(f.source(), f.child(), new And(filter.source(), f.condition(), filter.condition()));
+            }
+            
+            // treat Join separately to avoid pushing the filter on until
+            if (child instanceof Join) {
+                Join j = (Join) child;
+                return j.with(j.queries().stream()
+                        .map(q -> {
+                            Filter f = new Filter(filter.source(), q.child(), filter.condition());
+                            return new KeyedFilter(q.source(), f, q.keys(), q.timestamp(), q.tiebreaker());
+                         })
+                        .collect(toList()), j.until(), j.direction());
+            }
+            // otherwise keep pushing it down
+            return child.replaceChildren(child.children().stream()
+                    .map(c -> new Filter(filter.source(), c, filter.condition()))
+                    .collect(toList()));
         }
     }
 

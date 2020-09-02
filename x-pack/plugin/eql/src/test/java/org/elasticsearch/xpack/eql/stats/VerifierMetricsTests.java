@@ -51,18 +51,18 @@ public class VerifierMetricsTests extends ESTestCase {
     }
     
     public void testSequenceQuery() {
-        Counters c = eql("sequence\r\n" + 
-            "  [process where serial_event_id = 1]\r\n" + 
+        Counters c = eql("sequence\r\n" +
+            "  [process where serial_event_id = 1]\r\n" +
             "  [process where serial_event_id = 2]");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO));
     }
 
     @AwaitsFix(bugUrl = "waiting for the join implementation")
     public void testJoinQuery() {
-        Counters c = eql("join\r\n" + 
-            "  [file where file_name=\"*.exe\"] by ppid\r\n" + 
-            "  [file where file_name=\"*.com\"] by pid\r\n" + 
-            "until [process where opcode=1] by ppid\r\n" + 
+        Counters c = eql("join\r\n" +
+            "  [file where file_name=\"*.exe\"] by ppid\r\n" +
+            "  [file where file_name=\"*.com\"] by pid\r\n" +
+            "until [process where opcode=1] by ppid\r\n" +
             "| head 1");
         assertCounters(c, Set.of(JOIN, PIPE_HEAD, JOIN_UNTIL, JOIN_QUERIES_TWO, JOIN_KEYS_ONE));
     }
@@ -78,77 +78,77 @@ public class VerifierMetricsTests extends ESTestCase {
     }
     
     public void testSequenceMaxSpanQuery() {
-        Counters c = eql("sequence with maxspan=1d\r\n" + 
-            "  [process where serial_event_id < 4] by exit_code\r\n" + 
-            "  [process where opcode == 1] by user\r\n" + 
-            "  [process where opcode == 2] by user\r\n" + 
+        Counters c = eql("sequence with maxspan=1d\r\n" +
+            "  [process where serial_event_id < 4] by exit_code\r\n" +
+            "  [process where opcode == 1] by user\r\n" +
+            "  [process where opcode == 2] by user\r\n" +
             "  [file where parent_process_name == \"file_delete_event\"] by exit_code\r\n" +
-            "until [process where opcode=1] by ppid\r\n" + 
-            "| head 4\r\n" + 
+            "until [process where opcode=1] by ppid\r\n" +
+            "| head 4\r\n" +
             "| tail 2");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL, SEQUENCE_QUERIES_FOUR, JOIN_KEYS_ONE));
     }
     
     public void testSequenceWithTwoQueries() {
-        Counters c = eql("sequence with maxspan=1d\r\n" + 
-            "  [process where serial_event_id < 4] by exit_code\r\n" + 
-            "  [process where opcode == 1] by user\r\n" + 
-            "until [process where opcode=1] by ppid\r\n" + 
-            "| head 4\r\n" + 
+        Counters c = eql("sequence with maxspan=1d\r\n" +
+            "  [process where serial_event_id < 4] by exit_code\r\n" +
+            "  [process where opcode == 1] by user\r\n" +
+            "until [process where opcode=1] by ppid\r\n" +
+            "| head 4\r\n" +
             "| tail 2");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL, SEQUENCE_QUERIES_TWO, JOIN_KEYS_ONE));
     }
     
     public void testSequenceWithThreeQueries() {
-        Counters c = eql("sequence with maxspan=1d\r\n" + 
-            "  [process where serial_event_id < 4] by exit_code\r\n" + 
-            "  [process where opcode == 1] by user\r\n" + 
-            "  [file where parent_process_name == \"file_delete_event\"] by exit_code\r\n" + 
+        Counters c = eql("sequence with maxspan=1d\r\n" +
+            "  [process where serial_event_id < 4] by exit_code\r\n" +
+            "  [process where opcode == 1] by user\r\n" +
+            "  [file where parent_process_name == \"file_delete_event\"] by exit_code\r\n" +
             "| head 4");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_MAXSPAN, SEQUENCE_QUERIES_THREE, JOIN_KEYS_ONE));
     }
     
     public void testSequenceWithFiveQueries() {
-        Counters c = eql("sequence with maxspan=1d\r\n" + 
-            "  [process where serial_event_id < 4] by exit_code\r\n" + 
-            "  [process where opcode == 1] by user\r\n" + 
+        Counters c = eql("sequence with maxspan=1d\r\n" +
+            "  [process where serial_event_id < 4] by exit_code\r\n" +
+            "  [process where opcode == 1] by user\r\n" +
             "  [file where parent_process_name == \"file_delete_event\"] by exit_code\r\n" +
-            "  [process where serial_event_id < 4] by exit_code\r\n" + 
-            "  [process where opcode == 1] by user\r\n" + 
+            "  [process where serial_event_id < 4] by exit_code\r\n" +
+            "  [process where opcode == 1] by user\r\n" +
             "| head 4");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_MAXSPAN, SEQUENCE_QUERIES_FIVE_OR_MORE, JOIN_KEYS_ONE));
     }
 
     public void testSequenceWithSevenQueries() {
-        Counters c = eql("sequence by exit_code, user\r\n" + 
-            "  [process where serial_event_id < 4]\r\n" + 
-            "  [process where opcode == 1]\r\n" + 
+        Counters c = eql("sequence by exit_code, user\r\n" +
+            "  [process where serial_event_id < 4]\r\n" +
+            "  [process where opcode == 1]\r\n" +
             "  [file where parent_process_name == \"file_delete_event\"]\r\n" +
-            "  [process where serial_event_id < 4]\r\n" + 
-            "  [process where opcode == 1]\r\n" + 
-            "  [process where true]\r\n" + 
-            "  [process where true]\r\n" + 
+            "  [process where serial_event_id < 4]\r\n" +
+            "  [process where opcode == 1]\r\n" +
+            "  [process where true]\r\n" +
+            "  [process where true]\r\n" +
             "| tail 1");
         assertCounters(c, Set.of(SEQUENCE, PIPE_TAIL, SEQUENCE_QUERIES_FIVE_OR_MORE, JOIN_KEYS_TWO));
     }
     
     public void testSequenceWithThreeKeys() {
-        Counters c = eql("sequence by exit_code, user, serial_event_id\r\n" + 
-            "  [process where serial_event_id < 4]\r\n" + 
+        Counters c = eql("sequence by exit_code, user, serial_event_id\r\n" +
+            "  [process where serial_event_id < 4]\r\n" +
             "  [process where opcode == 1]\r\n");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO, JOIN_KEYS_THREE));
     }
 
     public void testSequenceWithFourKeys() {
-        Counters c = eql("sequence by exit_code, user, serial_event_id, pid\r\n" + 
-            "  [process where serial_event_id < 4]\r\n" + 
+        Counters c = eql("sequence by exit_code, user, serial_event_id, pid\r\n" +
+            "  [process where serial_event_id < 4]\r\n" +
             "  [process where opcode == 1]\r\n");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO, JOIN_KEYS_FOUR));
     }
 
     public void testSequenceWithFiveKeys() {
-        Counters c = eql("sequence by exit_code, user, serial_event_id, pid, ppid\r\n" + 
-            "  [process where serial_event_id < 4]\r\n" + 
+        Counters c = eql("sequence by exit_code, user, serial_event_id, pid, ppid\r\n" +
+            "  [process where serial_event_id < 4]\r\n" +
             "  [process where opcode == 1]\r\n");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO, JOIN_KEYS_FIVE_OR_MORE));
     }
@@ -166,7 +166,7 @@ public class VerifierMetricsTests extends ESTestCase {
         return eql(query, null);
     }
 
-    private Counters eql(String query, Verifier v) {        
+    private Counters eql(String query, Verifier v) {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {

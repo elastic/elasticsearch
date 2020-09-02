@@ -245,11 +245,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     indexRoutings, executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
                     new ArraySearchPhaseResults<>(shardsIts.size()), 1, clusters) {
                     @Override
-                    protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+                    protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                                        SearchActionListener<SearchPhaseResult> listener) {
-                        final Transport.Connection connection = getConnection(shardIt.getClusterAlias(), shard.currentNodeId());
-                        final SearchShardTarget searchShardTarget = shardIt.newSearchShardTarget(shard.currentNodeId());
-                        phaseSearchAction.executeOnShardTarget(task, searchShardTarget, connection, listener);
+                        final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+                        phaseSearchAction.executeOnShardTarget(task, shard, connection, listener);
                     }
 
                     @Override
@@ -596,7 +595,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
                 .map(it -> new SearchShardIterator(
-                    searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), localIndices, null, null))
+                    searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), localIndices))
                 .collect(Collectors.toList());
             aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
             indexRoutings = routingMap;
@@ -874,7 +873,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new OriginalIndices(e.getValue().toArray(String[]::new), indicesOptions)));
     }
 
-    static List<SearchShardIterator> getSearchShardsFromSearchContexts(ClusterState clusterState, OriginalIndices originalIndices,
+    static List<SearchShardIterator> getSearchShardsFromSearchContexts(ClusterState clusterState,
+                                                                       OriginalIndices originalIndices,
                                                                        String localClusterAlias,
                                                                        SearchContextId searchContext,
                                                                        TimeValue keepAlive) {
@@ -882,15 +882,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             final ShardId shardId = entry.getKey();
             final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
-            final List<ShardRouting> matchingNodeFirstRoutings = new ArrayList<>();
+            final List<String> matchingNodeFirst = new ArrayList<>(shards.size());
+            final String nodeId = entry.getValue().getNode();
+            // always search the matching node first even when its shard was relocated to another node
+            // because the point in time should keep the corresponding search context open.
+            matchingNodeFirst.add(nodeId);
             for (ShardRouting shard : shards) {
-                if (shard.currentNodeId().equals(entry.getValue().getNode())) {
-                    matchingNodeFirstRoutings.add(0, shard);
-                } else {
-                    matchingNodeFirstRoutings.add(shard);
+                if (shard.currentNodeId().equals(nodeId) == false) {
+                    matchingNodeFirst.add(shard.currentNodeId());
                 }
             }
-            iterators.add(new SearchShardIterator(localClusterAlias, shardId, matchingNodeFirstRoutings, originalIndices,
+            iterators.add(new SearchShardIterator(localClusterAlias, shardId, matchingNodeFirst, originalIndices,
                 entry.getValue().getSearchContextId(), keepAlive));
         }
         return iterators;

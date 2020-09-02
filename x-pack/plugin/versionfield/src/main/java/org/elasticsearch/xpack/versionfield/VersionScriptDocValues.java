@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.xpack.versionfield.VersionEncoder.VersionParts;
 
 import java.io.IOException;
 
@@ -53,5 +54,64 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
     @Override
     public int size() {
         return count;
+    }
+
+    public boolean isLegalSemver() {
+        return VersionEncoder.legalVersionString(VersionParts.ofVersion(getValue()));
+    }
+
+    public boolean isPreRelease() {
+        VersionParts parts = VersionParts.ofVersion(getValue());
+        return (parts.preRelease != null) && VersionEncoder.legalVersionString(parts);
+    }
+
+    public Integer getMajor() {
+        VersionParts parts = VersionParts.ofVersion(getValue());
+        if (VersionEncoder.legalVersionString(parts) && parts.mainVersion != null) {
+            int firstDot = parts.mainVersion.indexOf(".");
+            if (firstDot > 0) {
+                return Integer.valueOf(parts.mainVersion.substring(0, firstDot));
+            } else {
+                return Integer.valueOf(parts.mainVersion);
+            }
+        }
+        return null;
+    }
+
+    public Integer getMinor() {
+        VersionParts parts = VersionParts.ofVersion(getValue());
+        Integer rc = null;
+        if (VersionEncoder.legalVersionString(parts) && parts.mainVersion != null) {
+            int firstDot = parts.mainVersion.indexOf(".");
+            if (firstDot > 0) {
+                int secondDot = parts.mainVersion.indexOf(".", firstDot + 1);
+                if (secondDot > 0) {
+                    rc = Integer.valueOf(parts.mainVersion.substring(firstDot + 1, secondDot));
+                } else {
+                    rc = Integer.valueOf(parts.mainVersion.substring(firstDot + 1));
+                }
+            }
+        }
+        return rc;
+    }
+
+    public Integer getPatch() {
+        VersionParts parts = VersionParts.ofVersion(getValue());
+        Integer rc = null;
+        if (VersionEncoder.legalVersionString(parts) && parts.mainVersion != null) {
+            int firstDot = parts.mainVersion.indexOf(".");
+            if (firstDot > 0) {
+                int secondDot = parts.mainVersion.indexOf(".", firstDot + 1);
+                if (secondDot > 0) {
+                    int thirdDot = parts.mainVersion.indexOf(".", secondDot + 1);
+                    if (thirdDot > 0) {
+                        rc = Integer.valueOf(parts.mainVersion.substring(secondDot + 1, thirdDot));
+                    } else {
+                        rc = Integer.valueOf(parts.mainVersion.substring(secondDot + 1));
+                    }
+                }
+            }
+        }
+        return rc;
     }
 }

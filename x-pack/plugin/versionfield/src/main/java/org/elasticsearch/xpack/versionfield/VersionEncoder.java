@@ -67,7 +67,7 @@ class VersionEncoder {
                 // we are sure to remove when decoding
                 versionString = ENCODED_EMPTY_STRING;
             }
-            return new EncodedVersion(new BytesRef(versionString), false, true, 0, 0, 0);
+            return new EncodedVersion(new BytesRef(versionString), false, true, null, null, null);
         }
 
         BytesRefBuilder encodedBytes = new BytesRefBuilder();
@@ -161,7 +161,7 @@ class VersionEncoder {
         return new String(result, 0, resultPos, StandardCharsets.UTF_8);
     }
 
-    private static boolean legalVersionString(VersionParts versionParts) {
+    static boolean legalVersionString(VersionParts versionParts) {
         boolean legalMainVersion = LEGAL_MAIN_VERSION_SEMVER.matcher(versionParts.mainVersion).matches();
         boolean legalPreRelease = true;
         if (versionParts.preRelease != null) {
@@ -194,7 +194,7 @@ class VersionEncoder {
         }
     }
 
-    private static class VersionParts {
+    static class VersionParts {
         final String mainVersion;
         final String preRelease;
         final String buildSuffix;
@@ -205,7 +205,7 @@ class VersionEncoder {
             this.buildSuffix = buildSuffix;
         }
 
-        private static VersionParts ofVersion(String versionString) {
+        static VersionParts ofVersion(String versionString) {
             String buildSuffix = extractSuffix(versionString, BUILD_SEPARATOR);
             if (buildSuffix != null) {
                 versionString = versionString.substring(0, versionString.length() - buildSuffix.length());

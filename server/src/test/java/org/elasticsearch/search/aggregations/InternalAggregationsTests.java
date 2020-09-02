@@ -103,10 +103,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        // we cannot ensure strict equality on aggregations (de)serialized by different
-        // versions so we pick a unique random version for the test
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        writeToAndReadFrom(aggregations, version, 0);
+        writeToAndReadFrom(aggregations, Version.CURRENT, 0);
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {

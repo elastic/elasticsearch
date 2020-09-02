@@ -37,6 +37,34 @@ setup:
                 type: runtime_script
                 runtime_type: keyword
                 script: emitValue(doc['loose_loop'].value)
+              refs:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue(doc['over_max_depth_2'].value + doc['over_max_depth_3'].value + doc['over_max_depth_4'].value + doc['over_max_depth_5'].value + doc['node'].value)
+              over_max_depth:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue(doc['over_max_depth_1'].value)
+              over_max_depth_1:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue(doc['over_max_depth_2'].value)
+              over_max_depth_2:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue(doc['over_max_depth_3'].value)
+              over_max_depth_3:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue(doc['over_max_depth_4'].value)
+              over_max_depth_4:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue(doc['over_max_depth_5'].value)
+              over_max_depth_5:
+                type: runtime_script
+                runtime_type: keyword
+                script: emitValue('test')
 
   - do:
       bulk:
@@ -46,7 +74,7 @@ setup:
           {"index":{}}
           {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
 ---
-"tight loop":
+"tight loop - docvalue_fields":
   - do:
       catch: '/Cyclic dependency detected while resolving runtime fields: tight_loop -> tight_loop/'
       search:
@@ -54,6 +82,8 @@ setup:
         body:
           sort: timestamp
           docvalue_fields: [tight_loop]
+---
+"tight loop - aggs":
   - do:
       catch: '/Cyclic dependency detected while resolving runtime fields: tight_loop -> tight_loop/'
       search:
@@ -65,7 +95,16 @@ setup:
              terms:
                field: tight_loop
 ---
-"loose loop":
+"tight loop - sort":
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: tight_loop -> tight_loop/'
+      search:
+        index: sensor
+        body:
+          sort: tight_loop
+
+---
+"loose loop - aggs":
   - do:
       catch: '/Cyclic dependency detected while resolving runtime fields: loose_loop -> lla -> llb -> llc -> loose_loop/'
       search:
@@ -77,6 +116,16 @@ setup:
              terms:
                field: loose_loop
 
+---
+"loose loop - sort":
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: loose_loop -> lla -> llb -> llc -> loose_loop/'
+      search:
+        index: sensor
+        body:
+          sort: loose_loop
+---
+"loose loop - docvalue_fields":
   - do:
       catch: '/Cyclic dependency detected while resolving runtime fields: loose_loop -> lla -> llb -> llc -> loose_loop/'
       search:
@@ -85,6 +134,8 @@ setup:
           sort: timestamp
           docvalue_fields: [loose_loop]
 
+---
+"loose loop - begins within":
   - do:
       catch: '/Cyclic dependency detected while resolving runtime fields: lla -> llb -> llc -> loose_loop -> lla/'
       search:
@@ -96,10 +147,56 @@ setup:
              terms:
                field: lla
 
+---
+"Max chain depth - 5 is allowed":
   - do:
-      catch: '/Cyclic dependency detected while resolving runtime fields: lla -> llb -> llc -> loose_loop -> lla/'
       search:
         index: sensor
         body:
           sort: timestamp
-          docvalue_fields: [lla]
+          docvalue_fields: [over_max_depth_1]
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields.over_max_depth_1.0: test}
+
+---
+"Max chain depth - direct references are not counted":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [refs]
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields.refs.0: testtesttesttesta}
+
+---
+"Max chain depth - aggs":
+  - do:
+      catch: '/Field requires resolving too many dependent fields: over_max_depth -> over_max_depth_1 -> over_max_depth_2 -> over_max_depth_3 -> over_max_depth_4 -> over_max_depth_5/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          aggs:
+            loop:
+             terms:
+               field: over_max_depth
+---
+"Max chain depth - sort":
+  - do:
+      catch: '/Field requires resolving too many dependent fields: over_max_depth -> over_max_depth_1 -> over_max_depth_2 -> over_max_depth_3 -> over_max_depth_4 -> over_max_depth_5/'
+      search:
+        index: sensor
+        body:
+          sort: over_max_depth
+---
+"Max chain depth - docvalue_fields":
+  - do:
+      catch: '/Field requires resolving too many dependent fields: over_max_depth -> over_max_depth_1 -> over_max_depth_2 -> over_max_depth_3 -> over_max_depth_4 -> over_max_depth_5/'
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [over_max_depth]

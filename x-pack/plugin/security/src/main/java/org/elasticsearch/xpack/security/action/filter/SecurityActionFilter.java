@@ -40,8 +40,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
-
 public class SecurityActionFilter implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();

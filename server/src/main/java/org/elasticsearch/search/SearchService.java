@@ -118,6 +118,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -442,7 +443,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private IndexShard getShard(ShardSearchRequest request) {
         if (request.readerId() != null) {
-            return findReaderContext(request.readerId()).indexShard();
+            return findReaderContext(request.readerId(), request).indexShard();
         } else {
             return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         }
@@ -501,13 +502,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeQueryPhase(InternalScrollSearchRequest request,
                                   SearchShardTask task,
                                   ActionListener<ScrollQuerySearchResult> listener) {
-        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId());
+        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (Releasable ignored = readerContext.markAsUsed();
                  SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
                 if (request.scroll() != null && request.scroll().keepAlive() != null) {
                     final long keepAlive = request.scroll().keepAlive().millis();
                     checkKeepAliveLimit(keepAlive);
@@ -528,14 +528,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
-        final ReaderContext readerContext = findReaderContext(request.contextId());
+        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
             readerContext.setAggregatedDfs(request.dfs());
             try (Releasable ignored = readerContext.markAsUsed();
                  SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
                 searchContext.searcher().setAggregatedDfs(request.dfs());
                 queryPhase.execute(searchContext);
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
@@ -573,13 +572,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
-        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId());
+        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (Releasable ignored = readerContext.markAsUsed();
                  SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
                 if (request.scroll() != null && request.scroll().keepAlive() != null) {
                     checkKeepAliveLimit(request.scroll().keepAlive().millis());
                     readerContext.keepAlive(request.scroll().keepAlive().millis());
@@ -601,12 +599,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
-        final ReaderContext readerContext = findReaderContext(request.contextId());
+        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
             try (Releasable ignored = readerContext.markAsUsed();
                  SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {
-                readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                 }
@@ -642,19 +639,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return null;
     }
 
-    private ReaderContext findReaderContext(ShardSearchContextId id) throws SearchContextMissingException {
+    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
         final ReaderContext reader = getReaderContext(id);
         if (reader == null) {
             throw new SearchContextMissingException(id);
         }
+        reader.validate(request);
         return reader;
     }
 
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
-            final ReaderContext readerContext = findReaderContext(request.readerId());
-            readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
+            final ReaderContext readerContext = findReaderContext(request.readerId(), request);
             final long keepAlive = request.keepAlive().millis();
             checkKeepAliveLimit(keepAlive);
             readerContext.keepAlive(keepAlive);
@@ -828,12 +825,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
-        if (getReaderContext(contextId) != null) {
-            try (ReaderContext context = removeReaderContext(contextId.getId())) {
-                return context != null;
-            }
+        try (ReaderContext context = removeReaderContext(contextId.getId())) {
+            return context != null;
         }
-        return false;
     }
 
     public void freeAllScrollContexts() {
@@ -1146,13 +1140,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        final ReaderContext readerContext = request.readerId() != null ? getReaderContext(request.readerId()) :  null;
+        final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) :  null;
         final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed() : null;
         final IndexService indexService;
         final Engine.Searcher canMatchSearcher;
         final boolean hasRefreshPending;
         if (readerContext != null) {
-            readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
             checkKeepAliveLimit(request.keepAlive().millis());
             readerContext.keepAlive(request.keepAlive().millis());
             indexService = readerContext.indexService();

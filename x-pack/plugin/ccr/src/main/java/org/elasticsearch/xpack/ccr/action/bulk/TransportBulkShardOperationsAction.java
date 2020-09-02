@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -48,8 +49,6 @@ public class TransportBulkShardOperationsAction
         }
     };
 
-    private final IndexingPressure indexingPressure;
-
     @Inject
     public TransportBulkShardOperationsAction(
             final Settings settings,
@@ -59,7 +58,8 @@ public class TransportBulkShardOperationsAction
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
-            final IndexingPressure indexingPressure) {
+            final IndexingPressure indexingPressure,
+            final SystemIndices systemIndices) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -71,8 +71,7 @@ public class TransportBulkShardOperationsAction
                 actionFilters,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                EXECUTOR_NAME_FUNCTION, false, indexingPressure);
-        this.indexingPressure = indexingPressure;
+                EXECUTOR_NAME_FUNCTION, false, indexingPressure, systemIndices);
     }
 
     @Override

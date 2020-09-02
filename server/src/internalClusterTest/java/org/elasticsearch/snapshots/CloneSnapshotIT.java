@@ -157,6 +157,34 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cloneFuture.get());
     }
 
+    public void testLongRunningSnapshotAllowsConcurrentClone() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String indexSlow = "index-slow";
+        createSingleShardIndexWithContent(indexSlow);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final String indexFast = "index-fast";
+        createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
+
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin().cluster()
+                .prepareCreateSnapshot(repoName, "fast-snapshot").setIndices(indexFast).setWaitForCompletion(true).execute();
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        final String targetSnapshot = "target-snapshot";
+        assertAcked(client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexSlow).get());
+
+        assertThat(snapshotFuture.isDone(), is(false));
+        unblockNode(repoName, dataNode);
+
+        assertSuccessful(snapshotFuture);
+    }
+
     public void testDeletePreventsClone() throws Exception {
         final String masterName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

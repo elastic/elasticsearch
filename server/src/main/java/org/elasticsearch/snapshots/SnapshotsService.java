@@ -269,9 +269,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(
-                        indices, runningSnapshots.stream().filter(entry -> entry.repository().equals(repositoryName))
-                                .flatMap(entry -> entry.indices().stream()).distinct()
-                                .collect(Collectors.toMap(IndexId::getName, Function.identity())));
+                        indices, getInFlightIndexIds(runningSnapshots, repositoryName));
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
                 ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shards(snapshots, deletionsInProgress, currentState.metadata(),
                     currentState.routingTable(), indexIds, useShardGenerations(version), repositoryData, repositoryName);
@@ -319,6 +317,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.masterNodeTimeout();
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private static Map<String, IndexId> getInFlightIndexIds(List<SnapshotsInProgress.Entry> runningSnapshots, String repositoryName) {
+        return runningSnapshots.stream().filter(entry -> entry.repository().equals(repositoryName))
+                .flatMap(entry -> entry.indices().stream()).distinct()
+                .collect(Collectors.toMap(IndexId::getName, Function.identity()));
     }
 
     public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<Void> listener) {
@@ -398,7 +402,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot clone [{}] started", snapshot);
                 addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
-                startCloning(repository, repositoryData, newEntry);
+                startCloning(repository, newEntry);
             }
 
             @Override
@@ -412,89 +416,97 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Determine the number of shards in each index of a clone operation and update the cluster state accordingly.
      *
      * @param repository     repository to run operation on
-     * @param repositoryData repository data at the time the clone operation was started
      * @param cloneEntry     clone operation in the cluster state
      */
-    private void startCloning(Repository repository, RepositoryData repositoryData, SnapshotsInProgress.Entry cloneEntry) {
+    private void startCloning(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final List<IndexId> indices = cloneEntry.indices();
         final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener = new GroupedActionListener<>(
-                ActionListener.wrap(counts -> {
-                    clusterService.submitStateUpdateTask("start snapshot clone", new ClusterStateUpdateTask() {
+                ActionListener.wrap(counts -> repository.executeConsistentStateUpdate(
+                        repositoryData -> new ClusterStateUpdateTask() {
 
-                        private SnapshotsInProgress.Entry updatedEntry;
+                            private SnapshotsInProgress.Entry updatedEntry;
 
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            final SnapshotsInProgress snapshotsInProgress =
-                                    currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                            final List<SnapshotsInProgress.Entry> updatedEntries = new ArrayList<>(snapshotsInProgress.entries());
-                            boolean changed = false;
-                            for (int i = 0; i < updatedEntries.size(); i++) {
-                                if (cloneEntry.equals(updatedEntries.get(i))) {
-                                    final ImmutableOpenMap.Builder<RepoShardId, ShardSnapshotStatus> clonesBuilder =
-                                            ImmutableOpenMap.builder();
-                                    final Set<ShardId> busyShards = busyShardsForRepo(
-                                            repository.getMetadata().name(), snapshotsInProgress, currentState.metadata());
-                                    final Set<RepoShardId> busyShardsInRepo = busyShards.stream().map(shardId ->
-                                            SnapshotsInProgress.repoShardId(
-                                                    repositoryData.resolveIndexId(shardId.getIndexName()), shardId.getId()))
-                                            .collect(Collectors.toSet());
-                                    for (Tuple<IndexId, Integer> count : counts) {
-                                        for (int shardId = 0; shardId < count.v2(); shardId++) {
-                                            final RepoShardId repoShardId = SnapshotsInProgress.repoShardId(count.v1(), shardId);
-                                            if (busyShardsInRepo.contains(repoShardId)) {
-                                                clonesBuilder.put(repoShardId, ShardSnapshotStatus.UNASSIGNED_QUEUED);
-                                            } else {
-                                                clonesBuilder.put(repoShardId,
-                                                        new ShardSnapshotStatus(currentState.nodes().getLocalNodeId(),
-                                                                repositoryData.shardGenerations().getShardGen(count.v1(), shardId)));
+                            @Override
+                            public ClusterState execute(ClusterState currentState) {
+                                final SnapshotsInProgress snapshotsInProgress =
+                                        currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                                final List<SnapshotsInProgress.Entry> updatedEntries = new ArrayList<>(snapshotsInProgress.entries());
+                                boolean changed = false;
+                                final Map<String, IndexId> inFlightIndexIds =
+                                        getInFlightIndexIds(updatedEntries, repository.getMetadata().name());
+                                for (int i = 0; i < updatedEntries.size(); i++) {
+                                    if (cloneEntry.equals(updatedEntries.get(i))) {
+                                        final ImmutableOpenMap.Builder<RepoShardId, ShardSnapshotStatus> clonesBuilder =
+                                                ImmutableOpenMap.builder();
+                                        final Set<ShardId> busyShards = busyShardsForRepo(
+                                                repository.getMetadata().name(), snapshotsInProgress, currentState.metadata());
+                                        final Set<RepoShardId> busyShardsInRepo = busyShards
+                                                .stream()
+                                                .map(shardId -> SnapshotsInProgress.repoShardId(
+                                                        inFlightIndexIds.get(shardId.getIndexName()), shardId.getId()))
+                                                .collect(Collectors.toSet());
+                                        for (Tuple<IndexId, Integer> count : counts) {
+                                            for (int shardId = 0; shardId < count.v2(); shardId++) {
+                                                final RepoShardId repoShardId = SnapshotsInProgress.repoShardId(count.v1(), shardId);
+                                                if (busyShardsInRepo.contains(repoShardId)) {
+                                                    clonesBuilder.put(repoShardId, ShardSnapshotStatus.UNASSIGNED_QUEUED);
+                                                } else {
+                                                    clonesBuilder.put(repoShardId,
+                                                            new ShardSnapshotStatus(currentState.nodes().getLocalNodeId(),
+                                                                    repositoryData.shardGenerations().getShardGen(count.v1(), shardId)));
+                                                }
                                             }
                                         }
+                                        updatedEntry = cloneEntry.withClones(clonesBuilder.build());
+                                        updatedEntries.set(i, updatedEntry);
+                                        changed = true;
+                                        break;
                                     }
-                                    updatedEntry = cloneEntry.withClones(clonesBuilder.build());
-                                    updatedEntries.set(i, updatedEntry);
-                                    changed = true;
-                                    break;
+                                }
+                                return updateWithSnapshots(
+                                        currentState, changed ? SnapshotsInProgress.of(updatedEntries) : null, null);
+                            }
+
+                            @Override
+                            public void onFailure(String source, Exception e) {
+                                logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
+                                failAllListenersOnMasterFailOver(e);
+                            }
+
+                            @Override
+                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                if (updatedEntry != null) {
+                                    final Snapshot target = updatedEntry.snapshot();
+                                    final SnapshotId sourceSnapshot = updatedEntry.source();
+                                    for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> indexClone : updatedEntry.clones()) {
+                                        final ShardSnapshotStatus shardStatusBefore = indexClone.value;
+                                        if (shardStatusBefore.state() != ShardState.INIT) {
+                                            continue;
+                                        }
+                                        final RepoShardId repoShardId = indexClone.key;
+                                        runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                                    }
+                                } else {
+                                    // TODO: this is broken, we should error somehow maybe
                                 }
                             }
-                            return updateWithSnapshots(
-                                    currentState, changed ? SnapshotsInProgress.of(updatedEntries) : null, null);
-                        }
-
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
-                            failAllListenersOnMasterFailOver(e);
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            if (updatedEntry != null) {
-                                final Snapshot target = updatedEntry.snapshot();
-                                final SnapshotId sourceSnapshot = updatedEntry.source();
-                                for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> indexClone : updatedEntry.clones()) {
-                                    final IndexId indexId = repositoryData.resolveIndexId(indexClone.key.indexName());
-                                    final ShardSnapshotStatus shardStatusBefore = indexClone.value;
-                                    if (shardStatusBefore.state() != ShardState.INIT) {
-                                        continue;
-                                    }
-                                    final RepoShardId repoShardId = indexClone.key;
-                                    runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
-                                }
-                            } else {
-                                // TODO: this is broken, we should error somehow maybe
-                            }
-                        }
-                    });
-                }, e -> removeFailedSnapshotFromClusterState(cloneEntry.snapshot(), e, repositoryData)), indices.size());
+                        }, "start snapshot clone", e -> {
+                            // TODO: handle
+                            throw new AssertionError(e);
+                        }), e -> removeFailedSnapshotFromClusterState(cloneEntry.snapshot(), e, null)), indices.size());
         final SnapshotId sourceSnapshot = cloneEntry.source();
-        for (IndexId index : cloneEntry.indices()) {
-            executor.execute(ActionRunnable.supply(shardCountListener, () -> {
-                final IndexMetadata metadata = repository.getSnapshotIndexMetaData(repositoryData, sourceSnapshot, index);
-                return Tuple.tuple(index, metadata.getNumberOfShards());
-            }));
-        }
+        repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+            for (IndexId index : cloneEntry.indices()) {
+                executor.execute(ActionRunnable.supply(shardCountListener, () -> {
+                    final IndexMetadata metadata = repository.getSnapshotIndexMetaData(repositoryData, sourceSnapshot, index);
+                    return Tuple.tuple(index, metadata.getNumberOfShards());
+                }));
+            }
+        }, e -> {
+            // TODO: handle
+            throw new AssertionError(e);
+        }));
     }
 
     private final Set<RepoShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());

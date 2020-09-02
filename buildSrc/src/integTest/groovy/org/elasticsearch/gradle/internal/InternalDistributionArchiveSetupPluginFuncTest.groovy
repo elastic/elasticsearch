@@ -86,6 +86,77 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         "buildOssDarwinZip" | "oss-darwin-zip/build/distributions/elasticsearch-oss.zip"
     }
 
+    def "registered distribution provides archives and directory variant"() {
+        given:
+        file('someFile.txt') << "some content"
+
+        settingsFile << """
+            include ':consumer'
+            include ':producer-tar'
+        """
+
+        buildFile << """
+        import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+        import org.gradle.api.internal.artifacts.ArtifactAttributes;
+
+        distribution_archives {
+            buildProducerTar {
+                content {
+                    project.copySpec {
+                        from 'someFile.txt'
+                    }
+                }
+            }
+        }
+        
+        project('consumer') { p ->
+            configurations {
+                consumeArchive {
+                    attributes {
+                      attribute(ArtifactAttributes.ARTIFACT_FORMAT, "tar.gz")
+                    }
+                }
+                consumeDir {
+                    attributes {
+                      attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                    }
+                }
+            }
+            
+            dependencies {
+                consumeDir project(':producer-tar')
+                consumeArchive project(':producer-tar')
+            }
+            
+            tasks.register("copyDir", Copy) {
+                from(configurations.consumeDir)
+                into('build/dir')
+            }
+            
+            tasks.register("copyArchive", Copy) {
+                from(configurations.consumeArchive)
+                into('build/archives')
+            }
+        }
+        """
+        when:
+        def result = gradleRunner("copyArchive").build()
+
+        then:
+        result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
+        result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
+        file("producer-tar/build/distributions/elasticsearch.tar.gz").exists()
+        file("consumer/build/archives/elasticsearch.tar.gz").exists()
+
+        when:
+        result = gradleRunner("copyDir", '-i').build()
+        then:
+        result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
+        result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
+        file("producer-tar/build/install/someFile.txt").exists()
+        file("consumer/build/dir/someFile.txt").exists()
+    }
+
     private static boolean assertTarPermissionDefaults(File tarArchive) {
         TarArchiveInputStream tarInput = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarArchive)))
         try {

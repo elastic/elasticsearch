@@ -21,58 +21,70 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.EmptyDirTask;
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ConfigurationPublications;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.internal.artifacts.ConfigurationVariantInternal;
 import org.gradle.api.internal.artifacts.publish.AbstractPublishArtifact;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
+import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
+import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
 import java.util.Collections;
 import java.util.Date;
-
-import static org.gradle.util.GUtil.toCamelCase;
 
 /**
  * Common configurations for elasticsearch distribution archives
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
+    private NamedDomainObjectContainer<DistributionArchive> container;
+
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
+        registerDistributionArchivesExtension(project);
         registerEmptyDirectoryTasks(project);
         registerSubProjectArtifacts(project);
         configureGeneralDefaults(project);
         configureTarDefaults(project);
     }
 
-    private void registerSubProjectArtifacts(Project project) {
-        // TODO look into avoiding afterEvaluate
-        project.afterEvaluate(project1 -> project1.subprojects(sub -> {
-            String buildArchiveTaskName = "build" + toCamelCase(sub.getName());
-            sub.getArtifacts().add("default", project1.getTasks().named(buildArchiveTaskName));
-            String copyDistributionTaskName = buildArchiveTaskName.substring(0, buildArchiveTaskName.length() - 3);
+    private void registerDistributionArchivesExtension(Project project) {
+        container = project.container(DistributionArchive.class, name -> {
+            var subProjectDir = buildTaskToSubprojectName(name);
+            var copyDistributionTaskName = name.substring(0, name.length() - 3);
+            var explodedDist = project.getTasks()
+                .register(copyDistributionTaskName, Copy.class, copy -> copy.into(subProjectDir + "/build/install/"));
+            return name.endsWith("Tar")
+                ? new DistributionArchive(project.getTasks().register(name, SymbolicLinkPreservingTar.class), explodedDist, name)
+                : new DistributionArchive(project.getTasks().register(name, Zip.class), explodedDist, name);
+        });
 
-            // TODO do this in a task avoidance api friendly way
-            Task copyTask = project1.getTasks().findByName(copyDistributionTaskName);
-            // TODO should not be required once completetly configured for each archive
-            if (copyTask != null) {
-                Configuration defaultConfiguration = sub.getConfigurations().getByName("default");
-                ConfigurationPublications publications = defaultConfiguration.getOutgoing();
-                ConfigurationVariantInternal variant = (ConfigurationVariantInternal) publications.getVariants().maybeCreate("directory");
+        project.getExtensions().add("distribution_archives", container);
+    }
+
+    private void registerSubProjectArtifacts(Project project) {
+        container.whenObjectAdded(distributionArchive -> {
+            var subProjectName = buildTaskToSubprojectName(distributionArchive.getArchiveTask().getName());
+            project.project(subProjectName, sub -> {
+                sub.getPlugins().apply("base");
+                sub.getArtifacts().add("default", distributionArchive.getArchiveTask());
+                var explodedArchiveTask = distributionArchive.getExplodedArchiveTask();
+                var defaultConfiguration = sub.getConfigurations().getByName("default");
+                var publications = defaultConfiguration.getOutgoing();
+                var variant = (ConfigurationVariantInternal) publications.getVariants().maybeCreate("directory");
                 variant.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-                variant.artifactsProvider(() -> Collections.singletonList(new DirectoryPublishArtifact(copyTask)));
-            }
-        }));
+                variant.artifactsProvider(() -> Collections.singletonList(new DirectoryPublishArtifact(explodedArchiveTask)));
+            });
+        });
     }
 
     private void configureGeneralDefaults(Project project) {
@@ -86,7 +98,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
         // common config across all archives
         project.getTasks().withType(AbstractArchiveTask.class).configureEach(t -> {
-            String subdir = buildTaskToSubprojectName(t);
+            String subdir = buildTaskToSubprojectName(t.getName());
             t.getDestinationDirectory().set(project.file(subdir + "/build/distributions"));
             t.getArchiveBaseName().set(subdir.contains("oss") ? "elasticsearch-oss" : "elasticsearch");
         });
@@ -126,15 +138,16 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         });
     }
 
-    private String buildTaskToSubprojectName(AbstractArchiveTask t) {
-        return t.getName().substring("build".length()).replaceAll("[A-Z]", "-$0").toLowerCase().substring(1);
+    private String buildTaskToSubprojectName(String taskName) {
+        return taskName.substring("build".length()).replaceAll("[A-Z]", "-$0").toLowerCase().substring(1);
     }
 
     private static class DirectoryPublishArtifact extends AbstractPublishArtifact {
 
-        private final Task providerTask;
+        private final TaskProvider<Copy> providerTask;
 
-        DirectoryPublishArtifact(Task providerTask) {
+        DirectoryPublishArtifact(TaskProvider<Copy> providerTask) {
+            super(providerTask);
             this.providerTask = providerTask;
         }
 
@@ -160,7 +173,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
         @Override
         public File getFile() {
-            return providerTask.getOutputs().getFiles().getSingleFile();
+            return providerTask.get().getOutputs().getFiles().getSingleFile();
         }
 
         @Override

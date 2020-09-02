@@ -391,9 +391,21 @@ final class DocumentParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 paths = splitAndValidatePath(currentFieldName);
-                if (context.mapperService().isFieldAllowedInSource(context.path().pathAsText(currentFieldName)) == false) {
-                    throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
-                        + " a document. Use the index API request parameters.");
+
+                if (context.mapperService().isMetadataField(currentFieldName)) {
+                    if (context.mapperService().isFieldAllowedInSource(currentFieldName)) {
+                        // If token is a metadata field and is allowed in source, parse its value
+                        token = parser.nextToken();
+                        if (token != null && token.isValue()) {
+                            parseValue(context, mapper, currentFieldName, token, paths);
+                        } else {
+                            throw new MapperParsingException("Field [" + currentFieldName
+                                + "] is a metadata field and must have a concrete value.");
+                        }
+                    } else {
+                        throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
+                         + " a document. Use the index API request parameters.");
+                    }
                 } else if (containsDisabledObjectMapper(mapper, paths)) {
                     parser.nextToken();
                     parser.skipChildren();
@@ -596,7 +608,20 @@ final class DocumentParser {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with"
                 + " no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = getMapper(parentMapper, currentFieldName, paths);
+
+        Mapper mapper = null;
+        if (context.mapperService().isMetadataField(currentFieldName)
+            && context.mapperService().isFieldAllowedInSource(currentFieldName)) {
+
+            for (MetadataFieldMapper metadataFieldMapper : context.docMapper().mapping().getMetadataMappers()) {
+                if (currentFieldName.equals(metadataFieldMapper.name())) {
+                    mapper = metadataFieldMapper;
+                    break;
+                }
+            }
+        } else {
+            mapper = getMapper(parentMapper, currentFieldName, paths);
+        }
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {

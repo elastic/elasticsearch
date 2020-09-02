@@ -136,6 +136,10 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
+    public MetadataFieldMapper[] getMetadataMappers() {
+        return metadataMappers;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         root.toXContent(builder, params, new ToXContent() {

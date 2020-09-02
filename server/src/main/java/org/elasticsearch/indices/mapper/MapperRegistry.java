@@ -86,7 +86,7 @@ public final class MapperRegistry {
         if (parser != null) {
             return parser.isAllowedInSource();
         }
-        // Non metadata fields should alway be allowed in document _source.
+        // Non-metadata fields should always be allowed in document _source.
         return true;
     }
 

@@ -18,7 +18,7 @@ PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
   }
 }
 ----
-// TESTSETUP
+// TEST[skip:TODO must add relevant test setup]
 ////
 
 [source,console]

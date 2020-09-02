@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -63,13 +63,13 @@ public class DieWithDignityIT extends ESRestTestCase {
         try {
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final String line = it.next();
-                if (containsAll(line, ".*ERROR.*", ".*ExceptionsHelper.*", ".*integTest-0.*", ".*fatal error.*")) {
+                if (containsAll(line, ".*ERROR.*", ".*ExceptionsHelper.*", ".*javaRestTest-0.*", ".*fatal error.*")) {
                     fatalError = true;
                 } else if (containsAll(
                     line,
                     ".*ERROR.*",
                     ".*ElasticsearchUncaughtExceptionHandler.*",
-                    ".*integTest-0.*",
+                    ".*javaRestTest-0.*",
                     ".*fatal error in thread \\[Thread-\\d+\\], exiting.*",
                     ".*java.lang.OutOfMemoryError: die with dignity.*"
                 )) {

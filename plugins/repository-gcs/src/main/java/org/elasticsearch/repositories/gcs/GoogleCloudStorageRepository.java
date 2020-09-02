@@ -33,6 +33,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property;
@@ -72,7 +73,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata), getSetting(BUCKET, metadata));
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata), buildLocation(metadata));
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
@@ -93,6 +94,11 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         } else {
             return BlobPath.cleanPath();
         }
+    }
+
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return Map.of("base_path", buildBasePath(metadata).buildAsString(),
+            "bucket", getSetting(BUCKET, metadata));
     }
 
     @Override

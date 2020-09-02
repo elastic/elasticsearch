@@ -328,7 +328,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 clusterService,
                 mock(RecoverySettings.class),
                 BlobPath.cleanPath(),
-                "bucket-a");
+                Map.of("bucket", "bucket-a"));
         }
 
         @Override
@@ -352,7 +352,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 clusterService,
                 mock(RecoverySettings.class),
                 BlobPath.cleanPath(),
-                "bucket-b");
+                Map.of("bucket", "bucket-b"));
         }
 
         @Override

@@ -6,7 +6,7 @@
 <titleabbrev>Get repositories meterings</titleabbrev>
 ++++
 
-Returns cluster repositories meterings.
+Returns cluster repositories metering information.
 
 [[get-repositories-metering-api-request]]
 ==== {api-request-title}
@@ -16,9 +16,9 @@ Returns cluster repositories meterings.
 [[get-repositories-metering-api-desc]]
 ==== {api-description-title}
 
-You can use the cluster repositories metering API to retrieve repositories metrics in a cluster.
+You can use the cluster repositories metering API to retrieve repositories metering information in a cluster.
 
-This API exposes monotonic increasing counters and it's expected that clients would durably store 
+This API exposes monotonically non-decreasing counters and it's expected that clients would durably store
 the information needed to compute aggregations over a period of time. Additionally, the information
 exposed by this API is volatile, meaning that it won't be present after node restarts.
 

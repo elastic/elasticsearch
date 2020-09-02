@@ -6,7 +6,7 @@
 <titleabbrev>Clear repositories metering archive</titleabbrev>
 ++++
 
-Removes the archived repositories meterings present in the cluster.
+Removes the archived repositories metering information present in the cluster.
 
 [[clear-repositories-metering-archive-api-request]]
 ==== {api-request-title}

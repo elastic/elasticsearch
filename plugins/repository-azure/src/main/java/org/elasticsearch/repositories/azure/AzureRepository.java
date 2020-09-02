@@ -36,6 +36,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.repositories.azure.AzureStorageService.MAX_CHUNK_SIZE;
@@ -87,7 +88,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             clusterService,
             recoverySettings,
             buildBasePath(metadata),
-            Repository.CONTAINER_SETTING.get(metadata.settings()));
+            buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -113,6 +114,11 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         } else {
             return BlobPath.cleanPath();
         }
+    }
+
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return Map.of("base_path", buildBasePath(metadata).buildAsString(),
+            "container", Repository.CONTAINER_SETTING.get(metadata.settings()));
     }
 
     @Override

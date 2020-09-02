@@ -28,13 +28,14 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public final class RepositoryInfo implements Writeable, ToXContentFragment {
     public final String ephemeralId;
     public final String name;
     public final String type;
-    public final String location;
+    public final Map<String, String> location;
     public final long startedAt;
     @Nullable
     public final Long stoppedAt;
@@ -42,7 +43,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
     public RepositoryInfo(String ephemeralId,
                           String name,
                           String type,
-                          String location,
+                          Map<String, String> location,
                           long startedAt) {
         this(ephemeralId, name, type, location, startedAt, null);
     }
@@ -50,7 +51,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
     public RepositoryInfo(String ephemeralId,
                           String name,
                           String type,
-                          String location,
+                          Map<String, String> location,
                           long startedAt,
                           @Nullable Long stoppedAt) {
         this.ephemeralId = ephemeralId;
@@ -68,7 +69,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         this.ephemeralId = in.readString();
         this.name = in.readString();
         this.type = in.readString();
-        this.location = in.readString();
+        this.location = in.readMap(StreamInput::readString, StreamInput::readString);
         this.startedAt = in.readLong();
         this.stoppedAt = in.readOptionalLong();
     }
@@ -88,7 +89,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         out.writeString(ephemeralId);
         out.writeString(name);
         out.writeString(type);
-        out.writeString(location);
+        out.writeMap(location, StreamOutput::writeString, StreamOutput::writeString);
         out.writeLong(startedAt);
         out.writeOptionalLong(stoppedAt);
     }

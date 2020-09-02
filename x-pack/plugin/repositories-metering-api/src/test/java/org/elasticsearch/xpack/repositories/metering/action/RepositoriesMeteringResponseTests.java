@@ -68,7 +68,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
                 String repoId = randomAlphaOfLength(10);
                 String repoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoType = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                String repoLocation = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                Map<String, String> repoLocation = Map.of("bucket", randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
                 long startedAt = System.currentTimeMillis() - 1;
                 Long stoppedAt = randomBoolean() ? System.currentTimeMillis() : null;
                 RepositoryInfo repositoryInfo = new RepositoryInfo(repoId, repoName, repoType, repoLocation, startedAt, stoppedAt);

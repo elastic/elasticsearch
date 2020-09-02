@@ -29,6 +29,8 @@ import org.elasticsearch.repositories.RepositoryInfo;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Map;
+
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
 
@@ -37,13 +39,13 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
                                       ClusterService clusterService,
                                       RecoverySettings recoverySettings,
                                       BlobPath basePath,
-                                      String bucket) {
+                                      Map<String, String> location) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, basePath);
         ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
         this.repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
             metadata.name(),
             metadata.type(),
-            getLocation(basePath, bucket),
+            location,
             threadPool.absoluteTimeInMillis());
     }
 
@@ -54,15 +56,5 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     public RepositoryStatsSnapshot statsSnapshotForArchival(long clusterVersion) {
         RepositoryInfo stoppedRepoInfo = repositoryInfo.stopped(threadPool.absoluteTimeInMillis());
         return new RepositoryStatsSnapshot(stoppedRepoInfo, stats(), clusterVersion, true);
-    }
-
-    private static String getLocation(BlobPath basePath, String bucket) {
-        BlobPath location = BlobPath.cleanPath();
-
-        location = location.add(bucket);
-        for (String path : basePath) {
-            location = location.add(path);
-        }
-        return location.buildAsString();
     }
 }

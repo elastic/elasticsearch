@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRestTestCase {
     protected abstract String repositoryType();
 
-    protected abstract String repositoryLocation();
+    protected abstract Map<String, String> repositoryLocation();
 
     protected abstract Settings repositorySettings();
 
@@ -339,7 +339,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
         String id = extractValue(nodeStatSnapshot, "repository_ephemeral_id");
         String name = extractValue(nodeStatSnapshot, "repository_name");
         String type = extractValue(nodeStatSnapshot, "repository_type");
-        String location = extractValue(nodeStatSnapshot, "repository_location");
+        Map<String, String> location = extractValue(nodeStatSnapshot, "repository_location");
         Long startedAt = extractValue(nodeStatSnapshot, "repository_started_at");
         Long stoppedAt = extractValue(nodeStatSnapshot, "repository_stopped_at");
         return new RepositoryInfo(id, name, type, location, startedAt, stoppedAt);

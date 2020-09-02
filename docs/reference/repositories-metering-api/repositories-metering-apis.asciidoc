@@ -7,7 +7,7 @@ experimental[]
 
 You can use the following APIs to retrieve repositories meterings.
 
-This is an API meant to be used by Elastic's commercial offerings.
+This is an API used by Elastic's commercial offerings.
 
 * <<get-repositories-metering-api,Get repositories metering>>
 * <<clear-repositories-metering-archive-api,Clear repositories metering archive>>

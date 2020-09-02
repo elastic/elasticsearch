@@ -108,7 +108,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         RepositoryInfo repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
+            Map.of("bucket", randomAlphaOfLength(10)),
             System.currentTimeMillis(),
             null);
         return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, true);

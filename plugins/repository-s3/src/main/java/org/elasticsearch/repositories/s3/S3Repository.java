@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -199,7 +200,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             clusterService,
             recoverySettings,
             buildBasePath(metadata),
-            BUCKET_SETTING.get(metadata.settings()));
+            buildLocation(metadata));
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -232,6 +233,11 @@ class S3Repository extends MeteredBlobStoreRepository {
                 bufferSize,
                 cannedACL,
                 storageClass);
+    }
+
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return Map.of("base_path", buildBasePath(metadata).buildAsString(),
+            "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 
     /**

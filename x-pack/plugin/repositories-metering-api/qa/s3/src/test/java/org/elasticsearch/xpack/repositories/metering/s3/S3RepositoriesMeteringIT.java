@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
@@ -18,8 +19,8 @@ public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRes
     }
 
     @Override
-    protected String repositoryLocation() {
-        return getProperty("test.s3.bucket") + "/" + getProperty("test.s3.base_path") + "/";
+    protected Map<String, String> repositoryLocation() {
+        return Map.of("bucket", getProperty("test.s3.bucket"), "base_path", getProperty("test.s3.base_path") + "/");
     }
 
     @Override

@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
@@ -18,8 +19,8 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
     }
 
     @Override
-    protected String repositoryLocation() {
-        return getProperty("test.gcs.bucket") + "/" + getProperty("test.gcs.base_path") + "/";
+    protected Map<String, String> repositoryLocation() {
+        return Map.of("bucket", getProperty("test.gcs.bucket"), "base_path", getProperty("test.gcs.base_path") + "/");
     }
 
     @Override
@@ -37,11 +38,11 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @Override
     protected List<String> readCounterKeys() {
-        return List.of("storage.objects.get", "storage.objects.list");
+        return List.of("GetObject", "ListObjects");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return List.of("storage.objects.insert");
+        return List.of("InsertObject");
     }
 }

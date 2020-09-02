@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
@@ -18,8 +19,8 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
     }
 
     @Override
-    protected String repositoryLocation() {
-        return getProperty("test.azure.container") + "/" + getProperty("test.azure.base_path") + "/";
+    protected Map<String, String> repositoryLocation() {
+        return Map.of("container", getProperty("test.azure.container"), "base_path", getProperty("test.azure.base_path") + "/");
     }
 
     @Override

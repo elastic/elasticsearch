@@ -50,10 +50,44 @@ Repository name.
 Repository type.
 
 `repository_location`::
-(string) 
-Represents an unique location within the repository, 
-i.e. a `bucket` + `base_path`.
+(object)
+Represents an unique location within the repository.
++
+.Properties of `repository_location` for repository type `Azure`
+[%collapsible%open]
+======
+`base_path`::
+(string)
+The path within the container where the repository stores data.
 
+`container`::
+(string)
+Container name.
+======
++
+.Properties of `repository_location` for repository type `GCP`
+[%collapsible%open]
+======
+`base_path`::
+(string)
+The path within the bucket where the repository stores data.
+
+`bucket`::
+(string)
+Bucket name.
+======
++
+.Properties of `repository_location` for repository type `S3`
+[%collapsible%open]
+======
+`base_path`::
+(string)
+The path within the bucket where the repository stores data.
+
+`bucket`::
+(string)
+Bucket name.
+======
 `repository_ephemeral_id`::
 (string) 
 An identifier that changes every time the repository is updated.
@@ -71,13 +105,19 @@ since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 `archived`::
 (boolean) 
 A flag that tells whether or not this object has been archived.
+When a repository is closed or updated the repository metering information
+is archived and kept for a certain period of time. This allows retrieving
+the repository metering information of previous repository versions.
 
-`cluster_version`:: 
+`archive_version`::
 (long) 
-The cluster state version when this object was created, this field
+The cluster state version when this object was archived, this field
 can be used as a logical timestamp to delete all the archived metrics up
-to a observed cluster version. This field is only present for archived
-objects.
+to an observed version. This field is only present for archived
+repository metering information objects. The main purpose of this
+field is to avoid possible race conditions during repository metering
+information deletions, i.e. deleting archived repositories metering
+information that we haven't observed yet.
 
 `request_counts`::
 (object) 
@@ -95,8 +135,8 @@ grouped by request type.
 (long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs[List Blobs] requests.
 `PutBlob`::
 (long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob[Put Blob] requests.
-`PutBlobBlock`::
-(long) Number of  https://docs.microsoft.com/en-us/rest/api/storageservices/put-block[Put Block] requests.
+`PutBlock`::
+(long) Number of https://docs.microsoft.com/en-us/rest/api/storageservices/put-block[Put Block] and https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list[Put Block List] requests.
 
 Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[pricing].
 ======
@@ -104,14 +144,16 @@ Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[p
 .Properties of `request_counts` for repository type `GCP`
 [%collapsible%open]
 ======
-`storage.objects.get`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/get[get] requests.
-`storage.objects.list`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/list[list] requests.
-`storage.objects.resumable-insert`::
-(long) Number of https://cloud.google.com/storage/docs/performing-resumable-uploads[resumable insert] requests.
-`storage.objects.insert`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[insert] requests.
+`GetObject`::
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/get[get object] requests.
+`ListObjects`::
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/list[list objects] requests.
+`ResumableInsertObject`::
+(long) Number of https://cloud.google.com/storage/docs/performing-resumable-uploads[resumable insert object] requests,
+even though resumable uploads can perform multiple http requests they are considered as a single operation for billing
+purposes.
+`InsertObject`::
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[insert object] requests.
 
 Google Cloud storage https://cloud.google.com/storage/pricing[pricing].
 ======
@@ -126,7 +168,10 @@ Google Cloud storage https://cloud.google.com/storage/pricing[pricing].
 `PutObject`::
 (long) Number of https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html[PutObject] requests.
 `PutMultipartObject`::
-(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html[MultiPart] requests.
+(long) Number of https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html[MultiPart] requests,
+including https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html[CreateMultiPartUpload],
+https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html[UploadPart] and https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html[CompleteMultipartUpload]
+requests.
 
 Amazon Web Services Simple Storage Service https://aws.amazon.com/s3/pricing/[pricing].
 ======

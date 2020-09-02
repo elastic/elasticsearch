@@ -80,14 +80,14 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;
 
-        createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes, executorService);
+        createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, processPipes,
                 numberOfFields, filesToDelete, onProcessCrash, processConnectTimeout,
                 analyticsProcessConfig, namedXContentRegistry);
 
         try {
-            startProcess(config, executorService, processPipes, analyticsProcess);
+            startProcess(config, executorService, analyticsProcess);
             return analyticsProcess;
         } catch (IOException | EsRejectedExecutionException e) {
             String msg = "Failed to connect to data frame analytics process for job " + jobId;
@@ -101,8 +101,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         }
     }
 
-    private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService, ProcessPipes processPipes,
-                                                NativeAnalyticsProcess process) throws IOException {
+    private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService,
+                              NativeAnalyticsProcess process) throws IOException {
         if (config.getAnalysis().persistsState()) {
             IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
             process.start(executorService, stateProcessor);
@@ -112,7 +112,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     }
 
     private void createNativeProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, List<Path> filesToDelete,
-                                     ProcessPipes processPipes, ExecutorService executorService) {
+                                     ProcessPipes processPipes) {
         AnalyticsBuilder analyticsBuilder =
             new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {

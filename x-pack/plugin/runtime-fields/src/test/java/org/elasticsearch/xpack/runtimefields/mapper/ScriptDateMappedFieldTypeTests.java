@@ -13,6 +13,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -152,6 +153,9 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181351]}"));
                 assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181354]}"));
                 assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181356]}"));
+                assertThat((Long) (((FieldDoc) docs.scoreDocs[0]).fields[0]), equalTo(1595432181351L));
+                assertThat((Long) (((FieldDoc) docs.scoreDocs[1]).fields[0]), equalTo(1595432181354L));
+                assertThat((Long) (((FieldDoc) docs.scoreDocs[2]).fields[0]), equalTo(1595432181356L));
             }
         }
     }

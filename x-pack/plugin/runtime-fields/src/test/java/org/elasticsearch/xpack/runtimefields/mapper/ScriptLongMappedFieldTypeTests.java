@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -52,6 +53,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
     public void testFormat() throws IOException {
@@ -113,6 +115,30 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
                 assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2]}"));
                 assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4]}"));
+            }
+        }
+    }
+
+    public void testNow() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                ScriptLongFieldData ifd = build("millis_ago", Map.of()).fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null, null);
+                SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
+                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181356]}"));
+                assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181354]}"));
+                assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
+                long t1 = (Long) (((FieldDoc) docs.scoreDocs[0]).fields[0]);
+                assertThat(t1, greaterThan(3638011399L));
+                long t2 = (Long) (((FieldDoc) docs.scoreDocs[1]).fields[0]);
+                long t3 = (Long) (((FieldDoc) docs.scoreDocs[2]).fields[0]);
+                assertThat(t2, equalTo(t1 + 2));
+                assertThat(t3, equalTo(t1 + 5));
             }
         }
     }
@@ -287,6 +313,17 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
                                             emitValue(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
+                                        }
+                                    }
+                                };
+                            case "millis_ago":
+                                // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
+                                long now = System.currentTimeMillis();
+                                return (params, lookup) -> (ctx) -> new LongScriptFieldScript(params, lookup, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
+                                            emitValue(now - ((Number) timestamp).longValue());
                                         }
                                     }
                                 };

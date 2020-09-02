@@ -231,6 +231,6 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
 
     @Override
     public void testMinimalToMaximal() {
-        // `include_defaults` includes unsupported properties in non-parametrized mappers
+        assumeFalse("`include_defaults` includes unsupported properties in non-parametrized mappers", false);
     }
 }

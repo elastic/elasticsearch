@@ -128,14 +128,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        var fieldType = fieldType().hasDocValues() ? Defaults.FIELD_TYPE : Defaults.LEGACY_FIELD_TYPE;
         for (String field : context.getIgnoredFields()) {
-            if (!fieldType().hasDocValues()) {
-                // Use legacy field type if there are no doc values
-                context.doc().add(new Field(NAME, field, Defaults.LEGACY_FIELD_TYPE));
-                continue;
+            if (fieldType().hasDocValues()) {
+                final BytesRef binaryValue = new BytesRef(field);
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
             }
-            final BytesRef binaryValue = new BytesRef(field);
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new Field(NAME, field, fieldType));
         }
     }
 

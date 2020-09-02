@@ -25,8 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -207,13 +205,7 @@ public class AnalyzeRequest implements Validatable, ToXContentObject {
         NameOrDefinition(Map<String, ?> definition) {
             this.name = null;
             Objects.requireNonNull(definition);
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
-            }
+            this.definition = Settings.builder().loadFromMap(definition).build();
         }
 
         @Override

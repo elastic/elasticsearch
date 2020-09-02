@@ -248,16 +248,6 @@ case_insensitive = true
 query = 'process where process_name >= "SYSTE" and process_name <= "systex"'
 expected_event_ids  = [1, 2]
 
-
-[[queries]]
-name = "processWithStringEqualityCaseInsensitive1"
-case_insensitive = true
-query = '''
-process where process_name == "VMACTHLP.exe" and unique_pid == 12
-| filter true
-'''
-expected_event_ids  = [12]
-
 [[queries]]
 name = "processNameIN"
 query = '''

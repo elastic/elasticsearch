@@ -1,0 +1,7 @@
+apply plugin: 'elasticsearch.build'
+test.enabled = false
+
+dependencies {
+  implementation project(':test:framework')
+}
+

@@ -14,7 +14,6 @@
     "index.refresh_interval": "1s",
     "index.format": 1
   },
-  "allow_auto_create": true,
   "mappings": {
     "_doc": {
       "_meta": {

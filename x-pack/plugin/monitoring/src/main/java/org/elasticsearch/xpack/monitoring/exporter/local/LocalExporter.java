@@ -430,7 +430,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     // FIXME this should use the IndexTemplateMetadataUpgrader
     private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("installing template [{}]", template);
+        logger.warn("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
         assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";

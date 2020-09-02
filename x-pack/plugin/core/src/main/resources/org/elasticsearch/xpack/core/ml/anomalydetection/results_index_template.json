@@ -4,7 +4,6 @@
   "index_patterns" : [
     ".ml-anomalies-*"
   ],
-  "allow_auto_create": true,
   "settings" : {
     "index" : {
       "translog" : {

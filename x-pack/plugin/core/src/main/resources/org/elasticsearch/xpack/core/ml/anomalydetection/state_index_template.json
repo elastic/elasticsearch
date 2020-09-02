@@ -12,7 +12,6 @@
     "index.lifecycle.name": "${xpack.ml.index.lifecycle.name}",
     "index.lifecycle.rollover_alias": "${xpack.ml.index.lifecycle.rollover_alias}"
   },
-  "allow_auto_create": true,
   "mappings" : {
     "_doc": {
       "_meta": {

@@ -9,7 +9,6 @@
       "index.auto_expand_replicas": "0-1",
       "index.lifecycle.name": "ilm-history-ilm-policy"
     },
-    "allow_auto_create": true,
     "mappings": {
         "dynamic": false,
         "properties": {
@@ -78,6 +77,7 @@
         }
       }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for ILM history indices",
     "managed": true

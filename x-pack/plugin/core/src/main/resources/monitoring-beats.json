@@ -10,7 +10,6 @@
     "index.number_of_shards": 1
   },
   "version": 7000099,
-  "allow_auto_create": true,
   "mappings": {
     "_doc": {
       "dynamic": false,

@@ -905,6 +905,7 @@ public class MetadataIndexTemplateService {
         final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
+            logger.warn("XXX: template v2 name = {}", name);
             final ComposableIndexTemplate template = entry.getValue();
             if (isHidden == false) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);

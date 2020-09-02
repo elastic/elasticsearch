@@ -10,7 +10,6 @@
       "auto_expand_replicas" : "0-1"
     }
   },
-  "allow_auto_create": true,
   "mappings" : {
     "_doc": {
       "_meta": {

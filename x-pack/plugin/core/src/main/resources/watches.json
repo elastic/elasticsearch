@@ -9,7 +9,6 @@
       "index.format": 6,
       "index.priority": 800
     },
-    "allow_auto_create": true,
     "mappings": {
       "dynamic": "strict",
       "properties": {
@@ -60,6 +59,7 @@
         }
     }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for watches indices",
     "managed": true

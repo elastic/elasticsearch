@@ -4,7 +4,6 @@
   "index_patterns" : [
     ".ml-config"
   ],
-  "allow_auto_create": true,
   "settings" : {
     "index" : {
       "max_result_window" : "${xpack.ml.config.max_result_window}",

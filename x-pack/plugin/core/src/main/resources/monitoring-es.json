@@ -8,7 +8,6 @@
     "index.format": 7,
     "index.codec": "best_compression"
   },
-  "allow_auto_create": true,
   "mappings": {
     "_doc": {
       "date_detection": false,

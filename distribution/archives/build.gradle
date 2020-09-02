@@ -25,7 +25,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-import groovy.io.FileType
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -111,6 +110,11 @@ tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
   with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
 }
 
+tasks.register('buildDarwin', Copy) {
+    into("build/buildDarwin")
+    with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
+}
+
 tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
@@ -169,25 +173,13 @@ subprojects {
   apply plugin: 'distribution'
   apply plugin: 'elasticsearch.internal-distribution-archive-check'
 
-  distributionArchiveCheck {
-    expectedMlLicenses.add("Boost Software License - Version 1.0 - August 17th, 2003")
-  }
-
-  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.named(buildTask)
-  artifacts {
-    'default' buildDist
-  }
-}
-
-subprojects {
   group = "org.elasticsearch.distribution.${name.startsWith("oss-") ? "oss" : "default"}"
 }
 
 /*****************************************************************************
  *                            Rest test config                               *
  *****************************************************************************/
-configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
+project('integ-test-zip') {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
 
@@ -207,6 +199,9 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
 
   // make the pom file name use elasticsearch instead of the project name
   archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
+
+  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
+  ext.buildDist = parent.tasks.named(buildTask)
 
   publishing {
     publications {

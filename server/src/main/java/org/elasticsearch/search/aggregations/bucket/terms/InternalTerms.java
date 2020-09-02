@@ -395,9 +395,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
          * the provided aggregations use a different {@link InternalTerms#reduceOrder}.
          */
         BucketOrder thisReduceOrder = getReduceOrder(aggregations);
-        List<B> reducedBuckets =// isKeyOrder(thisReduceOrder) ?
-            //reduceMergeSort(aggregations, thisReduceOrder, reduceContext) :
-        reduceLegacy(aggregations, reduceContext);
+        List<B> reducedBuckets = isKeyOrder(thisReduceOrder) ?
+            reduceMergeSort(aggregations, thisReduceOrder, reduceContext) : reduceLegacy(aggregations, reduceContext);
         final B[] list;
         if (reduceContext.isFinalReduce()) {
             final int size = Math.min(requiredSize, reducedBuckets.size());
@@ -428,7 +427,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         } else {
             int size = isKeyOrder(order) ? Math.min(requiredSize, reducedBuckets.size()) : reducedBuckets.size();
             list = createBucketsArray(size);
-            for (int i = 0; i < reducedBuckets.size(); i++) {
+            for (int i = 0; i < size; i++) {
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 list[i] = reducedBuckets.get(i);
                 if (sumDocCountError == -1) {

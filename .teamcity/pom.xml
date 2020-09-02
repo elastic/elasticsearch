@@ -20,4 +20,12 @@
         <artifactId>teamcity-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
+
+    <dependencies>
+        <dependency>
+            <groupId>co.elastic.teamcity</groupId>
+            <artifactId>teamcity-common</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
 </project>

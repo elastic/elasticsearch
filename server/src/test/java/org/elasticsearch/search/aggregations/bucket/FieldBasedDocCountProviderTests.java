@@ -42,7 +42,7 @@ import static java.util.Collections.singleton;
 
 public class FieldBasedDocCountProviderTests extends AggregatorTestCase {
 
-    private static final String DOC_COUNT_FIELD = DocCountFieldMapper.CANONICAL_NAME;
+    private static final String DOC_COUNT_FIELD = DocCountFieldMapper.NAME;
     private static final String NUMBER_FIELD = "number";
 
     public void testDocsWithDocCount() throws IOException {
@@ -102,7 +102,7 @@ public class FieldBasedDocCountProviderTests extends AggregatorTestCase {
                                  Consumer<InternalGlobal> verify) throws IOException {
         GlobalAggregationBuilder aggregationBuilder = new GlobalAggregationBuilder("_name");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD, NumberFieldMapper.NumberType.LONG);
-        MappedFieldType docCountFieldType = new DocCountFieldMapper.DocCountFieldType(DOC_COUNT_FIELD);
+        MappedFieldType docCountFieldType = new DocCountFieldMapper.DocCountFieldType();
         testCase(aggregationBuilder, query, indexer, verify, fieldType, docCountFieldType);
     }
 }

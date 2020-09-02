@@ -39,7 +39,7 @@ public class FieldBasedDocCountProvider implements DocCountProvider {
     public FieldBasedDocCountProvider() {
         // Since we allow a single doc_count field per mapping, we use a constant
         // canonical name for the Lucene field.
-        this.docCountFieldName = DocCountFieldMapper.CANONICAL_NAME;
+        this.docCountFieldName = DocCountFieldMapper.NAME;
     }
 
     @Override

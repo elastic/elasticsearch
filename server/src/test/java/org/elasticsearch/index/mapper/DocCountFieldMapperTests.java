@@ -38,7 +38,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
 
     private static final String CONTENT_TYPE = DocCountFieldMapper.CONTENT_TYPE;
-    private static final String DOC_COUNT_FIELD = "doc_count";
+    private static final String DOC_COUNT_FIELD = DocCountFieldMapper.NAME;
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -65,9 +65,6 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .startObject("_doc")
                 .startObject("properties")
-                .startObject(DOC_COUNT_FIELD)
-                .field("type", CONTENT_TYPE)
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -85,13 +82,14 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
+                        .field("foo", 500)
                         .field(DOC_COUNT_FIELD, 10)
                         .endObject()
                 ),
                 XContentType.JSON
             )
         );
-        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.CANONICAL_NAME).numericValue());
+        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.NAME).numericValue());
     }
 
     public void testReadDocCounts() throws Exception {
@@ -128,7 +126,7 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.CANONICAL_NAME).numericValue());
+        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.NAME).numericValue());
     }
 
     /**

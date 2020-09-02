@@ -19,10 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,62 +29,45 @@ import org.elasticsearch.index.query.QueryShardException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /** Mapper for the doc_count field. */
-public class DocCountFieldMapper extends FieldMapper {
+public class DocCountFieldMapper extends MetadataFieldMapper {
 
-    public static final String CONTENT_TYPE = "doc_count";
-    public static final String CANONICAL_NAME = "_doc_count";
+    public static final String NAME = "_doc_count";
+    public static final String CONTENT_TYPE = "_doc_count";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> new DocCountFieldMapper(),
+        c -> new DocCountFieldMapper.Builder()) {
 
-        static {
-            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
+        public boolean isAllowedInSource() {
+            return true;
         }
-    }
+    };
 
-    public static class Builder extends FieldMapper.Builder<DocCountFieldMapper.Builder> {
+    static class Builder extends MetadataFieldMapper.Builder {
 
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+        public Builder() {
+            super(NAME);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.emptyList();
         }
 
         @Override
         public DocCountFieldMapper build(BuilderContext context) {
-            DocCountFieldType defaultFieldType = new DocCountFieldType(buildFullName(context), hasDocValues, meta);
-            return new DocCountFieldMapper(name, fieldType, defaultFieldType);
-        }
-    }
-
-    public static class TypeParser implements Mapper.TypeParser {
-
-        public TypeParser() {
-        }
-
-        @Override
-        public DocCountFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-            DocCountFieldMapper.Builder builder = new DocCountFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
-            return builder;
+            return new DocCountFieldMapper();
         }
     }
 
     public static final class DocCountFieldType extends MappedFieldType {
 
-        public DocCountFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
-        }
+        public static final DocCountFieldType INSTANCE = new DocCountFieldType();
 
-        public DocCountFieldType(String name) {
-            this(name, true, Collections.emptyMap());
+        public DocCountFieldType() {
+            super(NAME, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
         }
 
         @Override
@@ -97,7 +77,7 @@ public class DocCountFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(CANONICAL_NAME);
+            return new DocValuesFieldExistsQuery(NAME);
         }
 
         @Override
@@ -106,11 +86,8 @@ public class DocCountFieldMapper extends FieldMapper {
         }
     }
 
-    protected DocCountFieldMapper(
-        String simpleName,
-        FieldType fieldType,
-        MappedFieldType defaultFieldType) {
-        super(simpleName, fieldType, defaultFieldType, MultiFields.empty(), CopyTo.empty());
+    private DocCountFieldMapper() {
+        super(DocCountFieldType.INSTANCE);
     }
 
     @Override
@@ -130,23 +107,26 @@ public class DocCountFieldMapper extends FieldMapper {
 
             // Since we allow a single doc_count field per mapping, we can use a
             // a canonical name for the Lucene field.
-            final Field docCount = new NumericDocValuesField(CANONICAL_NAME, value.longValue());
+            final Field docCount = new NumericDocValuesField(NAME, value.longValue());
             context.doc().add(docCount);
         }
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
+    public void preParse(ParseContext context) { }
+
+//    @Override
+//    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+//        if (format != null) {
+//            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+//        }
+//        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+//            @Override
+//            protected Object parseSourceValue(Object value) {
+//                return value;
+//            }
+//        };
+//    }
 
     @Override
     public DocCountFieldType fieldType() {
@@ -156,11 +136,6 @@ public class DocCountFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
-        // nothing to do
     }
 
 }

@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -78,7 +79,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                             () -> config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
                 }, threadPool);
         String domainName = config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
-        if (domainName == null) {
+        if (Strings.isNullOrEmpty(domainName)) {
             throw new IllegalArgumentException("missing [" +
                     RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)
                     + "] setting for active directory");

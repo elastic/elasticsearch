@@ -40,7 +40,6 @@ import static org.mockito.Mockito.when;
  * Base class for testing {@link Mapper}s.
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
-
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     public final void testEmptyName() {
@@ -59,6 +58,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
         createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        parsedFromOrig.endObject();
+        assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
+        assertParseMinimalWarnings();
+    }
+
+    // TODO make this final once we remove FieldMapperTestCase2
+    public void testMinimalToMaximal() throws IOException {
+        XContentBuilder orig = JsonXContent.contentBuilder().startObject();
+        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        orig.endObject();
+        XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
+        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMinimalWarnings();

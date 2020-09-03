@@ -94,6 +94,58 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertThat(response.content(), equalTo(new TestRestResponse().content()));
     }
 
+    public void testCorsEnabledWithoutAllowOrigins() {
+        // Set up an HTTP transport with only the CORS enabled setting
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .build();
+        TestResponse response = executeRequest(settings, "remote-host");
+        assertEquals(0, response.headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN).size());
+    }
+
+    public void testCorsEnabledWithAllowOrigins() {
+        final String originValue = "remote-hos*";
+        final String pattern;
+        if (randomBoolean()) {
+            pattern = originValue;
+        } else {
+            pattern = "remote-hos*";
+        }
+        // create an HTTP transport with CORS enabled and allow origin configured
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN.getKey(), pattern)
+            .build();
+        TestResponse response = executeRequest(settings, originValue);
+        assertEquals(originValue, response.headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN).get(0));
+        assertEquals(CorsHandler.ORIGIN, response.headers.get(CorsHandler.VARY).get(0));
+    }
+
+    public void testCorsEnabledWithAllowOriginsAndAllowCredentials() {
+        final String originValue = "remote-host";
+        // create an HTTP transport with CORS enabled and allow origin configured
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN.getKey(), CorsHandler.ANY_ORIGIN)
+            .put(HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .build();
+        TestResponse response = executeRequest(settings, originValue);
+        assertEquals(originValue, response.headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN).get(0));
+        assertEquals(CorsHandler.ORIGIN, response.headers.get(CorsHandler.VARY).get(0));
+        assertEquals("true", response.headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS).get(0));
+    }
+
+    public void testThatAnyOriginWorks() {
+        final String originValue = CorsHandler.ANY_ORIGIN;
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
+            .build();
+        TestResponse response = executeRequest(settings, originValue);
+        assertEquals(originValue, response.headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN).get(0));
+        assertEquals(0, response.headers.get(CorsHandler.VARY).size());
+    }
+
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");

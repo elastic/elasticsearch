@@ -151,8 +151,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                     upgradeDepsTask.configure(t -> t.dependsOn(distribution, bwcDistro));
                     depsTasks.put(upgradeTaskname, upgradeDepsTask);
                     TaskProvider<Test> upgradeTest = configureTestTask(project, upgradeTaskname, distribution, t -> {
-                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
-                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::toString);
+                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
+                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::getFilepath);
                         t.include("**/PackageUpgradeTests.class");
                     }, upgradeDepsTask);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));

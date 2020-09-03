@@ -289,9 +289,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
-            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
+            assertThat(pc.cardinality().map(i -> i), equalTo(2));
             pc = ranges.get(1).getAggregations().get("c");
-            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
+            assertThat(pc.cardinality().map(i -> i), equalTo(2));
         });
     }
 

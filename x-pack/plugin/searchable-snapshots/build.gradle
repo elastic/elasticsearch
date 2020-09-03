@@ -1,4 +1,6 @@
 import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'searchable-snapshots'
@@ -10,7 +12,7 @@ archivesBaseName = 'x-pack-searchable-snapshots'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

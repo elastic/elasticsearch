@@ -1,7 +1,4 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
   restApi {
@@ -10,11 +7,7 @@ restResources {
   }
 }
 
-dependencies {
-  testImplementation project(path: xpackModule('data-streams'))
-}
-
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   // disable ILM history, since it disturbs tests using _all

@@ -20,6 +20,7 @@ dependencies {
 restResources {
   restApi {
     includeCore '_common', 'bulk', 'indices', 'index', 'search'
+    includeXpack 'xpack'
   }
   restTests {
     includeCore 'geo_shape'

@@ -4,14 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.analytics;
+package org.elasticsearch.xpack.core.common.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireTestCase;
-import org.elasticsearch.xpack.core.analytics.EnumCounters;
 
 import java.io.IOException;
 import java.util.Map;

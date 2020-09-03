@@ -317,9 +317,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 currentBuckets.add(top.current());
 
                 if (top.hasNext()) {
-                    final Bucket prev = top.current();
                     top.next();
-                    assert Double.compare(top.current().key, prev.key) > 0 : "shards must return data sorted by key";
+                    assert Double.compare(top.current().key, key) > 0 : "shards must return data sorted by key";
                     pq.updateTop();
                 } else {
                     pq.pop();

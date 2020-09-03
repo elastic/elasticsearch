@@ -290,9 +290,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             lastBucket = top.current();
             currentBuckets.add(top.current());
             if (top.hasNext()) {
-                final B prev = top.current();
                 top.next();
-                assert top.current().compareKey(prev) > 0 : "shards must return data sorted by key";
+                assert cmp.compare(top.current(), lastBucket) > 0 : "shards must return data sorted by key";
                 pq.updateTop();
             } else {
                 pq.pop();

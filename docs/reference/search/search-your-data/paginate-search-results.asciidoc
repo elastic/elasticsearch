@@ -51,10 +51,6 @@ the order of your results may change, causing inconsistent results across pages.
 prevent this, you can create a <<point-in-time-api,point in time (PIT)>> to
 preserve the current index state over your searches.
 
-IMPORTANT: We don't recommend creating PITs for each user request. Each PIT
-requires additional disk space and file handles. If you want to paginate search
-results for user requests, use `search_after` without a PIT.
-
 [source,console]
 ----
 POST /my-index-000001/_pit?keep_alive=1m

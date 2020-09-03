@@ -246,3 +246,61 @@
   - match: { "watch_record.result.actions.0.type" : "email" }
   - match: { "watch_record.result.actions.0.email.message.subject" : "404 recently encountered" }
 
+---
+"Test executing logging action using scripts with params":
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      put_script:
+        id: log-action
+        body: >
+          {
+            "script":
+            {
+              "lang": "painless",
+              "source": "params.color + \" alert\""
+            }
+          }
+
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "interval": "1m" }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "log" : {
+                "logging" : {
+                  "text" : {
+                    "id": "log-action",
+                    "params": {
+                      "color": "yellow"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.result.actions.0.id: "log" }
+  - match: { watch_record.result.actions.0.type: "logging" }
+  - match: { watch_record.result.actions.0.status: "success" }
+  - match: { watch_record.result.actions.0.logging.logged_text: "yellow alert" }

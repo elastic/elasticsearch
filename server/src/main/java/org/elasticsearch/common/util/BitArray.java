@@ -36,7 +36,7 @@ public final class BitArray implements Releasable {
      * Create the {@linkplain BitArray}.
      * @param initialSize the initial size of underlying storage.
      */
-    public BitArray(int initialSize, BigArrays bigArrays) {
+    public BitArray(long initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
         this.bits = bigArrays.newLongArray(initialSize, true);
     }
@@ -44,8 +44,8 @@ public final class BitArray implements Releasable {
     /**
      * Set the {@code index}th bit.
      */
-    public void set(int index) {
-        int wordNum = wordNum(index);
+    public void set(long index) {
+        long wordNum = wordNum(index);
         bits = bigArrays.grow(bits, wordNum + 1);
         bits.set(wordNum, bits.get(wordNum) | bitmask(index));
     }
@@ -53,8 +53,8 @@ public final class BitArray implements Releasable {
     /**
      * Clear the {@code index}th bit.
      */
-    public void clear(int index) {
-        int wordNum = wordNum(index);
+    public void clear(long index) {
+        long wordNum = wordNum(index);
         if (wordNum >= bits.size()) {
             /*
              * No need to resize the array just to clear the bit because we'll
@@ -68,8 +68,8 @@ public final class BitArray implements Releasable {
     /**
      * Is the {@code index}th bit set?
      */
-    public boolean get(int index) {
-        int wordNum = wordNum(index);
+    public boolean get(long index) {
+        long wordNum = wordNum(index);
         if (wordNum >= bits.size()) {
             /*
              * If the word is bigger than the array then it could *never* have
@@ -81,11 +81,11 @@ public final class BitArray implements Releasable {
         return (bits.get(wordNum) & bitmask) != 0;
     }
 
-    private static int wordNum(int index) {
+    private static long wordNum(long index) {
         return index >> 6;
     }
 
-    private static long bitmask(int index) {
+    private static long bitmask(long index) {
         return 1L << index;
     }
 

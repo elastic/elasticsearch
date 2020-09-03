@@ -3,7 +3,7 @@
 [[transform-painless-examples]]
 = Painless examples for {transforms}
 ++++
-<titleabbrev>Painless examples for {transforms}</titleabbrev>
+<titleabbrev>Painless examples</titleabbrev>
 ++++
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
@@ -341,9 +341,13 @@ date which results in the duration of the session.
 == Counting HTTP responses by using scripted metric aggregation
 
 You can count the different HTTP response types in a web log data set by using 
-scripted metric aggregation as part of the {transform}. The example below 
-assumes that the HTTP response codes are stored as keywords in the `response` 
-field of the documents.
+scripted metric aggregation as part of the {transform}. You can achieve the same 
+function with filter aggregations, check the 
+{ref}/transform-examples.html#example-clientips[Finding suspicious client IPs] 
+example for details.
+
+The example below assumes that the HTTP response codes are stored as keywords in 
+the `response` field of the documents.
 
 [source,js]
 --------------------------------------------------

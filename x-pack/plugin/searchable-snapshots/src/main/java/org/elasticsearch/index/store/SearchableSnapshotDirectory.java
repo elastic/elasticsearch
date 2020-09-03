@@ -197,8 +197,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public boolean loadSnapshot(RecoveryState recoveryState) {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT ||
-            recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            || recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
         assert assertCurrentThreadMayLoadSnapshot();
         // noinspection ConstantConditions in case assertions are disabled
         if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {

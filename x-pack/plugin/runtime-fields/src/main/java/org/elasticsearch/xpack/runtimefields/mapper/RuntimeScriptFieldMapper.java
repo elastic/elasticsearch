@@ -51,7 +51,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     protected RuntimeScriptFieldMapper(
         String simpleName,
-        AbstractScriptMappedFieldType mappedFieldType,
+        AbstractScriptMappedFieldType<?> mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
         String runtimeType,
@@ -86,7 +86,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
             BooleanFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
@@ -211,7 +211,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<String> format = Parameter.stringParam(
             "format",
             true,
-            mapper -> ((AbstractScriptMappedFieldType) mapper.fieldType()).format(),
+            mapper -> ((AbstractScriptMappedFieldType<?>) mapper.fieldType()).format(),
             null
         ).setSerializer((b, n, v) -> {
             if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
@@ -223,7 +223,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            mapper -> ((AbstractScriptMappedFieldType) mapper.fieldType()).formatLocale()
+            mapper -> ((AbstractScriptMappedFieldType<?>) mapper.fieldType()).formatLocale()
         ).setSerializer((b, n, v) -> {
             if (v != null && false == v.equals(Locale.ROOT)) {
                 b.field(n, v.toString());
@@ -244,7 +244,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public RuntimeScriptFieldMapper build(BuilderContext context) {
-            BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+            BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType<?>> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
             if (fieldTypeResolver == null) {

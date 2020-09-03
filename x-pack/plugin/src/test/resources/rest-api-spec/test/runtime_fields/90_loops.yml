@@ -183,6 +183,7 @@ setup:
             loop:
              terms:
                field: over_max_depth
+
 ---
 "Max chain depth - sort":
   - do:
@@ -191,6 +192,7 @@ setup:
         index: sensor
         body:
           sort: over_max_depth
+
 ---
 "Max chain depth - docvalue_fields":
   - do:
@@ -200,3 +202,14 @@ setup:
         body:
           sort: timestamp
           docvalue_fields: [over_max_depth]
+
+---
+"Max chain depth - query":
+  - do:
+      catch: '/Field requires resolving too many dependent fields: over_max_depth -> over_max_depth_1 -> over_max_depth_2 -> over_max_depth_3 -> over_max_depth_4 -> over_max_depth_5/'
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              over_max_depth: foo

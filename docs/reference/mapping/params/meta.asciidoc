@@ -29,3 +29,24 @@ than or equal to 50.
 
 NOTE: Field metadata is updatable by submitting a mapping update. The metadata
 of the update will override the metadata of the existing field.
+
+Elastic products standardize on the following metadata, which you may use too
+in order to get a better out-of-the-box experience with your data.
+
+unit::
+
+  The unit of the field. Recognizes `"byte"` as well as
+  <<time-units,time units>>. By default, fields are assumed to not have a unit.
+  This information should only be specified on numeric fields.
+
+metric_type::
+
+  The type of metric. Recognizes `"gauge"` and `"counter"`. By default, fields
+  are assumed to not be a metric. This information should only be specified on
+  numeric fields.
+
+ratio::
+
+  Whether the field is a ratio. Recognizes `true` and `false` (default). The
+  value should not be `true` when a `unit` is also specified. This information
+  should only be specified on numeric fields.

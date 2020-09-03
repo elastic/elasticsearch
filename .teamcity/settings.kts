@@ -23,6 +23,8 @@ import builds.SanityCheck
 import builds.XpackChecks
 import jetbrains.buildServer.configs.kotlin.v2019_2.*
 import jetbrains.buildServer.configs.kotlin.v2019_2.buildFeatures.notifications
+import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.VersionedSettings
+import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.versionedSettings
 import jetbrains.buildServer.configs.kotlin.v2019_2.triggers.vcs
 import templates.DefaultTemplate
 
@@ -33,6 +35,16 @@ project {
     template(DefaultTemplate)
 
     defaultTemplate = DefaultTemplate
+
+    features {
+        versionedSettings {
+            rootExtId = DslContext.settingsRoot.id.toString()
+            mode = VersionedSettings.Mode.ENABLED
+            buildSettingsMode = VersionedSettings.BuildSettingsMode.PREFER_SETTINGS_FROM_VCS
+            settingsFormat = VersionedSettings.Format.KOTLIN
+            storeSecureParamsOutsideOfVcs = true
+        }
+    }
 
     buildType {
         id("Intake")

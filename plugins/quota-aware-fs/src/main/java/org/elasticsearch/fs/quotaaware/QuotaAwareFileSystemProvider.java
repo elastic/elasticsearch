@@ -19,8 +19,6 @@
 
 package org.elasticsearch.fs.quotaaware;
 
-import org.apache.lucene.util.IOUtils;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -78,7 +76,7 @@ import java.util.stream.StreamSupport;
  * <li>Specify this argument at JVM boot:
  * <code>-Djava.nio.file.spi.DefaultFileSystemProvider=co.elastic.cloud.quotaawarefs.QuotaAwareFileSystemProvider</code>
  * </li>
- * <li>Have some external system (Scala allocator) check the quota usage and
+ * <li>Have some external system check the quota usage and
  * write it to this path: {@value #DEFAULT_QUOTA_PATH}, optionally this path may
  * be changed by specifying system property {@value #QUOTA_PATH_KEY}.</li>
  * </ol>

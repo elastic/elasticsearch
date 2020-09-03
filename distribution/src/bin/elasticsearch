@@ -54,6 +54,14 @@ fi
 #   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
 
+# If the quote-aware filesystem plugin is installed, then we need to pass extra
+# flags to Java in order to use the plugin.
+if [[ -d "$ES_HOME/plugins/quota-aware-fs" ]]; then
+  PLUGIN_JAR_PATH="$(find $ES_HOME/plugins/quota-aware-fs -name quota-aware-fs\*.jar)"
+  ES_JAVA_OPTS="$ES_ES_JAVA_OPTS -Djava.nio.file.spi.DefaultFileSystemProvider=org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider"
+  ES_JAVA_OPTS="$ES_ES_JAVA_OPTS '-Xbootclasspath/a:$PLUGIN_JAR_PATH'"
+fi
+
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   exec \

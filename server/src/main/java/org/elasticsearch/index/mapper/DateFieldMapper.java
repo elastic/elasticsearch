@@ -56,6 +56,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -213,9 +215,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         protected DateFieldType setupFieldType(BuilderContext context) {
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-            return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
-                dateTimeFormatter, resolution, meta.getValue());
+            try {
+                DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
+                    dateTimeFormatter, resolution, meta.getValue());
+            }
+            catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+            }
         }
 
         @Override
@@ -223,11 +230,23 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
+        private Long parseNullValue(DateFormatter formatter) {
+            if (nullValue.getValue() == null) {
+                return null;
+            }
+            try {
+                return formatter.parseMillis(nullValue.getValue());
+            }
+            catch (Exception e) {
+                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+            }
+        }
+
         @Override
         public DateFieldMapper build(BuilderContext context) {
             DateFieldType ft = setupFieldType(context);
             ft.setBoost(boost.getValue());
-            Long nullTimestamp = nullValue.getValue() == null ? null : ft.dateTimeFormatter.parseMillis(nullValue.getValue());
+            Long nullTimestamp = parseNullValue(ft.dateTimeFormatter);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
         }

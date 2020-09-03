@@ -172,6 +172,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.outlier_fraction.type");
         configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.standardization_enabled.type");
         configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
+        configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
 
         assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config", false, configIndexExceptions);

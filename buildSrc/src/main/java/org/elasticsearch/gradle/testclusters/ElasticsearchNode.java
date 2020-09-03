@@ -291,7 +291,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void plugin(String pluginProjectPath) {
-       plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath));
+        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath));
     }
 
     @Override
@@ -1244,10 +1244,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
-        return Stream.concat(
-            plugins.stream().map(Provider::get),
-            modules.stream().map(Provider::get)
-        )
+        return Stream.concat(plugins.stream().map(Provider::get), modules.stream().map(Provider::get))
             .filter(File::exists)
             // TODO: We may be able to simplify this with Gradle 5.6
             // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths

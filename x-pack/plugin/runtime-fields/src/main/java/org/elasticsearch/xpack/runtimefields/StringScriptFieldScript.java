@@ -19,6 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
+    /**
+     * The maximum number of chars a script should be allowed to emit.
+     */
+    public static final long MAX_CHARS = 1024 * 1024;
+
     public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -36,6 +41,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     private final List<String> results = new ArrayList<>();
+    private long chars;
 
     public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
@@ -49,12 +55,20 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
      */
     public final List<String> resultsForDoc(int docId) {
         results.clear();
+        chars = 0;
         setDocument(docId);
         execute();
         return results;
     }
 
     protected final void emitValue(String v) {
+        if (results.size() >= MAX_VALUES) {
+            throw new IllegalArgumentException("too many runtime values");
+        }
+        chars += v.length();
+        if (chars >= MAX_CHARS) {
+            throw new IllegalArgumentException("too many characters in runtime values [" + chars + "]");
+        }
         results.add(v);
     }
 

@@ -27,6 +27,11 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
 public abstract class AbstractScriptFieldScript {
+    /**
+     * The maximum number of values a script should be allowed to emit.
+     */
+    public static final int MAX_VALUES = 1000;
+
     public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<F>(
             name + "_script_field",

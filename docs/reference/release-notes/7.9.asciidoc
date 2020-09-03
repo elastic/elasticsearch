@@ -10,7 +10,7 @@ Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 === New features
 
 Search::
-* QL: wildcard field type support {es-pull}58062[#58062] (issues: {es-issue}54184[#54184], {es-issue}58044[#58044])
+* QL: Wildcard field type support {es-pull}58062[#58062] (issues: {es-issue}54184[#54184], {es-issue}58044[#58044])
 
 
 
@@ -30,7 +30,7 @@ Features/Stats::
 
 Search::
 * Fix handling of alias filter in SearchService#canMatch {es-pull}59368[#59368] (issue: {es-issue}59367[#59367])
-* QL: add filtering query dsl support to IndexResolver {es-pull}60514[#60514] (issue: {es-issue}57358[#57358])
+* QL: Add filtering Query DSL support to IndexResolver {es-pull}60514[#60514] (issue: {es-issue}57358[#57358])
 
 Snapshot/Restore::
 * Do not access snapshot repo on dedicated voting-only master node {es-pull}61016[#61016] (issue: {es-issue}59649[#59649])
@@ -76,8 +76,8 @@ IdentityProvider::
 * Only call listener once (SP template registration) {es-pull}60497[#60497] (issues: {es-issue}54285[#54285], {es-issue}54423[#54423])
 
 Machine Learning::
-* Always write prediction_[score|probability] for classification inference {es-pull}60335[#60335]
-* DFA Get Stats can return multiple responses if more than one error {es-pull}60900[#60900] (issue: {es-issue}60876[#60876])
+* Always write prediction_probability and prediction_score for classification inference {es-pull}60335[#60335]
+* Get data frame analytics stats API can return multiple responses if more than one error {es-pull}60900[#60900] (issue: {es-issue}60876[#60876])
 * Ensure .ml-config index is updated before clearing anomaly job's finished_time {es-pull}61064[#61064] (issue: {es-issue}61157[#61157])
 * Ensure annotations index mappings are up to date {es-pull}61107[#61107] (issue: {es-issue}74935[#74935])
 * Handle node closed exception in ML result processing {es-pull}60238[#60238] (issue: {es-issue}60130[#60130])

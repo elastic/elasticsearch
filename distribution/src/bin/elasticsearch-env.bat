@@ -40,15 +40,15 @@ rem compariing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
 rem by setting JAVA_HOME=
 if "%JAVA_HOME%" == "" (
-  set "JAVA=%ES_HOME%\jdk\bin\java.exe"
-  set "JAVA_HOME=%ES_HOME%\jdk"
+  set JAVA="%ES_HOME%\jdk\bin\java.exe"
+  set JAVA_HOME="%ES_HOME%\jdk"
   set JAVA_TYPE=bundled jdk
 ) else (
-  set "JAVA=%JAVA_HOME%\bin\java.exe"
+  set JAVA="%JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=JAVA_HOME
 )
 
-if not exist "!JAVA!" (
+if not exist !JAVA! (
   echo "could not find java in !JAVA_TYPE! at !JAVA!" >&2
   exit /b 1
 )
@@ -67,5 +67,5 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-"%JAVA%" -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 

@@ -93,6 +93,32 @@ setup:
   - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
 
 ---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - voltage_times_ten
+            - voltage_times_ten_from_source
+            - temperature_digits
+            - field: millis_ago
+              format: epoch_millis
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.voltage_times_ten_from_source: [40] }
+  - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.1.fields.voltage_times_ten: [42] }
+  - match: {hits.hits.2.fields.voltage_times_ten: [56] }
+  - match: {hits.hits.3.fields.voltage_times_ten: [51] }
+  - match: {hits.hits.4.fields.voltage_times_ten: [58] }
+  - match: {hits.hits.5.fields.voltage_times_ten: [52] }
+  # We can't check the value because it is constantly increasing. If `gt` worked on strings we could do it, but it doens't.
+  - is_true: hits.hits.0.fields.millis_ago.0
+
+---
 "docvalue_fields":
   - do:
       search:

@@ -28,6 +28,7 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -47,11 +48,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-
+                fetchFieldsContext.fieldValueRetriever().setNextReader(readerContext);
             }
 
             @Override
-            public void process(HitContext hitContext) {
+            public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
                 SourceLookup sourceLookup = hitContext.sourceLookup();
                 FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();

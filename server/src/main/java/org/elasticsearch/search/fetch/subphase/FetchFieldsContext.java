@@ -20,6 +20,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.List;
 
@@ -27,21 +28,23 @@ import java.util.List;
  * The context needed to retrieve fields.
  */
 public class FetchFieldsContext {
-
-    private FieldValueRetriever fieldValueRetriever;
-
-    public static FetchFieldsContext create(String indexName,
-                                            MapperService mapperService,
-                                            List<FieldAndFormat> fields) {
+    public static FetchFieldsContext create(
+        String indexName,
+        MapperService mapperService,
+        SearchLookup searchLookup,
+        List<FieldAndFormat> fields
+    ) {
         DocumentMapper documentMapper = mapperService.documentMapper();
         if (documentMapper.sourceMapper().enabled() == false) {
             throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is " +
                 "disabled in the mappings for index [" + indexName + "]");
         }
 
-        FieldValueRetriever fieldValueRetriever = FieldValueRetriever.create(mapperService, fields);
+        FieldValueRetriever fieldValueRetriever = FieldValueRetriever.create(mapperService, searchLookup, fields);
         return new FetchFieldsContext(fieldValueRetriever);
     }
+
+    private final FieldValueRetriever fieldValueRetriever;
 
     private FetchFieldsContext(FieldValueRetriever fieldValueRetriever) {
         this.fieldValueRetriever = fieldValueRetriever;

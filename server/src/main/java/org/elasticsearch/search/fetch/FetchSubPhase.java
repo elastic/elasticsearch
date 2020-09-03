@@ -39,15 +39,22 @@ public interface FetchSubPhase {
         private final IndexSearcher searcher;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private final SourceLookup sourceLookup = new SourceLookup();
+        private final SourceLookup sourceLookup;
         private final Map<String, Object> cache;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher,
-                          Map<String, Object> cache) {
+        public HitContext(
+            SearchHit hit,
+            LeafReaderContext context,
+            int docId,
+            IndexSearcher searcher,
+            SourceLookup sourceLookup,
+            Map<String, Object> cache
+        ) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.searcher = searcher;
+            this.sourceLookup = sourceLookup;
             this.sourceLookup.setSegmentAndDocument(context, docId);
             this.cache = cache;
         }

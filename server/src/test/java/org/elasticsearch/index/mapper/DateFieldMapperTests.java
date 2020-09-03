@@ -29,6 +29,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -246,7 +247,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [test_format]: Unknown pattern letter: t"));
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, null);
         String date = "2020-05-15T21:33:02.000Z";
         assertEquals(List.of(date), fetchSourceValue(mapper, date));
@@ -267,7 +268,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
     }
 
-    public void testParseSourceValueWithFormat() {
+    public void testParseSourceValueWithFormat() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
         String date = "1990-12-29T00:00:00.000Z";
         assertEquals(List.of("1990/12/29"), fetchSourceValue(mapper, date, "yyyy/MM/dd"));
@@ -275,7 +276,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(List.of("1970/12/29"), fetchSourceValue(mapper, null, "yyyy/MM/dd"));
     }
 
-    public void testParseSourceValueNanos() {
+    public void testParseSourceValueNanos() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of("2020-05-15T21:33:02.123456789Z"), fetchSourceValue(mapper, date));
@@ -284,6 +285,22 @@ public class DateFieldMapperTests extends MapperTestCase {
         String nullValueDate = "2020-05-15T21:33:02.123456789Z";
         DateFieldMapper nullValueMapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
         assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testFetchDocValuesMillis() throws IOException {
+        DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, "strict_date_time||epoch_millis");
+        DocValueFormat format = mapper.mappedFieldType.docValueFormat(null, null);
+        String date = "2020-05-15T21:33:02.123Z";
+        assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapper, format, 1589578382123L));
+    }
+
+    public void testFetchDocValuesNanos() throws IOException {
+        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
+        DocValueFormat format = DocValueFormat.withNanosecondResolution(mapper.mappedFieldType.docValueFormat(null, null));
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
+        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapper, format, 1589578382123L));
     }
 
     private DateFieldMapper createMapper(Resolution resolution, String format) {

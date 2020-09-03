@@ -591,7 +591,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
         DateFormatter formatter = format != null
             ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())

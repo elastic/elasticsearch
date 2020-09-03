@@ -19,20 +19,41 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -122,19 +143,78 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
         return fetchSourceValue(mapper, sourceValue, null);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
         String field = mapper.name();
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);
+    }
+
+    /**
+     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     */
+    protected final List<?> fetchFromDocValues(FieldMapper mapper, DocValueFormat format, Object sourceValue) throws IOException {
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(any())).thenReturn(mapper.fieldType());
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
+            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+        SetOnce<List<?>> result = new SetOnce<>();
+        withLuceneIndex(mapperService, iw -> {
+            ParseContext.Document doc = new ParseContext.Document();
+            ParseContext context = mock(ParseContext.class);
+            when(context.doc()).thenReturn(doc);
+            when(context.sourceToParse()).thenReturn(source(b -> b.field(mapper.name(), sourceValue)));
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                context.sourceToParse().source(),
+                context.sourceToParse().getXContentType()
+            );
+            when(context.parser()).thenReturn(parser);
+            parser.nextToken();
+            XContentParserUtils.ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), mapper.name());
+            parser.nextToken();
+            mapper.parse(context);
+            parser.nextToken();
+            XContentParserUtils.ensureExpectedToken(Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            iw.addDocument(doc);
+        }, iw -> {
+            IndexSearcher indexSearcher = newSearcher(iw);
+            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+            ValueFetcher valueFetcher = new DocValueFetcher(format, () -> lookup.doc().getForField(mapper.fieldType()));
+            indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    valueFetcher.setNextReader(context);
+                    return new LeafCollector() {
+                        @Override
+                        public void setScorer(Scorable scorer) throws IOException {}
+
+                        @Override
+                        public void collect(int doc) throws IOException {
+                            lookup.source().setSegmentAndDocument(context, doc);
+                            result.set(valueFetcher.fetchValues(lookup.source()));
+                        }
+                    };
+                }
+            });
+        });
+        return result.get();
     }
 }

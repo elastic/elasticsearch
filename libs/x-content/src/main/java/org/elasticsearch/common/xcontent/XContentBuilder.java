@@ -137,6 +137,10 @@ public final class XContentBuilder implements Closeable, Flushable {
         DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
     }
 
+    public XContentBuilder withCompatibleMajorVersion(byte compatibleVersion) {
+        return null;
+    }
+
     @FunctionalInterface
     public interface Writer {
         void write(XContentBuilder builder, Object value) throws IOException;

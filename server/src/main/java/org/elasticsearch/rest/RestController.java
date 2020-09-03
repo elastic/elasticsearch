@@ -76,12 +76,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private CompatibleVersion compatibleVersion;
 
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
+                          CompatibleVersion compatibleVersion) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
+        this.compatibleVersion = compatibleVersion;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -206,7 +209,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, Version compatibleApiVersion)
+        throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
@@ -228,7 +232,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, compatibleApiVersion);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -298,7 +302,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
         //TODO: USAGE_1 now that we have a version we can implement a REST handler that accepts path, method AND version
-        Version version = request.getCompatibleVersion();
+//        Version version = request.getCompatibleVersion();
+        Version version = compatibleVersion.get(request.header("Accept"), request.header("Content-Type"), request.hasContent());
+
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -317,7 +323,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                       return;
                   }
                 } else {
-                    dispatchRequest(request, channel, handler);
+                    dispatchRequest(request, channel, handler, version);
                     return;
                 }
             }
@@ -457,12 +463,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        private final Version compatibleVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
+                                    Version compatibleVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.compatibleVersion = compatibleVersion;
         }
 
         @Override
@@ -477,13 +486,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
+            return delegate.newBuilder(xContentType, useFiltering)
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
                 throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
+                        .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override

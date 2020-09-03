@@ -7,23 +7,17 @@
 package org.elasticsearch.compat;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.hamcrest.Matcher;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class CompatibleVersionPluginTests extends ESTestCase {
+    CompatibleVersionPlugin compatibleVersionPlugin = new CompatibleVersionPlugin();
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
@@ -173,12 +167,12 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         );
     }
 
-    private Matcher<Tuple<RestRequest, Version>> isCompatible() {
+    private Matcher<Version> isCompatible() {
         return requestHasVersion(PREVIOUS_VERSION);
     }
 
-    private Matcher<Tuple<RestRequest, Version>> requestHasVersion(int version) {
-        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(tuple -> (int) tuple.v2().major, equalTo(version));
+    private Matcher<Version> requestHasVersion(int version) {
+        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(v -> (int) v.major, equalTo(version));
     }
 
     private String bodyNotPresent() {
@@ -189,20 +183,20 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         return "some body";
     }
 
-    private List<String> contentTypeHeader(int version) {
-        return mediaType(version);
+    private String contentTypeHeader(int version) {
+        return mediaType(String.valueOf(version));
     }
 
-    private List<String> acceptHeader(int version) {
-        return mediaType(version);
+    private String acceptHeader(int version) {
+        return mediaType(String.valueOf(version));
     }
 
-    private List<String> acceptHeader(String value) {
-        return headerValue(value);
+    private String acceptHeader(String value) {
+        return mediaType(value);
     }
 
-    private List<String> contentTypeHeader(String value) {
-        return headerValue(value);
+    private String contentTypeHeader(String value) {
+        return mediaType(value);
     }
 
     private List<String> headerValue(String value) {
@@ -212,35 +206,15 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         return null;
     }
 
-    private List<String> mediaType(Integer version) {
+    private String mediaType(String version) {
         if (version != null) {
-            return List.of("application/vnd.elasticsearch+json;compatible-with=" + version);
+            return "application/vnd.elasticsearch+json;compatible-with=" + version;
         }
         return null;
     }
 
-    private Tuple<RestRequest, Version> requestWith(List<String> accept, List<String> contentType, String body) {
-        FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
-
-        builder.withHeaders(createHeaders(accept, contentType));
-        if (body != null) {
-            // xContentType header is set explicitly in headers
-            builder.withContent(new BytesArray(body), null);
-        }
-        builder.withRestCompatibility(new CompatibleVersionPlugin()::getCompatibleVersion);
-        FakeRestRequest request = builder.build();
-        Version version = request.getCompatibleVersion();
-        return Tuple.tuple(request, version);
+    private Version requestWith(String accept, String contentType, String body) {
+        return compatibleVersionPlugin.getCompatibleVersion(accept, contentType, body.isEmpty() == false);
     }
 
-    private Map<String, List<String>> createHeaders(List<String> accept, List<String> contentType) {
-        Map<String, List<String>> headers = new HashMap<>();
-        if (accept != null) {
-            headers.put("Accept", accept);
-        }
-        if (contentType != null) {
-            headers.put("Content-Type", contentType);
-        }
-        return headers;
-    }
 }

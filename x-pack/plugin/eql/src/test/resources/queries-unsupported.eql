@@ -42,7 +42,19 @@ process where 1==1 | count user_name, unique_pid, concat(field2,a,bc);
 
 process where 1==1 | unique user_name, concat(field2,a,bc), field2;
 
+
+
+process where true | filter true;
+
+process where 1==1 | filter abc == def;
+
+process where 1==1 | filter abc == def and 1 != 2;
+
 process where 1==1 | count process_name | filter percent > 0.5;
+
+
+
+
 
 
 any where true | unique a, b, c | sort a, b, c | count;
@@ -109,6 +121,32 @@ sequence by pid with maxspan=1.0075d
 /* TESTS FROM
  * https://raw.githubusercontent.com/endgameinc/eql/master/eql/etc/test_queries.toml
  */
+
+process where serial_event_id <= 8 and serial_event_id > 7
+| filter serial_event_id == 8;
+
+process where true
+| filter serial_event_id <= 10
+| filter serial_event_id > 6;
+
+process where true
+| filter serial_event_id <= 10
+| filter serial_event_id > 6
+| head 2;
+
+process where true
+| head 1000
+| filter serial_event_id <= 10
+| filter serial_event_id > 6
+| tail 2
+;
+
+
+
+
+process where process_name == "VMACTHLP.exe" and unique_pid == 12 | filter true;
+
+
 
 process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
 | unique process_name;
@@ -258,6 +296,24 @@ sequence
   [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
 | tail 1
 ;
+
+
+process where 'net.EXE' == original_file_name
+| filter process_name="net*.exe"
+;
+
+process where process_name == original_file_name
+| filter process_name='net*.exe'
+;
+
+process where original_file_name == process_name
+| filter length(original_file_name) > 0
+;
+
+
+
+process where process_name != original_file_name
+| filter length(original_file_name) > 0;
 
 any where process_name == "svchost.exe"
 | unique_count event_type_full, process_name;

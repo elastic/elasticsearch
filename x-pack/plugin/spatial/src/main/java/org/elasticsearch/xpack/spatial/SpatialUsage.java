@@ -4,27 +4,27 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.analytics;
+package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
-import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
 /**
- * Tracks usage of the Analytics aggregations.
+ * Tracks usage of the Spatial aggregations.
  */
-public class AnalyticsUsage {
+public class SpatialUsage {
 
-    private final EnumCounters<AnalyticsStatsAction.Item> counters = new EnumCounters<>(AnalyticsStatsAction.Item.class);
+    private final EnumCounters<SpatialStatsAction.Item> counters = new EnumCounters<>(SpatialStatsAction.Item.class);
 
-    public AnalyticsUsage() {
+    public SpatialUsage() {
     }
 
     /**
      * Track successful parsing.
      */
-    public <C, T> ContextParser<C, T> track(AnalyticsStatsAction.Item item, ContextParser<C, T> realParser) {
+    public <C, T> ContextParser<C, T> track(SpatialStatsAction.Item item, ContextParser<C, T> realParser) {
         return (parser, context) -> {
             T value = realParser.parse(parser, context);
             // Intentionally doesn't count unless the parser returns cleanly.
@@ -33,7 +33,7 @@ public class AnalyticsUsage {
         };
     }
 
-    public AnalyticsStatsAction.NodeResponse stats(DiscoveryNode node) {
-        return new AnalyticsStatsAction.NodeResponse(node, counters);
+    public SpatialStatsAction.NodeResponse stats(DiscoveryNode node) {
+        return new SpatialStatsAction.NodeResponse(node, counters);
     }
 }

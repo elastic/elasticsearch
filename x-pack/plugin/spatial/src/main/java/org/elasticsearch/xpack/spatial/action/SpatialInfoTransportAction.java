@@ -3,11 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.spatial;
+package org.elasticsearch.xpack.spatial.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -19,8 +18,7 @@ public class SpatialInfoTransportAction extends XPackInfoFeatureTransportAction 
     private final XPackLicenseState licenseState;
 
     @Inject
-    public SpatialInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      Settings settings, XPackLicenseState licenseState) {
+    public SpatialInfoTransportAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.SPATIAL.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

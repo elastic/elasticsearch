@@ -3,9 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.analytics.action;
+package org.elasticsearch.xpack.core.spatial.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -27,11 +26,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Response> {
-    public static final AnalyticsStatsAction INSTANCE = new AnalyticsStatsAction();
-    public static final String NAME = "cluster:monitor/xpack/analytics/stats";
+public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> {
+    public static final SpatialStatsAction INSTANCE = new SpatialStatsAction();
+    public static final String NAME = "cluster:monitor/xpack/spatial/stats";
 
-    private AnalyticsStatsAction() {
+    private SpatialStatsAction() {
         super(NAME, Response::new);
     }
 
@@ -39,14 +38,6 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
      * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
      */
     public enum Item {
-        BOXPLOT,
-        CUMULATIVE_CARDINALITY,
-        STRING_STATS,
-        TOP_METRICS,
-        T_TEST,
-        MOVING_PERCENTILES,
-        NORMALIZE,
-        RATE;
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
@@ -116,7 +107,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         public EnumCounters<Item> getStats() {
             List<EnumCounters<Item>> countersPerNode = getNodes()
                 .stream()
-                .map(AnalyticsStatsAction.NodeResponse::getStats)
+                .map(SpatialStatsAction.NodeResponse::getStats)
                 .collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
         }
@@ -131,6 +122,19 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getStats());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response other = (Response) o;
+            return Objects.equals(getStats(), other.getStats());
+        }
     }
 
     public static class NodeResponse extends BaseNodeResponse {
@@ -143,36 +147,13 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                counters = new EnumCounters<>(in, Item.class);
-            } else {
-                counters = new EnumCounters<>(Item.class);
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.BOXPLOT, in.readVLong());
-                }
-                counters.inc(Item.CUMULATIVE_CARDINALITY, in.readZLong());
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.STRING_STATS, in.readVLong());
-                    counters.inc(Item.TOP_METRICS, in.readVLong());
-                }
-            }
+            counters = new EnumCounters<>(in, Item.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                counters.writeTo(out);
-            } else {
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeVLong(counters.get(Item.BOXPLOT));
-                }
-                out.writeZLong(counters.get(Item.CUMULATIVE_CARDINALITY));
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeVLong(counters.get(Item.STRING_STATS));
-                    out.writeVLong(counters.get(Item.TOP_METRICS));
-                }
-            }
+            counters.writeTo(out);
         }
 
         public EnumCounters<Item> getStats() {

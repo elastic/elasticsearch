@@ -114,7 +114,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.featurePrefix = ExceptionsHelper.requireNonNull(featurePrefix, FEATURE_PREFIX);
         this.nGrams = ExceptionsHelper.requireNonNull(nGrams, NGRAMS);
-        if (Arrays.stream(this.nGrams).anyMatch(i -> i < 1)) {
+        if (Arrays.stream(this.nGrams).anyMatch(i -> i < MIN_GRAM || i > MAX_GRAM)) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] is invalid [{}]; minimum supported value is [{}]; maximum supported value is [{}]",
                 NGRAMS.getPreferredName(),
@@ -140,7 +140,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     public NGram(StreamInput in) throws IOException {
         this.field = in.readString();
         this.featurePrefix = in.readString();
-        this.nGrams = in.readIntArray();
+        this.nGrams = in.readVIntArray();
         this.start = in.readInt();
         this.length = in.readVInt();
         this.custom = in.readBoolean();
@@ -150,7 +150,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeString(featurePrefix);
-        out.writeIntArray(nGrams);
+        out.writeVIntArray(nGrams);
         out.writeInt(start);
         out.writeVInt(length);
         out.writeBoolean(custom);
@@ -186,7 +186,7 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         final int len = Math.min(startPos + length, stringValue.length());
         for (int i = 0; i < len; i++) {
             for (int nGram : nGrams) {
-                if (startPos + i + nGram - 1 >= len) {
+                if (startPos + i + nGram > len) {
                     break;
                 }
                 fields.put(nGramFeature(nGram, i), stringValue.substring(startPos + i, startPos + i + nGram));

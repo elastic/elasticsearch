@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,7 +33,6 @@ import java.util.Objects;
  */
 public class NGram implements PreProcessor {
 
-    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NGram.class);
     public static final String NAME = "n_gram_encoding";
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_PREFIX = new ParseField("feature_prefix");

@@ -97,6 +97,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * that doesn't parse it'll throw an {@link IllegalArgumentException}
          * which we turn into a 400 error.
          */
+        //TODO PG this all logic needs a review from SQL team
         XContentType xContentType = getXContentType(accept, acceptHeader, contentTypeHeader);
         textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 

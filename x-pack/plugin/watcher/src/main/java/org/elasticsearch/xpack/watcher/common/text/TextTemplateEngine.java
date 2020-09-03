@@ -82,6 +82,7 @@ public class TextTemplateEngine {
             //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
             int endOfContentName = content.indexOf("__::", 3);
             if (endOfContentName != -1) {
+                //TODO PG what do we expect here?
                 return XContentType.fromFormat(content.substring(2, endOfContentName));
             }
         }

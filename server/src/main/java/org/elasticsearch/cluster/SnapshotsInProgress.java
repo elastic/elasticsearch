@@ -744,6 +744,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final int shard;
 
         private RepoShardId(IndexId index, int shard) {
+            assert index != null;
             this.index = index;
             this.shard = shard;
         }

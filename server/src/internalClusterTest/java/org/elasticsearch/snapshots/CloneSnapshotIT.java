@@ -242,13 +242,34 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             extraCloneFutures.add(client().admin().cluster()
                     .prepareCloneSnapshot(repoName, sourceSnapshot, "target-snapshot-" + i).setIndices(indexBlocked).execute());
         }
-
         awaitNSnapshotsInProgress(1 + extraClones);
+        for (ActionFuture<AcknowledgedResponse> extraCloneFuture : extraCloneFutures) {
+            assertFalse(extraCloneFuture.isDone());
+        }
+
+        final int extraSnapshots = randomIntBetween(0, 5);
+        if (extraSnapshots > 0) {
+            createSingleShardIndexWithContent(indexBlocked);
+        }
+
+        final List<ActionFuture<CreateSnapshotResponse>> extraSnapshotFutures = new ArrayList<>(extraSnapshots);
+        for (int i = 0; i < extraSnapshots; i++) {
+            extraSnapshotFutures.add(startFullSnapshot(repoName, "extra-snap-" + i));
+        }
+
+        awaitNSnapshotsInProgress(1 + extraClones + extraSnapshots);
+        for (ActionFuture<CreateSnapshotResponse> extraSnapshotFuture : extraSnapshotFutures) {
+            assertFalse(extraSnapshotFuture.isDone());
+        }
 
         unblockNode(repoName, masterNode);
         assertAcked(cloneFuture1.get());
+
         for (ActionFuture<AcknowledgedResponse> extraCloneFuture : extraCloneFutures) {
             assertAcked(extraCloneFuture.get());
+        }
+        for (ActionFuture<CreateSnapshotResponse> extraSnapshotFuture : extraSnapshotFutures) {
+            assertSuccessful(extraSnapshotFuture);
         }
     }
 

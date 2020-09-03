@@ -138,7 +138,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder withCompatibleMajorVersion(byte compatibleVersion) {
-        return null;
+        return this;
     }
 
     @FunctionalInterface

@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ILMHistoryTests extends ESIntegTestCase {
 
     @Override
@@ -60,6 +60,21 @@ public class ILMHistoryTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
+        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     private void putTestPolicy() throws InterruptedException, java.util.concurrent.ExecutionException {

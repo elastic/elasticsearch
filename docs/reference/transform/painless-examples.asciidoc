@@ -3,7 +3,7 @@
 [[transform-painless-examples]]
 = Painless examples for {transforms}
 ++++
-<titleabbrev>Painless examples for {transforms}</titleabbrev>
+<titleabbrev>Painless examples</titleabbrev>
 ++++
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 

@@ -29,17 +29,29 @@ service samba-ad-dc restart
 
 # Add users
 samba-tool user add ironman Passw0rd --surname=Stark --given-name=Tony --job-title=CEO
+samba-tool user setexpiry ironman --noexpiry
 samba-tool user add hulk Passw0rd --surname=Banner --given-name=Bruce
+samba-tool user setexpiry hulk --noexpiry
 samba-tool user add phil Passw0rd --surname=Coulson --given-name=Phil
+samba-tool user setexpiry phil --noexpiry
 samba-tool user add cap Passw0rd --surname=Rogers --given-name=Steve
+samba-tool user setexpiry cap --noexpiry
 samba-tool user add blackwidow Passw0rd --surname=Romanoff --given-name=Natasha
+samba-tool user setexpiry blackwidow --noexpiry
 samba-tool user add hawkeye Passw0rd --surname=Barton --given-name=Clint
+samba-tool user setexpiry hawkeye --noexpiry
 samba-tool user add Thor Passw0rd
+samba-tool user setexpiry Thor --noexpiry
 samba-tool user add selvig Passw0rd --surname=Selvig --given-name=Erik
+samba-tool user setexpiry selvig --noexpiry
 samba-tool user add Odin Passw0rd
+samba-tool user setexpiry Odin --noexpiry
 samba-tool user add Jarvis Passw0rd
+samba-tool user setexpiry Jarvis --noexpiry
 samba-tool user add kraken Passw0rd --surname=Kraken --given-name=Commander
+samba-tool user setexpiry kraken --noexpiry
 samba-tool user add fury Passw0rd --surname=Fury --given-name=Nick
+samba-tool user setexpiry fury --noexpiry
 
 # Add groups
 samba-tool group add SHIELD

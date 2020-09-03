@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -16,7 +17,9 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Arrays;
@@ -24,9 +27,11 @@ import java.util.Collection;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
@@ -68,8 +73,10 @@ public class ILMHistoryTests extends ESIntegTestCase {
         CreateIndexResponse res = client().admin().indices().prepareCreate("test").setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 
+        String firstIndex = ILMHistoryStore.ILM_HISTORY_INDEX_PREFIX + "000001";
+        String secondIndex = ILMHistoryStore.ILM_HISTORY_INDEX_PREFIX + "000002";
+
         assertBusy(() -> {
-            String firstIndex = ILMHistoryStore.ILM_HISTORY_INDEX_PREFIX + "000001";
             try {
                 GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(firstIndex).get();
                 assertThat(getIndexResponse.getIndices(), arrayContaining(firstIndex));
@@ -78,15 +85,20 @@ public class ILMHistoryTests extends ESIntegTestCase {
             }
         });
 
+        assertTrue(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).actionGet().isAcknowledged());
+
+        //wait for all history items to index to avoid waiting for timeout in ILMHistoryStore beforeBulk
+        assertBusy(() -> {
+            SearchResponse search = client().prepareSearch(firstIndex).setQuery(matchQuery("index", firstIndex)).setSize(0).get();
+            assertThat(search.getHits().getTotalHits().value, greaterThan(0L));
+        });
+
         RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(ILMHistoryStore.ILM_HISTORY_ALIAS).get();
-        String secondIndex = ILMHistoryStore.ILM_HISTORY_INDEX_PREFIX + "000002";
+
         assertTrue(rolloverResponse.isAcknowledged());
         assertThat(rolloverResponse.getNewIndex(), is(secondIndex));
 
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(secondIndex).get();
         assertThat(getIndexResponse.getIndices(), arrayContaining(secondIndex));
-
-        //wait for all history items to index to avoid waiting for timeout in ILMHistoryStore beforeBulk
-        Thread.sleep(6000);
     }
 }

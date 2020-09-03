@@ -423,7 +423,7 @@ run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.
 
 [[faster-filtering-with-constant-keyword]]
-=== Use <<constant-keyword,`constant_keyword`>> to speed up filtering
+=== Use <<constant-keyword-field-type,`constant_keyword`>> to speed up filtering
 
 There is a general rule that the cost of a filter is mostly a function of the
 number of matched documents. Imagine that you have an index containing cycles.

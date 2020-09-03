@@ -317,30 +317,6 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertEquals(1, response.getHits().getTotalHits().value);
     }
 
-    public void testPreReleaseFlag() throws IOException {
-        String indexName = setUpIndex("test");
-        SearchResponse response = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchQuery("version.isPreRelease", true)))
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
-    }
-
-    public void testMainVersionParts() throws IOException {
-        String indexName = setUpIndex("test");
-        SearchResponse response = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchQuery("version.major", 11)))
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
-        response = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchQuery("version.minor", 1)))
-            .get();
-        assertEquals(3, response.getHits().getTotalHits().value);
-        response = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchQuery("version.patch", 0)))
-            .get();
-        assertEquals(6, response.getHits().getTotalHits().value);
-    }
-
     /**
      * test that versions that are invalid under semver are still indexed and retrieveable, though they sort differently
      */
@@ -444,41 +420,6 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertEquals("2.1.0-alpha", buckets.get(2).getKey());
         assertEquals("2.1.0", buckets.get(3).getKey());
         assertEquals("3.11.5", buckets.get(4).getKey());
-
-        // test terms aggs on version parts
-
-        response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("myterms").field("version.major")).get();
-        terms = response.getAggregations().get("myterms");
-        buckets = terms.getBuckets();
-        assertEquals(3, buckets.size());
-        assertEquals(1L, buckets.get(0).getKey());
-        assertEquals(2L, buckets.get(0).getDocCount());
-        assertEquals(2L, buckets.get(1).getKey());
-        assertEquals(2L, buckets.get(1).getDocCount());
-        assertEquals(3L, buckets.get(2).getKey());
-        assertEquals(1L, buckets.get(2).getDocCount());
-
-        response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("myterms").field("version.minor")).get();
-        terms = response.getAggregations().get("myterms");
-        buckets = terms.getBuckets();
-        assertEquals(4, buckets.size());
-        assertEquals(1L, buckets.get(0).getKey());
-        assertEquals(2L, buckets.get(0).getDocCount());
-        assertEquals(0L, buckets.get(1).getKey());
-        assertEquals(1L, buckets.get(1).getDocCount());
-        assertEquals(3L, buckets.get(2).getKey());
-        assertEquals(1L, buckets.get(2).getDocCount());
-        assertEquals(11L, buckets.get(3).getKey());
-        assertEquals(1L, buckets.get(3).getDocCount());
-
-        response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("myterms").field("version.patch")).get();
-        terms = response.getAggregations().get("myterms");
-        buckets = terms.getBuckets();
-        assertEquals(2, buckets.size());
-        assertEquals(0L, buckets.get(0).getKey());
-        assertEquals(3L, buckets.get(0).getDocCount());
-        assertEquals(5L, buckets.get(1).getKey());
-        assertEquals(1L, buckets.get(1).getDocCount());
 
         // cardinality
         response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.cardinality("myterms").field("version")).get();

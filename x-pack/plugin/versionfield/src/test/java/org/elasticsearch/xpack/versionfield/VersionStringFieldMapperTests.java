@@ -10,7 +10,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -29,13 +28,10 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
-import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VersionStringFieldMapperTests extends MapperTestCase {
@@ -65,7 +61,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
+        assertEquals(2, fields.length);
 
         assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[0].binaryValue()));
         IndexableFieldType fieldType = fields[0].fieldType();
@@ -79,18 +75,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        BytesRef encodedVersion = encodeVersion("1.2.3").bytesRef;
-        byte[] first16bytes = Arrays.copyOfRange(encodedVersion.bytes, encodedVersion.offset, 16);
-        assertEquals(new BytesRef(first16bytes), fields[1].binaryValue());
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[1].binaryValue()));
         fieldType = fields[1].fieldType();
-        assertEquals(1, fieldType.pointDimensionCount());
-        assertEquals(1, fieldType.pointIndexDimensionCount());
-        assertEquals(16, fieldType.pointNumBytes());
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
-
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[2].binaryValue()));
-        fieldType = fields[2].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 

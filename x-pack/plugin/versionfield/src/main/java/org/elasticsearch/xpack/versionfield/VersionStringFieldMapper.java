@@ -6,24 +6,20 @@
 
 package org.elasticsearch.xpack.versionfield;
 
-import org.apache.lucene.document.BinaryPoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery87;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -37,13 +33,10 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -110,22 +103,12 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         @Override
         public VersionStringFieldMapper build(BuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            BooleanFieldMapper.Builder preReleaseSubfield = new BooleanFieldMapper.Builder(name + ".isPreRelease");
-            NumberType type = NumberType.INTEGER;
-            NumberFieldMapper.Builder majorVersionSubField = new NumberFieldMapper.Builder(name + ".major", type, false, false);
-            NumberFieldMapper.Builder minorVersionSubField = new NumberFieldMapper.Builder(name + ".minor", type, false, false);
-            NumberFieldMapper.Builder patchVersionSubField = new NumberFieldMapper.Builder(name + ".patch", type, false, false);
-
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                preReleaseSubfield.build(context),
-                majorVersionSubField.build(context),
-                minorVersionSubField.build(context),
-                patchVersionSubField.build(context)
+                copyTo.build()
             );
         }
 
@@ -190,7 +173,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexed();
-            RegexpQuery87 query = new RegexpQuery87(new Term(name(), new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
+            RegexpQuery query = new RegexpQuery(new Term(name(), new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -331,48 +314,28 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexed();
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
-            byte[] lowerBytes = lower == null ? MIN_VALUE : Arrays.copyOfRange(lower.bytes, lower.offset, lower.offset + 16);
-            byte[] upperBytes = upper == null ? MAX_VALUE : Arrays.copyOfRange(upper.bytes, upper.offset, upper.offset + 16);
 
-            // point query on the 16byte prefix
-            Query pointPrefixQuery = BinaryPoint.newRangeQuery(name(), lowerBytes, upperBytes);
-
-            BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
-            qBuilder.add(pointPrefixQuery, Occur.FILTER);
-            if (includeUpper == false
-                || includeLower == false
-                || (lower != null && lower.length > 16)
-                || (upper != null && upper.length > 16)) {
-                Query validationQuery = SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, includeLower, includeUpper);
-                qBuilder.add(validationQuery, Occur.FILTER);
-            }
-            return new ConstantScoreQuery(qBuilder.build());
+            return new TermRangeQuery(
+                name(),
+                lowerTerm == null ? null : lower,
+                upperTerm == null ? null : upper,
+                includeLower,
+                includeUpper
+            );
         }
     }
 
     private final FieldType fieldType;
-    private BooleanFieldMapper prereleaseSubField;
-    private NumberFieldMapper majorVersionSubField;
-    private NumberFieldMapper minorVersionSubField;
-    private NumberFieldMapper patchVersionSubField;
 
     private VersionStringFieldMapper(
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
-        CopyTo copyTo,
-        BooleanFieldMapper preReleaseMapper,
-        NumberFieldMapper majorVersionMapper,
-        NumberFieldMapper minorVersionMapper,
-        NumberFieldMapper patchVersionMapper
+        CopyTo copyTo
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.fieldType = fieldType;
-        this.prereleaseSubField = preReleaseMapper;
-        this.majorVersionSubField = majorVersionMapper;
-        this.minorVersionSubField = minorVersionMapper;
-        this.patchVersionSubField = patchVersionMapper;
     }
 
     @Override
@@ -425,33 +388,12 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         EncodedVersion encoding = encodeVersion(versionString);
         BytesRef encodedVersion = encoding.bytesRef;
         context.doc().add(new Field(fieldType().name(), encodedVersion, fieldType));
-        // encode the first 16 bytes as points for efficient range query
-        byte[] first16bytes = Arrays.copyOfRange(encodedVersion.bytes, encodedVersion.offset, 16);
-        context.doc().add(new BinaryPoint(fieldType().name(), first16bytes));
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
-
-        // add additional information extracted from version string
-        context.doc().add(new Field(prereleaseSubField.name(), encoding.isPreRelease ? "T" : "F", BooleanFieldMapper.Defaults.FIELD_TYPE));
-        context.doc().add(new SortedNumericDocValuesField(prereleaseSubField.name(), encoding.isPreRelease ? 1 : 0));
-
-        addVersionPartSubfield(context, majorVersionSubField.name(), encoding.major);
-        addVersionPartSubfield(context, minorVersionSubField.name(), encoding.minor);
-        addVersionPartSubfield(context, patchVersionSubField.name(), encoding.patch);
-    }
-
-    private void addVersionPartSubfield(ParseContext context, String fieldName, Integer versionPart) {
-        if (versionPart != null) {
-            context.doc().addAll(NumberType.INTEGER.createFields(fieldName, versionPart, true, true, false));
-        }
     }
 
     @Override
     public Iterator<Mapper> iterator() {
         List<Mapper> subIterators = new ArrayList<>();
-        subIterators.add(prereleaseSubField);
-        subIterators.add(majorVersionSubField);
-        subIterators.add(minorVersionSubField);
-        subIterators.add(patchVersionSubField);
         @SuppressWarnings("unchecked")
         Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
         return concat;

@@ -15,6 +15,13 @@
         </repository>
     </repositories>
 
+    <pluginRepositories>
+        <pluginRepository>
+            <id>teamcity</id>
+            <url>https://artifactory.elstc.co/artifactory/teamcity</url>
+        </pluginRepository>
+    </pluginRepositories>
+
     <parent>
         <groupId>co.elastic.teamcity</groupId>
         <artifactId>teamcity-parent</artifactId>

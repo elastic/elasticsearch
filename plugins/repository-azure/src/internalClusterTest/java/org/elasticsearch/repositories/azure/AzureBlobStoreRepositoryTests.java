@@ -186,18 +186,23 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 trackRequest("GetBlobProperties");
             } else if (listPattern.test(request)) {
                 trackRequest("ListBlobs");
-            } else if (isBlockUpload(request)) {
+            } else if (isPutBlock(request)) {
                 trackRequest("PutBlock");
+            } else if (isPutBlockList(request)) {
+                trackRequest("PutBlockList");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutBlob");
             }
         }
 
-        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
         // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-        private boolean isBlockUpload(String request) {
-            return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request)
-                || (Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid="));
+        private boolean isPutBlock(String request) {
+            return Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid=");
+        }
+
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+        private boolean isPutBlockList(String request) {
+            return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request);
         }
     }
 }

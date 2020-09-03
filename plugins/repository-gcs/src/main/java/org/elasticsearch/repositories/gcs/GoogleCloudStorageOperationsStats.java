@@ -60,8 +60,7 @@ final class GoogleCloudStorageOperationsStats {
         final Map<String, Long> results = new HashMap<>();
         results.put("GetObject", getCount.get());
         results.put("ListObjects", listCount.get());
-        results.put("ResumableInsertObject", putCount.get());
-        results.put("InsertObject", postCount.get());
+        results.put("InsertObject", postCount.get() + putCount.get());
         return results;
     }
 }

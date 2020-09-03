@@ -312,11 +312,14 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
                 trackRequest("GetObject");
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("ListObjects");
+                trackRequest("ListObjGects");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
                 trackRequest("GetObject");
-            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*", request) && isLastPart(requestHeaders)) {
-                trackRequest("ResumableInsertObject");
+            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
+                // Resumable uploads are billed as a single operation, that's the reason we're tracking
+                // the request only when it's the last part.
+                // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
+                trackRequest("InsertObject");
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
                 trackRequest("InsertObject");
             }

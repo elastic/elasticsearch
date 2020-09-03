@@ -24,7 +24,7 @@ You can use this API to clear the archived repositories meterings in the cluster
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `<max_version_to_clear>`::
-    (long) Specifies the maximum <<get-repositories-metering-api-response-body, cluster_version>> to be cleared from the archive.
+    (long) Specifies the maximum <<get-repositories-metering-api-response-body, archive_version>> to be cleared from the archive.
 
 All the nodes selective options are explained <<cluster-nodes,here>>.
 [role="child_attributes"]

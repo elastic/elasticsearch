@@ -10,14 +10,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -29,10 +32,10 @@ public class MigrateAction implements LifecycleAction {
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new MigrateAction((boolean) a[0]));
+        a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
     }
 
     private final boolean enabled;
@@ -79,9 +82,17 @@ public class MigrateAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         if (enabled) {
-            Map<String, String> include = Map.of("_tier", "data_" + phase);
-            AllocateAction migrateDataAction = new AllocateAction(null, include, null, null);
-            return migrateDataAction.toSteps(client, phase, nextStepKey);
+            StepKey migrationKey = new StepKey(phase, NAME, NAME);
+            StepKey migrationRoutedKey = new StepKey(phase, NAME, DataTierMigrationRoutedStep.NAME);
+
+            Settings.Builder migrationSettings = Settings.builder();
+            String dataTierName = "data_" + phase;
+            assert DataTier.validTierName(dataTierName) : "invalid data tier name:" + dataTierName;
+            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, dataTierName);
+            UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
+                migrationSettings.build());
+            DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
+            return Arrays.asList(updateMigrationSettingStep, migrationRoutedStep);
         } else {
             return List.of();
         }

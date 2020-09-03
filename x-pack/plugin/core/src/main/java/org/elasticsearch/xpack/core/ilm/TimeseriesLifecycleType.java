@@ -40,8 +40,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
     static final List<String> VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-        ForceMergeAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, MigrateAction.NAME,
+        RolloverAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         MigrateAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME,
@@ -90,7 +90,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
                 }
 
-                if (shouldMigrateDataToTiers(phase)) {
+                if (shouldInjectMigrateStepForPhase(phase)) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
                     actionMap.put(MigrateAction.NAME, new MigrateAction(true));
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
@@ -102,23 +102,18 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return orderedPhases;
     }
 
-    boolean shouldMigrateDataToTiers(Phase phase) {
+    boolean shouldInjectMigrateStepForPhase(Phase phase) {
         AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
         if (allocateAction != null) {
-            if (allocateAction.getExclude().isEmpty() == false ||
-                allocateAction.getInclude().isEmpty() == false ||
-                allocateAction.getRequire().isEmpty() == false) {
+            if (definesAllocationRules(allocateAction)) {
                 // we won't automatically migrate the data if an allocate action that defines any allocation rule is present
                 return false;
             }
         }
 
         MigrateAction migrateAction = (MigrateAction) phase.getActions().get(MigrateAction.NAME);
-        if (migrateAction != null) {
-            // user configured the {@link MigrateAction} already so we won't automatically configure it
-            return false;
-        }
-        return true;
+        // if the user configured the {@link MigrateAction} already we won't automatically configure it
+        return migrateAction == null;
     }
 
     @Override
@@ -272,7 +267,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         }
     }
 
-    private boolean definesAllocationRules(AllocateAction action) {
-        return action.getRequire() != null || action.getInclude() != null || action.getExclude() != null;
+    private static boolean definesAllocationRules(AllocateAction action) {
+        return action.getRequire().isEmpty() == false || action.getInclude().isEmpty() == false || action.getExclude().isEmpty() == false;
     }
 }

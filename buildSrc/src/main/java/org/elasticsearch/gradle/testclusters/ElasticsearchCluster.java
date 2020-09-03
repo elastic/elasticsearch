@@ -135,33 +135,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void plugin(URI plugin) {
+    public void plugin(Provider<RegularFile> plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
-    public void plugin(File plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(Provider<URI> plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(RegularFileProperty plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void module(File module) {
-        nodes.all(each -> each.module(module));
+    public void plugin(String pluginProjectPath) {
+        nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
         nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(String moduleProjectPath) {
+        nodes.all(each -> each.module(moduleProjectPath));
     }
 
     @Override

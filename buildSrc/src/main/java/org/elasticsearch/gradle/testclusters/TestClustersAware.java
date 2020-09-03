@@ -34,6 +34,7 @@ public interface TestClustersAware extends Task {
         }
 
         cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
+        cluster.getNodes().forEach(node -> dependsOn(node.getPluginAndModuleConfigurations()));
         getClusters().add(cluster);
     }
 

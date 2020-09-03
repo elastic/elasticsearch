@@ -308,7 +308,7 @@ check.dependsOn largeBlobYamlRestTest
 
 testClusters {
   largeBlobYamlRestTest {
-    plugin project(':plugins:repository-gcs').bundlePlugin.archiveFile
+    plugin ':plugins:repository-gcs'
 
     // force large blob uploads by setting the threshold small, forcing this code path to be tested
     systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'

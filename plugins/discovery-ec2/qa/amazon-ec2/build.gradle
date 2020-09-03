@@ -84,7 +84,7 @@ yamlRestTest.enabled = false
 
   testClusters."yamlRestTest${action}" {
     numberOfNodes = ec2NumberOfNodes
-    plugin project(':plugins:discovery-ec2').bundlePlugin.archiveFile
+    plugin ':plugins:discovery-ec2'
 
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'

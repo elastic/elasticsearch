@@ -37,12 +37,12 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -61,7 +61,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -126,7 +125,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path workingDir;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final List<Provider<URI>> plugins = new ArrayList<>();
+    private final List<Configuration> pluginAndModuleConfigurations = new ArrayList<>();
+    private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
@@ -262,45 +262,47 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    @Override
-    public void plugin(RegularFileProperty plugin) {
-        this.plugins.add(plugin.map(p -> p.getAsFile().toURI()));
+    // package protected so only TestClustersAware can access
+    @Internal
+    List<Configuration> getPluginAndModuleConfigurations() {
+        return pluginAndModuleConfigurations;
     }
 
-    @Override
-    public void plugin(Provider<URI> plugin) {
-        requireNonNull(plugin, "Plugin name can't be null");
-        checkFrozen();
-        if (plugins.contains(plugin)) {
-            throw new TestClustersException("Plugin already configured for installation " + plugin);
+    // creates a configuration to depend on the given plugin project, then wraps that configuration
+    // to grab the zip as a file provider
+    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
+        Project depProject = project.project(path);
+        Configuration configuration = project.getConfigurations().findByName(depProject.getName());
+        if (configuration == null) {
+            configuration = project.getConfigurations().create(depProject.getName());
+            DependencyHandler deps = project.getDependencies();
+            deps.add(depProject.getName(), deps.project(Map.of("path", path, "configuration", "zip")));
         }
-        this.plugins.add(plugin);
+        pluginAndModuleConfigurations.add(configuration);
+        Provider<File> fileProvider = configuration.getElements().map(s -> s.stream().findFirst().get().getAsFile());
+        return project.getLayout().file(fileProvider);
     }
 
     @Override
-    public void plugin(URI plugin) {
-        Property<URI> uri = project.getObjects().property(URI.class);
-        uri.set(plugin);
-        this.plugin(uri);
+    public void plugin(Provider<RegularFile> plugin) {
+        checkFrozen();
+        this.plugins.add(plugin.map(RegularFile::getAsFile));
     }
 
     @Override
-    public void plugin(File plugin) {
-        Property<URI> uri = project.getObjects().property(URI.class);
-        uri.set(plugin.toURI());
-        this.plugin(uri);
-    }
-
-    @Override
-    public void module(File module) {
-        RegularFileProperty file = project.getObjects().fileProperty();
-        file.fileValue(module);
-        this.module(file);
+    public void plugin(String pluginProjectPath) {
+       plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        checkFrozen();
         this.modules.add(module.map(RegularFile::getAsFile));
+    }
+
+    @Override
+    public void module(String moduleProjectPath) {
+        module(maybeCreatePluginOrModuleDependency(moduleProjectPath));
     }
 
     @Override
@@ -449,7 +451,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
                 final String[] arguments = Stream.concat(
                     Stream.of("install", "--batch"),
-                    plugins.stream().map(Provider::get).map(URI::toString)
+                    plugins.stream().map(Provider::get).map(p -> p.toURI().toString())
                 ).toArray(String[]::new);
                 runElasticsearchBinScript("elasticsearch-plugin", arguments);
             } else {
@@ -1243,8 +1245,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
         return Stream.concat(
-            plugins.stream().map(Provider::get).filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
-            modules.stream().map(p -> p.get())
+            plugins.stream().map(Provider::get),
+            modules.stream().map(Provider::get)
         )
             .filter(File::exists)
             // TODO: We may be able to simplify this with Gradle 5.6
@@ -1256,12 +1258,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Input
-    public Set<URI> getRemotePlugins() {
-        Set<URI> file = plugins.stream()
-            .map(Provider::get)
-            .filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false)
-            .collect(Collectors.toSet());
-        return file;
+    public Set<File> getRemotePlugins() {
+        return plugins.stream().map(Provider::get).collect(Collectors.toSet());
     }
 
     @Classpath

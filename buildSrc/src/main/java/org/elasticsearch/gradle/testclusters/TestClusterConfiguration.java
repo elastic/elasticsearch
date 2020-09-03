@@ -45,17 +45,13 @@ public interface TestClusterConfiguration {
 
     void setTestDistribution(TestDistribution distribution);
 
-    void plugin(URI plugin);
+    void plugin(Provider<RegularFile> plugin);
 
-    void plugin(File plugin);
-
-    void plugin(Provider<URI> plugin);
-
-    void plugin(RegularFileProperty plugin);
-
-    void module(File module);
+    void plugin(String pluginProjectPath);
 
     void module(Provider<RegularFile> module);
+
+    void module(String moduleProjectPath);
 
     void keystore(String key, String value);
 

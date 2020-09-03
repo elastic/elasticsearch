@@ -79,10 +79,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
                 // Auto add dependent modules to the test cluster
                 if (project.findProject(":modules:${pluginName}") != null) {
-                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
-                    project.testClusters.integTest.module(
-                            project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
-                    )
+                    project.testClusters.integTest.module(":modules:${pluginName}")
                 }
             }
             PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)

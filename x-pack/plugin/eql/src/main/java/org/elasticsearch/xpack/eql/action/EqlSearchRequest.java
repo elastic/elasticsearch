@@ -376,6 +376,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public String getDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");

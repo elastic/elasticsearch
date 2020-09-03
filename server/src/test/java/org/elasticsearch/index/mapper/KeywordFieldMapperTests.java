@@ -250,6 +250,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
+    public void testConfigureSimilarity() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
+        );
+        MappedFieldType ft = mapperService.documentMapper().fieldTypes().get("field");
+        assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("similarity", "BM25"))));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [similarity] from [boolean] to [BM25]"));
+    }
+
     public void testNormalizer() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "AbC")));

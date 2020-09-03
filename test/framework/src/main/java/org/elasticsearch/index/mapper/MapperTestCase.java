@@ -63,6 +63,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
+    // TODO make this final once we remove FieldMapperTestCase2
+    public void testMinimalToMaximal() throws IOException {
+        XContentBuilder orig = JsonXContent.contentBuilder().startObject();
+        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        orig.endObject();
+        XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
+        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        parsedFromOrig.endObject();
+        assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
+        assertParseMinimalWarnings();
+    }
+
     protected void assertParseMinimalWarnings() {
         // Most mappers don't emit any warnings
     }

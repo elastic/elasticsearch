@@ -230,4 +230,9 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
             : ToXContent.EMPTY_PARAMS;
         return mapping(b -> builder.toXContent(b, params));
     }
+
+    @Override
+    public void testMinimalToMaximal() {
+        assumeFalse("`include_defaults` includes unsupported properties in non-parametrized mappers", false);
+    }
 }

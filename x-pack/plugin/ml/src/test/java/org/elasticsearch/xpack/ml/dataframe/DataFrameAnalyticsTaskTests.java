@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
@@ -217,8 +218,9 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, mock(ThreadPool.class), client);
         TaskManager taskManager = mock(TaskManager.class);
 
+        // We leave reindexing progress here to zero in order to check it is updated before it is persisted
         List<PhaseProgress> progress = Arrays.asList(
-            new PhaseProgress(ProgressTracker.REINDEXING, 100),
+            new PhaseProgress(ProgressTracker.REINDEXING, 0),
             new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
             new PhaseProgress(ProgressTracker.WRITING_RESULTS, 30));
 
@@ -240,6 +242,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new DataFrameAnalyticsTask(
                 123, "type", "action", null, Collections.emptyMap(), client, clusterService, analyticsManager, auditor, taskParams);
         task.init(persistentTasksService, taskManager, "task-id", 42);
+        task.setReindexingFinished();
         Exception exception = new Exception("some exception");
 
         task.setFailed(exception);
@@ -261,7 +264,8 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, indexRequest.source().utf8ToString())) {
                 StoredProgress parsedProgress = StoredProgress.PARSER.apply(parser, null);
-                assertThat(parsedProgress.get(), equalTo(progress));
+                assertThat(parsedProgress.get(), hasSize(3));
+                assertThat(parsedProgress.get().get(0), equalTo(new PhaseProgress("reindexing", 100)));
             }
 
             verify(client).execute(
@@ -270,7 +274,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
                     "task-id", 42, new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 42, "some exception"))),
                 any());
         }
-        verifyNoMoreInteractions(client, clusterService, analyticsManager, auditor, taskManager);
+        verifyNoMoreInteractions(client, analyticsManager, auditor, taskManager);
     }
 
     @SuppressWarnings("unchecked")

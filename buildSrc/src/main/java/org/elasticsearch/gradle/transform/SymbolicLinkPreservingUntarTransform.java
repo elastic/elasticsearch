@@ -37,6 +37,8 @@ import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
+    private static final Path CURRENT_DIR_PATH = Paths.get(".");
+
     public void unpack(File tarFile, File targetDir) throws IOException {
         Logging.getLogger(SymbolicLinkPreservingUntarTransform.class)
             .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
@@ -47,7 +49,7 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
         TarArchiveEntry entry = tar.getNextTarEntry();
         while (entry != null) {
             final Path relativePath = pathModifier.apply(entry.getName());
-            if (relativePath == null) {
+            if (relativePath == null || relativePath.getFileName().equals(CURRENT_DIR_PATH)) {
                 entry = tar.getNextTarEntry();
                 continue;
             }

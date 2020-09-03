@@ -37,15 +37,26 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(TestDeprecationHeaderRestAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
-    public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE1 =
-        Setting.boolSetting("test.setting.deprecated.true1", true,
-                            Setting.Property.NodeScope, Setting.Property.Deprecated, Setting.Property.Dynamic);
-    public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE2 =
-        Setting.boolSetting("test.setting.deprecated.true2", true,
-                            Setting.Property.NodeScope, Setting.Property.Deprecated, Setting.Property.Dynamic);
-    public static final Setting<Boolean> TEST_NOT_DEPRECATED_SETTING =
-        Setting.boolSetting("test.setting.not_deprecated", false,
-                            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE1 = Setting.boolSetting(
+        "test.setting.deprecated.true1",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE2 = Setting.boolSetting(
+        "test.setting.deprecated.true2",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Boolean> TEST_NOT_DEPRECATED_SETTING = Setting.boolSetting(
+        "test.setting.not_deprecated",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private static final Map<String, Setting<?>> SETTINGS_MAP;
 
@@ -70,8 +81,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     @Override
     public List<DeprecatedRoute> deprecatedRoutes() {
-        return singletonList(
-            new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT));
+        return singletonList(new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT));
     }
 
     @Override
@@ -95,18 +105,25 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             if (source.containsKey("deprecated_settings")) {
                 deprecationLogger.deprecate("deprecated_settings", DEPRECATED_USAGE);
 
-                settings = (List<String>)source.get("deprecated_settings");
+                settings = (List<String>) source.get("deprecated_settings");
             } else {
-                settings = (List<String>)source.get("settings");
+                settings = (List<String>) source.get("settings");
             }
+        }
+
+        // Pull out the settings values here in order to guarantee that any deprecation messages are triggered
+        // in the same thread context.
+        final Map<String, Object> settingsMap = new HashMap<>();
+        for (String setting : settings) {
+            settingsMap.put(setting, SETTINGS_MAP.get(setting).get(this.settings));
         }
 
         return channel -> {
             final XContentBuilder builder = channel.newBuilder();
 
             builder.startObject().startArray("settings");
-            for (String setting : settings) {
-                builder.startObject().field(setting, SETTINGS_MAP.get(setting).get(this.settings)).endObject();
+            for (Map.Entry<String, Object> entry : settingsMap.entrySet()) {
+                builder.startObject().field(entry.getKey(), entry.getValue()).endObject();
             }
             builder.endArray().endObject();
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));

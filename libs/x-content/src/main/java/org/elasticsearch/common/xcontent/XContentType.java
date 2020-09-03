@@ -118,7 +118,7 @@ public enum XContentType {
 
     /**
      * A regexp to allow parsing media types. It covers two use cases.
-     * 1. Media type with a version - requires a custom vnd.elasticserach subtype and a compatible-with parameter
+     * 1. Media type with a version - requires a custom vnd.elasticsearch subtype and a compatible-with parameter
      * i.e. application/vnd.elasticsearch+json;compatible-with
      * 2. Media type without a version - for users not using compatible API i.e. application/json
      */

@@ -87,7 +87,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null);
+        private final Parameter<String> nullValue
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
         private final Parameter<Boolean> eagerGlobalOrdinals
             = Parameter.boolParam("eager_global_ordinals", true, m -> toType(m).eagerGlobalOrdinals, false);
@@ -99,7 +100,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> hasNorms
             = Parameter.boolParam("norms", false, m -> toType(m).fieldType.omitNorms() == false, false);
         private final Parameter<SimilarityProvider> similarity = new Parameter<>("similarity", false, () -> null,
-            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o.toString()), m -> toType(m).similarity);
+            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), m -> toType(m).similarity)
+            .setSerializer((b, f, v) -> b.field(f, v == null ? null : v.name()), v -> v == null ? null : v.name())
+            .acceptsNull();
 
         private final Parameter<String> normalizer
             = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");

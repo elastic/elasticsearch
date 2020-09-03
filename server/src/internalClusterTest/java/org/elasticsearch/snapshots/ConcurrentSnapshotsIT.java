@@ -819,6 +819,28 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(deleteFuture.get());
     }
 
+    public void testMultiplePartialSnapshotsQueuedAfterDelete() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        createIndexWithContent("index-one");
+        createIndexWithContent("index-two");
+        createNSnapshots(repoName, randomIntBetween(1, 5));
+
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startAndBlockOnDeleteSnapshot(repoName, "*");
+        final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshot(repoName, "snapshot-three", true);
+        final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshot(repoName, "snapshot-four", true);
+        awaitNSnapshotsInProgress(2);
+
+        assertAcked(client().admin().indices().prepareDelete("index-two"));
+        unblockNode(repoName, masterNode);
+
+        assertThat(snapshotThree.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        assertThat(snapshotFour.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        assertAcked(deleteFuture.get());
+    }
+
     public void testQueuedSnapshotsWaitingForShardReady() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
@@ -1238,8 +1260,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName) {
+        return startFullSnapshot(repoName, snapshotName, false);
+    }
+
+    private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
-        return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute();
+        return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                .setPartial(partial).execute();
     }
 
     private void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {

@@ -96,9 +96,6 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 Object propNode = entry.getValue();
 
                 if (Names.NULL_VALUE.match(propName, LoggingDeprecationHandler.INSTANCE)) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
                     nullValue = propNode;
                     iterator.remove();
                 }
@@ -146,7 +143,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (nullValue != null) {
+        if (nullValue != null || includeDefaults) {
             builder.field(Names.NULL_VALUE.getPreferredName(), nullValue);
         }
     }

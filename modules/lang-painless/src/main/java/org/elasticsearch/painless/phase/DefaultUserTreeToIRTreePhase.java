@@ -430,15 +430,18 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         // build out the load structure for load/compound assignment or the store structure for just store
         ExpressionNode irExpressionNode = irLoadNode != null ? irLoadNode : irStoreNode;
 
-        // this load/store is a dot or brace load
         if (irPrefixNode != null) {
-            // this load/store requires and index
+            // this load/store is a dot or brace load/store
+
             if (irIndexNode != null) {
+                // this load/store requires an index
                 BinaryImplNode binaryImplNode = new BinaryImplNode();
                 binaryImplNode.setLocation(location);
                 binaryImplNode.setExpressionType(void.class);
 
                 if (isNullSafe) {
+                    // the null-safe structure is slightly different from the standard structure since
+                    // both the index and expression are not written to the stack if the prefix is null
                     binaryImplNode.setLeftNode(irIndexNode);
                     binaryImplNode.setRightNode(irExpressionNode);
                     irExpressionNode = binaryImplNode;
@@ -449,8 +452,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 }
             }
 
-            // this is a compound assignment and requires and additional dup to re-access the prefix
             if (irLoadNode != null && irStoreNode != null) {
+                // this is a compound assignment and requires and additional dup to re-access the prefix
                 DupNode dupNode = new DupNode();
                 dupNode.setLocation(location);
                 dupNode.setExpressionType(void.class);
@@ -465,8 +468,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             binaryImplNode.setLocation(location);
             binaryImplNode.setExpressionType(irExpressionNode.getExpressionType());
 
-            // build the structure for a null safe load
             if (isNullSafe) {
+                // build the structure for a null safe load
                 NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode();
                 irNullSafeSubNode.setLocation(location);
                 irNullSafeSubNode.setExpressionType(irExpressionNode.getExpressionType());
@@ -474,6 +477,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 binaryImplNode.setLeftNode(irPrefixNode);
                 binaryImplNode.setRightNode(irNullSafeSubNode);
             } else {
+                // build the structure for a standard load/store
                 binaryImplNode.setLeftNode(irPrefixNode);
                 binaryImplNode.setRightNode(irExpressionNode);
             }
@@ -481,8 +485,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irExpressionNode = binaryImplNode;
         }
 
-        // this is a compound assignment and the store is the root
         if (irLoadNode != null && irStoreNode != null) {
+            // this is a compound assignment and the store is the root
             irStoreNode.setChildNode(irExpressionNode);
             irExpressionNode = irStoreNode;
         }

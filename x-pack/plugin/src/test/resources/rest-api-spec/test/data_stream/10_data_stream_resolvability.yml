@@ -479,7 +479,7 @@
 "Verify data stream resolvability in EQL search API":
   - skip:
       version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      reason: "change to 7.9.1 after backport"
       features: allowed_warnings
 
   - do:

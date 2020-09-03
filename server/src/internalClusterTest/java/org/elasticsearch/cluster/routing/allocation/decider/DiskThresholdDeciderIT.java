@@ -46,9 +46,8 @@ import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -82,22 +81,23 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
 
     private static TestFileSystemProvider fileSystemProvider;
 
-    @BeforeClass
-    public static void installFilesystemProvider() {
+    private FileSystem defaultFileSystem;
+
+    @Before
+    public void installFilesystemProvider() {
+        assertNull(defaultFileSystem);
+        defaultFileSystem = PathUtils.getDefaultFileSystem();
         assertNull(fileSystemProvider);
-        fileSystemProvider = new TestFileSystemProvider(PathUtils.getDefaultFileSystem(), createTempDir());
+        fileSystemProvider = new TestFileSystemProvider(defaultFileSystem, createTempDir());
         PathUtilsForTesting.installMock(fileSystemProvider.getFileSystem(null));
     }
 
-    @AfterClass
-    public static void removeFilesystemProvider() {
+    @After
+    public void removeFilesystemProvider() {
         fileSystemProvider = null;
-        // ESIntegTestCase takes care of tearing down the mock file system
-    }
-
-    @Before
-    public void clearTrackedPaths() throws IOException {
-        fileSystemProvider.clearTrackedPaths();
+        assertNotNull(defaultFileSystem);
+        PathUtilsForTesting.installMock(defaultFileSystem); // set the default filesystem back
+        defaultFileSystem = null;
     }
 
     private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();

@@ -36,16 +36,6 @@ project {
 
     defaultTemplate = DefaultTemplate
 
-    features {
-        versionedSettings {
-            rootExtId = DslContext.settingsRoot.id.toString()
-            mode = VersionedSettings.Mode.ENABLED
-            buildSettingsMode = VersionedSettings.BuildSettingsMode.PREFER_SETTINGS_FROM_VCS
-            settingsFormat = VersionedSettings.Format.KOTLIN
-            storeSecureParamsOutsideOfVcs = true
-        }
-    }
-
     buildType {
         id("Intake")
         name = "Intake"

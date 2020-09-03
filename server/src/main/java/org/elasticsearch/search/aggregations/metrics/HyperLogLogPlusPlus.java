@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
@@ -63,7 +63,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     private static final boolean HYPERLOGLOG = true;
     public static final int DEFAULT_PRECISION = 14;
 
-    private final OpenBitSet algorithm;
+    private final BitArray algorithm;
     private final HyperLogLog hll;
     private final LinearCounting lc;
 
@@ -89,7 +89,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     public HyperLogLogPlusPlus(int precision, BigArrays bigArrays, long initialBucketCount) {
         hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
         lc = new LinearCounting(bigArrays, initialBucketCount, precision, hll);
-        algorithm = new OpenBitSet();
+        algorithm = new BitArray(1, bigArrays);
     }
 
     public int precision() {
@@ -181,7 +181,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(hll, lc);
+        Releasables.close(algorithm, hll, lc);
     }
 
     private Object getComparableData(long bucket) {
@@ -483,33 +483,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
         @Override
         public int value() {
             return value;
-        }
-    }
-
-    /** looks and smells like the old openbitset. */
-    static class OpenBitSet {
-        LongBitSet impl = new LongBitSet(64);
-
-        boolean get(long bit) {
-            if (bit < impl.length()) {
-                return impl.get(bit);
-            } else {
-                return false;
-            }
-        }
-
-        void ensureCapacity(long bit) {
-            impl = LongBitSet.ensureCapacity(impl, bit);
-        }
-
-        void set(long bit) {
-            ensureCapacity(bit);
-            impl.set(bit);
-        }
-
-        void clear(long bit) {
-            ensureCapacity(bit);
-            impl.clear(bit);
         }
     }
 }

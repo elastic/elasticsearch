@@ -367,6 +367,15 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
+    public void testADRealmMandatorySettings() throws Exception {
+        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE,
+            buildAdSettings(AD_LDAP_URL, randomBoolean() ? "" : null, false, true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            getActiveDirectorySessionFactory(config, sslService, threadPool));
+        assertThat(e.getMessage(), containsString(getFullSettingKey(REALM_NAME,
+            ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)));
+    }
+
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification) {
         return buildAdSettings(ldapUrl, adDomainName, hostnameVerification, randomBoolean());
     }

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.DockerBase
+
 apply plugin: 'base'
 
 tasks.register("buildDockerBuildContext", Tar) {
@@ -6,8 +8,7 @@ tasks.register("buildDockerBuildContext", Tar) {
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch"
   // Non-local builds don't need to specify an architecture.
-  // Make this explicit via the string value.
-  with dockerBuildContext("<remote>", false, false)
+  with dockerBuildContext(null, false, DockerBase.CENTOS, false)
 }
 
 tasks.named("assemble").configure {dependsOn "buildDockerBuildContext"}

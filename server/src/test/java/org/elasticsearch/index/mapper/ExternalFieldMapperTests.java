@@ -67,13 +67,13 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
                 singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
-                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()), MapperPlugin.NOOP_FIELD_FILTER);
+                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, ExternalMetadataMapper.PARSER), MapperPlugin.NOOP_FIELD_FILTER);
 
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext, null);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
@@ -113,14 +113,14 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
         mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
-        mapperParsers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
+        mapperParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
 
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext, null);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings

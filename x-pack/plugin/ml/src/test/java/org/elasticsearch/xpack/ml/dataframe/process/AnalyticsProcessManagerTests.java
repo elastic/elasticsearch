@@ -45,6 +45,7 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -105,7 +106,9 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             OutlierDetectionTests.createRandom()).build();
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
-        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(), Collections.emptyMap()));
+        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyMap()));
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
@@ -186,6 +189,20 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).getExtractedFields();
         inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
         verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
+    }
+
+    public void testRunJob_ProcessNotAliveAfterStart() {
+        when(process.isProcessAlive()).thenReturn(false);
+        when(task.getParams()).thenReturn(
+            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, Collections.emptyList(), false));
+
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory);
+        assertThat(processManager.getProcessContextCount(), equalTo(1));
+
+        ArgumentCaptor<Exception> errorCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(task).setFailed(errorCaptor.capture());
+
+        assertThat(errorCaptor.getValue().getMessage(), equalTo("Failed to start data frame analytics process"));
     }
 
     public void testProcessContext_GetSetFailureReason() {

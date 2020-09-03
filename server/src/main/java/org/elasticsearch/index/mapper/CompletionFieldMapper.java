@@ -138,7 +138,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 b.startArray(n);
                 c.toXContent(b, ToXContent.EMPTY_PARAMS);
                 b.endArray();
-            });
+            }, ContextMappings::toString);
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> toType(m).maxInputLength, Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
@@ -537,16 +537,21 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected List<?> parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value instanceof List) {
-            return (List<?>) value;
-        } else {
-            return List.of(value);
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected List<?> parseSourceValue(Object value) {
+                if (value instanceof List) {
+                    return (List<?>) value;
+                } else {
+                    return List.of(value);
+                }
+            }
+        };
     }
 
     static class CompletionInputMetadata {

@@ -45,7 +45,8 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         TOP_METRICS,
         T_TEST,
         MOVING_PERCENTILES,
-        NORMALIZE;
+        NORMALIZE,
+        RATE;
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {

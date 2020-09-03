@@ -28,13 +28,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -46,7 +48,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
             .endObject();
-        FetchSubPhase.HitContext hitContext = hitExecute(source, true, null, null);
+        HitContext hitContext = hitExecute(source, true, null, null);
         assertEquals(Collections.singletonMap("field","value"), hitContext.hit().getSourceAsMap());
     }
 
@@ -55,7 +57,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
             .field("field1", "value")
             .field("field2", "value2")
             .endObject();
-        FetchSubPhase.HitContext hitContext = hitExecute(source, false, null, null);
+        HitContext hitContext = hitExecute(source, false, null, null);
         assertNull(hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecute(source, true, "field1", null);
@@ -73,7 +75,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
             .field("field", "value")
             .field("field2", "value2")
             .endObject();
-        FetchSubPhase.HitContext hitContext = hitExecuteMultiple(source, true, new String[]{"*.notexisting", "field"}, null);
+        HitContext hitContext = hitExecuteMultiple(source, true, new String[]{"*.notexisting", "field"}, null);
         assertEquals(Collections.singletonMap("field","value"), hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecuteMultiple(source, true, new String[]{"field.notexisting.*", "field"}, null);
@@ -87,7 +89,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
             .field("field2", "value2")
             .field("nested1", expectedNested)
             .endObject();
-        FetchSubPhase.HitContext hitContext = hitExecuteMultiple(source, true, null, null,
+        HitContext hitContext = hitExecuteMultiple(source, true, null, null,
             new SearchHit.NestedIdentity("nested1", 0,null));
         assertEquals(expectedNested, hitContext.hit().getSourceAsMap());
         hitContext = hitExecuteMultiple(source, true, new String[]{"invalid"}, null,
@@ -104,7 +106,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
     }
 
     public void testSourceDisabled() throws IOException {
-        FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null);
+        HitContext hitContext = hitExecute(null, true, null, null);
         assertNull(hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecute(null, false, null, null);
@@ -120,8 +122,8 @@ public class FetchSourcePhaseTests extends ESTestCase {
                 "for index [index]", exception.getMessage());
     }
 
-    public void testNestedSourceWithSourceDisabled() {
-        FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null,
+    public void testNestedSourceWithSourceDisabled() throws IOException {
+        HitContext hitContext = hitExecute(null, true, null, null,
             new SearchHit.NestedIdentity("nested1", 0, null));
         assertNull(hitContext.hit().getSourceAsMap());
 
@@ -131,37 +133,43 @@ public class FetchSourcePhaseTests extends ESTestCase {
             "for index [index]", e.getMessage());
     }
 
-    private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {
+    private HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) throws IOException {
         return hitExecute(source, fetchSource, include, exclude, null);
     }
 
-    private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude,
-                                                    SearchHit.NestedIdentity nestedIdentity) {
+    private HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude,
+                                                    SearchHit.NestedIdentity nestedIdentity) throws IOException {
         return hitExecuteMultiple(source, fetchSource,
             include == null ? Strings.EMPTY_ARRAY : new String[]{include},
             exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude}, nestedIdentity);
     }
 
-    private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes) {
+    private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes)
+        throws IOException {
         return hitExecuteMultiple(source, fetchSource, includes, excludes, null);
     }
 
-    private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
-                                                            SearchHit.NestedIdentity nestedIdentity) {
+    private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
+                                                            SearchHit.NestedIdentity nestedIdentity) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
         SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext);
 
-        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        hitContext.reset(searchHit, leafReaderContext, 1, null);
+        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, null, new HashMap<>());
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
-        phase.hitExecute(searchContext, hitContext);
+        FetchSubPhaseProcessor processor = phase.getProcessor(searchContext);
+        if (fetchSource == false) {
+            assertNull(processor);
+        } else {
+            assertNotNull(processor);
+            processor.process(hitContext);
+        }
         return hitContext;
     }
 

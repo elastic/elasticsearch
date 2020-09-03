@@ -453,6 +453,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

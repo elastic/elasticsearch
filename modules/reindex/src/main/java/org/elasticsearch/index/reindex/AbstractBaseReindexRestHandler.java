@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -49,7 +50,7 @@ public abstract class AbstractBaseReindexRestHandler<
     protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client,
                                                    boolean includeCreated, boolean includeUpdated) throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request));
+        Request internal = setCommonOptions(request, buildRequest(request, client.getNamedWriteableRegistry()));
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -77,7 +78,7 @@ public abstract class AbstractBaseReindexRestHandler<
     /**
      * Build the Request based on the RestRequest.
      */
-    protected abstract Request buildRequest(RestRequest request) throws IOException;
+    protected abstract Request buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException;
 
     /**
      * Sets common options of {@link AbstractBulkByScrollRequest} requests.

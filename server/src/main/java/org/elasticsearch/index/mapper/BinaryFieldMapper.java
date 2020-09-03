@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -45,6 +46,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
@@ -123,7 +125,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
@@ -190,11 +192,16 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value;
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

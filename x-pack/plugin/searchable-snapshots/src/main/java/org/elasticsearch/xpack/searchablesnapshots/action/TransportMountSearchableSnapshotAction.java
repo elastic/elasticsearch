@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -45,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
@@ -62,6 +64,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     private final Client client;
     private final RepositoriesService repositoriesService;
     private final XPackLicenseState licenseState;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportMountSearchableSnapshotAction(
@@ -72,7 +75,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         RepositoriesService repositoriesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        SystemIndices systemIndices
     ) {
         super(
             MountSearchableSnapshotAction.NAME,
@@ -86,6 +90,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.licenseState = Objects.requireNonNull(licenseState);
+        this.systemIndices = Objects.requireNonNull(systemIndices);
     }
 
     @Override
@@ -118,6 +123,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), SearchableSnapshotAllocator.ALLOCATOR_NAME)
+            .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY)
             .build();
     }
 
@@ -129,6 +135,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         final ActionListener<RestoreSnapshotResponse> listener
     ) {
         SearchableSnapshots.ensureValidLicense(licenseState);
+
+        final String mountedIndexName = request.mountedIndexName();
+        if (systemIndices.isSystemIndex(mountedIndexName)) {
+            throw new ElasticsearchException("system index [{}] cannot be mounted as searchable snapshots", mountedIndexName);
+        }
 
         final String repoName = request.repositoryName();
         final String snapName = request.snapshotName();
@@ -166,7 +177,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         .indices(indexName)
                         // Always rename it to the desired mounted index name
                         .renamePattern(".+")
-                        .renameReplacement(request.mountedIndexName())
+                        .renameReplacement(mountedIndexName)
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
                         .indexSettings(
                             Settings.builder()

@@ -1,0 +1,28 @@
+---
+"Test put autoscaling policy":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          policy:
+            deciders:
+              always: {}
+
+  - match: { "acknowledged": true }
+
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+
+---
+"Test put autoscaling policy with non-existent decider":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          policy:
+            deciders:
+              does_not_exist: {}
+

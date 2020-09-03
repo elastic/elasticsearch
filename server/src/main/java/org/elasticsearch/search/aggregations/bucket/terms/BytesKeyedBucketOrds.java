@@ -34,7 +34,7 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
      * Build a {@link LongKeyedBucketOrds}.
      */
     public static BytesKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
-        return cardinality == CardinalityUpperBound.ONE ? new FromSingle(bigArrays) : new FromMany(bigArrays);
+        return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
     }
 
     private BytesKeyedBucketOrds() {}

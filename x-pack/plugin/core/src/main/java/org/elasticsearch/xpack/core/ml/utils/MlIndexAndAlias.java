@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -25,6 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -214,5 +218,53 @@ public final class MlIndexAndAlias {
                 resp -> listener.onResponse(resp.isAcknowledged()),
                 listener::onFailure),
             client.admin().indices()::aliases);
+    }
+
+    /**
+     * Installs the index template specified by {@code templateConfig} if it is not in already
+     * installed in {@code clusterState}.
+     *
+     * The check for presence is simple and will return the listener on
+     * the calling thread if successful. If the template has to be installed
+     * an async call will be made.
+     *
+     * @param clusterState The cluster state
+     * @param client For putting the template
+     * @param templateConfig The config
+     * @param listener Async listener
+     */
+    public static void installIndexTemplateIfRequired(
+        ClusterState clusterState,
+        Client client,
+        IndexTemplateConfig templateConfig,
+        ActionListener<Boolean> listener
+    ) {
+        String templateName = templateConfig.getTemplateName();
+
+        // The check for existence of the template is against the cluster state, so very cheap
+        if (hasIndexTemplate(clusterState, templateName)) {
+            listener.onResponse(true);
+            return;
+        }
+
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName)
+            .source(templateConfig.loadBytes(), XContentType.JSON);
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+
+        ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
+            response ->  {
+                if (response.isAcknowledged() == false) {
+                    logger.warn("error adding legacy template [{}], request was not acknowledged", templateName);
+                }
+                listener.onResponse(response.isAcknowledged());
+            },
+            listener::onFailure);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, innerListener,
+            client.admin().indices()::putTemplate);
+    }
+
+    private static boolean hasIndexTemplate(ClusterState state, String templateName) {
+        return state.getMetadata().getTemplates().containsKey(templateName);
     }
 }

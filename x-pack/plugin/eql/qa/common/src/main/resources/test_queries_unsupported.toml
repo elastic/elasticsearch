@@ -46,35 +46,6 @@ name = "equalsNullHead"
 expected_event_ids  = [1, 2, 3, 4, 5]
 query = 'process where bad_field == null | head 5'
 
-
-[[queries]]
-name = "lteAndGtWithFilter"
-tags = ["comparisons", "pipes"]
-query = '''
-process where serial_event_id <= 8 and serial_event_id > 7
-| filter serial_event_id == 8
-'''
-expected_event_ids  = [8]
-
-[[queries]]
-name = "filtersLteAndGt"
-query = '''
-process where true
-| filter serial_event_id <= 10
-| filter serial_event_id > 6
-'''
-expected_event_ids  = [7, 8, 9, 10]
-
-[[queries]]
-name = "filterLteAndGtWithHead"
-query = '''
-process where true
-| filter serial_event_id <= 10
-| filter serial_event_id > 6
-| head 2
-'''
-expected_event_ids  = [7, 8]
-
 [[queries]]
 name = "headWithFiltersAndTail"
 query = '''
@@ -128,7 +99,6 @@ name = "processWithStringComparisonCaseInsensitive4"
 case_insensitive = true
 query = 'process where process_name >= "SYSTE" and process_name <= "systex"'
 expected_event_ids  = [1, 2]
-
 
 [[queries]]
 name = "processWithStringEqualityCaseInsensitive1"

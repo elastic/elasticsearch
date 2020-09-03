@@ -38,7 +38,6 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
@@ -69,6 +68,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -125,7 +125,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path workingDir;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final List<Configuration> pluginAndModuleConfigurations = new ArrayList<>();
+    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
@@ -264,22 +264,25 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     // package protected so only TestClustersAware can access
     @Internal
-    List<Configuration> getPluginAndModuleConfigurations() {
-        return pluginAndModuleConfigurations;
+    Collection<Configuration> getPluginAndModuleConfigurations() {
+        return pluginAndModuleConfigurations.values();
     }
 
     // creates a configuration to depend on the given plugin project, then wraps that configuration
     // to grab the zip as a file provider
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
-        Project depProject = project.project(path);
-        Configuration configuration = project.getConfigurations().findByName(depProject.getName());
-        if (configuration == null) {
-            configuration = project.getConfigurations().create(depProject.getName());
-            DependencyHandler deps = project.getDependencies();
-            deps.add(depProject.getName(), deps.project(Map.of("path", path, "configuration", "zip")));
-        }
-        pluginAndModuleConfigurations.add(configuration);
-        Provider<File> fileProvider = configuration.getElements().map(s -> s.stream().findFirst().get().getAsFile());
+        Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(
+            path,
+            key -> project.getConfigurations()
+                .detachedConfiguration(project.getDependencies().project(Map.of("path", path, "configuration", "zip")))
+        );
+        Provider<File> fileProvider = configuration.getElements()
+            .map(
+                s -> s.stream()
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("zip configuration of project " + path + " had no files"))
+                    .getAsFile()
+            );
         return project.getLayout().file(fileProvider);
     }
 
@@ -1252,11 +1255,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             .flatMap(tree -> tree.getFiles().stream())
             .sorted(Comparator.comparing(File::getName))
             .collect(Collectors.toList());
-    }
-
-    @Input
-    public Set<File> getRemotePlugins() {
-        return plugins.stream().map(Provider::get).collect(Collectors.toSet());
     }
 
     @Classpath

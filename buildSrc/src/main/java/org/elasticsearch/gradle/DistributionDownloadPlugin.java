@@ -122,11 +122,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             DependencyHandler dependencies = project.getDependencies();
             // for the distribution as a file, just depend on the artifact directly
             Object resolvedDependency = resolveDependencyNotation(project, distribution);
-            distribution.configuration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT,
-                    resolveArtifactFormat(distribution));
             dependencies.add(distribution.configuration.getName(), resolvedDependency);
             // no extraction allowed for rpm, deb or docker
             if (distribution.getType().shouldExtract()) {
+                distribution.configuration.getAttributes()
+                    .attribute(ArtifactAttributes.ARTIFACT_FORMAT, resolveArtifactFormat(distribution));
                 // The extracted configuration depends on the artifact directly but has
                 // an artifact transform registered to resolve it as an unpacked folder.
                 dependencies.add(distribution.getExtracted().getName(), resolvedDependency);
@@ -135,10 +135,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private String resolveArtifactFormat(ElasticsearchDistribution distribution) {
-        if(distribution.getType() == Type.INTEG_TEST_ZIP || distribution.getPlatform() == Platform.WINDOWS) {
+        if (distribution.getType() == Type.INTEG_TEST_ZIP || distribution.getPlatform() == Platform.WINDOWS) {
             return ArtifactTypeDefinition.ZIP_TYPE;
         }
-            return "tar.gz";
+        return "tar.gz";
     }
 
     private Object resolveDependencyNotation(Project p, ElasticsearchDistribution distribution) {

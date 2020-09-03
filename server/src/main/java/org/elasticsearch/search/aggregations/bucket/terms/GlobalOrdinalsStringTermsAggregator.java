@@ -106,10 +106,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (remapGlobalOrds) {
             this.collectionStrategy = new RemapGlobalOrds(cardinality);
         } else {
-            if (cardinality == CardinalityUpperBound.MANY) {
-                throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
-            }
-            this.collectionStrategy = new DenseGlobalOrds();
+            this.collectionStrategy = cardinality.map(estimate -> {
+                if (estimate > 1) {
+                    throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
+                }
+                return new DenseGlobalOrds();
+            });
         }
     }
 

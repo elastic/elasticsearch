@@ -18,18 +18,15 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,53 +38,52 @@ import java.util.Map;
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) {
-        if (hits.length == 0 ||
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
+        if (context.docIdsToLoadSize() == 0 ||
             // in case the request has only suggest, parsed query is null
             context.parsedQuery() == null) {
-            return;
+            return null;
         }
-        @SuppressWarnings("unchecked")
-        List<String>[] matchedQueries = new List[hits.length];
-        for (int i = 0; i < matchedQueries.length; ++i) {
-            matchedQueries[i] = new ArrayList<>();
-        }
-
         Map<String, Query> namedQueries = new HashMap<>(context.parsedQuery().namedFilters());
         if (context.parsedPostFilter() != null) {
             namedQueries.putAll(context.parsedPostFilter().namedFilters());
         }
+        if (namedQueries.isEmpty()) {
+            return null;
+        }
+        Map<String, Weight> weights = new HashMap<>();
+        for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
+            weights.put(entry.getKey(),
+                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1));
+        }
+        return new FetchSubPhaseProcessor() {
 
-        try {
-            for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
-                String name = entry.getKey();
-                Query query = entry.getValue();
-                int readerIndex = -1;
-                int docBase = -1;
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                Bits matchingDocs = null;
-                final IndexReader indexReader = context.searcher().getIndexReader();
-                for (int i = 0; i < hits.length; ++i) {
-                    SearchHit hit = hits[i];
-                    int hitReaderIndex = ReaderUtil.subIndex(hit.docId(), indexReader.leaves());
-                    if (readerIndex != hitReaderIndex) {
-                        readerIndex = hitReaderIndex;
-                        LeafReaderContext ctx = indexReader.leaves().get(readerIndex);
-                        docBase = ctx.docBase;
-                        // scorers can be costly to create, so reuse them across docs of the same segment
-                        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
-                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorerSupplier);
-                    }
-                    if (matchingDocs.get(hit.docId() - docBase)) {
-                        matchedQueries[i].add(name);
+            final Map<String, Bits> matchingIterators = new HashMap<>();
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                matchingIterators.clear();
+                for (Map.Entry<String, Weight> entry : weights.entrySet()) {
+                    ScorerSupplier ss = entry.getValue().scorerSupplier(readerContext);
+                    if (ss != null) {
+                        Bits matchingBits = Lucene.asSequentialAccessBits(readerContext.reader().maxDoc(), ss);
+                        matchingIterators.put(entry.getKey(), matchingBits);
                     }
                 }
             }
-            for (int i = 0; i < hits.length; ++i) {
-                hits[i].matchedQueries(matchedQueries[i].toArray(new String[matchedQueries[i].size()]));
+
+            @Override
+            public void process(HitContext hitContext) {
+                List<String> matches = new ArrayList<>();
+                int doc = hitContext.docId();
+                for (Map.Entry<String, Bits> iterator : matchingIterators.entrySet()) {
+                    if (iterator.getValue().get(doc)) {
+                        matches.add(iterator.getKey());
+                    }
+                }
+                hitContext.hit().matchedQueries(matches.toArray(String[]::new));
             }
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
-        }
+        };
     }
+
 }

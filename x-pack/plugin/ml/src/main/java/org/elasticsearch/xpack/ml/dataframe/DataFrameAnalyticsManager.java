@@ -281,6 +281,8 @@ public class DataFrameAnalyticsManager {
                     new Script(
                         Script.DEFAULT_SCRIPT_TYPE,
                         Script.DEFAULT_SCRIPT_LANG,
+                        // We use indirection here because top level params are immutable.
+                        // This is a work around at the moment but the plan is to make this a feature of reindex API.
                         "ctx._source." + DestinationIndex.INCREMENTAL_ID + " = ++params.counter.value",
                         Collections.singletonMap("counter", counterValueParam)
                     )

@@ -3,6 +3,107 @@
 
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
+[[feature-7.9.1]]
+[float]
+=== New features
+
+Search::
+* QL: Wildcard field type support {es-pull}58062[#58062] (issues: {es-issue}54184[#54184], {es-issue}58044[#58044])
+
+
+
+[[enhancement-7.9.1]]
+[float]
+=== Enhancements
+
+CRUD::
+* Log more information when mappings fail on index creation {es-pull}61577[#61577]
+
+EQL::
+* Make endsWith function use a wildcard ES query wherever possible {es-pull}61160[#61160] (issue: {es-issue}61154[#61154])
+* Make stringContains function use a wildcard ES query wherever possible {es-pull}61189[#61189] (issue: {es-issue}58922[#58922])
+
+Features/Stats::
+* Change severity of negative stats messages from WARN to DEBUG {es-pull}60375[#60375]
+
+Search::
+* Fix handling of alias filter in SearchService#canMatch {es-pull}59368[#59368] (issue: {es-issue}59367[#59367])
+* QL: Add filtering Query DSL support to IndexResolver {es-pull}60514[#60514] (issue: {es-issue}57358[#57358])
+
+Snapshot/Restore::
+* Do not access snapshot repo on dedicated voting-only master node {es-pull}61016[#61016] (issue: {es-issue}59649[#59649])
+
+
+
+[[bug-7.9.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Call ActionListener.onResponse exactly once {es-pull}61584[#61584]
+
+Authorization::
+* Relax the index access control check for scroll searches {es-pull}61446[#61446]
+
+CCR::
+* Relax ShardFollowTasksExecutor validation {es-pull}60054[#60054] (issue: {es-issue}59625[#59625])
+* Set timeout of auto put-follow request to unbounded {es-pull}61679[#61679] (issue: {es-issue}56891[#56891])
+* Set timeout of master node requests on follower to unbounded {es-pull}60070[#60070] (issue: {es-issue}56891[#56891])
+
+Cluster Coordination::
+* Restrict testing of legacy discovery to tests {es-pull}61178[#61178] (issue: {es-issue}61177[#61177])
+
+EQL::
+* Return sequence join keys in the original type {es-pull}61268[#61268] (issue: {es-issue}59707[#59707])
+
+Features/Data streams::
+* "no such index [null]" when indexing into data stream with op_type=index [ISSUE] {es-pull}60581[#60581]
+* Data streams: throw ResourceAlreadyExists exception {es-pull}60518[#60518]
+* Track backing indices in data streams stats from cluster state {es-pull}59817[#59817]
+
+Features/ILM+SLM::
+* Fix race in SLM master/cluster state listeners {es-pull}59801[#59801]
+
+Features/Ingest::
+* Fix handling of final pipelines when destination is changed {es-pull}59522[#59522] (issue: {es-issue}57968[#57968])
+* Fix wrong pipeline name in debug log {es-pull}58817[#58817] (issue: {es-issue}58478[#58478])
+* Fix wrong result when executing bulk requests with and without pipeline {es-pull}60818[#60818] (issue: {es-issue}60437[#60437])
+* Update regex file for es user agent node processor {es-pull}59697[#59697] (issue: {es-issue}59694[#59694])
+
+IdentityProvider::
+* Only call listener once (SP template registration) {es-pull}60497[#60497] (issues: {es-issue}54285[#54285], {es-issue}54423[#54423])
+
+Machine Learning::
+* Always write prediction_probability and prediction_score for classification inference {es-pull}60335[#60335]
+* Get data frame analytics stats API can return multiple responses if more than one error {es-pull}60900[#60900] (issue: {es-issue}60876[#60876])
+* Ensure .ml-config index is updated before clearing anomaly job's finished_time {es-pull}61064[#61064] (issue: {es-issue}61157[#61157])
+* Ensure annotations index mappings are up to date {es-pull}61107[#61107] (issue: {es-issue}74935[#74935])
+* Handle node closed exception in ML result processing {es-pull}60238[#60238] (issue: {es-issue}60130[#60130])
+* Recover data frame extraction search from latest sort key {es-pull}61544[#61544]
+
+SQL::
+* Fix NPE on ambiguous GROUP BY {es-pull}59370[#59370] (issues: {es-issue}46396[#46396], {es-issue}56489[#56489])
+* Fix SYS COLUMNS schema in ODBC mode {es-pull}59513[#59513] (issue: {es-issue}59506[#59506])
+
+Search::
+* Disable sort optimization on search collapsing {es-pull}60838[#60838]
+* Search fix: query_string regex searches not working on wildcard fields {es-pull}60959[#60959] (issue: {es-issue}60957[#60957])
+
+Snapshot/Restore::
+* Cleanly Handle S3 SDK Exceptions in Request Counting {es-pull}61686[#61686] (issue: {es-issue}61670[#61670])
+* Fix Concurrent Snapshot Create+Delete + Delete Index {es-pull}61770[#61770] (issue: {es-issue}61762[#61762])
+
+
+
+[[upgrade-7.9.1]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to Lucene 8.6.2 {es-pull}61688[#61688] (issue: {es-issue}61512[#61512])
+
+
+
 [[release-notes-7.9.0]]
 == {es} version 7.9.0
 

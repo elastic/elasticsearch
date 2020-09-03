@@ -290,7 +290,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
         String progressDocId = StoredProgress.documentId(jobId);
 
-        // Step 3: Run the runnable provided as the argument
+        // Step 4: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
                 LOGGER.debug("[{}] Successfully indexed progress document", jobId);
@@ -303,7 +303,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         );
 
-        // Step 2: Create or update the progress document:
+        // Step 3: Create or update the progress document:
         //   - if the document did not exist, create the new one in the current write index
         //   - if the document did exist, update it in the index where it resides (not necessarily the current write index)
         ActionListener<SearchResponse> searchFormerProgressDocListener = ActionListener.wrap(
@@ -331,14 +331,26 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         );
 
-        // Step 1: Search for existing progress document in .ml-state*
-        SearchRequest searchRequest =
-            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .source(
-                    new SearchSourceBuilder()
-                        .size(1)
-                        .query(new IdsQueryBuilder().addIds(progressDocId)));
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+        // Step 2: Search for existing progress document in .ml-state*
+        ActionListener<Void> reindexProgressUpdateListener = ActionListener.wrap(
+            aVoid -> {
+                SearchRequest searchRequest =
+                    new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+                        .source(
+                            new SearchSourceBuilder()
+                                .size(1)
+                                .query(new IdsQueryBuilder().addIds(progressDocId)));
+                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+            },
+            e -> {
+                LOGGER.error(new ParameterizedMessage(
+                    "[{}] cannot persist progress as an error occurred while updating reindexing task progress", taskParams.getId()), e);
+                runnable.run();
+            }
+        );
+
+        // Step 1: Update reindexing progress as it could be stale
+        updateReindexTaskProgress(reindexProgressUpdateListener);
     }
 
     /**

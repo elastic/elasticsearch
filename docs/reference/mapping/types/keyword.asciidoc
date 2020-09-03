@@ -7,7 +7,7 @@
 
 The keyword family includes the following field types:
 
-* <<keyword,`keyword`>>, which is used for structured content such as IDs, email
+* <<keyword-field-type,`keyword`>>, which is used for structured content such as IDs, email
 addresses, hostnames, status codes, zip codes, or tags. 
 * <<constant-keyword-field-type,`constant_keyword`>> for keyword fields that always contain
 the same value.

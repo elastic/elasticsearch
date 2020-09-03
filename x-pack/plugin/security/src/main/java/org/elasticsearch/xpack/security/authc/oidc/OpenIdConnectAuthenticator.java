@@ -42,6 +42,7 @@ import net.minidev.json.JSONObject;
 import org.apache.commons.codec.Charsets;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthenticationException;
@@ -56,6 +57,7 @@ import org.apache.http.config.RegistryBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
@@ -112,6 +114,9 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_HOST;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_PORT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_SCHEME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT;
 
 /**
@@ -579,10 +584,14 @@ public class OpenIdConnectAuthenticator {
                         .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
                         .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                         .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis())).build();
-                    CloseableHttpAsyncClient httpAsyncClient = HttpAsyncClients.custom()
+                    HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                         .setConnectionManager(connectionManager)
-                        .setDefaultRequestConfig(requestConfig)
-                        .build();
+                        .setDefaultRequestConfig(requestConfig);
+                    if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+                        httpAsyncClientBuilder.setProxy(new HttpHost(realmConfig.getSetting(HTTP_PROXY_HOST),
+                            realmConfig.getSetting(HTTP_PROXY_PORT), realmConfig.getSetting(HTTP_PROXY_SCHEME)));
+                    }
+                    CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
                     httpAsyncClient.start();
                     return httpAsyncClient;
                 });
@@ -661,8 +670,15 @@ public class OpenIdConnectAuthenticator {
             } else if (value1 instanceof JSONObject) {
                 idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
             } else if (value1.getClass().equals(value2.getClass()) == false) {
-                throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
-                    "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
+                // A special handling for certain OPs that mix the usage of true and "true"
+                if (value1 instanceof Boolean && value2 instanceof String && String.valueOf(value1).equals(value2)) {
+                    idToken.put(entry.getKey(), value1);
+                } else if (value2 instanceof Boolean && value1 instanceof String && String.valueOf(value2).equals(value1)) {
+                    idToken.put(entry.getKey(), value2);
+                } else {
+                    throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
+                        "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
+                }
             }
         }
         for (Map.Entry<String, Object> entry : userInfo.entrySet()) {

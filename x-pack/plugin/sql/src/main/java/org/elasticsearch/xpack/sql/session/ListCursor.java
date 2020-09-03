@@ -83,12 +83,12 @@ public class ListCursor implements Cursor {
     }
     
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

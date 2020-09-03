@@ -11,6 +11,9 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
+import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter;
 
 import java.io.IOException;
 import java.util.ArrayList;

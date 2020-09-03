@@ -29,21 +29,59 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoDistanceRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory {
+public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            GeoDistanceAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.GEOPOINT,
+            (
+                name,
+                factories,
+                distanceType,
+                origin,
+                units,
+                valuesSource,
+                format,
+                rangeFactory,
+                ranges,
+                keyed,
+                context,
+                parent,
+                cardinality,
+                metadata) -> {
+                DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, units);
+                return new RangeAggregator(
+                    name,
+                    factories,
+                    distanceSource,
+                    format,
+                    rangeFactory,
+                    ranges,
+                    keyed,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+                true);
+    }
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;
@@ -74,18 +112,30 @@ public class GeoDistanceRangeAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
-        if (valuesSource instanceof ValuesSource.GeoPoint  == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
-        }
-        DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, unit);
-        return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, searchContext,
-                parent, metadata);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(GeoDistanceAggregationBuilder.REGISTRY_KEY, config)
+            .build(
+                name,
+                factories,
+                distanceType,
+                origin,
+                unit,
+                config.getValuesSource(),
+                config.format(),
+                rangeFactory,
+                ranges,
+                keyed,
+                searchContext,
+                parent,
+                cardinality,
+                metadata
+            );
     }
 
     private static class DistanceSource extends ValuesSource.Numeric {
@@ -127,5 +177,4 @@ public class GeoDistanceRangeAggregatorFactory
         }
 
     }
-
 }

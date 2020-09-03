@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -47,10 +48,11 @@ import java.util.Objects;
 
 import static java.util.Map.entry;
 
-public class AutoDateHistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
+public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
+    public static final ValuesSourceRegistry.RegistryKey<AutoDateHistogramAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, AutoDateHistogramAggregatorSupplier.class);
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
     private static final ParseField MINIMUM_INTERVAL_FIELD = new ParseField("minimum_interval");
@@ -71,6 +73,10 @@ public class AutoDateHistogramAggregationBuilder
         entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AutoDateHistogramAggregatorFactory.registerAggregators(builder);
+    }
 
     /**
      *
@@ -141,8 +147,7 @@ public class AutoDateHistogramAggregationBuilder
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably be DATE, but we're not failing tests with BYTES, so needs more tests?
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.DATE;
     }
 
     @Override
@@ -153,6 +158,11 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     public String getMinimumIntervalExpression() {
@@ -284,6 +294,10 @@ public class AutoDateHistogramAggregationBuilder
 
         public long getRoughEstimateDurationMillis() {
             return roughEstimateDurationMillis;
+        }
+
+        public long getMaximumRoughEstimateDurationMillis() {
+            return getRoughEstimateDurationMillis() * getMaximumInnerInterval();
         }
 
         @Override

@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -52,9 +53,12 @@ import java.util.Map;
 import java.util.Objects;
 
 
-public final class IpRangeAggregationBuilder
-        extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
+public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
+    public static final ValuesSourceRegistry.RegistryKey<IpRangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        IpRangeAggregatorSupplier.class
+    );
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
     public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER =
@@ -210,6 +214,10 @@ public final class IpRangeAggregationBuilder
         }
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        BinaryRangeAggregatorFactory.registerAggregators(builder);
+    }
+
     private boolean keyed = false;
     private List<Range> ranges = new ArrayList<>();
 
@@ -231,6 +239,11 @@ public final class IpRangeAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     public IpRangeAggregationBuilder keyed(boolean keyed) {

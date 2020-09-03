@@ -73,7 +73,8 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
             categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));
         }
         List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ? new WeightedSum(weights) :
+        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ?
+            randomFrom(new WeightedSum(weights), new Exponent(weights)) :
             randomFrom(
                 new WeightedMode(
                     categoryLabels != null ? categoryLabels.size() : randomIntBetween(2, 10),

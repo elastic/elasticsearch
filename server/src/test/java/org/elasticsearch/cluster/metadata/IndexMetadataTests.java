@@ -50,6 +50,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetadataTests extends ESTestCase {
@@ -72,6 +75,7 @@ public class IndexMetadataTests extends ESTestCase {
     public void testIndexMetadataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
+        final boolean system = randomBoolean();
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
@@ -84,6 +88,7 @@ public class IndexMetadataTests extends ESTestCase {
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
+            .system(system)
             .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
@@ -91,6 +96,7 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong())),
                     randomNonNegativeLong())).build();
+        assertEquals(system, metadata.isSystem());
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -109,6 +115,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
         ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
         expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
         ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
@@ -132,6 +139,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getRolloverInfos(), deserialized.getRolloverInfos());
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(),  deserialized.getCustomData());
+            assertEquals(metadata.isSystem(), deserialized.isSystem());
         }
     }
 
@@ -282,6 +290,78 @@ public class IndexMetadataTests extends ESTestCase {
         iae = expectThrows(IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+    }
+
+    public void testMissingNumberOfShards() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").build());
+        assertThat(e.getMessage(), containsString("must specify number of shards for index [test]"));
+    }
+
+    public void testNumberOfShardsIsNotZero() {
+        runTestNumberOfShardsIsPositive(0);
+    }
+
+    public void testNumberOfShardsIsNotNegative() {
+        runTestNumberOfShardsIsPositive(-randomIntBetween(1, Integer.MAX_VALUE));
+    }
+
+    private void runTestNumberOfShardsIsPositive(final int numberOfShards) {
+        final Settings settings =
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1"));
+    }
+
+    public void testMissingNumberOfReplicas() {
+        final Settings settings =
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8)).build();
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        assertThat(e.getMessage(), containsString("must specify number of replicas for index [test]"));
+    }
+
+    public void testNumberOfReplicasIsNonNegative() {
+        final int numberOfReplicas = -randomIntBetween(1, Integer.MAX_VALUE);
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .build();
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0"));
+    }
+
+    public void testParseIndexNameReturnsCounter() {
+        assertThat(parseIndexNameCounter(".ds-logs-000003"), is(3));
+        assertThat(parseIndexNameCounter("shrink-logs-000003"), is(3));
+    }
+
+    public void testParseIndexNameSupportsDateMathPattern() {
+        assertThat(parseIndexNameCounter("<logs-{now/d}-1>"), is(1));
+    }
+
+    public void testParseIndexNameThrowExceptionWhenNoSeparatorIsPresent() {
+        try {
+            parseIndexNameCounter("testIndexNameWithoutDash");
+            fail("expected to fail as the index name contains no - separator");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("no - separator found in index name [testIndexNameWithoutDash]"));
+        }
+    }
+
+    public void testParseIndexNameCannotFormatNumber() {
+        try {
+            parseIndexNameCounter("testIndexName-000a2");
+            fail("expected to fail as the index name doesn't end with digits");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
+        }
     }
 
 }

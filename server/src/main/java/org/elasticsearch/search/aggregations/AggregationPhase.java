@@ -115,8 +115,6 @@ public class AggregationPhase implements SearchPhase {
                 context.searcher().search(query, collector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
-            } finally {
-                context.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
         }
 
@@ -125,16 +123,15 @@ public class AggregationPhase implements SearchPhase {
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();
-                aggregations.add(aggregator.buildAggregation(0));
+                aggregations.add(aggregator.buildTopLevel());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations));
+        context.queryResult().aggregations(InternalAggregations.from(aggregations));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
         context.queryCollectors().remove(AggregationPhase.class);
     }
-
 }

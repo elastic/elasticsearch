@@ -28,26 +28,21 @@
  * {@link org.elasticsearch.cluster.SnapshotsInProgress}. All nodes consume the state of the {@code SnapshotsInProgress} and will start or
  * abort relevant shard snapshot tasks accordingly.</li>
  * <li>Nodes that are executing shard snapshot tasks report either success or failure of their snapshot task by submitting a
- * {@link org.elasticsearch.snapshots.SnapshotShardsService.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
+ * {@link org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
  * snapshot's entry in the cluster state accordingly.</li>
  * </ul>
  *
  * <h2>Snapshot Creation</h2>
  * <p>Snapshots are created by the following sequence of events:</p>
  * <ol>
- * <li>An invocation of {@link org.elasticsearch.snapshots.SnapshotsService#createSnapshot} enqueues a cluster state update to create
- * a {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry} in the cluster state's {@code SnapshotsInProgress}. This initial snapshot
- * entry has its state set to {@code INIT} and an empty map set for the state of the individual shard's snapshots.</li>
- *
- * <li>After the snapshot's entry with state {@code INIT} is in the cluster state, {@link org.elasticsearch.snapshots.SnapshotsService}
- * determines the primary shards' assignments for all indices that are being snapshotted and updates the existing
- * {@code SnapshotsInProgress.Entry} with state {@code STARTED} and adds the map of {@link org.elasticsearch.index.shard.ShardId} to
- * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks the assignment of which node is to snapshot which
- * shard. All shard snapshots are executed on the shard's primary node. Thus all shards for which the primary node was found to have a
- * healthy copy of the shard are marked as being in state {@code INIT} in this map. If the primary for a shard is unassigned, it is marked
- * as {@code MISSING} in this map. In case the primary is initializing at this point, it is marked as in state {@code WAITING}. In case a
- * shard's primary is relocated at any point after its {@code SnapshotsInProgress.Entry} has moved to state {@code STARTED} and thus been
- * assigned to a specific cluster node, that shard's snapshot will fail and move to state {@code FAILED}.</li>
+ * <li>First the {@link org.elasticsearch.snapshots.SnapshotsService} determines the primary shards' assignments for all indices that are
+ * being snapshotted and creates a {@code SnapshotsInProgress.Entry} with state {@code STARTED} and adds the map of
+ * {@link org.elasticsearch.index.shard.ShardId} to {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks
+ * the assignment of which node is to snapshot which shard. All shard snapshots are executed on the shard's primary node. Thus all shards
+ * for which the primary node was found to have a healthy copy of the shard are marked as being in state {@code INIT} in this map. If the
+ * primary for a shard is unassigned, it is marked as {@code MISSING} in this map. In case the primary is initializing at this point, it is
+ * marked as in state {@code WAITING}. In case a shard's primary is relocated at any point after its {@code SnapshotsInProgress.Entry} was
+ * created and thus been assigned to a specific cluster node, that shard's snapshot will fail and move to state {@code FAILED}.</li>
  *
  * <li>The new {@code SnapshotsInProgress.Entry} is then observed by
  * {@link org.elasticsearch.snapshots.SnapshotShardsService#clusterChanged} on all nodes and since the entry is in state {@code STARTED}
@@ -97,11 +92,48 @@
  * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress}.</li>
  *
  * <li>Once the cluster state contains the deletion entry in {@code SnapshotDeletionsInProgress} the {@code SnapshotsService} will invoke
- * {@link org.elasticsearch.repositories.Repository#deleteSnapshot} for the given snapshot, which will remove files associated with the
+ * {@link org.elasticsearch.repositories.Repository#deleteSnapshots} for the given snapshot, which will remove files associated with the
  * snapshot from the repository as well as update its meta-data to reflect the deletion of the snapshot.</li>
  *
  * <li>After the deletion of the snapshot's data from the repository finishes, the {@code SnapshotsService} will submit a cluster state
  * update to remove the deletion's entry in {@code SnapshotDeletionsInProgress} which concludes the process of deleting a snapshot.</li>
  * </ol>
+ *
+ * <h2>Concurrent Snapshot Operations</h2>
+ *
+ * Snapshot create and delete operations may be started concurrently. Operations targeting different repositories run independently of
+ * each other. Multiple operations targeting the same repository are executed according to the following rules:
+ *
+ * <h3>Concurrent Snapshot Creation</h3>
+ *
+ * If multiple snapshot creation jobs are started at the same time, the data-node operations of multiple snapshots may run in parallel
+ * across different shards. If multiple snapshots want to snapshot a certain shard, then the shard snapshots for that shard will be
+ * executed one by one. This is enforced by the master node setting the shard's snapshot state to
+ * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
+ * operations on a single shard is given by the order in which the snapshots were started.
+ * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot
+ * at a time, working in the order in which snapshots had their shards completed.
+ *
+ * <h3>Concurrent Snapshot Deletes</h3>
+ *
+ * A snapshot delete will be executed as soon as there are no more shard snapshots or snapshot finalizations executing running for a given
+ * repository. Before a delete is executed on the repository it will be set to state
+ * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#STARTED}. If it cannot be executed when it is received it will be
+ * set to state {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#WAITING} initially.
+ * If a delete is received for a given repository while there is already an ongoing delete for the same repository, there are two possible
+ * scenarios:
+ * 1. If the delete is in state {@code META_DATA} (i.e. already running on the repository) then the new delete will be added in state
+ * {@code WAITING} and will be executed after the current delete. The only exception here would be the case where the new delete covers
+ * the exact same snapshots as the already running delete. In this case no new delete operation is added and second delete request will
+ * simply wait for the existing delete to return.
+ * 2. If the existing delete is in state {@code WAITING} then the existing
+ * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.Entry} in the cluster state will be updated to cover both the snapshots
+ * in the existing delete as well as additional snapshots that may be found in the second delete request.
+ *
+ * In either of the above scenarios, in-progress snapshots will be aborted in the same cluster state update that adds a delete to the
+ * cluster state, if a delete applies to them.
+ *
+ * If a snapshot request is received while there already is a delete in the cluster state for the same repository, that snapshot will not
+ * start doing any shard snapshots until the delete has been executed.
  */
 package org.elasticsearch.snapshots;

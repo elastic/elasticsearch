@@ -47,7 +47,7 @@ public class TransportStartRollupAction extends TransportTasksAction<RollupJobTa
     @Override
     protected void doExecute(Task task, StartRollupJobAction.Request request, ActionListener<StartRollupJobAction.Response> listener) {
 
-        if (!licenseState.isRollupAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
             return;
         }

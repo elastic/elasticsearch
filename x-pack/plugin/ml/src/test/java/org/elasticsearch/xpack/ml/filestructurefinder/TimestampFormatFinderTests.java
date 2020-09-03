@@ -856,6 +856,10 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         validateTimestampMatch("15/05/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd/MM/yyyy", 1526338800000L);
         validateTimestampMatch("15-05-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd-MM-yyyy", 1526338800000L);
         validateTimestampMatch("15.05.2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd.MM.yyyy", 1526338800000L);
+
+        // The Kibana export format doesn't correspond to a built-in Grok pattern, so it has to be custom
+        validateTimestampMatch("May 15, 2018 @ 17:14:56.374", "CUSTOM_TIMESTAMP",
+            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b", "MMM dd, yyyy @ HH:mm:ss.SSS", 1526400896374L);
     }
 
     public void testFindFormatGivenOnlySystemDate() {

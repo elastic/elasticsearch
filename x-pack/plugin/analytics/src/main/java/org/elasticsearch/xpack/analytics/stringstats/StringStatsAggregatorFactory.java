@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -36,45 +33,27 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.showDistribution = showDistribution;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(StringStatsAggregationBuilder.NAME,
-            CoreValuesSourceType.BYTES, new StringStatsAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        boolean showDistribution,
-                                        DocValueFormat format,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-                    return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource,
-                        format, context, parent, metadata);
-                }
-            });
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            StringStatsAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.BYTES, StringStatsAggregator::new, true);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new StringStatsAggregator(name, showDistribution,null, config.format(), searchContext, parent, metadata);
+        return new StringStatsAggregator(name, null, showDistribution, config.format(), searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
-            StringStatsAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof StringStatsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected StringStatsAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((StringStatsAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, showDistribution, config.format(),
-            searchContext, parent, metadata);
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(StringStatsAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config.getValuesSource(), showDistribution, config.format(), searchContext, parent, metadata);
     }
 
 }

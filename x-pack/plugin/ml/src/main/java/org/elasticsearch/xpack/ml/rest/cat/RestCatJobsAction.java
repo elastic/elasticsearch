@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -19,6 +20,8 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -49,12 +52,17 @@ public class RestCatJobsAction extends AbstractCatAction {
         if (Strings.isNullOrEmpty(jobId)) {
             jobId = Metadata.ALL;
         }
-        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-        request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
-            request.allowNoJobs()));
+        Request request = new Request(jobId);
+        if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
+            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
+        }
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(GetJobsStatsAction.Response getJobStatsResponse) throws Exception {
+            public RestResponse buildResponse(Response getJobStatsResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(restRequest, getJobStatsResponse), channel);
             }
         });
@@ -210,6 +218,10 @@ public class RestCatJobsAction extends AbstractCatAction {
             TableColumnAttributeBuilder.builder("count of dead categories", false)
                 .setAliases("mdcc", "modelDeadCategoryCount")
                 .build());
+        table.addCell("model.failed_category_count",
+            TableColumnAttributeBuilder.builder("count of failed categories", false)
+                .setAliases("mfcc", "modelFailedCategoryCount")
+                .build());
         table.addCell("model.log_time",
             TableColumnAttributeBuilder.builder("when the model stats were gathered", false)
                 .setAliases("mlt", "modelLogTime")
@@ -318,7 +330,7 @@ public class RestCatJobsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, GetJobsStatsAction.Response jobStats) {
+    private Table buildTable(RestRequest request, Response jobStats) {
         Table table = getTableWithHeader(request);
         jobStats.getResponse().results().forEach(job -> {
             table.startRow();
@@ -364,6 +376,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getRareCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getDeadCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getFailedCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getLogTime());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 

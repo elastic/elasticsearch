@@ -76,4 +76,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     public Durability getDurability() {
         return Durability.PERMANENT;
     }
+
+    @Override
+    public void setLimitAndOverhead(long limit, double overhead) { }
 }

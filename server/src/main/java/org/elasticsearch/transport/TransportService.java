@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -165,7 +164,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
-        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -561,37 +560,44 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
-                                                                TransportResponseHandler<T> handler) {
+                                                                final TransportResponseHandler<T> handler) {
         try {
+            final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
                 final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
-                final TransportResponseHandler<T> delegate = handler;
-                handler = new TransportResponseHandler<>() {
+                delegate = new TransportResponseHandler<>() {
                     @Override
                     public void handleResponse(T response) {
                         unregisterChildNode.close();
-                        delegate.handleResponse(response);
+                        handler.handleResponse(response);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         unregisterChildNode.close();
-                        delegate.handleException(exp);
+                        handler.handleException(exp);
                     }
 
                     @Override
                     public String executor() {
-                        return delegate.executor();
+                        return handler.executor();
                     }
 
                     @Override
                     public T read(StreamInput in) throws IOException {
-                        return delegate.read(in);
+                        return handler.read(in);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
                     }
                 };
+            } else {
+                delegate = handler;
             }
-            asyncSender.sendRequest(connection, action, request, options, handler);
+            asyncSender.sendRequest(connection, action, request, options, delegate);
         } catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler
             final TransportException te;
@@ -688,9 +694,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                     timeoutHandler.cancel();
                 }
                 // callback that an exception happened, but on a different thread since we don't
-                // want handlers to worry about stack overflows
+                // want handlers to worry about stack overflows. In the special case of running into a closing node we run on the current
+                // thread on a best effort basis though.
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up

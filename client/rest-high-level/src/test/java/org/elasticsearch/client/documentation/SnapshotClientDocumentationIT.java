@@ -753,7 +753,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
         // tag::delete-snapshot-request
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repositoryName);
-        request.snapshot(snapshotName);
+        request.snapshots(snapshotName);
         // end::delete-snapshot-request
 
         // tag::delete-snapshot-request-masterTimeout

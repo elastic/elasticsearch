@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -137,7 +136,7 @@ public abstract class TestCluster implements Closeable {
             try {
                 // include wiping hidden indices!
                 assertAcked(client().admin().indices().prepareDelete(indices)
-                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false, false)));
+                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {

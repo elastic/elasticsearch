@@ -354,9 +354,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             indexWriter -> {
                 Document document = new Document();
                 for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
@@ -408,10 +405,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     if (randomBoolean())
                         valueCounts_empty_rnd[i] = 0L;
                     for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-
-                        if (frequently()) {
-                            indexWriter.commit();
-                        }
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
                         document.clear();
@@ -458,9 +451,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             indexWriter -> {
                 Document document = new Document();
                 for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
@@ -514,9 +504,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             indexWriter -> {
                 Document document = new Document();
                 for (int i = 0; i < valueCounts_empty.length; i++) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
@@ -634,10 +621,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     if (randomBoolean())
                         valueCounts_empty_rnd[i] = 0L;
                     for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-
-                        if (frequently()) {
-                            indexWriter.commit();
-                        }
                         document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                         indexWriter.addDocument(document);
                         document.clear();
@@ -734,9 +717,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
         executeTestCase(query, aggBuilder, verify, indexWriter -> {
             Document document = new Document();
             for (int i = 0; i < numValueBuckets; i++) {
-                if (frequently()) {
-                    indexWriter.commit();
-                }
                 for (int docs = 0; docs < valueCounts[i]; docs++) {
                     document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i * interval));
                     indexWriter.addDocument(document);
@@ -756,17 +736,11 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(SINGLE_VALUED_FIELD_NAME);
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
-
-                InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[]{fieldType, valueFieldType});
+                InternalAggregation histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);
 
                 verify.accept(histogram);
             }

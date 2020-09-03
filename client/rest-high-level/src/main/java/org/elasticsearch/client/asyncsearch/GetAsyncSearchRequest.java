@@ -32,8 +32,6 @@ public class GetAsyncSearchRequest implements Validatable {
     private TimeValue waitForCompletion;
     private TimeValue keepAlive;
 
-    public static final long MIN_KEEPALIVE = TimeValue.timeValueMinutes(1).millis();
-
     private final String id;
 
     public GetAsyncSearchRequest(String id) {
@@ -62,14 +60,7 @@ public class GetAsyncSearchRequest implements Validatable {
 
     @Override
     public Optional<ValidationException> validate() {
-        final ValidationException validationException = new ValidationException();
-        if (keepAlive != null && keepAlive.getMillis() < MIN_KEEPALIVE) {
-            validationException.addValidationError("keep_alive must be greater than 1 minute, got: " + keepAlive.toString());
-        }
-        if (validationException.validationErrors().isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(validationException);
+        return Optional.empty();
     }
 
     @Override

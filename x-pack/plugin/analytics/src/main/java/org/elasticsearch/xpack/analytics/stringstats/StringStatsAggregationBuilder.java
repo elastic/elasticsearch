@@ -27,6 +27,8 @@ import java.util.Objects;
 public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
 
     public static final String NAME = "string_stats";
+    public static final ValuesSourceRegistry.RegistryKey<StringStatsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, StringStatsAggregatorSupplier.class);
 
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
     public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
@@ -95,6 +97,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return NAME;
     }
 
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
+
     /**
      * Return whether to include the probability distribution of each character in the results.
      * {@code showDistribution} is true, distribution will be included.
@@ -113,8 +120,8 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return this;
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        StringStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        StringStatsAggregatorFactory.registerAggregators(builder);
     }
 
     @Override

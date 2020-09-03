@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -27,21 +30,27 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
+
     NUMERIC() {
         @Override
         public ValuesSource getEmpty() {
@@ -232,7 +241,51 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            return NUMERIC.getField(fieldContext, script);
+            ValuesSource.Numeric dataSource = fieldData(fieldContext);
+            if (script != null) {
+                // Value script case
+                return new ValuesSource.Numeric.WithScript(dataSource, script);
+            }
+            return dataSource;
+        }
+
+        private ValuesSource.Numeric fieldData(FieldContext fieldContext) {
+            if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
+                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
+                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+            }
+            if (fieldContext.fieldType().isSearchable() == false
+                    || fieldContext.fieldType() instanceof DateFieldType == false) {
+                /*
+                 * We can't implement roundingPreparer in these cases because
+                 * we can't look up the min and max date without both the
+                 * search index (the first test) and the resolution which is
+                 * on the DateFieldType.
+                 */
+                return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
+            }
+            return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
+                /**
+                 * Proper dates get a real implementation of
+                 * {@link #roundingPreparer(IndexReader)}. If the field is
+                 * configured with a script or a missing value then we'll
+                 * wrap this without delegating so those fields will ignore
+                 * this implementation. Which is correct.
+                 */
+                @Override
+                public Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+                    DateFieldType dft = (DateFieldType) fieldContext.fieldType();
+                    byte[] min = PointValues.getMinPackedValue(reader, fieldContext.field());
+                    if (min == null) {
+                        // There aren't any indexes values so we don't need to optimize.
+                        return Rounding::prepareForUnknown;
+                    }
+                    byte[] max = PointValues.getMaxPackedValue(reader, fieldContext.field());
+                    long minUtcMillis = dft.resolution().parsePointAsMillis(min);
+                    long maxUtcMillis = dft.resolution().parsePointAsMillis(max);
+                    return rounding -> rounding.prepare(minUtcMillis, maxUtcMillis);
+                }
+            };
         }
 
         @Override
@@ -288,4 +341,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    @Override
+    public String typeName() {
+        return value();
+    }
+
+    /** List containing all members of the enumeration. */
+    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

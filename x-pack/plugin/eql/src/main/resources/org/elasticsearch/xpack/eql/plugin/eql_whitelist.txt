@@ -19,6 +19,11 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
   String nullSafeSortString(Object)
 
 #
+# ASCII Functions
+#
+  Boolean startsWith(String, String, Boolean)
+
+#
 # Comparison
 #
   Boolean eq(Object, Object)
@@ -47,7 +52,12 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 #
 # Math
 #
+  Number add(Number, Number)
+  Number div(Number, Number)
+  Number mod(Number, Number)
+  Number mul(Number, Number)
   Number neg(Number)
+  Number sub(Number, Number)
 }
 
 class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils {
@@ -56,11 +66,13 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
 # ASCII Functions
 #
   String  between(String, String, String, Boolean, Boolean)
-  Boolean endsWith(String, String)
-  Integer indexOf(String, String, Number)
+  Boolean cidrMatch(String, java.util.List)
+  String  concat(java.util.List)
+  Boolean endsWith(String, String, Boolean)
+  Integer indexOf(String, String, Number, Boolean)
   Integer length(String)
-  Boolean startsWith(String, String)
+  Number  number(String, Number)
   String  string(Object)
-  Boolean stringContains(String, String)
+  Boolean stringContains(String, String, Boolean)
   String  substring(String, Number, Number)
 }

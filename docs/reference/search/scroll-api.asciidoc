@@ -1,0 +1,142 @@
+[[scroll-api]]
+=== Scroll API
+++++
+<titleabbrev>Scroll</titleabbrev>
+++++
+
+Retrieves the next batch of results for a <<scroll-search-results,scrolling
+search>>.
+
+////
+[source,console]
+--------------------------------------------------
+GET /_search?scroll=1m
+{
+  "size": 1,
+  "query": {
+    "match_all": {}
+  }
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+////
+
+[source,console]
+--------------------------------------------------
+GET /_search/scroll
+{
+  "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
+}
+--------------------------------------------------
+// TEST[continued]
+// TEST[s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
+
+[[scroll-api-request]]
+==== {api-request-title}
+
+`GET /_search/scroll/<scroll_id>`
+deprecated:[7.0.0]
+
+`GET /_search/scroll`
+
+`POST /_search/scroll/<scroll_id>`
+deprecated:[7.0.0]
+
+`POST /_search/scroll`
+
+[[scroll-api-desc]]
+==== {api-description-title}
+
+You can use the scroll API to retrieve large sets of results from a single
+<<scroll-search-results,scrolling search>> request.
+
+The scroll API requires a scroll ID. To get a scroll ID, submit a
+<<search-search,search API>> request that includes an argument for the
+<<search-api-scroll-query-param,`scroll` query parameter>>. The `scroll`
+parameter indicates how long {es} should retain the
+<<scroll-search-context,search context>> for the request.
+
+The search response returns a scroll ID in the `_scroll_id` response body
+parameter. You can then use the scroll ID with the scroll API to retrieve the
+next batch of results for the request.
+
+You can also use the scroll API to specify a new `scroll` parameter that extends
+or shortens the retention period for the search context.
+
+See <<scroll-search-results>>.
+
+IMPORTANT: Results from a scrolling search reflect the state of the index at the
+time of the initial search request. Subsequent indexing or document changes only
+affect later search and scroll requests.
+
+[[scroll-api-path-params]]
+==== {api-path-parms-title}
+
+`<scroll_id>`::
+deprecated:[7.0.0]
+(Optional, string)
+Scroll ID of the search.
++
+IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
+the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
+
+[[scroll-api-query-params]]
+==== {api-query-parms-title}
+
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<scroll-search-results>>.
++
+This value overrides the duration set by the original search API request's
+`scroll` parameter.
++
+By default, this value cannot exceed `1d` (24 hours). You can change
+this limit using the `search.max_keep_alive` cluster-level setting.
++
+IMPORTANT: You can also specify this value using the `scroll` request body
+parameter. If both parameters are specified, only the query parameter is used.
+
+`scroll_id`::
+deprecated:[7.0.0]
+(Optional, string)
+Scroll ID for the search.
++
+IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
+the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
+
+`rest_total_hits_as_int`::
+(Optional, boolean)
+If `true`, the API response's `hit.total` property is returned as an integer.
+If `false`, the API response's `hit.total` property is returned as an object.
+Defaults to `false`.
+
+[role="child_attributes"]
+[[scroll-api-request-body]]
+==== {api-request-body-title}
+
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<scroll-search-results>>.
++
+This value overrides the duration set by the original search API request's
+`scroll` parameter.
++
+By default, this value cannot exceed `1d` (24 hours). You can change
+this limit using the `search.max_keep_alive` cluster-level setting.
++
+IMPORTANT: You can also specify this value using the `scroll` query
+parameter. If both parameters are specified, only the query parameter is used.
+
+[[scroll-api-scroll-id-param]]
+`scroll_id`::
+(Required, string)
+Scroll ID for the search.
+
+[role="child_attributes"]
+[[scroll-api-response-body]]
+==== {api-response-body-title}
+
+The scroll API returns the same response body as the search API. See the search
+API's <<search-api-response-body,response body parameters>>.

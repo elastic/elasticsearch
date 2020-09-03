@@ -68,7 +68,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
             lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
         }
 
-        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(licenseState.isCcrAllowed(),
+        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(licenseState.isAllowed(XPackLicenseState.Feature.CCR),
             XPackSettings.CCR_ENABLED_SETTING.get(settings), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

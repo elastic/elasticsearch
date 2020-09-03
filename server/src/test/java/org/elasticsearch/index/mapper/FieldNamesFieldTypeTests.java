@@ -27,36 +27,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.junit.Before;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new FieldNamesFieldMapper.FieldNamesFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("enabled", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;
-                fnft.setEnabled(!fnft.isEnabled());
-            }
-        });
-    }
+public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
 
-        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldMapper.FieldNamesFieldType();
-        fieldNamesFieldType.setName(FieldNamesFieldMapper.CONTENT_TYPE);
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setName("field_name");
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
 
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
@@ -69,12 +52,12 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         QueryShardContext queryShardContext = new QueryShardContext(0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null);
-        fieldNamesFieldType.setEnabled(true);
-        Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
+                Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
-        fieldNamesFieldType.setEnabled(false);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> fieldNamesFieldType.termQuery("field_name", null));
+
+        FieldNamesFieldMapper.FieldNamesFieldType unsearchable = new FieldNamesFieldMapper.FieldNamesFieldType(false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));
         assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
     }
 }

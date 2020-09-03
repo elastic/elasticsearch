@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.client.ml.dataframe;
 
+import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
+import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -26,7 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Regression implements DataFrameAnalysis {
 
@@ -50,7 +56,11 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
+    static final ParseField LOSS_FUNCTION = new ParseField("loss_function");
+    static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
+    static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Regression, Void> PARSER =
         new ConstructingObjectParser<>(
             NAME.getPreferredName(),
@@ -65,7 +75,11 @@ public class Regression implements DataFrameAnalysis {
                 (Integer) a[6],
                 (String) a[7],
                 (Double) a[8],
-                (Long) a[9]));
+                (Long) a[9],
+                (LossFunction) a[10],
+                (Double) a[11],
+                (List<PreProcessor>) a[12]
+            ));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
@@ -78,6 +92,12 @@ public class Regression implements DataFrameAnalysis {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
+        PARSER.declareString(optionalConstructorArg(), LossFunction::fromString, LOSS_FUNCTION);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
+        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(PreProcessor.class, n, c),
+            (regression) -> {},
+            FEATURE_PROCESSORS);
     }
 
     private final String dependentVariable;
@@ -90,11 +110,15 @@ public class Regression implements DataFrameAnalysis {
     private final String predictionFieldName;
     private final Double trainingPercent;
     private final Long randomizeSeed;
+    private final LossFunction lossFunction;
+    private final Double lossFunctionParameter;
+    private final List<PreProcessor> featureProcessors;
 
     private Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                        @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
                        @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
-                       @Nullable Double trainingPercent, @Nullable Long randomizeSeed) {
+                       @Nullable Double trainingPercent, @Nullable Long randomizeSeed, @Nullable LossFunction lossFunction,
+                       @Nullable Double lossFunctionParameter, @Nullable List<PreProcessor> featureProcessors) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -105,6 +129,9 @@ public class Regression implements DataFrameAnalysis {
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent;
         this.randomizeSeed = randomizeSeed;
+        this.lossFunction = lossFunction;
+        this.lossFunctionParameter = lossFunctionParameter;
+        this.featureProcessors = featureProcessors;
     }
 
     @Override
@@ -152,6 +179,18 @@ public class Regression implements DataFrameAnalysis {
         return randomizeSeed;
     }
 
+    public LossFunction getLossFunction() {
+        return lossFunction;
+    }
+
+    public Double getLossFunctionParameter() {
+        return lossFunctionParameter;
+    }
+
+    public List<PreProcessor> getFeatureProcessors() {
+        return featureProcessors;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -183,6 +222,15 @@ public class Regression implements DataFrameAnalysis {
         if (randomizeSeed != null) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
+        if (lossFunction != null) {
+            builder.field(LOSS_FUNCTION.getPreferredName(), lossFunction);
+        }
+        if (lossFunctionParameter != null) {
+            builder.field(LOSS_FUNCTION_PARAMETER.getPreferredName(), lossFunctionParameter);
+        }
+        if (featureProcessors != null) {
+            NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
+        }
         builder.endObject();
         return builder;
     }
@@ -190,7 +238,7 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
-            predictionFieldName, trainingPercent, randomizeSeed);
+            predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter, featureProcessors);
     }
 
     @Override
@@ -207,7 +255,10 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && Objects.equals(trainingPercent, that.trainingPercent)
-            && Objects.equals(randomizeSeed, that.randomizeSeed);
+            && Objects.equals(randomizeSeed, that.randomizeSeed)
+            && Objects.equals(lossFunction, that.lossFunction)
+            && Objects.equals(lossFunctionParameter, that.lossFunctionParameter)
+            && Objects.equals(featureProcessors, that.featureProcessors);
     }
 
     @Override
@@ -226,6 +277,9 @@ public class Regression implements DataFrameAnalysis {
         private String predictionFieldName;
         private Double trainingPercent;
         private Long randomizeSeed;
+        private LossFunction lossFunction;
+        private Double lossFunctionParameter;
+        private List<PreProcessor> featureProcessors;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -276,9 +330,38 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setLossFunction(LossFunction lossFunction) {
+            this.lossFunction = lossFunction;
+            return this;
+        }
+
+        public Builder setLossFunctionParameter(Double lossFunctionParameter) {
+            this.lossFunctionParameter = lossFunctionParameter;
+            return this;
+        }
+
+        public Builder setFeatureProcessors(List<PreProcessor> featureProcessors) {
+            this.featureProcessors = featureProcessors;
+            return this;
+        }
+
         public Regression build() {
             return new Regression(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
-                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed);
+                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter,
+                featureProcessors);
+        }
+    }
+
+    public enum LossFunction {
+        MSE, MSLE, HUBER;
+
+        private static LossFunction fromString(String value) {
+            return LossFunction.valueOf(value.toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 }

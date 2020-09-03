@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -114,21 +113,12 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         splitFeature = in.readInt();
         splitGain = in.readDouble();
         nodeIndex = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            leafValue = in.readDoubleArray();
-        } else {
-            leafValue = new double[]{in.readDouble()};
-        }
+        leafValue = in.readDoubleArray();
         defaultLeft = in.readBoolean();
         leftChild = in.readInt();
         rightChild = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.numberSamples = in.readVLong();
-        } else {
-            this.numberSamples = 0L;
-        }
+        numberSamples = in.readVLong();
     }
-
 
     public Operator getOperator() {
         return operator;
@@ -174,21 +164,6 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         return numberSamples;
     }
 
-    public int compare(List<Double> features) {
-        if (isLeaf()) {
-            throw new IllegalArgumentException("cannot call compare against a leaf node.");
-        }
-        Double feature = features.get(splitFeature);
-        if (isMissing(feature)) {
-            return defaultLeft ? leftChild : rightChild;
-        }
-        return operator.test(feature, threshold) ? leftChild : rightChild;
-    }
-
-    private boolean isMissing(Double feature) {
-        return feature == null;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         operator.writeTo(out);
@@ -196,24 +171,11 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         out.writeInt(splitFeature);
         out.writeDouble(splitGain);
         out.writeVInt(nodeIndex);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeDoubleArray(leafValue);
-        } else {
-            if (leafValue.length > 1) {
-                throw new IOException("Multi-class classification models require that all nodes are at least version 7.7.0.");
-            }
-            if (leafValue.length == 0) {
-                out.writeDouble(Double.NaN);
-            } else {
-                out.writeDouble(leafValue[0]);
-            }
-        }
+        out.writeDoubleArray(leafValue);
         out.writeBoolean(defaultLeft);
         out.writeInt(leftChild);
         out.writeInt(rightChild);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeVLong(numberSamples);
-        }
+        out.writeVLong(numberSamples);
     }
 
     @Override
@@ -359,7 +321,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             return this;
         }
 
-        Integer getLeftChild() {
+        public Integer getLeftChild() {
             return leftChild;
         }
 
@@ -368,7 +330,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             return this;
         }
 
-        Integer getRightChild() {
+        public Integer getRightChild() {
             return rightChild;
         }
 
@@ -400,17 +362,17 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
                 }
             }
         }
-        
+
         public TreeNode build() {
             validate();
             return new TreeNode(operator,
-                threshold, 
-                splitFeature, 
-                nodeIndex, 
-                splitGain, 
-                leafValue, 
-                defaultLeft, 
-                leftChild, 
+                threshold,
+                splitFeature,
+                nodeIndex,
+                splitGain,
+                leafValue,
+                defaultLeft,
+                leftChild,
                 rightChild,
                 numberSamples);
         }

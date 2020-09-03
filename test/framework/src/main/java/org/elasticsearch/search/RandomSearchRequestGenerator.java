@@ -180,6 +180,13 @@ public class RandomSearchRequestGenerator {
         }
 
         if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+            }
+        }
+
+        if (randomBoolean()) {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
@@ -345,7 +352,7 @@ public class RandomSearchRequestGenerator {
             }
         }
         if (randomBoolean()) {
-            builder.aggregation(AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)));
+            builder.aggregation(AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)).field("foo"));
         }
         if (randomBoolean()) {
             builder.ext(randomExtBuilders.get());

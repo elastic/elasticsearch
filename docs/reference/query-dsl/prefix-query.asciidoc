@@ -9,20 +9,20 @@ Returns documents that contain a specific prefix in a provided field.
 [[prefix-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains a term
+The following search returns documents where the `user.id` field contains a term
 that begins with `ki`.
 
 [source,console]
 ----
 GET /_search
 {
-    "query": {
-        "prefix": {
-            "user": {
-                "value": "ki"
-            }
-        }
+  "query": {
+    "prefix": {
+      "user.id": {
+        "value": "ki"
+      }
     }
+  }
 }
 ----
 
@@ -53,9 +53,9 @@ You can simplify the `prefix` query syntax by combining the `<field>` and
 ----
 GET /_search
 {
-    "query": {
-        "prefix" : { "user" : "ki" }
-    }
+  "query": {
+    "prefix" : { "user" : "ki" }
+  }
 }
 ----
 

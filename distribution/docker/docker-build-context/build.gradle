@@ -1,11 +1,14 @@
+import org.elasticsearch.gradle.DockerBase
+
 apply plugin: 'base'
 
-task buildDockerBuildContext(type: Tar) {
-  extension = 'tar.gz'
+tasks.register("buildDockerBuildContext", Tar) {
+  archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch"
-  with dockerBuildContext("x64", false, false)
+  // Non-local builds don't need to specify an architecture.
+  with dockerBuildContext(null, false, DockerBase.CENTOS, false)
 }
 
-assemble.dependsOn buildDockerBuildContext
+tasks.named("assemble").configure {dependsOn "buildDockerBuildContext"}

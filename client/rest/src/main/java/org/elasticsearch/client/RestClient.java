@@ -28,6 +28,8 @@ import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.entity.GzipDecompressingEntity;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
@@ -67,6 +69,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -139,14 +142,30 @@ public class RestClient implements Closeable {
         }
 
         String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
-        // once decoded the parts are separated by a $ character
+        // once decoded the parts are separated by a $ character.
+        // they are respectively domain name and optional port, elasticsearch id, kibana id
         String[] decodedParts = decoded.split("\\$");
         if (decodedParts.length != 3) {
             throw new IllegalStateException("cloudId " + cloudId + " did not decode to a cluster identifier correctly");
         }
 
-        String url = decodedParts[1]  + "." + decodedParts[0];
-        return builder(new HttpHost(url, 443, "https"));
+        // domain name and optional port
+        String[] domainAndMaybePort = decodedParts[0].split(":", 2);
+        String domain = domainAndMaybePort[0];
+        int port;
+
+        if (domainAndMaybePort.length == 2) {
+            try {
+                port = Integer.parseInt(domainAndMaybePort[1]);
+            } catch (NumberFormatException nfe) {
+                throw new IllegalStateException("cloudId " + cloudId + " does not contain a valid port number");
+            }
+        } else {
+            port = 443;
+        }
+
+        String url = decodedParts[1]  + "." + domain;
+        return builder(new HttpHost(url, port, "https"));
     }
 
     /**
@@ -203,6 +222,14 @@ public class RestClient implements Closeable {
      */
     public List<Node> getNodes() {
         return nodeTuple.nodes;
+    }
+
+    /**
+     * check client running status
+     * @return client running status
+     */
+    public boolean isRunning() {
+        return client.isRunning();
     }
 
     /**
@@ -272,6 +299,14 @@ public class RestClient implements Closeable {
     private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getStatusLine().getStatusCode();
+
+        Optional.ofNullable(httpResponse.getEntity())
+            .map(HttpEntity::getContentEncoding)
+            .map(Header::getValue)
+            .filter("gzip"::equalsIgnoreCase)
+            .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))
+            .ifPresent(httpResponse::setEntity);
+
         Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
             onResponse(node);
@@ -700,6 +735,7 @@ public class RestClient implements Closeable {
             this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
+            setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
             this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
                 RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
         }
@@ -715,6 +751,12 @@ public class RestClient implements Closeable {
                 if (requestNames.contains(defaultHeader.getName()) == false) {
                     httpRequest.addHeader(defaultHeader);
                 }
+            }
+        }
+
+        private void setRequestConfig(HttpRequestBase httpRequest, RequestConfig requestConfig) {
+            if (requestConfig != null) {
+                httpRequest.setConfig(requestConfig);
             }
         }
 

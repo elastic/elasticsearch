@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.core.security.user;
 public final class UsernamesField {
     public static final String ELASTIC_NAME = "elastic";
     public static final String ELASTIC_ROLE = "superuser";
-    public static final String KIBANA_NAME = "kibana";
+    public static final String DEPRECATED_KIBANA_NAME = "kibana";
+    public static final String KIBANA_NAME = "kibana_system";
     public static final String KIBANA_ROLE = "kibana_system";
     public static final String SYSTEM_NAME = "_system";
     public static final String SYSTEM_ROLE = "_system";

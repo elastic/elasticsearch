@@ -304,6 +304,27 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a field to load and return. The field must be present in the document _source.
+     *
+     * @param name The field to load
+     */
+    public SearchRequestBuilder addFetchField(String name) {
+        sourceBuilder().fetchField(name, null);
+        return this;
+    }
+
+    /**
+     * Adds a field to load and return. The field must be present in the document _source.
+     *
+     * @param name The field to load
+     * @param format TODO(jtibs): fill this in
+     */
+    public SearchRequestBuilder addFetchField(String name, String format) {
+        sourceBuilder().fetchField(name, format);
+        return this;
+    }
+
+    /**
      * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      */
     public SearchRequestBuilder addStoredField(String field) {
@@ -518,6 +539,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder setCollapse(CollapseBuilder collapse) {
         sourceBuilder().collapse(collapse);
+        return this;
+    }
+
+    /**
+     * Specifies the search context that Elasticsearch should use to perform the query
+     *
+     * @param searchContextId the base64 encoded string of the search context id
+     * @param keepAlive       the extended time to live for the search context
+     */
+    public SearchRequestBuilder setSearchContext(String searchContextId, TimeValue keepAlive) {
+        sourceBuilder().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, keepAlive));
         return this;
     }
 

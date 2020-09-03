@@ -30,6 +30,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheResponse;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
@@ -200,11 +202,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
             assertNotNull(response);
-            // 9 users are expected to be returned
+            // 10 users are expected to be returned
             // test_users (3): user1, user2, user3
-            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, kibana_system, remote_monitoring_user
             logger.info(users);
-            assertThat(users.size(), equalTo(9));
+            assertThat(users.size(), equalTo(10));
         }
 
         {
@@ -748,6 +750,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String authenticationRealmType = response.getAuthenticationRealm().getType(); // <4>
             final String lookupRealmName = response.getLookupRealm().getName(); // <5>
             final String lookupRealmType = response.getLookupRealm().getType(); // <6>
+            final String authenticationType = response.getAuthenticationType(); // <7>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -760,6 +763,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authenticationRealmType, is("file"));
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
+            assertThat(authenticationType, is("realm"));
         }
 
         {
@@ -998,6 +1002,52 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::clear-roles-cache-execute-async
             client.security().clearRolesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::clear-roles-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearPrivilegesCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-privileges-cache-request
+            ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app"); // <1>
+            //end::clear-privileges-cache-request
+            //tag::clear-privileges-cache-execute
+            ClearPrivilegesCacheResponse response = client.security().clearPrivilegesCache(request, RequestOptions.DEFAULT);
+            //end::clear-privileges-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-privileges-cache-response
+            List<ClearPrivilegesCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-privileges-cache-response
+        }
+
+        {
+            //tag::clear-privileges-cache-execute-listener
+            ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app");
+            ActionListener<ClearPrivilegesCacheResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ClearPrivilegesCacheResponse clearPrivilegesCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-privileges-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-privileges-cache-execute-async
+            client.security().clearPrivilegesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-privileges-cache-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -2293,6 +2343,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
+            assertThat(resp.getAuthenticationType(), is("token"));
         }
 
         {
@@ -2336,6 +2387,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
+            assertThat(resp.getAuthenticationType(), is("token"));
         }
     }
 

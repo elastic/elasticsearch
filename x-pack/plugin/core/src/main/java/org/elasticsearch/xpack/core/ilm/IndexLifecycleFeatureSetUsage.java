@@ -49,12 +49,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public IndexLifecycleFeatureSetUsage(boolean available, boolean enabled) {
-        this(available, enabled, null);
+    public IndexLifecycleFeatureSetUsage(boolean available) {
+        this(available, null);
     }
 
-    public IndexLifecycleFeatureSetUsage(boolean available, boolean enabled, List<PolicyStats> policyStats) {
-        super(XPackField.INDEX_LIFECYCLE, available, enabled);
+    public IndexLifecycleFeatureSetUsage(boolean available, List<PolicyStats> policyStats) {
+        super(XPackField.INDEX_LIFECYCLE, available, true);
         this.policyStats = policyStats;
     }
 

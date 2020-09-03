@@ -1,0 +1,160 @@
+[[index-modules-blocks]]
+== Index blocks
+
+Index blocks limit the kind of operations that are available on a certain
+index. The blocks come in different flavours, allowing to block write,
+read, or metadata operations. The blocks can be set / removed using dynamic
+index settings, or can be added using a dedicated API, which also ensures
+for write blocks that, once successfully returning to the user, all shards
+of the index are properly accounting for the block, for example that all
+in-flight writes to an index have been completed after adding the write
+block.
+
+[discrete]
+[[index-block-settings]]
+=== Index block settings
+
+The following _dynamic_ index settings determine the blocks present on an
+index:
+
+`index.blocks.read_only`::
+
+    Set to `true` to make the index and index metadata read only, `false` to
+    allow writes and metadata changes.
+
+`index.blocks.read_only_allow_delete`::
+
+    Similar to `index.blocks.read_only`, but also allows deleting the index to
+    make more resources available. The <<disk-based-shard-allocation,disk-based shard
+    allocator>> may add and remove this block automatically.
++
+Deleting documents from an index to release resources - rather than deleting the index itself - can increase the index size over time. When `index.blocks.read_only_allow_delete` is set to `true`, deleting documents is not permitted. However, deleting the index itself releases the read-only index block and makes resources available almost immediately.
++
+IMPORTANT: {es} adds and removes the read-only index block automatically when the disk utilization falls below the high watermark, controlled by <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
+
+`index.blocks.read`::
+
+    Set to `true` to disable read operations against the index.
+
+`index.blocks.write`::
+
+    Set to `true` to disable data write operations against the index. Unlike `read_only`,
+    this setting does not affect metadata. For instance, you can close an index with a `write`
+    block, but you cannot close an index with a `read_only` block.
+
+`index.blocks.metadata`::
+
+    Set to `true` to disable index metadata reads and writes.
+
+`index.blocks.read_only_allow_delete`::
+
+    Similar to `index.blocks.read_only`, but also allows deleting the index to
+    make more resources available. The <<disk-based-shard-allocation,disk-based shard
+    allocator>> adds and removes this block automatically.
+
+Deleting documents from an index - rather than deleting the index itself - can
+in fact increase the index size. When you are running out of disk space
+`index.blocks.read_only_allow_delete` is set to `true`, preventing you from
+consuming more disk space by deleting some documents. However, this block does
+permit you to delete the index itself since this does not require any extra
+disk space. When you delete an index the data is removed from disk almost
+immediately, freeing the space it consumes.
+
+IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
+disk utilisation exceeds the <<cluster-routing-flood-stage,flood-stage
+watermark>> and removes it again when disk utilisation is below the
+<<cluster-routing-watermark-high,high watermark>>. You should not apply this
+block yourself.
+
+[discrete]
+[[add-index-block]]
+=== Add index block API
+
+Adds an index block to an index.
+
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001/_block/write
+--------------------------------------------------
+// TEST[setup:my_index]
+
+
+[discrete]
+[[add-index-block-api-request]]
+==== {api-request-title}
+
+`PUT /<index>/_block/<block>`
+
+
+[discrete]
+[role="child_attributes"]
+[[add-index-block-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
++
+To add blocks to all indices, use `_all` or `*`. To disallow the adding
+of blocks to indices with `_all` or wildcard expressions,
+change the `action.destructive_requires_name` cluster setting to `true`.
+You can update this setting in the `elasticsearch.yml` file
+or using the <<cluster-update-settings,cluster update settings>> API.
+`<block>`::
+(Required, string)
+Block type to add to the index.
++
+.Valid values for `<block>`
+[%collapsible%open]
+====
+`metadata`::
+Disable metadata changes, such as closing the index.
+
+`read`::
+Disable read operations.
+
+`read_only`::
+Disable write operations and metadata changes.
+
+`write`::
+Disable write operations. However, metadata changes are still allowed.
+====
+[discrete]
+[[add-index-block-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[discrete]
+[[add-index-block-api-example]]
+==== {api-examples-title}
+
+The following example shows how to add an index block:
+
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001/_block/write
+--------------------------------------------------
+// TEST[s/^/PUT my-index-000001\n/]
+
+The API returns following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged" : true,
+  "shards_acknowledged" : true,
+  "indices" : [ {
+    "name" : "my-index-000001",
+    "blocked" : true
+  } ]
+}
+--------------------------------------------------

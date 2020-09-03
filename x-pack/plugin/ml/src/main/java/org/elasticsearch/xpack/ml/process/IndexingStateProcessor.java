@@ -86,8 +86,8 @@ public class IndexingStateProcessor implements StateProcessor {
             if (findNextZeroByte(newBlock, 0, 0) == -1) {
                 searchFrom += bytesRead;
             } else {
-                BytesReference newBytes = new CompositeBytesReference(newBlocks.toArray(new BytesReference[0]));
-                bytesToDate = (bytesToDate == null) ? newBytes : new CompositeBytesReference(bytesToDate, newBytes);
+                BytesReference newBytes = CompositeBytesReference.of(newBlocks.toArray(new BytesReference[0]));
+                bytesToDate = (bytesToDate == null) ? newBytes : CompositeBytesReference.of(bytesToDate, newBytes);
                 bytesToDate = splitAndPersist(bytesToDate, searchFrom);
                 searchFrom = (bytesToDate == null) ? 0 : bytesToDate.length();
                 newBlocks.clear();
@@ -137,7 +137,9 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequest bulkRequest = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
         bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());

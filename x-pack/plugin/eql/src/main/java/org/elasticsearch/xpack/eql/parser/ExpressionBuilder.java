@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -45,12 +46,19 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
+
+    protected final ParserParams params;
+
+    public ExpressionBuilder(ParserParams params) {
+        this.params = params;
+    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -66,8 +74,13 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public List<Expression> visitJoinKeys(JoinKeysContext ctx) {
-        return ctx != null ? expressions(ctx.expression()) : emptyList();
+    public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
+        try {
+            return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
+        } catch (ClassCastException ex) {
+            Source source = source(ctx);
+            throw new ParsingException(source, "Unsupported join key ", source.text());
+        }
     }
 
     @Override
@@ -115,20 +128,21 @@ public class ExpressionBuilder extends IdentifierBuilder {
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
 
         Source source = source(ctx);
+        ZoneId zoneId = params.zoneId();
 
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.EQ:
-                return new Equals(source, left, right);
+                return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right);
+                return new NotEquals(source, left, right, zoneId);
             case EqlBaseParser.LT:
-                return new LessThan(source, left, right);
+                return new LessThan(source, left, right, zoneId);
             case EqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right);
+                return new LessThanOrEqual(source, left, right, zoneId);
             case EqlBaseParser.GT:
-                return new GreaterThan(source, left, right);
+                return new GreaterThan(source, left, right, zoneId);
             case EqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right);
+                return new GreaterThanOrEqual(source, left, right, zoneId);
             default:
                 throw new ParsingException(source, "Unknown operator {}", source.text());
         }
@@ -152,7 +166,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
+    public Literal visitDecimalLiteral(EqlBaseParser.DecimalLiteralContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
 
@@ -164,7 +178,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitDereference(DereferenceContext ctx) {
+    public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
         return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
     }
 

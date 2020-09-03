@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfi
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -55,6 +56,10 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false);
         MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false, false);
+    }
+
+    public static void registerUsage(ValuesSourceRegistry.Builder builder) {
+        builder.registerUsage(NAME, CoreValuesSourceType.NUMERIC);
     }
 
     public WeightedAvgAggregationBuilder(String name) {

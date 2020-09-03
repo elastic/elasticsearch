@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -40,6 +40,10 @@ import java.util.Map;
 
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<MissingAggregationBuilder> {
     public static final String NAME = "missing";
+    public static final ValuesSourceRegistry.RegistryKey<MissingAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        MissingAggregatorSupplier.class
+    );
 
     public static final ObjectParser<MissingAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);
@@ -47,15 +51,17 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MissingAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        MissingAggregatorFactory.registerAggregators(builder);
     }
 
     public MissingAggregationBuilder(String name) {
         super(name);
     }
 
-    protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected MissingAggregationBuilder(MissingAggregationBuilder clone,
+                                        AggregatorFactories.Builder factoriesBuilder,
+                                        Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -65,7 +71,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MissingAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -94,7 +100,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -106,5 +112,10 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

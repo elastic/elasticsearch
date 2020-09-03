@@ -53,6 +53,20 @@ public class Geohash {
     /** Bit encoded representation of the latitude of north pole */
     private static final long MAX_LAT_BITS = (0x1L << (PRECISION * 5 / 2)) - 1;
 
+    // Below code is adapted from the spatial4j library (GeohashUtils.java) Apache 2.0 Licensed
+    private static final double[] precisionToLatHeight, precisionToLonWidth;
+    static {
+        precisionToLatHeight = new double[PRECISION + 1];
+        precisionToLonWidth = new double[PRECISION + 1];
+        precisionToLatHeight[0] = 90*2;
+        precisionToLonWidth[0] = 180*2;
+        boolean even = false;
+        for(int i = 1; i <= PRECISION; i++) {
+            precisionToLatHeight[i] = precisionToLatHeight[i-1] / (even ? 8 : 4);
+            precisionToLonWidth[i] = precisionToLonWidth[i-1] / (even ? 4 : 8);
+            even = ! even;
+        }
+    }
 
     // no instance:
     private Geohash() {
@@ -95,6 +109,16 @@ public class Geohash {
             Point topRight = new Point(decodeLongitude(mortonHash), decodeLatitude(mortonHash));
             return new Rectangle(bottomLeft.getX(), topRight.getX(), 90D, bottomLeft.getY());
         }
+    }
+
+    /** Array of geohashes one level below the baseGeohash. Sorted. */
+    public static String[] getSubGeohashes(String baseGeohash) {
+        String[] hashes = new String[BASE_32.length];
+        for (int i = 0; i < BASE_32.length; i++) {//note: already sorted
+            char c = BASE_32[i];
+            hashes[i] = baseGeohash+c;
+        }
+        return hashes;
     }
 
     /**
@@ -202,6 +226,13 @@ public class Geohash {
     }
 
     /**
+     * Encode a string geohash to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
+     */
+    public static final long longEncode(String hash) {
+        return longEncode(hash, hash.length());
+    }
+
+    /**
      * Encode lon/lat to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
      */
     public static final long longEncode(final double lon, final double lat, final int level) {
@@ -288,6 +319,16 @@ public class Geohash {
             }
         }
         return BitUtil.flipFlop(l);
+    }
+
+    /** approximate width of geohash tile for a specific precision in degrees */
+    public static double lonWidthInDegrees(int precision) {
+        return precisionToLonWidth[precision];
+    }
+
+    /** approximate height of geohash tile for a specific precision in degrees */
+    public static double latHeightInDegrees(int precision) {
+        return precisionToLatHeight[precision];
     }
 
     private static long encodeLatLon(final double lat, final double lon) {

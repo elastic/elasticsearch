@@ -19,10 +19,11 @@
 
 package org.elasticsearch.common.joda;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -49,10 +50,14 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+@Deprecated
 public class Joda {
-
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Joda.class));
-
+    // Joda.forPattern could be used even before the logging is initialized.
+    // If LogManager.getLogger is called before logging config is loaded
+    // it results in errors sent to status logger and startup to fail.
+    // Hence a lazy initialization.
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
+        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
@@ -269,15 +274,15 @@ public class Joda {
 
     private static void maybeLogJodaDeprecation(String input) {
         if (input.contains("CC")) {
-            deprecationLogger.deprecatedAndMaybeLog("joda-century-of-era-format",
+            getDeprecationLogger().deprecate("joda-century-of-era-format",
                 "Use of 'C' (century-of-era) is deprecated and will not be supported in the next major version of Elasticsearch.");
         }
         if (input.contains("YY")) {
-            deprecationLogger.deprecatedAndMaybeLog("joda-year-of-era-format", "Use of 'Y' (year-of-era) will change to 'y' in the" +
-                " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+            getDeprecationLogger().deprecate("joda-year-of-era-format", "Use of 'Y' (year-of-era) will change to 'y' in the" +
+                    " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
         }
         if (input.contains("xx")) {
-            deprecationLogger.deprecatedAndMaybeLog("joda-week-based-year-format","Use of 'x' (week-based-year) will change" +
+            getDeprecationLogger().deprecate("joda-week-based-year-format", "Use of 'x' (week-based-year) will change" +
                 " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
         }
     }
@@ -375,11 +380,11 @@ public class Joda {
                 long millis = new BigDecimal(text).longValue() * factor;
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
-                    deprecationLogger.deprecatedAndMaybeLog("epoch-negative", "Use of negative values" +
+                    getDeprecationLogger().deprecate("epoch-negative", "Use of negative values" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    deprecationLogger.deprecatedAndMaybeLog("epoch-scientific-notation", "Use of scientific notation" +
+                    getDeprecationLogger().deprecate("epoch-scientific-notation", "Use of scientific notation" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
@@ -396,6 +401,10 @@ public class Joda {
             }
             return text.length();
         }
+    }
+
+    private static DeprecationLogger getDeprecationLogger() {
+        return deprecationLogger.getOrCompute();
     }
 
     public static class EpochTimePrinter implements DateTimePrinter {

@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -52,6 +53,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RestClientTests extends RestClientTestCase {
 
@@ -385,6 +387,18 @@ public class RestClientTests extends RestClientTestCase {
         assertEquals(Integer.MIN_VALUE, lastNodeIndex.incrementAndGet());
         assertNodes(nodeTuple, lastNodeIndex, 50);
         assertEquals(Integer.MIN_VALUE + 50, lastNodeIndex.get());
+    }
+
+    public void testIsRunning(){
+        List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
+        CloseableHttpAsyncClient client = mock(CloseableHttpAsyncClient.class);
+        RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false);
+
+        when(client.isRunning()).thenReturn(true);
+        assertTrue(restClient.isRunning());
+
+        when(client.isRunning()).thenReturn(false);
+        assertFalse(restClient.isRunning());
     }
 
     private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {

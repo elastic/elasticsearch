@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
@@ -330,6 +331,17 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
+    }
+
+    public void testCreateCredentialsProviderWithoutSecurity() {
+        final Settings.Builder builder = Settings.builder()
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
+
+        final Config config = createConfig(builder.build());
+        CredentialsProvider provider = HttpExporter.createCredentialsProvider(config);
+
+        assertNull(provider);
     }
 
     public void testCreateSnifferDisabledByDefault() {

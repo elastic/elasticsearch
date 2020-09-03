@@ -22,7 +22,6 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
-import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
@@ -56,7 +55,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -91,13 +89,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(httpServer, notNullValue());
         InetSocketAddress address = httpServer.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
-    }
-
-    // Google's SDK ignores Content-Length header when no bytes are sent, see SizeValidatingInputStream
-    // TODO: fix this in the SDK
-    @Override
-    protected int minIncompleteContentToSend() {
-        return 1;
     }
 
     @Override
@@ -147,7 +138,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
                     .setMaxRpcTimeout(Duration.ofSeconds(1));
                 if (maxRetries != null) {
-                    retrySettingsBuilder.setMaxAttempts(maxRetries);
+                    retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
                 }
                 return options.toBuilder()
                     .setHost(options.getHost())
@@ -158,20 +149,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(clientSettings.build()));
 
-        final List<HttpContext> httpContexts = Arrays.asList(
-            // Auth
-            httpServer.createContext("/token", new FakeOAuth2HttpHandler()),
-            // Does bucket exists?
-            httpServer.createContext("/storage/v1/b/bucket", safeHandler(exchange -> {
-                byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\"bucket\",\"id\":\"0\"}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                exchange.getResponseBody().write(response);
-            }))
-        );
-
-        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, service);
-        httpContexts.forEach(httpContext -> httpServer.removeContext(httpContext));
+        httpServer.createContext("/token", new FakeOAuth2HttpHandler());
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
+            randomIntBetween(1, 8) * 1024);
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
     }
@@ -185,10 +165,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/download/storage/v1/b/bucket/o/large_blob_retries", exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-            final String[] range = exchange.getRequestHeaders().get("Range").get(0).substring("bytes=".length()).split("-");
-            final int offset = Integer.parseInt(range[0]);
-            final int end = Integer.parseInt(range[1]);
-            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.min(end + 1, bytes.length));
+            final Tuple<Long, Long> range = getRange(exchange);
+            final int offset = Math.toIntExact(range.v1());
+            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.v2() + 1, bytes.length)));
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
             if (randomBoolean() && countDown.decrementAndGet() >= 0) {
                 exchange.getResponseBody().write(chunk, 0, chunk.length - 1);

@@ -20,25 +20,37 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TermsAggregatorFactoryTests extends ESTestCase {
-    public void testSubAggCollectMode() throws Exception {
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(Integer.MAX_VALUE, -1),
+    public void testPickEmpty() throws Exception {
+        AggregatorFactories empty = mock(AggregatorFactories.class);
+        when(empty.countAggregators()).thenReturn(0);
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(empty, randomInt(), randomInt()),
             equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(10, -1),
-            equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(10, 5),
+    }
+
+    public void testPickNonEempty() {
+        AggregatorFactories nonEmpty = mock(AggregatorFactories.class);
+        when(nonEmpty.countAggregators()).thenReturn(1);
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, Integer.MAX_VALUE, -1),
             equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(10, 10),
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, 10, -1),
+            equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, 10, 5),
             equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(10, 100),
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, 10, 10),
+            equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, 10, 100),
             equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(1, 2),
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, 1, 2),
             equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
-        assertThat(TermsAggregatorFactory.subAggCollectionMode(1, 100),
+        assertThat(TermsAggregatorFactory.pickSubAggColectMode(nonEmpty, 1, 100),
             equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
     }
 }

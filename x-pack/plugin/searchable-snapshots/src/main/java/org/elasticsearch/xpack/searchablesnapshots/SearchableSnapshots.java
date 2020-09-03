@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -31,7 +33,8 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.license.License;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -39,12 +42,18 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsAction;
@@ -54,6 +63,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestRepositoryStatsAction;
@@ -67,54 +77,56 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 
 /**
  * Plugin for Searchable Snapshots feature
  */
-public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin {
-
-    private static final boolean SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
-
-    static {
-        final String property = System.getProperty("es.searchable_snapshots_feature_enabled");
-        if ("true".equals(property)) {
-            SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED = true;
-        } else if ("false".equals(property)) {
-            SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED = false;
-        } else if (property == null) {
-            SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED = Build.CURRENT.isSnapshot();
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.searchable_snapshots_feature_enabled to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
+public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin, SystemIndexPlugin {
 
     public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
         "index.store.snapshot.repository_name",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_SNAPSHOT_NAME_SETTING = Setting.simpleString(
         "index.store.snapshot.snapshot_name",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_SNAPSHOT_ID_SETTING = Setting.simpleString(
         "index.store.snapshot.snapshot_uuid",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING = Setting.simpleString(
         "index.store.snapshot.index_uuid",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "index.store.snapshot.cache.enabled",
         true,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize
+    );
+    public static final Setting<Boolean> SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING = Setting.boolSetting(
+        "index.store.snapshot.cache.prewarm.enabled",
+        true,
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize
     );
     // The file extensions that are excluded from the cache
     public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
@@ -122,19 +134,22 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Collections.emptyList(),
         Function.identity(),
         Setting.Property.IndexScope,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "index.store.snapshot.uncached_chunk_size",
         new ByteSizeValue(-1, ByteSizeUnit.BYTES),
         Setting.Property.IndexScope,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.NotCopyableOnResize
     );
 
-    public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
-
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+    private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final Settings settings;
 
     public SearchableSnapshots(final Settings settings) {
@@ -142,7 +157,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public static void ensureValidLicense(XPackLicenseState licenseState) {
-        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM) == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
@@ -156,6 +171,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 SNAPSHOT_SNAPSHOT_ID_SETTING,
                 SNAPSHOT_INDEX_ID_SETTING,
                 SNAPSHOT_CACHE_ENABLED_SETTING,
+                SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING,
                 SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
                 SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
@@ -181,10 +197,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            final CacheService cacheService = new CacheService(settings);
+            final CacheService cacheService = new CacheService(new NodeEnvironmentCacheCleaner(nodeEnvironment), settings);
             this.cacheService.set(cacheService);
             this.repositoriesServiceSupplier = repositoriesServiceSupplier;
-            return List.of(cacheService);
+            this.threadPool.set(threadPool);
+            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
+                clusterService,
+                threadPool,
+                client,
+                SNAPSHOT_BLOB_CACHE_INDEX
+            );
+            this.blobStoreCacheService.set(blobStoreCacheService);
+            this.failShardsListener.set(
+                new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService())
+            );
+            return List.of(cacheService, blobStoreCacheService);
         } else {
             this.repositoriesServiceSupplier = () -> {
                 assert false : "searchable snapshots are disabled";
@@ -196,9 +223,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED && isSearchableSnapshotStore(indexModule.getSettings())) {
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
             indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
+            indexModule.addIndexEventListener(failShardsListener.get());
         }
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return List.of(new SystemIndexDescriptor(SNAPSHOT_BLOB_CACHE_INDEX, "Contains cached data of blob store repositories"));
     }
 
     @Override
@@ -209,7 +242,19 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 assert repositories != null;
                 final CacheService cache = cacheService.get();
                 assert cache != null;
-                return SearchableSnapshotDirectory.create(repositories, cache, indexSettings, shardPath, System::nanoTime);
+                final ThreadPool threadPool = this.threadPool.get();
+                assert threadPool != null;
+                final BlobStoreCacheService blobCache = blobStoreCacheService.get();
+                assert blobCache != null;
+                return SearchableSnapshotDirectory.create(
+                    repositories,
+                    cache,
+                    indexSettings,
+                    shardPath,
+                    System::nanoTime,
+                    threadPool,
+                    blobCache
+                );
             });
         } else {
             return Map.of();
@@ -218,10 +263,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED
-            && isSearchableSnapshotStore(indexSettings.getSettings())
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
+            return Optional.of(
+                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
+            );
         }
         return Optional.empty();
     }
@@ -233,7 +279,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
                 new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
                 new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
-                new ActionHandler<>(RepositoryStatsAction.INSTANCE, TransportRepositoryStatsAction.class)
+                new ActionHandler<>(RepositoryStatsAction.INSTANCE, TransportRepositoryStatsAction.class),
+                new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
+                new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class)
             );
         } else {
             return List.of();
@@ -270,7 +318,54 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         }
     }
 
-    static boolean isSearchableSnapshotStore(Settings indexSettings) {
-        return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
+    // overridable by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            return List.of(
+                new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS))
+            );
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            return List.of(executorBuilders());
+        } else {
+            return List.of();
+        }
+    }
+
+    @Override
+    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            return Map.of(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, SearchableSnapshotRecoveryState::new);
+        } else {
+            return Map.of();
+        }
+    }
+
+    public static ScalingExecutorBuilder[] executorBuilders() {
+        return new ScalingExecutorBuilder[] {
+            new ScalingExecutorBuilder(
+                CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+                0,
+                32,
+                TimeValue.timeValueSeconds(30L),
+                CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                CACHE_PREWARMING_THREAD_POOL_NAME,
+                0,
+                32,
+                TimeValue.timeValueSeconds(30L),
+                CACHE_PREWARMING_THREAD_POOL_SETTING
+            ) };
     }
 }

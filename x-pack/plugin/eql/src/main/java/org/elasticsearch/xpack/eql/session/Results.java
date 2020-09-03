@@ -9,23 +9,14 @@ package org.elasticsearch.xpack.eql.session;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Count;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.eql.session.Payload.Type;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 public class Results {
-
-    private enum Type {
-        SEARCH_HIT,
-        SEQUENCE,
-        COUNT;
-    }
-    
-    public static final Results EMPTY = new Results(new TotalHits(0, Relation.EQUAL_TO), TimeValue.MINUS_ONE, false, emptyList());
 
     private final TotalHits totalHits;
     private final List<?> results;
@@ -33,25 +24,17 @@ public class Results {
     private final TimeValue tookTime;
     private final Type type;
 
-    public Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results) {
+    public static Results fromPayload(Payload payload) {
+        List<?> values = payload.values();
+        return new Results(new TotalHits(values.size(), Relation.EQUAL_TO), payload.timeTook(), false, values, payload.resultType());
+    }
+    
+    Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;
         this.timedOut = timedOut;
         this.results = results;
-
-        Type t = Type.SEARCH_HIT;
-
-        if (results.isEmpty() == false) {
-            Object o = results.get(0);
-
-            if (o instanceof Sequence) {
-                t = Type.SEQUENCE;
-            }
-            if (o instanceof Count) {
-                t = Type.COUNT;
-            }
-        }
-        type = t;
+        this.type = type;
     }
 
     public TotalHits totalHits() {
@@ -59,8 +42,8 @@ public class Results {
     }
 
     @SuppressWarnings("unchecked")
-    public List<SearchHit> searchHits() {
-        return type == Type.SEARCH_HIT ? (List<SearchHit>) results : null;
+    public List<Event> events() {
+        return type == Type.EVENT ? (List<Event>) results : null;
     }
 
     @SuppressWarnings("unchecked")

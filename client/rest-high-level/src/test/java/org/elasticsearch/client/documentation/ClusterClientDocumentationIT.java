@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRespons
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -35,11 +36,19 @@ import org.elasticsearch.client.cluster.RemoteConnectionInfo;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
@@ -56,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -472,6 +482,228 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::health-execute-async
             client.cluster().remoteInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::health-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetComponentTemplates() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
+            ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
+            PutComponentTemplateRequest putComponentTemplateRequest =
+                new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate);
+            client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT);
+
+            assertTrue(client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::get-component-templates-request
+        GetComponentTemplatesRequest request = new GetComponentTemplatesRequest("ct1"); // <1>
+        // end::get-component-templates-request
+
+        // tag::get-component-templates-request-masterTimeout
+        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setMasterNodeTimeout("1m"); // <2>
+        // end::get-component-templates-request-masterTimeout
+
+        // tag::get-component-templates-execute
+        GetComponentTemplatesResponse getTemplatesResponse = client.cluster().getComponentTemplate(request, RequestOptions.DEFAULT);
+        // end::get-component-templates-execute
+
+        // tag::get-component-templates-response
+        Map<String, ComponentTemplate> templates = getTemplatesResponse.getComponentTemplates(); // <1>
+        // end::get-component-templates-response
+
+        assertThat(templates.size(), is(1));
+        assertThat(templates.get("ct1"), is(notNullValue()));
+
+        // tag::get-component-templates-execute-listener
+        ActionListener<GetComponentTemplatesResponse> listener =
+            new ActionListener<GetComponentTemplatesResponse>() {
+                @Override
+                public void onResponse(GetComponentTemplatesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-component-templates-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-component-templates-execute-async
+        client.cluster().getComponentTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-component-templates-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutComponentTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-component-template-request
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
+                .name("ct1"); // <1>
+
+            Settings settings = Settings.builder()
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 1)
+                .build();
+            String mappingJson = "{\n" +
+                "  \"properties\": {\n" +
+                "    \"message\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
+            Template template = new Template(settings, new CompressedXContent(mappingJson), Map.of("twitter_alias", twitterAlias)); // <2>
+
+            request.componentTemplate(new ComponentTemplate(template, null, null));
+            assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-component-template-request
+        }
+
+        {
+            // tag::put-component-template-request-version
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
+                .name("ct1");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 3)
+                .build();
+            Template template = new Template(settings, null, null);
+
+            request.componentTemplate(new ComponentTemplate(template, 3L, null)); // <1>
+            assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-component-template-request-version
+
+            // tag::put-component-template-request-create
+            request.create(true);  // <1>
+            // end::put-component-template-request-create
+
+            // tag::put-component-template-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::put-component-template-request-masterTimeout
+
+            request.create(false); // make test happy
+
+            // tag::put-component-template-request-execute
+            AcknowledgedResponse putComponentTemplateResponse = client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT);
+            // end::put-component-template-request-execute
+
+            // tag::put-component-template-response
+            boolean acknowledged = putComponentTemplateResponse.isAcknowledged(); // <1>
+            // end::put-component-template-response
+            assertTrue(acknowledged);
+
+            // tag::put-component-template-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse putComponentTemplateResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-component-template-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-component-template-execute-async
+            client.cluster().putComponentTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-component-template-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteComponentTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
+                .name("ct1");
+
+            Settings settings = Settings.builder()
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 1)
+                .build();
+            String mappingJson = "{\n" +
+                "  \"properties\": {\n" +
+                "    \"message\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
+            Template template = new Template(settings, new CompressedXContent(mappingJson), Map.of("twitter_alias", twitterAlias));
+
+            request.componentTemplate(new ComponentTemplate(template, null, null));
+            assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-component-template-request
+        DeleteComponentTemplateRequest deleteRequest = new DeleteComponentTemplateRequest("ct1"); // <1>
+        // end::delete-component-template-request
+
+        // tag::delete-component-template-request-masterTimeout
+        deleteRequest.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        // end::delete-component-template-request-masterTimeout
+
+        // tag::delete-component-template-execute
+        AcknowledgedResponse deleteTemplateAcknowledge = client.cluster().deleteComponentTemplate(deleteRequest, RequestOptions.DEFAULT);
+        // end::delete-component-template-execute
+
+        // tag::delete-component-template-response
+        boolean acknowledged = deleteTemplateAcknowledge.isAcknowledged(); // <1>
+        // end::delete-component-template-response
+        assertThat(acknowledged, equalTo(true));
+
+        {
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
+                .name("ct1");
+
+            Settings settings = Settings.builder()
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 1)
+                .build();
+            Template template = new Template(settings, null, null);
+            request.componentTemplate(new ComponentTemplate(template, null, null));
+            assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-component-template-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::delete-component-template-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::delete-component-template-execute-async
+        client.cluster().deleteComponentTemplateAsync(deleteRequest, RequestOptions.DEFAULT, listener); // <1>
+        // end::delete-component-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

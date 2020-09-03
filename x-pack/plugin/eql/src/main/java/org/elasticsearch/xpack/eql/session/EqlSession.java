@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.eql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
+import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.planner.Planner;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
@@ -27,22 +29,25 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class EqlSession {
 
     private final Client client;
-    private final Configuration configuration;
+    private final EqlConfiguration configuration;
     private final IndexResolver indexResolver;
 
     private final PreAnalyzer preAnalyzer;
+    private final PostAnalyzer postAnalyzer;
     private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
 
-    public EqlSession(Client client, Configuration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, Analyzer analyzer,
-            Optimizer optimizer, Planner planner, PlanExecutor planExecutor) {
+    public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, PostAnalyzer postAnalyzer,
+                      FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner,
+                      PlanExecutor planExecutor) {
 
         this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;
-        this.analyzer = analyzer;
+        this.postAnalyzer = postAnalyzer;
+        this.analyzer = new Analyzer(cfg, functionRegistry, verifier);
         this.optimizer = optimizer;
         this.planner = planner;
     }
@@ -55,12 +60,13 @@ public class EqlSession {
         return optimizer;
     }
 
-    public Configuration configuration() {
+    public EqlConfiguration configuration() {
         return configuration;
     }
 
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
-        eqlExecutable(eql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
+        eqlExecutable(eql, params, wrap(e -> e.execute(this, wrap(p -> listener.onResponse(Results.fromPayload(p)), listener::onFailure)),
+                listener::onFailure));
     }
 
     public void eqlExecutable(String eql, ParserParams params, ActionListener<PhysicalPlan> listener) {
@@ -85,17 +91,22 @@ public class EqlSession {
             return;
         }
 
-        preAnalyze(parsed, wrap(p -> listener.onResponse(analyzer.analyze(p)), listener::onFailure));
+        preAnalyze(parsed, wrap(p -> listener.onResponse(postAnalyze(analyzer.analyze(p))), listener::onFailure));
     }
 
     private <T> void preAnalyze(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
-        String indexWildcard = Strings.arrayToCommaDelimitedString(configuration.indices());
+        String indexWildcard = configuration.indexAsWildcard();
         if(configuration.isCancelled()){
             throw new TaskCancelledException("cancelled");
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), wrap(r -> {
-            listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
-        }, listener::onFailure));
+        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), configuration.filter(),
+            wrap(r -> {
+                listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
+            }, listener::onFailure));
+    }
+
+    private LogicalPlan postAnalyze(LogicalPlan verified) {
+        return postAnalyzer.postAnalyze(verified, configuration);
     }
 
     private LogicalPlan doParse(String eql, ParserParams params) {

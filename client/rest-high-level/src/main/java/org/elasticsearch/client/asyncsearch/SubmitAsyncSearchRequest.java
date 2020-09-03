@@ -36,8 +36,6 @@ import java.util.Optional;
  */
 public class SubmitAsyncSearchRequest implements Validatable {
 
-    public static final int DEFAULT_BATCHED_REDUCE_SIZE = 5;
-
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
     private TimeValue waitForCompletionTimeout;

@@ -32,9 +32,9 @@ If any repository fails during the request, {es} returns an error.
 [[cat-snapshots-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -60,14 +60,14 @@ version.
 * `SUCCESS`: The snapshot process completed with a full success.
 
 `start_epoch`, `ste`, `startEpoch`::
-(Default) https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time] at which
+(Default) {wikipedia}/Unix_time[Unix `epoch` time] at which
 the snapshot process started.
 
 `start_time`, `sti`, `startTime`::
 (Default) `HH:MM:SS` time at which the snapshot process started.
 
 `end_epoch`, `ete`, `endEpoch`::
-(Default) https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time] at which
+(Default) {wikipedia}/Unix_time[Unix `epoch` time] at which
 the snapshot process ended.
 
 `end_time`, `eti`, `endTime`::
@@ -93,19 +93,19 @@ units>>.
 Reason for any snapshot failures.
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 `ignore_unavailable`::
 (Optional, boolean) If `true`, the response does not include information from
 unavailable snapshots. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-snapshots-api-example]]

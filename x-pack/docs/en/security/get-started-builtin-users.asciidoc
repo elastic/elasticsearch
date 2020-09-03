@@ -1,13 +1,13 @@
 // tag::create-users[]
 There are <<built-in-users,built-in users>> that you can use for specific
-administrative purposes: `apm_system`, `beats_system`, `elastic`, `kibana`,
-`logstash_system`,  and `remote_monitoring_user`. 
+administrative purposes: `apm_system`, `beats_system`, `elastic`, `kibana_system`,
+`logstash_system`,  and `remote_monitoring_user`.
 
 // end::create-users[]
 
 Before you can use them, you must set their passwords:
 
-. Restart {es}. For example, if you installed {es} with a `.tar.gz` package, run 
+. Restart {es}. For example, if you installed {es} with a `.tar.gz` package, run
 the following command from the {es} directory:
 +
 --

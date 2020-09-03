@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
@@ -32,7 +32,7 @@ public class AuditTrailService {
 
     public AuditTrail get() {
         if (compositeAuditTrail.isEmpty() == false &&
-            licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
+            licenseState.isSecurityEnabled() && licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
             return compositeAuditTrail;
         } else {
             return NOOP_AUDIT_TRAIL;
@@ -53,10 +53,11 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {}
+        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest) {}
+        public void authenticationSuccess(String requestId, Authentication authentication, String action,
+                                          TransportRequest transportRequest) {}
 
         @Override
         public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {}
@@ -98,7 +99,7 @@ public class AuditTrailService {
         public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {}
 
         @Override
-        public void tamperedRequest(String requestId, User user, String action, TransportRequest transportRequest) {}
+        public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {}
 
         @Override
         public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
@@ -142,16 +143,17 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
+        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(requestId, realm, user, request);
+                auditTrail.authenticationSuccess(requestId, authentication, request);
             }
         }
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest) {
+        public void authenticationSuccess(String requestId, Authentication authentication, String action,
+                                          TransportRequest transportRequest) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
+                auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
             }
         }
 
@@ -243,9 +245,9 @@ public class AuditTrailService {
         }
 
         @Override
-        public void tamperedRequest(String requestId, User user, String action, TransportRequest transportRequest) {
+        public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.tamperedRequest(requestId, user, action, transportRequest);
+                auditTrail.tamperedRequest(requestId, authentication, action, transportRequest);
             }
         }
 

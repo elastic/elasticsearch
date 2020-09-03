@@ -22,12 +22,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,10 +39,17 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     private final ValuesSource valuesSource;
 
-    public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+    public MissingAggregator(
+            String name,
+            AggregatorFactories factories,
+            ValuesSourceConfig valuesSourceConfig,
+            SearchContext aggregationContext,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, cardinality, metadata);
+        // TODO: Stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
     }
 
     @Override
@@ -68,8 +77,9 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalMissing(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

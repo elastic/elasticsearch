@@ -7,15 +7,12 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +37,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
+public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -50,7 +47,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/start";
 
     private StartDatafeedAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, NodeAcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -84,9 +81,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             params = new DatafeedParams(in);
-        }
-
-        public Request() {
         }
 
         public DatafeedParams getParams() {
@@ -196,11 +190,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                indicesOptions = IndicesOptions.readIndicesOptions(in);
-            } else {
-                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-            }
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         DatafeedParams() {
@@ -286,9 +276,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                indicesOptions.writeIndicesOptions(out);
-            }
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
@@ -336,13 +324,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     Objects.equals(jobId, other.jobId) &&
                     Objects.equals(indicesOptions, other.indicesOptions) &&
                     Objects.equals(datafeedIndices, other.datafeedIndices);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
-            super(client, action, new Request());
         }
     }
 

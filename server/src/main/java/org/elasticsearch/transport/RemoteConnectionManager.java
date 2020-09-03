@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class RemoteConnectionManager implements ConnectionManager {
@@ -33,7 +34,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     private final String clusterAlias;
     private final ConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
-    private volatile List<Transport.Connection> connections = Collections.emptyList();
+    private volatile List<DiscoveryNode> connectedNodes = Collections.emptyList();
 
     RemoteConnectionManager(String clusterAlias, ConnectionManager delegate) {
         this.clusterAlias = clusterAlias;
@@ -41,12 +42,12 @@ public class RemoteConnectionManager implements ConnectionManager {
         this.delegate.addListener(new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
-                addConnection(connection);
+                addConnectedNode(node);
             }
 
             @Override
             public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-                removeConnection(connection);
+                removeConnectedNode(node);
             }
         });
     }
@@ -98,23 +99,36 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     public Transport.Connection getAnyRemoteConnection() {
-        List<Transport.Connection> localConnections = this.connections;
-        if (localConnections.isEmpty()) {
-            throw new NoSuchRemoteClusterException(clusterAlias);
-        } else {
-            long curr;
-            while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE);
-            return localConnections.get(Math.floorMod(curr, localConnections.size()));
+        List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
+        long curr;
+        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE);
+        if (localConnectedNodes.isEmpty() == false) {
+            DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
+            try {
+                return delegate.getConnection(nextNode);
+            } catch (NodeNotConnectedException e) {
+                // Ignore. We will manually create an iterator of open nodes
+            }
         }
+        Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
+        for (DiscoveryNode connectedNode : allConnectionNodes) {
+            try {
+                return delegate.getConnection(connectedNode);
+            } catch (NodeNotConnectedException e) {
+                // Ignore. We will try the next one until all are exhausted.
+            }
+        }
+        throw new NoSuchRemoteClusterException(clusterAlias);
+    }
+
+    @Override
+    public Set<DiscoveryNode> getAllConnectedNodes() {
+        return delegate.getAllConnectedNodes();
     }
 
     @Override
     public int size() {
-        // Although we use a delegate instance, we report the connection manager size based on the
-        // RemoteConnectionManager's knowledge of the connections. This is because there is a brief window
-        // in between the time when the connection is added to the delegate map, and the time when
-        // nodeConnected is called.
-        return this.connections.size();
+        return delegate.size();
     }
 
     @Override
@@ -127,22 +141,22 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.closeNoBlock();
     }
 
-    private synchronized void addConnection(Transport.Connection addedConnection) {
-        ArrayList<Transport.Connection> newConnections = new ArrayList<>(this.connections);
-        newConnections.add(addedConnection);
-        this.connections = Collections.unmodifiableList(newConnections);
+    private synchronized void addConnectedNode(DiscoveryNode addedNode) {
+        ArrayList<DiscoveryNode> newConnections = new ArrayList<>(this.connectedNodes);
+        newConnections.add(addedNode);
+        this.connectedNodes = Collections.unmodifiableList(newConnections);
     }
 
-    private synchronized void removeConnection(Transport.Connection removedConnection) {
-        int newSize = this.connections.size() - 1;
-        ArrayList<Transport.Connection> newConnections = new ArrayList<>(newSize);
-        for (Transport.Connection connection : this.connections) {
-            if (connection.equals(removedConnection) == false) {
-                newConnections.add(connection);
+    private synchronized void removeConnectedNode(DiscoveryNode removedNode) {
+        int newSize = this.connectedNodes.size() - 1;
+        ArrayList<DiscoveryNode> newConnectedNodes = new ArrayList<>(newSize);
+        for (DiscoveryNode connectedNode : this.connectedNodes) {
+            if (connectedNode.equals(removedNode) == false) {
+                newConnectedNodes.add(connectedNode);
             }
         }
-        assert newConnections.size() == newSize : "Expected connection count: " + newSize + ", Found: " + newConnections.size();
-        this.connections = Collections.unmodifiableList(newConnections);
+        assert newConnectedNodes.size() == newSize : "Expected connection node count: " + newSize + ", Found: " + newConnectedNodes.size();
+        this.connectedNodes = Collections.unmodifiableList(newConnectedNodes);
     }
 
     static final class ProxyConnection implements Transport.Connection {

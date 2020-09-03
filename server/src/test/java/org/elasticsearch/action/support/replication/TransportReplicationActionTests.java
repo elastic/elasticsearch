@@ -126,6 +126,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -152,6 +153,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
+    private boolean forceExecute;
     private ClusterService clusterService;
     private TransportService transportService;
     private CapturingTransport transport;
@@ -172,6 +174,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        forceExecute = randomBoolean();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
@@ -828,16 +831,18 @@ public class TransportReplicationActionTests extends ESTestCase {
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
         Set<String> inSyncIds = randomBoolean() ? singleton(routingEntry.allocationId().getId()) :
             clusterService.state().metadata().index(index).inSyncAllocationIds(0);
+        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, shardRoutingTable.getAllAllocationIds(), 0);
         when(shard.getReplicationGroup()).thenReturn(
-            new ReplicationGroup(shardRoutingTable,
-                inSyncIds,
-                shardRoutingTable.getAllAllocationIds()));
+            replicationGroup);
+        PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
+        replicationActions.accept(replicationGroup);
+        when(shard.getPendingReplicationActions()).thenReturn(replicationActions);
         doAnswer(invocation -> {
             count.incrementAndGet();
             //noinspection unchecked
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject(), eq(forceExecute));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -919,14 +924,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ReplicationTask task = maybeTask();
         TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithExceptions", transportService, clusterService,
             shardStateAction, threadPool) {
+
             @Override
-            protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
-                assertIndexShardCounter(1);
-                assertPhase(task, "replica");
-                if (throwException) {
-                    throw new ElasticsearchException("simulated");
-                }
-                return new ReplicaResult();
+            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+                ActionListener.completeWith(listener, () -> {
+                    assertIndexShardCounter(1);
+                    assertPhase(task, "replica");
+                    if (throwException) {
+                        throw new ElasticsearchException("simulated");
+                    }
+                    return new ReplicaResult();
+                });
             }
         };
         try {
@@ -1055,12 +1063,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithExceptions", transportService, clusterService,
             shardStateAction, threadPool) {
             @Override
-            protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
-                assertPhase(task, "replica");
-                if (throwException.get()) {
-                    throw new RetryOnReplicaException(shardId, "simulation");
-                }
-                return new ReplicaResult();
+            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+                ActionListener.completeWith(listener, () -> {
+                    assertPhase(task, "replica");
+                    if (throwException.get()) {
+                        throw new RetryOnReplicaException(shardId, "simulation");
+                    }
+                    return new ReplicaResult();
+                });
             }
         };
         final PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
@@ -1122,13 +1132,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithExceptions", transportService, clusterService,
             shardStateAction, threadPool) {
             @Override
-            protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
-                assertPhase(task, "replica");
-                if (throwException.get()) {
-                    throw new RetryOnReplicaException(shardId, "simulation");
-                }
-                calledSuccessfully.set(true);
-                return new ReplicaResult();
+            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+                ActionListener.completeWith(listener, () -> {
+                    assertPhase(task, "replica");
+                    if (throwException.get()) {
+                        throw new RetryOnReplicaException(shardId, "simulation");
+                    }
+                    calledSuccessfully.set(true);
+                    return new ReplicaResult();
+                });
             }
         };
         final PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
@@ -1263,7 +1275,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()),
-                Request::new, Request::new, ThreadPool.Names.SAME);
+                Request::new, Request::new, ThreadPool.Names.SAME, false, forceExecute);
         }
 
         @Override
@@ -1280,9 +1292,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
+        protected void shardOperationOnReplica(Request request, IndexShard replica, ActionListener<ReplicaResult> listener) {
             request.processedOnReplicas.incrementAndGet();
-            return new ReplicaResult();
+            listener.onResponse(new ReplicaResult());
         }
     }
 
@@ -1334,7 +1346,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
+        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(forceExecute));
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];

@@ -16,9 +16,9 @@ Computing the max price value across all documents
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "max_price" : { "max" : { "field" : "price" } }
-    }
+  "aggs": {
+    "max_price": { "max": { "field": "price" } }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -28,12 +28,12 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "max_price": {
-            "value": 200.0
-        }
-    }
+  ...
+  "aggregations": {
+      "max_price": {
+          "value": 200.0
+      }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -51,15 +51,15 @@ below computes the maximum price:
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "max_price" : {
-            "max" : {
-                "script" : {
-                    "source" : "doc.price.value"
-                }
-            }
-        }
-    }
+  "aggs" : {
+      "max_price" : {
+          "max" : {
+              "script" : {
+                  "source" : "doc.price.value"
+              }
+          }
+      }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -71,18 +71,18 @@ and no script parameters. To use a stored script use the following syntax:
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "max_price" : {
-            "max" : {
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "price"
-                    }
-                }
-            }
-        }
-    }
+  "aggs" : {
+      "max_price" : {
+          "max" : {
+              "script" : {
+                  "id": "my_script",
+                  "params": {
+                      "field": "price"
+                  }
+              }
+          }
+      }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales,stored_example_script]
@@ -98,19 +98,19 @@ conversion rate to every value before it is aggregated:
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "max_price_in_euros" : {
-            "max" : {
-                "field" : "price",
-                "script" : {
-                    "source" : "_value * params.conversion_rate",
-                    "params" : {
-                        "conversion_rate" : 1.2
-                    }
-                }
-            }
-        }
-    }
+  "aggs" : {
+      "max_price_in_euros" : {
+          "max" : {
+              "field" : "price",
+              "script" : {
+                  "source" : "_value * params.conversion_rate",
+                  "params" : {
+                      "conversion_rate" : 1.2
+                  }
+              }
+          }
+      }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -125,14 +125,14 @@ them as if they had a value.
 --------------------------------------------------
 POST /sales/_search
 {
-    "aggs" : {
-        "grade_max" : {
-            "max" : {
-                "field" : "grade",
-                "missing": 10 <1>
-            }
-        }
-    }
+  "aggs" : {
+      "grade_max" : {
+          "max" : {
+              "field" : "grade",
+              "missing": 10       <1>
+          }
+      }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

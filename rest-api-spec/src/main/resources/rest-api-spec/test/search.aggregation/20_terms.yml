@@ -4,6 +4,7 @@ setup:
           index: test_1
           body:
             settings:
+              number_of_shards: 1
               number_of_replicas: 0
             mappings:
               properties:
@@ -694,6 +695,36 @@ setup:
 
   - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
+---
+"Global ordinals are loaded with the global_ordinals execution hint":
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 1
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 2
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 3
+        routing: 1
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
   - do:
       search:
         index: test_1
@@ -710,7 +741,204 @@ setup:
 
   - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
+---
+"No field or script":
+  - skip:
+      version: " - 7.7.99"
+      reason:  "Exception was a deep, server exception before 7.8"
+  - do:
+      catch: /Required one of fields \[field, script\], but none were specified/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
 
+---
+"string profiler via global ordinals":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 1 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
 
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                collect_mode: breadth_first
+                execution_hint: global_ordinals
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.debug.collection_strategy: dense }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
+  - gt:    { profile.shards.0.aggregations.0.debug.segments_with_single_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.segments_with_multi_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
 
+  - do:
+      indices.create:
+          index: test_3
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                str:
+                   type: keyword
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": ["pig", "sheep"], "number": 100 }
 
+  - do:
+      search:
+        index: test_3
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                collect_mode: breadth_first
+                execution_hint: global_ordinals
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - match: { aggregations.str_terms.buckets.0.key: pig }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 100 }
+  - match: { aggregations.str_terms.buckets.1.key: sheep }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 100 }
+  - match: { profile.shards.0.aggregations.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.debug.collection_strategy: dense }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
+  - match: { profile.shards.0.aggregations.0.debug.segments_with_single_valued_ords: 0 }
+  - gt:    { profile.shards.0.aggregations.0.debug.segments_with_multi_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+
+---
+"string profiler via map":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 1 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                collect_mode: breadth_first
+                execution_hint: map
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: MapStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
+  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+
+---
+"numeric profiler":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "number": 1 }
+          { "index": {} }
+          { "number": 3 }
+          { "index": {} }
+          { "number": 1 }
+          { "index": {} }
+          { "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            n_terms:
+              terms:
+                field: number
+  - match: { aggregations.n_terms.buckets.0.key: 1 }
+  - match: { aggregations.n_terms.buckets.1.key: 3 }
+  - match: { profile.shards.0.aggregations.0.type: NumericTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: n_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: long_terms }
+  - match: { profile.shards.0.aggregations.0.debug.total_buckets: 2 }

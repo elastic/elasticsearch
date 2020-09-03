@@ -19,80 +19,41 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.FuncRefNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a function reference.
  */
-public class EFunctionRef extends AExpression implements ILambda {
+public class EFunctionRef extends AExpression {
 
-    protected final String type;
-    protected final String call;
+    private final String symbol;
+    private final String methodName;
 
-    // TODO: #54015
-    private String defPointer;
+    public EFunctionRef(int identifier, Location location, String symbol, String methodName) {
+        super(identifier, location);
 
-    public EFunctionRef(Location location, String type, String call) {
-        super(location);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.methodName = Objects.requireNonNull(methodName);
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.call = Objects.requireNonNull(call);
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public String getMethodName() {
+        return methodName;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to function reference [" + type + ":"  + call + "]"));
-        }
-
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: function reference [" + type + ":"  + call + "] not used"));
-        }
-
-        FunctionRef ref;
-
-        Output output = new Output();
-
-        if (input.expected == null) {
-            ref = null;
-            output.actual = String.class;
-            defPointer = "S" + type + "." + call + ",0";
-        } else {
-            defPointer = null;
-            ref = FunctionRef.create(
-                    scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, input.expected, type, call, 0);
-            output.actual = input.expected;
-        }
-
-        FuncRefNode funcRefNode = new FuncRefNode();
-
-        funcRefNode.setLocation(location);
-        funcRefNode.setExpressionType(output.actual);
-        funcRefNode.setFuncRef(ref);
-
-        output.expressionNode = funcRefNode;
-
-        return output;
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitFunctionRef(this, scope);
     }
 
     @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public List<Class<?>> getCaptures() {
-        return Collections.emptyList();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

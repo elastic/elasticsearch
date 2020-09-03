@@ -33,6 +33,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.junit.Before;
 
@@ -73,10 +74,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             return null;
         }
 
+        @Override
+        public String getDescription() {
+            return null;
+        }
+
         static class Factory implements Processor.Factory {
 
             @Override
-            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                    Map<String, Object> config) {
                 return new NotInferenceProcessor();
             }
         }
@@ -87,12 +94,11 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factoryMap = new HashMap<>();
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+            when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
+                    Settings.EMPTY));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 
@@ -265,7 +271,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(
                 Collections.singletonMap(InferenceProcessor.TYPE,
                     new HashMap<String, Object>() {{
-                        put(InferenceProcessor.MODEL_ID, modelId);
+                        put(InferenceResults.MODEL_ID_RESULTS_FIELD, modelId);
                         put("inference_config", Collections.singletonMap("regression", Collections.emptyMap()));
                         put("field_map", Collections.emptyMap());
                         put("target_field", randomAlphaOfLength(10));

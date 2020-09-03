@@ -19,130 +19,35 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
-import org.elasticsearch.painless.ir.NewArrayNode;
-import org.elasticsearch.painless.ir.ReturnNode;
-import org.elasticsearch.painless.ir.VariableNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a function reference.
  */
-public class ENewArrayFunctionRef extends AExpression implements ILambda {
+public class ENewArrayFunctionRef extends AExpression {
 
-    protected final String type;
+    private final String canonicalTypeName;
 
-    // TODO: #54015
-    private String defPointer;
+    public ENewArrayFunctionRef(int identifier, Location location, String canonicalTypeName) {
+        super(identifier, location);
 
-    public ENewArrayFunctionRef(Location location, String type) {
-        super(location);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+    }
 
-        this.type = Objects.requireNonNull(type);
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException(
-                    "cannot assign a value to new array function reference with target type [ + " + type  + "]"));
-        }
-
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: new array function reference with target type [" + type + "] not used"));
-        }
-
-        Output output = new Output();
-
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("A newly created array must be read from."));
-        }
-
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
-        }
-
-        String name = scriptRoot.getNextSyntheticName("newarray");
-        scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
-
-        FunctionRef ref;
-
-        if (input.expected == null) {
-            ref = null;
-            output.actual = String.class;
-            defPointer = "Sthis." + name + ",0";
-        } else {
-            defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, input.expected, "this", name, 0);
-            output.actual = input.expected;
-        }
-
-        VariableNode variableNode = new VariableNode();
-        variableNode.setLocation(location);
-        variableNode.setExpressionType(int.class);
-        variableNode.setName("size");
-
-        NewArrayNode newArrayNode = new NewArrayNode();
-        newArrayNode.setLocation(location);
-        newArrayNode.setExpressionType(clazz);
-        newArrayNode.setInitialize(false);
-
-        newArrayNode.addArgumentNode(variableNode);
-
-        ReturnNode returnNode = new ReturnNode();
-        returnNode.setLocation(location);
-        returnNode.setExpressionNode(newArrayNode);
-
-        BlockNode blockNode = new BlockNode();
-        blockNode.setAllEscape(true);
-        blockNode.setStatementCount(1);
-        blockNode.addStatementNode(returnNode);
-
-        FunctionNode functionNode = new FunctionNode();
-        functionNode.setMaxLoopCounter(0);
-        functionNode.setName(name);
-        functionNode.setReturnType(clazz);
-        functionNode.addTypeParameter(int.class);
-        functionNode.addParameterName("size");
-        functionNode.setStatic(true);
-        functionNode.setVarArgs(false);
-        functionNode.setSynthetic(true);
-        functionNode.setBlockNode(blockNode);
-
-        classNode.addFunctionNode(functionNode);
-
-        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
-
-        newArrayFuncRefNode.setLocation(location);
-        newArrayFuncRefNode.setExpressionType(output.actual);
-        newArrayFuncRefNode.setFuncRef(ref);
-
-        output.expressionNode = newArrayFuncRefNode;
-
-        return output;
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNewArrayFunctionRef(this, scope);
     }
 
     @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public List<Class<?>> getCaptures() {
-        return Collections.emptyList();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

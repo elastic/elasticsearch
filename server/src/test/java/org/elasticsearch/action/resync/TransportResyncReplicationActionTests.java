@@ -20,6 +20,7 @@ package org.elasticsearch.action.resync;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -130,11 +131,11 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
+                }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds()));
+                        shardRoutingTable.getAllAllocationIds(), 0));
 
                 final IndexService indexService = mock(IndexService.class);
                 when(indexService.getShard(eq(shardId.id()))).thenReturn(indexShard);
@@ -143,7 +144,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexServices.indexServiceSafe(eq(index))).thenReturn(indexService);
 
                 final TransportResyncReplicationAction action = new TransportResyncReplicationAction(Settings.EMPTY, transportService,
-                    clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()));
+                    clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()),
+                    new IndexingPressure(Settings.EMPTY));
 
                 assertThat(action.globalBlockLevel(), nullValue());
                 assertThat(action.indexBlockLevel(), nullValue());

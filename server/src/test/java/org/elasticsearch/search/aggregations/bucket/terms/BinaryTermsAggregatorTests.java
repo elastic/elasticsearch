@@ -59,7 +59,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchNoDocs() throws IOException {
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(BINARY_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
@@ -68,7 +68,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchAllDocs() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(BINARY_FIELD),
             agg -> {
                 assertEquals(9, agg.getBuckets().size());
@@ -87,7 +87,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
 
         // Make sure the include/exclude fails regardless of how the user tries to type hint the agg
         AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
-            () -> testBothCases(new MatchNoDocsQuery(), dataset,
+            () -> testSearchCase(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.field(BINARY_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"), null // default, no hint
             ));
@@ -95,52 +95,29 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
             "they can only be applied to string fields. Use an array of values for include/exclude clauses"));
 
         e = expectThrows(AggregationExecutionException.class,
-            () -> testBothCases(new MatchNoDocsQuery(), dataset,
+            () -> testSearchCase(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.field(BINARY_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"), ValueType.STRING // string type hint
             ));
         assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style include/exclude settings as " +
             "they can only be applied to string fields. Use an array of values for include/exclude clauses"));
+    }
 
-        e = expectThrows(AggregationExecutionException.class, () -> testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.field(BINARY_FIELD).includeExclude(includeExclude),
+    public void testBadUserValueTypeHint() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchNoDocsQuery(), dataset,
+            aggregation -> aggregation.field(BINARY_FIELD),
             agg -> fail("test should have failed with exception"), ValueType.NUMERIC // numeric type hint
         ));
-        assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style include/exclude settings as " +
-            "they can only be applied to string fields. Use an array of values for include/exclude clauses"));
+        assertThat(e.getMessage(), equalTo("Expected numeric type on field [binary], but got [binary]"));
     }
 
     private void testSearchCase(Query query, List<Long> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        executeTestCase(false, query, dataset, configure, verify, valueType);
-    }
-
-    private void testSearchAndReduceCase(Query query, List<Long> dataset,
-                                         Consumer<TermsAggregationBuilder> configure,
-                                         Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        executeTestCase(true, query, dataset, configure, verify, valueType);
-    }
-
-    private void testBothCases(Query query, List<Long> dataset,
-                               Consumer<TermsAggregationBuilder> configure,
-                               Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        testSearchCase(query, dataset, configure, verify, valueType);
-        testSearchAndReduceCase(query, dataset, configure, verify, valueType);
-    }
-
-    private void executeTestCase(boolean reduced, Query query, List<Long> dataset,
-                                 Consumer<TermsAggregationBuilder> configure,
-                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (Long value : dataset) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-
                     document.add(new BinaryFieldMapper.CustomBinaryDocValuesField(BINARY_FIELD, Numbers.longToBytes(value)));
                     indexWriter.addDocument(document);
                     document.clear();
@@ -158,16 +135,9 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType binaryFieldType = new BinaryFieldMapper.Builder(BINARY_FIELD).fieldType();
-                binaryFieldType.setName(BINARY_FIELD);
-                binaryFieldType.setHasDocValues(true);
+                MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
 
-                InternalMappedTerms rareTerms;
-                if (reduced) {
-                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, binaryFieldType);
-                } else {
-                    rareTerms = search(indexSearcher, query, aggregationBuilder, binaryFieldType);
-                }
+                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, binaryFieldType);
                 verify.accept(rareTerms);
             }
         }

@@ -18,176 +18,176 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.Objects;
 
 /**
- * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
- * instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in the case
- * of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
+ * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to functions for building aggregation components.  DO NOT
+ * directly instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in
+ * the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
  *
  */
 public class ValuesSourceRegistry {
-    // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
-    private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry = Map.of();
 
-    /**
-     * Register a ValuesSource to Aggregator mapping.
-     *
-     * Threading behavior notes: This call is both synchronized and expensive. It copies the entire existing mapping structure each
-     * time it is invoked.  We expect that register will be called a small number of times during startup only (as plugins are being
-     * registered) and we can tolerate the cost at that time.  Once all plugins are registered, we should never need to call register
-     * again.  Comparatively, we expect to do many reads from the registry data structures, and those reads may be interleaved on
-     * different worker threads.  Thus we want to optimize the read case to be thread safe and fast, which the immutable
-     * collections do well.  Using immutable collections requires a copy on write mechanic, thus the somewhat non-intuitive
-     * implementation of this method.
-     * @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
-     * @param appliesTo A predicate which accepts the resolved {@link ValuesSourceType} and decides if the given aggregator can be applied
-     *                  to that type.
-     * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-     */
-    public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
-                                      AggregatorSupplier aggregatorSupplier) {
-        AbstractMap.SimpleEntry[] mappings;
-        if (aggregatorRegistry.containsKey(aggregationName)) {
-            List currentMappings = aggregatorRegistry.get(aggregationName);
-            mappings = (AbstractMap.SimpleEntry[]) currentMappings.toArray(new AbstractMap.SimpleEntry[currentMappings.size() + 1]);
-        } else {
-            mappings = new AbstractMap.SimpleEntry[1];
+    public static final class RegistryKey<T> {
+        private final String name;
+        private final Class<T> supplierType;
+
+        public RegistryKey(String name, Class<T> supplierType) {
+            this.name = Objects.requireNonNull(name);
+            this.supplierType = Objects.requireNonNull(supplierType);
         }
-        mappings[mappings.length - 1] = new AbstractMap.SimpleEntry<>(appliesTo, aggregatorSupplier);
-        aggregatorRegistry = copyAndAdd(aggregatorRegistry,new AbstractMap.SimpleEntry<>(aggregationName, List.of(mappings)));
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RegistryKey that = (RegistryKey) o;
+            return name.equals(that.name) && supplierType.equals(that.supplierType);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, supplierType);
+        }
     }
 
-    /**
-     * Register a ValuesSource to Aggregator mapping.  This version provides a convenience method for mappings that only apply to a single
-     * {@link ValuesSourceType}, to allow passing in the type and auto-wrapping it in a predicate
-     *  @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
-     * @param valuesSourceType The ValuesSourceType this mapping applies to.
-     * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-     *                           from the aggregation standard set of parameters
-     */
-    public void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier) {
-        register(aggregationName, (candidate) -> valuesSourceType.equals(candidate), aggregatorSupplier);
-    }
+    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey("unregistered", RegistryKey.class);
 
-    /**
-     * Register a ValuesSource to Aggregator mapping.  This version provides a convenience method for mappings that only apply to a known
-     * list of {@link ValuesSourceType}, to allow passing in the type and auto-wrapping it in a predicate
-     *  @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
-     * @param valuesSourceTypes The ValuesSourceTypes this mapping applies to.
-     * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-     *                           from the aggregation standard set of parameters
-     */
-    public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, AggregatorSupplier aggregatorSupplier) {
-        register(aggregationName, (candidate) -> {
+    public static class Builder {
+        private final AggregationUsageService.Builder usageServiceBuilder;
+        private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
+
+        public Builder() {
+            this.usageServiceBuilder = new AggregationUsageService.Builder();
+        }
+
+
+        /**
+         * Register a ValuesSource to Aggregator mapping. This method registers mappings that only apply to a
+         * single {@link ValuesSourceType}
+         * @param registryKey The name of the family of aggregations paired with the expected component supplier type for this
+         *                    family of aggregations.  Generally, the aggregation builder is expected to define a constant for use as the
+         *                    registryKey
+         * @param valuesSourceType The ValuesSourceType this mapping applies to.
+         * @param aggregatorSupplier An Aggregation-specific specialization of ComponentSupplier which will construct the mapped aggregator
+         * @param registerUsage Flag to indicate if this aggregation values source combo should be added to the usage registry.
+         *                      Aggregations that set this to false should register with the usage registry through some other path.
+         */
+        public <T> void register(
+            RegistryKey<T> registryKey,
+            ValuesSourceType valuesSourceType,
+            T aggregatorSupplier,
+            boolean registerUsage) {
+            if (aggregatorRegistry.containsKey(registryKey) == false) {
+                aggregatorRegistry.put(registryKey, new ArrayList<>());
+            }
+            aggregatorRegistry.get(registryKey).add(new AbstractMap.SimpleEntry<>(valuesSourceType, aggregatorSupplier));
+            if (registerUsage) {
+                registerUsage(registryKey.getName(), valuesSourceType);
+            }
+        }
+
+        /**
+         * Register a ValuesSource to Aggregator mapping. This version provides a convenience method for mappings that apply to a
+         * known list of {@link ValuesSourceType}
+         * @param registryKey The name of the family of aggregations paired with the expected component supplier type for this
+         *                    family of aggregations.  Generally, the aggregation builder is expected to define a constant for use as the
+         *                    registryKey
+         * @param valuesSourceTypes The ValuesSourceTypes this mapping applies to.
+         * @param aggregatorSupplier An Aggregation-specific specialization of ComponentSupplier which will construct the mapped aggregator
+         * @param registerUsage Flag to indicate if this aggregation values source combo should be added to the usage registry.
+         *                      Aggregations that set this to false should register with the usage registry through some other path.
+         */
+        public <T> void register(
+            RegistryKey<T> registryKey,
+            List<ValuesSourceType> valuesSourceTypes,
+            T aggregatorSupplier,
+            boolean registerUsage) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
-                if (valuesSourceType.equals(candidate)) {
-                    return true;
-                }
-            }
-            return false;
-        }, aggregatorSupplier);
-    }
-
-    /**
-     * Register an aggregator that applies to any values source type.  This is a convenience method for aggregations that do not care at all
-     * about the types of their inputs.  Aggregations using this version of registration should not make any other registrations, as the
-     * aggregator registered using this function will be applied in all cases.
-     *
-     * @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
-     * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
-     *                           from the aggregation standard set of parameters.
-     */
-    public void registerAny(String aggregationName, AggregatorSupplier aggregatorSupplier) {
-        register(aggregationName, (ignored) -> true, aggregatorSupplier);
-    }
-
-    private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>> supportedTypes) {
-        for (Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier> candidate : supportedTypes) {
-            if (candidate.getKey().test(valuesSourceType)) {
-                return candidate.getValue();
+                register(registryKey, valuesSourceType, aggregatorSupplier, registerUsage);
             }
         }
-        return null;
+
+        public void registerUsage(String aggregationName, ValuesSourceType valuesSourceType) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName, valuesSourceType.typeName());
+        }
+
+        public void registerUsage(String aggregationName) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName);
+        }
+
+        public ValuesSourceRegistry build() {
+            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build());
+        }
     }
 
-    public AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName) {
-        if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
-            AggregatorSupplier supplier = findMatchingSuppier(valuesSourceType, aggregatorRegistry.get(aggregationName));
+    private static Map<RegistryKey<?>, Map<ValuesSourceType, ?>> copyMap(
+        Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> mutableMap
+    ) {
+        /*
+         Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
+         into a Map.of(), which is more read optimized than just using a hash map.
+         */
+        @SuppressWarnings("unchecked")
+        Map.Entry<RegistryKey<?>, Map<ValuesSourceType, ?>>[] copiedEntries = new Map.Entry[mutableMap.size()];
+        int i = 0;
+        for (Map.Entry<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> entry : mutableMap.entrySet()) {
+            RegistryKey<?> topKey = entry.getKey();
+            List<Map.Entry<ValuesSourceType, ?>> values = entry.getValue();
+            @SuppressWarnings("unchecked")
+            Map.Entry<RegistryKey<?>, Map<ValuesSourceType, ?>> newEntry = Map.entry(
+                topKey,
+                Map.ofEntries(values.toArray(new Map.Entry[0]))
+            );
+            copiedEntries[i++] = newEntry;
+        }
+        return Map.ofEntries(copiedEntries);
+    }
+
+    /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
+    private final AggregationUsageService usageService;
+    private Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+
+    public ValuesSourceRegistry(
+        Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
+        AggregationUsageService usageService
+    ) {
+        this.aggregatorRegistry = copyMap(aggregatorRegistry);
+        this.usageService = usageService;
+    }
+
+    public boolean isRegistered(RegistryKey<?> registryKey) {
+        return aggregatorRegistry.containsKey(registryKey);
+    }
+
+    public <T> T getAggregator(RegistryKey<T> registryKey, ValuesSourceConfig valuesSourceConfig) {
+        if (registryKey != null && aggregatorRegistry.containsKey(registryKey)) {
+            @SuppressWarnings("unchecked")
+            T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
-                throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() +
-                    " is not supported for aggregation" + aggregationName);
+                throw new IllegalArgumentException(
+                    valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
+                );
             }
             return supplier;
         }
-        throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
+        throw new AggregationExecutionException("Unregistered Aggregation [" + registryKey.getName() + "]");
     }
 
-    public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName,
-                                                // TODO: the following arguments are only needed for the legacy case
-                                                IndexFieldData indexFieldData,
-                                                ValueType valueType,
-                                                ValuesSourceType defaultValuesSourceType) {
-        if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
-            // This will throw if the field doesn't support values sources, although really we probably threw much earlier in that case
-            ValuesSourceType valuesSourceType = fieldType.getValuesSourceType();
-            if (aggregatorRegistry.get(aggregationName) != null
-                && findMatchingSuppier(valuesSourceType, aggregatorRegistry.get(aggregationName)) != null) {
-                return valuesSourceType;
-            }
-            String fieldDescription = fieldType.typeName() + "(" + fieldType.toString() + ")";
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldDescription +
-                "] is not supported for aggregation [" + aggregationName + "]");
-        } else {
-            // TODO: Legacy resolve logic; remove this after converting all aggregations to the new system
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                return CoreValuesSourceType.NUMERIC;
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                return CoreValuesSourceType.GEOPOINT;
-            } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-                return CoreValuesSourceType.RANGE;
-            } else {
-                if (valueType == null) {
-                    return defaultValuesSourceType;
-                } else {
-                    return valueType.getValuesSourceType();
-                }
-            }
-        }
+    public AggregationUsageService getUsageService() {
+        return usageService;
     }
-
-    private static <K, V> Map copyAndAdd(Map<K, V>  source, Map.Entry<K, V>  newValue) {
-        Map.Entry[] entries;
-        if (source.containsKey(newValue.getKey())) {
-            // Replace with new value
-            entries = new Map.Entry[source.size()];
-            int i = 0;
-            for (Map.Entry entry : source.entrySet()) {
-                if (entry.getKey() == newValue.getKey()) {
-                    entries[i] = newValue;
-                } else {
-                    entries[i] = entry;
-                }
-                i++;
-            }
-        } else {
-            entries = source.entrySet().toArray(new Map.Entry[source.size() + 1]);
-            entries[entries.length - 1] = newValue;
-        }
-        return Map.ofEntries(entries);
-    }
-
 }

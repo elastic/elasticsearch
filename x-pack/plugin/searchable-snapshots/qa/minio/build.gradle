@@ -1,0 +1,51 @@
+import org.elasticsearch.gradle.info.BuildParams
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project fixture = project(':test:fixtures:minio-fixture')
+final Project repositoryPlugin = project(':plugins:repository-s3')
+
+dependencies {
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation repositoryPlugin
+}
+
+restResources {
+  restApi {
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
+    includeXpack 'searchable_snapshots'
+  }
+}
+
+testFixtures.useFixture(fixture.path, 'minio-fixture-other')
+def fixtureAddress = {
+  int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.minio-fixture-other.tcp.9000"
+  assert ephemeralPort > 0
+  '127.0.0.1:' + ephemeralPort
+}
+
+integTest {
+  dependsOn repositoryPlugin.bundlePlugin
+  systemProperty 'test.minio.bucket', 'bucket'
+  systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  plugin repositoryPlugin.bundlePlugin.archiveFile
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
+
+  keystore 's3.client.searchable_snapshots.access_key', 'access_key'
+  keystore 's3.client.searchable_snapshots.secret_key', 'secret_key'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 's3.client.searchable_snapshots.protocol', 'http'
+  setting 's3.client.searchable_snapshots.endpoint', { "${-> fixtureAddress()}" }, IGNORE_VALUE
+}
+

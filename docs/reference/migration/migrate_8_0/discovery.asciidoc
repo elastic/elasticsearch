@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_discovery_changes]]
 === Discovery changes
 
@@ -9,12 +9,15 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Removal of old discovery settings
 
+.`discovery.zen` settings have been removed.
+[%collapsible]
+====
+*Details* +
 All settings under the `discovery.zen` namespace, which existed only for BWC reasons in 7.x,
-will no longer be supported. In particular, this includes:
+are no longer supported. In particular, this includes:
 
+- `discovery.zen.minimum_master_nodes`
 - `discovery.zen.no_master_block`
 - `discovery.zen.hosts_provider`
 - `discovery.zen.publish_timeout`
@@ -23,8 +26,8 @@ will no longer be supported. In particular, this includes:
 - `discovery.zen.ping.unicast.concurrent_connects`
 - `discovery.zen.ping.unicast.hosts.resolve_timeout`
 - `discovery.zen.ping.unicast.hosts`
+- `discovery.zen.ping_timeout`
 - `discovery.zen.unsafe_rolling_upgrades_enabled`
-- `discovery.zen.commit_timeout`
 - `discovery.zen.fd.connect_on_network_disconnect`
 - `discovery.zen.fd.ping_interval`
 - `discovery.zen.fd.ping_timeout`
@@ -32,8 +35,14 @@ will no longer be supported. In particular, this includes:
 - `discovery.zen.fd.register_connection_listener`
 - `discovery.zen.join_retry_attempts`
 - `discovery.zen.join_retry_delay`
+- `discovery.zen.join_timeout`
 - `discovery.zen.max_pings_from_another_master`
 - `discovery.zen.send_leave_request`
 - `discovery.zen.master_election.wait_for_joins_timeout`
 - `discovery.zen.master_election.ignore_non_master_pings`
 - `discovery.zen.publish.max_pending_cluster_states`
+
+*Impact* +
+Discontinue use of the `discovery.zen` settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
+====

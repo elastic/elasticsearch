@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +43,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isVotingOnlyAllowed();
+        return licenseState != null && licenseState.isAllowed(Feature.VOTING_ONLY);
     }
 
     @Override
@@ -66,7 +67,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         @Override
         protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                        ActionListener<XPackUsageFeatureResponse> listener) {
-            final boolean available = licenseState.isVotingOnlyAllowed();
+            final boolean available = licenseState.checkFeature(Feature.VOTING_ONLY);
             final VotingOnlyNodeFeatureSetUsage usage =
                 new VotingOnlyNodeFeatureSetUsage(available);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -91,7 +92,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
         @Override
         protected boolean available() {
-            return licenseState.isVotingOnlyAllowed();
+            return licenseState.isAllowed(Feature.VOTING_ONLY);
         }
 
         @Override

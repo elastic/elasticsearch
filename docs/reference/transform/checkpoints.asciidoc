@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-checkpoints]]
-=== How {transform} checkpoints work
+= How {transform} checkpoints work
 ++++
 <titleabbrev>How checkpoints work</titleabbrev>
 ++++
@@ -49,15 +49,11 @@ requires enough resources to support both the composite aggregation search and
 the indexing of its results. 
 
 TIP: If the cluster experiences unsuitable performance degradation due to the
-{transform}, stop the {transform}. Consider whether you can apply a
-source query to the {transform} to reduce the scope of data it
-processes. Also consider whether the cluster has sufficient resources in place
-to support both the composite aggregation search and the indexing of its
-results.
+{transform}, stop the {transform} and refer to <<transform-performance>>.
 
 [discrete]
 [[ml-transform-checkpoint-errors]]
-==== Error handling
+== Error handling
 
 Failures in {transforms} tend to be related to searching or indexing.
 To increase the resiliency of {transforms}, the cursor positions of

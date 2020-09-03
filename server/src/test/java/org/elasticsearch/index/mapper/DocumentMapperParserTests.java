@@ -73,7 +73,7 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             mapperParser.parse("type", new CompressedXContent(mapping)));
-        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] of different type"));
+        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
     }
 
     public void testMultiFieldsWithFieldAlias() throws Exception {

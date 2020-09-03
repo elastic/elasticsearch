@@ -1,0 +1,105 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test stack template installation":
+  - do:
+      ilm.get_lifecycle:
+        policy: "logs"
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "metrics"
+
+  - do:
+      cluster.get_component_template:
+        name: logs-mappings
+
+  - do:
+      cluster.get_component_template:
+        name: logs-settings
+
+  - do:
+      cluster.get_component_template:
+        name: metrics-mappings
+
+  - do:
+      cluster.get_component_template:
+        name: metrics-settings
+
+  - do:
+      indices.get_index_template:
+        name: logs
+
+  - do:
+      indices.get_index_template:
+        name: metrics
+
+---
+"Test logs index auto creation":
+  - do:
+      index:
+        index: logs-foo-bar
+        body:
+          "@timestamp": "2020-01-01"
+          message: "test-log-message"
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foo-bar
+
+  - match: { data_streams.0.name: logs-foo-bar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '.ds-logs-foo-bar-000001' }
+
+  - do:
+      indices.get:
+        index: .ds-logs-foo-bar-000001
+
+  - is_true: \.ds-logs-foo-bar-000001.settings
+  - is_true: \.ds-logs-foo-bar-000001.mappings
+  - match: { \.ds-logs-foo-bar-000001.settings.index.lifecycle.name: "logs" }
+  - is_true: \.ds-logs-foo-bar-000001.mappings.properties.message
+  - match: { \.ds-logs-foo-bar-000001.data_stream: "logs-foo-bar" }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foo-bar
+
+---
+"Test metrics index auto creation":
+  - do:
+      index:
+        index: metrics-foo-bar
+        body:
+          "@timestamp": "2020-01-01"
+          message: "test-log-message"
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-foo-bar
+
+  - match: { data_streams.0.name: metrics-foo-bar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '.ds-metrics-foo-bar-000001' }
+
+  - do:
+      indices.get:
+        index: .ds-metrics-foo-bar-000001
+
+  - is_true: \.ds-metrics-foo-bar-000001.settings
+  - is_true: \.ds-metrics-foo-bar-000001.mappings
+  - match: { \.ds-metrics-foo-bar-000001.settings.index.lifecycle.name: "metrics" }
+  - is_true: \.ds-metrics-foo-bar-000001.mappings.properties.message
+  - match: { \.ds-metrics-foo-bar-000001.data_stream: "metrics-foo-bar" }
+
+  - do:
+      indices.delete_data_stream:
+        name: metrics-foo-bar

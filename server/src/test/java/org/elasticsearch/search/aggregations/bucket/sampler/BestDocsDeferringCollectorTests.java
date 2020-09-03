@@ -75,7 +75,7 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
         collector.postCollection();
-        collector.replay(0);
+        collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

@@ -37,8 +37,6 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
             id = in.readString();
         }
 
-        public Request() {}
-
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, TrainedModelConfig.MODEL_ID);
         }

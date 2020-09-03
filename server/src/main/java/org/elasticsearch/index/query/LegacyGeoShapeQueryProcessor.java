@@ -52,8 +52,8 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
-import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
@@ -63,11 +63,11 @@ import java.util.List;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class LegacyGeoShapeQueryProcessor implements AbstractSearchableGeometryFieldType.QueryProcessor {
+public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
 
-    private AbstractGeometryFieldMapper.AbstractGeometryFieldType ft;
+    private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
 
-    public LegacyGeoShapeQueryProcessor(AbstractGeometryFieldMapper.AbstractGeometryFieldType ft) {
+    public LegacyGeoShapeQueryProcessor(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft) {
         this.ft = ft;
     }
 
@@ -94,7 +94,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractSearchableGeometryF
             // before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName,false);
             Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);

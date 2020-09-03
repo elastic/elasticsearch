@@ -28,13 +28,14 @@ import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
@@ -361,7 +363,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(updateParams.getFilter().getId());
             executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, ActionListener.wrap(
                 getFilterResponse -> filterListener.onResponse(getFilterResponse.getFilters().results().get(0)),
-                handler::accept
+                handler
             ));
         }
     }
@@ -426,7 +428,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     e -> closeHandler.accept(e, true)
                 ));
             },
-            e -> closeHandler.accept(e, true));
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof InvalidAliasNameException) {
+                    String msg = "Detected a problem with your setup of machine learning, the state index alias ["
+                        + AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        + "] exists as index but must be an alias.";
+                    logger.error(new ParameterizedMessage("[{}] {}", jobId, msg), e);
+                    auditor.error(jobId, msg);
+                    setJobState(jobTask, JobState.FAILED, msg, e2 -> closeHandler.accept(e, true));
+                } else {
+                    closeHandler.accept(e, true);
+                }
+            }
+        );
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
@@ -435,8 +449,20 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
-        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+            ack -> ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler),
+            e -> {
+                // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
+                // and it would cause more harm than good to block jobs from opening in subsequent releases
+                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            }
+        );
+
+        // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
+        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,

@@ -30,7 +30,7 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         config.put("error_distance", 0.002);
         config.put("shape_type", "geo_shape");
         String processorTag = randomAlphaOfLength(10);
-        CircleProcessor processor = factory.create(null, processorTag, config);
+        CircleProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("field1"));
@@ -44,7 +44,7 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         config.put("error_distance", 0.002);
         config.put("shape_type", "shape");
         String processorTag = randomAlphaOfLength(10);
-        CircleProcessor processor = factory.create(null, processorTag, config);
+        CircleProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("field1"));
@@ -58,14 +58,15 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         config.put("error_distance", 0.002);
         config.put("shape_type", "invalid");
         String processorTag = randomAlphaOfLength(10);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, processorTag, config));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, processorTag, null, config));
         assertThat(e.getMessage(), equalTo("illegal [shape_type] value [invalid]. valid values are [SHAPE, GEO_SHAPE]"));
     }
 
     public void testCreateMissingField() {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, processorTag, config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> factory.create(null, processorTag, null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -76,7 +77,7 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         config.put("error_distance", 0.002);
         config.put("shape_type", "geo_shape");
         String processorTag = randomAlphaOfLength(10);
-        CircleProcessor processor = factory.create(null, processorTag, config);
+        CircleProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("other"));
@@ -88,7 +89,8 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, processorTag, config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> factory.create(null, processorTag, null, config));
         assertThat(e.getMessage(), equalTo("[error_distance] required property is missing"));
     }
 }

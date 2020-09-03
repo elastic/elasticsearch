@@ -25,11 +25,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -38,7 +38,7 @@ import java.util.stream.StreamSupport;
 /**
  * A listener that allows to track progress of the {@link SearchAction}.
  */
-abstract class SearchProgressListener {
+public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
 
     public static final SearchProgressListener NOOP = new SearchProgressListener() {};
@@ -77,10 +77,11 @@ abstract class SearchProgressListener {
      *
      * @param shards The list of shards that are part of this reduce.
      * @param totalHits The total number of hits in this reduce.
-     * @param aggs The partial result for aggregations.
+     * @param aggs The partial result for aggregations stored in serialized form.
      * @param reducePhase The version number for this reduce.
      */
-    protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
+    protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
+            DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {}
 
     /**
      * Executed once when the final reduce is created.
@@ -103,9 +104,10 @@ abstract class SearchProgressListener {
      * Executed when a shard reports a fetch failure.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The last shard target that thrown an exception.
      * @param exc The cause of the failure.
      */
-    protected void onFetchFailure(int shardIndex, Exception exc) {}
+    protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
         this.shards = shards;
@@ -134,7 +136,8 @@ abstract class SearchProgressListener {
         }
     }
 
-    final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+    final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits,
+                DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
         try {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
@@ -159,9 +162,9 @@ abstract class SearchProgressListener {
         }
     }
 
-    final void notifyFetchFailure(int shardIndex, Exception exc) {
+    final void notifyFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         try {
-            onFetchFailure(shardIndex, exc);
+            onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure",
                 shards.get(shardIndex)), e);
@@ -172,13 +175,6 @@ abstract class SearchProgressListener {
         return results.stream()
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
-            .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
-            .collect(Collectors.toUnmodifiableList());
-    }
-
-    static List<SearchShard> buildSearchShards(SearchShardTarget[] results) {
-        return Arrays.stream(results)
-            .filter(Objects::nonNull)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
             .collect(Collectors.toUnmodifiableList());
     }

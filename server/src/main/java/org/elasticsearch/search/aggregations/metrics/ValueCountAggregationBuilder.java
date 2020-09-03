@@ -40,6 +40,10 @@ import java.util.Map;
 
 public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, ValueCountAggregationBuilder> {
     public static final String NAME = "value_count";
+    public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        MetricAggregatorSupplier.class
+    );
 
     public static final ObjectParser<ValueCountAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, ValueCountAggregationBuilder::new);
@@ -47,8 +51,8 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        ValueCountAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        ValueCountAggregatorFactory.registerAggregators(builder);
     }
 
     public ValueCountAggregationBuilder(String name) {
@@ -103,5 +107,10 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

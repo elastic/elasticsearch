@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
+import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -35,7 +37,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(new EqlFunctionRegistry(), new Verifier());
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -86,10 +88,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Unknown column [pib], did you mean any of [pid, ppid]?", error("foo where pib == 1"));
     }
 
-    public void testPipesUnsupported() {
-        assertEquals("1:20: Pipes are not supported", errorParsing("process where true | head 6"));
-    }
-
     public void testProcessRelationshipsUnsupported() {
         assertEquals("2:7: Process relationships are not supported",
                 errorParsing("process where opcode=1 and process_name == \"csrss.exe\"\n" +
@@ -111,26 +109,8 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
-        assertEquals("1:15: Unknown function [matchLite]",
-                error("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
         assertEquals("1:15: Unknown function [safe]",
                 error("network where safe(process_name)"));
-    }
-
-    // Test the known EQL functions that are not supported
-    public void testFunctionVerificationUnknown() {
-        assertEquals("1:15: Unknown function [add]",
-                error("process where add(serial_event_id, 0) == 1"));
-        assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",
-                error("process where subtract(serial_event_id, -5) == 6"));
-        assertEquals("1:15: Unknown function [multiply]",
-                error("process where multiply(6, serial_event_id) == 30"));
-        assertEquals("1:15: Unknown function [divide]",
-                error("process where divide(30, 4.0) == 7.5"));
-        assertEquals("1:34: Unknown function [number]",
-                error("process where serial_event_id == number('5')"));
-        assertEquals("1:15: Unknown function [concat]",
-                error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
     }
 
     // Test unsupported array indexes
@@ -288,10 +268,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testNested() {
         final IndexResolution idxr = loadIndexResolution("mapping-nested.json");
-        accept(idxr, "foo where processes.pid == 0");
-
+        assertEquals("1:11: Cannot use field [processes] type [nested] due to nested fields not being supported yet",
+            error(idxr, "foo where processes == 0"));
+        assertEquals("1:11: Cannot use field [processes.pid] type [long] with unsupported nested type in hierarchy (field [processes])",
+            error(idxr, "foo where processes.pid == 0"));
         assertEquals("1:11: Unknown column [processe.pid], did you mean any of [processes.pid, processes.path, processes.path.keyword]?",
                 error(idxr, "foo where processe.pid == 0"));
+        accept(idxr, "foo where long_field == 123");
     }
 
     public void testGeo() {
@@ -322,20 +305,24 @@ public class VerifierTests extends ESTestCase {
 
         accept(idxr, "foo where multi_field_options.raw == 'bar'");
         accept(idxr, "foo where multi_field_options.key == 'bar'");
-
         accept(idxr, "foo where multi_field_ambiguous.one == 'bar'");
         accept(idxr, "foo where multi_field_ambiguous.two == 'bar'");
+
         assertEquals("1:11: [multi_field_ambiguous.normalized == 'bar'] cannot operate on first argument field of data type [keyword]: " +
                         "Normalized keyword field cannot be used for exact match operations",
                 error(idxr, "foo where multi_field_ambiguous.normalized == 'bar'"));
-
-        assertEquals("1:11: [multi_field_nested.dep_name == 'bar'] cannot operate on first argument field of data type [text]: " +
-                        "No keyword/multi-field defined exact matches for [dep_name]; define one or use MATCH/QUERY instead",
+        assertEquals("1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy " +
+                        "(field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.dep_name == 'bar'"));
-
-        accept(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'");
-        accept(idxr, "foo where multi_field_nested.end_date == ''");
-        accept(idxr, "foo where multi_field_nested.start_date == 'bar'");
+        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " +
+                        "hierarchy (field [multi_field_nested])",
+                error(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'"));
+        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " +
+                        "hierarchy (field [multi_field_nested])",
+                error(idxr, "foo where multi_field_nested.end_date == ''"));
+        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " +
+                        "hierarchy (field [multi_field_nested])",
+                error(idxr, "foo where multi_field_nested.start_date == 'bar'"));
     }
 
     public void testStringFunctionWithText() {

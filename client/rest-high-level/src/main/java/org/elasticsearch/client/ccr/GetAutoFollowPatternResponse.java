@@ -20,6 +20,7 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -98,6 +99,7 @@ public final class GetAutoFollowPatternResponse {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), PutAutoFollowPatternRequest.LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PutAutoFollowPatternRequest.FOLLOW_PATTERN_FIELD);
+            PARSER.declareObject(Pattern::setSettings, (p, c) -> Settings.fromXContent(p), PutAutoFollowPatternRequest.SETTINGS);
             PARSER.declareInt(Pattern::setMaxReadRequestOperationCount, FollowConfig.MAX_READ_REQUEST_OPERATION_COUNT);
             PARSER.declareField(
                 Pattern::setMaxReadRequestSize,

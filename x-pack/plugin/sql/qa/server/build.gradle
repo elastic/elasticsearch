@@ -1,0 +1,112 @@
+description = 'Integration tests for SQL'
+apply plugin: 'elasticsearch.build'
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
+}
+
+dependencies {
+  api project(":test:framework")
+
+  // JDBC testing dependencies
+  api project(path: xpackModule('sql:jdbc'))
+
+  api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+
+  // CLI testing dependencies
+  api project(path: xpackModule('sql:sql-cli'))
+
+  // H2GIS testing dependencies
+  api( "org.orbisgis:h2gis:${h2gisVersion}") {
+    exclude group: "org.locationtech.jts"
+  }
+
+  // select just the parts of JLine that are needed
+  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
+
+  testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
+}
+
+// this is just a test fixture used by other projects and not in production
+['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
+}
+
+subprojects {
+  if (subprojects.isEmpty()) {
+    // leaf project
+    apply plugin: 'elasticsearch.standalone-rest-test'
+  } else {
+    apply plugin: 'elasticsearch.build'
+  }
+
+  dependencies {
+    configurations.testRuntimeClasspath {
+      resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+    }
+    configurations.testRuntimeOnly {
+      // This is also required to make resolveAllDependencies work
+      resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+    }
+
+    /* Since we're a standalone rest test we actually get transitive
+     * dependencies but we don't really want them because they cause
+     * all kinds of trouble with the jar hell checks. So we suppress
+     * them explicitly for non-es projects. */
+    testImplementation(xpackProject('plugin:sql:qa:server')) {
+      transitive = false
+    }
+    testImplementation project(":test:framework")
+
+    // JDBC testing dependencies
+    testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+    testRuntimeOnly "com.h2database:h2:${h2Version}"
+
+    // H2GIS testing dependencies
+    testRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}") {
+      exclude group: "org.locationtech.jts"
+      exclude group: "com.fasterxml.jackson.core"
+    }
+
+    testRuntimeOnly project(path: xpackModule('sql:jdbc'))
+    testRuntimeOnly xpackProject('plugin:sql:sql-client')
+
+    // CLI testing dependencies
+    testRuntimeOnly project(path: xpackModule('sql:sql-cli'))
+    testRuntimeOnly(xpackProject('plugin:sql:sql-action')) {
+      transitive = false
+    }
+
+    testRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
+      exclude group: "net.java.dev.jna"
+    }
+    testRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
+    testRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
+    testRuntimeOnly "org.jline:jline-style:${jlineVersion}"
+
+    testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
+
+    // spatial dependency
+    testRuntimeOnly project(path: xpackModule('spatial'))
+  }
+
+  if (project.name != 'security') {
+    // The security project just configures its subprojects
+    apply plugin: 'elasticsearch.testclusters'
+    apply plugin: 'elasticsearch.rest-test'
+
+    testClusters.integTest {
+      testDistribution = 'DEFAULT'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+    }
+  }
+}

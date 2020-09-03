@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 /**
  * Specialization of {@link LeafNumericFieldData} for integers.
  */
-abstract class LeafLongFieldData implements LeafNumericFieldData {
+public abstract class LeafLongFieldData implements LeafNumericFieldData {
 
     private final long ramBytesUsed;
     /**
@@ -37,7 +37,7 @@ abstract class LeafLongFieldData implements LeafNumericFieldData {
      */
     private final NumericType numericType;
 
-    LeafLongFieldData(long ramBytesUsed, NumericType numericType) {
+    protected LeafLongFieldData(long ramBytesUsed, NumericType numericType) {
         this.ramBytesUsed = ramBytesUsed;
         this.numericType = numericType;
     }
@@ -54,8 +54,8 @@ abstract class LeafLongFieldData implements LeafNumericFieldData {
         case DATE:
             return new ScriptDocValues.Dates(getLongValues(), false);
         case DATE_NANOSECONDS:
-            assert this instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData;
-            return new ScriptDocValues.Dates(((SortedNumericDVIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
+            assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
+            return new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
         case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
         default:

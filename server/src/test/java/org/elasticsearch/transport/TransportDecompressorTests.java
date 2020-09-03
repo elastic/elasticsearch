@@ -37,7 +37,7 @@ public class TransportDecompressorTests extends ESTestCase {
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.streamOutput(Streams.flushOnCloseStream(output));
+            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output));
             byte randomByte = randomByte();
             deflateStream.write(randomByte);
             deflateStream.close();
@@ -57,7 +57,7 @@ public class TransportDecompressorTests extends ESTestCase {
 
     public void testMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.streamOutput(Streams.flushOnCloseStream(output));
+            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output));
             for (int i = 0; i < 10000; ++i) {
                 deflateStream.writeInt(i);
             }
@@ -73,7 +73,7 @@ public class TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
             ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
             assertNull(decompressor.pollDecompressedPage());
-            CompositeBytesReference composite = new CompositeBytesReference(reference1, reference2, reference3);
+            BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {
@@ -85,7 +85,7 @@ public class TransportDecompressorTests extends ESTestCase {
 
     public void testIncrementalMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.streamOutput(Streams.flushOnCloseStream(output));
+            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output));
             for (int i = 0; i < 10000; ++i) {
                 deflateStream.writeInt(i);
             }
@@ -114,7 +114,7 @@ public class TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
             ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
             assertNull(decompressor.pollDecompressedPage());
-            CompositeBytesReference composite = new CompositeBytesReference(reference1, reference2, reference3);
+            BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {

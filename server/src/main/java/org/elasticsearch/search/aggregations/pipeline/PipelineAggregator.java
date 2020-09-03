@@ -92,6 +92,13 @@ public abstract class PipelineAggregator {
             return subTrees.getOrDefault(name, EMPTY);
         }
 
+        /**
+         * Return {@code true} if this node in the tree has any subtrees.
+         */
+        public boolean hasSubTrees() {
+            return false == subTrees.isEmpty();
+        }
+
         @Override
         public String toString() {
             return "PipelineTree[" + aggregators + "," + subTrees + "]";

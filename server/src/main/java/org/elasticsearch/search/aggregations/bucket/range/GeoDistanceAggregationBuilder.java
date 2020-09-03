@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -53,6 +54,8 @@ import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator
 
 public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<GeoDistanceAggregationBuilder> {
     public static final String NAME = "geo_distance";
+    public static final ValuesSourceRegistry.RegistryKey<GeoDistanceAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, GeoDistanceAggregatorSupplier.class);
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
     static final ParseField UNIT_FIELD = new ParseField("unit");
     static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
@@ -215,6 +218,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         }
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoDistanceRangeAggregatorFactory.registerAggregators(builder);
+    }
+
     private GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -267,9 +274,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
-        // TODO: this should set defaultValuesSourceType to GEOPOINT
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     @Override
@@ -383,6 +388,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     public GeoDistanceAggregationBuilder unit(DistanceUnit unit) {

@@ -88,7 +88,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String REASON = "reason";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
-    private static final String STACK_TRACE = "stack_trace";
+    public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
@@ -694,16 +694,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * adds it to the given exception.
      */
     public static <T extends Throwable> T readStackTrace(T throwable, StreamInput in) throws IOException {
-        final int stackTraceElements = in.readVInt();
-        StackTraceElement[] stackTrace = new StackTraceElement[stackTraceElements];
-        for (int i = 0; i < stackTraceElements; i++) {
-            final String declaringClasss = in.readString();
-            final String fileName = in.readOptionalString();
-            final String methodName = in.readString();
-            final int lineNumber = in.readVInt();
-            stackTrace[i] = new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
-        }
-        throwable.setStackTrace(stackTrace);
+        throwable.setStackTrace(in.readArray(i -> {
+            final String declaringClasss = i.readString();
+            final String fileName = i.readOptionalString();
+            final String methodName = i.readString();
+            final int lineNumber = i.readVInt();
+            return new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
+        }, StackTraceElement[]::new));
 
         int numSuppressed = in.readVInt();
         for (int i = 0; i < numSuppressed; i++) {
@@ -717,19 +714,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out,
                                                            Writer<Throwable> exceptionWriter) throws IOException {
-        StackTraceElement[] stackTrace = throwable.getStackTrace();
-        out.writeVInt(stackTrace.length);
-        for (StackTraceElement element : stackTrace) {
-            out.writeString(element.getClassName());
-            out.writeOptionalString(element.getFileName());
-            out.writeString(element.getMethodName());
-            out.writeVInt(element.getLineNumber());
-        }
-        Throwable[] suppressed = throwable.getSuppressed();
-        out.writeVInt(suppressed.length);
-        for (Throwable t : suppressed) {
-            exceptionWriter.write(out, t);
-        }
+        out.writeArray((o, v) -> {
+            o.writeString(v.getClassName());
+            o.writeOptionalString(v.getFileName());
+            o.writeString(v.getMethodName());
+            o.writeVInt(v.getLineNumber());
+        }, throwable.getStackTrace());
+        out.writeArray(exceptionWriter, throwable.getSuppressed());
         return throwable;
     }
 
@@ -1041,7 +1032,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ingest.IngestProcessorException.class,
                 org.elasticsearch.ingest.IngestProcessorException::new,
                 157,
-                Version.V_7_5_0);
+                Version.V_7_5_0),
+        PEER_RECOVERY_NOT_FOUND_EXCEPTION(
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
+                158,
+                Version.V_7_9_0),
+        NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
+                org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
+                org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
+                159,
+                Version.V_8_0_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

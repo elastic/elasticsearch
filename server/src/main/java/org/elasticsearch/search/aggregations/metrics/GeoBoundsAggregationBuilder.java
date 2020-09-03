@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -39,6 +39,8 @@ import java.util.Objects;
 
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
+    public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, GeoBoundsAggregatorSupplier.class);
 
     public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new);
@@ -47,8 +49,8 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        GeoBoundsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoBoundsAggregatorFactory.registerAggregators(builder);
     }
 
     private boolean wrapLongitude = true;
@@ -57,13 +59,15 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder,
+                                          Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.wrapLongitude = clone.wrapLongitude;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -107,7 +111,8 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected GeoBoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                    AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+                                                    AggregatorFactory parent,
+                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -134,5 +139,10 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

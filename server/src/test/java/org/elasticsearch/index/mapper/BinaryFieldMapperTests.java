@@ -60,10 +60,12 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
 
-        assertThat(fieldType, instanceOf(BinaryFieldMapper.BinaryFieldType.class));
-        assertThat(fieldType.stored(), equalTo(false));
+        assertThat(mapper, instanceOf(BinaryFieldMapper.class));
+        assertThat(mapper.fieldType.stored(), equalTo(false));
+
+        assertEquals(Strings.toString(mapping), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testStoredValue() throws IOException {
@@ -84,7 +86,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (StreamOutput compressed = CompressorFactory.COMPRESSOR.streamOutput(out)) {
+        try (StreamOutput compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());

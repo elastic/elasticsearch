@@ -28,9 +28,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
-public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource,
-    BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
+    public static final ValuesSourceRegistry.RegistryKey<BoxplotAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        BoxplotAggregatorSupplier.class
+    );
 
     public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
@@ -51,8 +54,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
         this.compression = clone.compression;
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        BoxplotAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        BoxplotAggregatorFactory.registerAggregators(builder);
     }
 
     @Override
@@ -130,6 +133,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }
 

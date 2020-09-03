@@ -35,7 +35,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -63,11 +62,9 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
                 || context.getMapperService().fieldType(field) != null).collect(Collectors.toList());
-        if (fields.size() == 1 && mappedFields.size() == 0) {
+        if (mappedFields.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(null),
-                    containsString("No field \"" + fields.iterator().next() + "\" exists in mappings."));
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
@@ -86,7 +83,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
-            } else if (context.getMapperService().fieldType(field).omitNorms() == false) {
+            } else if (context.getMapperService().fieldType(field).getTextSearchInfo().hasNorms()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
                 NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());
@@ -106,6 +103,18 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
             }
         }
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+        Query ret = ExistsQueryBuilder.newFilter(context, "foo", false);
+        assertThat(ret, instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testIllegalArguments() {

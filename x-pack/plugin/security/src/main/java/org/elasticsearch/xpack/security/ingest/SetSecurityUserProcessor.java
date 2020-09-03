@@ -44,9 +44,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final String field;
     private final Set<Property> properties;
 
-    public SetSecurityUserProcessor(String tag, SecurityContext securityContext, XPackLicenseState licenseState, String field,
-                                    Set<Property> properties) {
-        super(tag);
+    public SetSecurityUserProcessor(String tag, String description, SecurityContext securityContext, XPackLicenseState licenseState,
+                                    String field, Set<Property> properties) {
+        super(tag, description);
         this.securityContext = securityContext;
         this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
         if (licenseState.isSecurityEnabled() == false) {
@@ -191,7 +191,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
         @Override
         public SetSecurityUserProcessor create(Map<String, Processor.Factory> processorFactories, String tag,
-                                               Map<String, Object> config) throws Exception {
+                                               String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");
             Set<Property> properties;
@@ -203,7 +203,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties);
+            return new SetSecurityUserProcessor(tag, description, securityContext.get(), licenseState.get(), field, properties);
         }
     }
 

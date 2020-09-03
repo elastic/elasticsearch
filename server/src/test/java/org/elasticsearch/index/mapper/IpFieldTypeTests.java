@@ -18,26 +18,22 @@
  */
 package org.elasticsearch.index.mapper;
 
-import java.net.InetAddress;
-import java.util.Arrays;
-
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 
+import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Collections;
+
 public class IpFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new IpFieldMapper.IpFieldType();
-    }
 
     public void testValueFormat() throws Exception {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
         String ip = "2001:db8::2:1";
         BytesRef asBytes = new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ip)));
         assertEquals(ip, ft.docValueFormat(null, null).format(asBytes));
@@ -47,8 +43,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(ip, ft.docValueFormat(null, null).format(asBytes));
     }
 
-    public void testValueForSearch() throws Exception {
-        MappedFieldType ft = createDefaultFieldType();
+    public void testValueForSearch() {
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
         String ip = "2001:db8::2:1";
         BytesRef asBytes = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ip)));
         assertEquals(ip, ft.valueForDisplay(asBytes));
@@ -59,8 +55,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
 
         String ip = "2001:db8::2:1";
         assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, null));
@@ -76,15 +71,14 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         prefix = ip + "/16";
         assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
 
-        ft.setIndexOptions(IndexOptions.NONE);
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.termQuery("::1", null));
+                () -> unsearchable.termQuery("::1", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
 
         assertEquals(InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
                 ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null));
@@ -99,8 +93,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
@@ -181,9 +174,9 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                         InetAddresses.forString("2001:db8::")),
                 ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null));
 
-        ft.setIndexOptions(IndexOptions.NONE);
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery("::1", "2001::", true, true, null, null, null, null));
+                () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

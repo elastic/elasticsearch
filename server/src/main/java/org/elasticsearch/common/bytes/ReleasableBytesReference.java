@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -34,41 +33,43 @@ import java.io.OutputStream;
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
  */
-public final class ReleasableBytesReference extends AbstractRefCounted implements Releasable, BytesReference {
+public final class ReleasableBytesReference implements Releasable, BytesReference {
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    private final Releasable releasable;
+    private final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-        super("bytes-reference");
         this.delegate = delegate;
-        this.releasable = releasable;
+        this.refCounted = new RefCountedReleasable(releasable);
+    }
+
+    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+        this.delegate = delegate;
+        this.refCounted = refCounted;
+        refCounted.incRef();
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
         return new ReleasableBytesReference(reference, NO_OP);
     }
 
-    @Override
-    protected void closeInternal() {
-        Releasables.close(releasable);
+    public int refCount() {
+        return refCounted.refCount();
     }
 
     public ReleasableBytesReference retain() {
-        incRef();
+        refCounted.incRef();
         return this;
     }
 
     public ReleasableBytesReference retainedSlice(int from, int length) {
-        BytesReference slice = delegate.slice(from, length);
-        incRef();
-        return new ReleasableBytesReference(slice, this);
+        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
     }
 
     @Override
     public void close() {
-        decRef();
+        refCounted.decRef();
     }
 
     @Override
@@ -149,5 +150,20 @@ public final class ReleasableBytesReference extends AbstractRefCounted implement
     @Override
     public int hashCode() {
         return delegate.hashCode();
+    }
+
+    private static final class RefCountedReleasable extends AbstractRefCounted {
+
+        private final Releasable releasable;
+
+        RefCountedReleasable(Releasable releasable) {
+            super("bytes-reference");
+            this.releasable = releasable;
+        }
+
+        @Override
+        protected void closeInternal() {
+            releasable.close();
+        }
     }
 }

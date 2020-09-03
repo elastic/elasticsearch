@@ -39,7 +39,6 @@
 package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.util.HashMap;
@@ -53,18 +52,15 @@ import java.util.Objects;
 public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
-    private final long sinceTime;
 
     public UsageService() {
         this.handlers = new HashMap<>();
-        this.sinceTime = System.currentTimeMillis();
     }
 
     /**
      * Add a REST handler to this service.
      *
-     * @param handler
-     *            the {@link BaseRestHandler} to add to the usage service.
+     * @param handler the {@link BaseRestHandler} to add to the usage service.
      */
     public void addRestHandler(BaseRestHandler handler) {
         Objects.requireNonNull(handler);
@@ -92,28 +88,19 @@ public class UsageService {
     /**
      * Get the current usage statistics for this node.
      *
-     * @param localNode
-     *            the {@link DiscoveryNode} for this node
-     * @param restActions
-     *            whether to include rest action usage in the returned
-     *            statistics
      * @return the {@link NodeUsage} representing the usage statistics for this
-     *         node
+     * node
      */
-    public NodeUsage getUsageStats(DiscoveryNode localNode, boolean restActions) {
+    public Map<String, Long> getRestUsageStats() {
         Map<String, Long> restUsageMap;
-        if (restActions) {
-            restUsageMap = new HashMap<>();
-            handlers.values().forEach(handler -> {
-                long usageCount = handler.getUsageCount();
-                if (usageCount > 0) {
-                    restUsageMap.put(handler.getName(), usageCount);
-                }
-            });
-        } else {
-            restUsageMap = null;
-        }
-        return new NodeUsage(localNode, System.currentTimeMillis(), sinceTime, restUsageMap);
+        restUsageMap = new HashMap<>();
+        handlers.values().forEach(handler -> {
+            long usageCount = handler.getUsageCount();
+            if (usageCount > 0) {
+                restUsageMap.put(handler.getName(), usageCount);
+            }
+        });
+        return restUsageMap;
     }
 
 }

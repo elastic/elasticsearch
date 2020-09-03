@@ -20,15 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -48,41 +45,17 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
-    private final double minBound, maxBound;
+    private final DoubleBounds extendedBounds;
+    private final DoubleBounds hardBounds;
 
-    // TODO: Registration should happen on the actual aggregator classes, but I don't want to set up the whole dynamic loading thing yet
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
-            new HistogramAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
-                                        BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                        ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
-                                        Aggregator parent, Map<String, Object> metadata) throws IOException {
-                    ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
-                    if (rangeValueSource.rangeType().isNumeric() == false) {
-                        throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
-                            + rangeValueSource.rangeType().name + "]");
-                    }
-                    return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
-                        maxBound, rangeValueSource, formatter, context, parent, metadata);
-                }
-            }
-        );
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new, true);
 
-        valuesSourceRegistry.register(HistogramAggregationBuilder.NAME,
+        builder.register(
+            HistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new HistogramAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
-                                        BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                        ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
-                                        Aggregator parent, Map<String, Object> metadata) throws IOException {
-                    return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
-                        maxBound, (ValuesSource.Numeric) valuesSource, formatter, context, parent, metadata);
-                }
-            }
-        );
+            NumericHistogramAggregator::new,
+                true);
     }
 
     public HistogramAggregatorFactory(String name,
@@ -92,8 +65,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         BucketOrder order,
                                         boolean keyed,
                                         long minDocCount,
-                                        double minBound,
-                                        double maxBound,
+                                        DoubleBounds extendedBounds,
+                                        DoubleBounds hardBounds,
                                         QueryShardContext queryShardContext,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
@@ -104,8 +77,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
+        this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
     }
 
     public long minDocCount() {
@@ -113,31 +86,35 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
-            HistogramAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof HistogramAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
-        return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                valuesSource, config.format(), searchContext, parent, metadata);
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(HistogramAggregationBuilder.REGISTRY_KEY, config)
+            .build(
+                name,
+                factories,
+                interval,
+                offset,
+                order,
+                keyed,
+                minDocCount,
+                extendedBounds,
+                hardBounds,
+                config,
+                searchContext,
+                parent,
+                cardinality,
+                metadata
+            );
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            null, config.format(), searchContext, parent, metadata);
+        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
+            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

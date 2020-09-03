@@ -20,8 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader.FSTLoadMode;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,7 +28,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -50,9 +48,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
@@ -91,7 +87,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -103,7 +98,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -447,7 +441,6 @@ public class InternalEngine extends Engine {
 
     @Override
     public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (pendingTranslogRecovery.get() == false) {
@@ -464,8 +457,6 @@ public class InternalEngine extends Engine {
                 }
                 throw e;
             }
-        } finally {
-            flushLock.unlock();
         }
         return this;
     }
@@ -492,13 +483,10 @@ public class InternalEngine extends Engine {
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
-        if (opsRecovered > 0) {
-            logger.trace("flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
-                opsRecovered, translog.currentFileGeneration());
-            commitIndexWriter(indexWriter, translog);
-            refreshLastCommittedSegmentInfos();
-            refresh("translog_recovery");
-        }
+        logger.trace(() -> new ParameterizedMessage(
+                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+                opsRecovered, translog.currentFileGeneration()));
+        flush(false, true);
         translog.trimUnreferencedReaders();
     }
 
@@ -1640,12 +1628,6 @@ public class InternalEngine extends Engine {
             throw new IllegalArgumentException(
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing);
         }
-        /*
-         * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
-         * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
-         *  Thread 1: flushes via API and gets the flush lock but blocks on the readlock since Thread 2 has the writeLock
-         *  Thread 2: flushes at the end of the recovery holding the writeLock and blocks on the flushLock owned by Thread 1
-         */
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {
@@ -1661,10 +1643,13 @@ public class InternalEngine extends Engine {
             }
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
-                // newly created commit points to a different translog generation (can free translog)
+                // newly created commit points to a different translog generation (can free translog),
+                // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
-                if (hasUncommittedChanges || force || shouldPeriodicallyFlush) {
+                if (hasUncommittedChanges || force || shouldPeriodicallyFlush
+                        || getProcessedLocalCheckpoint() > Long.parseLong(
+                                lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();
@@ -1680,6 +1665,7 @@ public class InternalEngine extends Engine {
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
                     } catch (AlreadyClosedException e) {
+                        failOnTragicEvent(e);
                         throw e;
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -1923,10 +1909,13 @@ public class InternalEngine extends Engine {
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {
-            ensureOpen();
-            // Here we don't have to trim translog because snapshotting an index commit
-            // does not lock translog or prevents unreferenced files from trimming.
-            indexWriter.deleteUnusedFiles();
+            try {
+                // Here we don't have to trim translog because snapshotting an index commit
+                // does not lock translog or prevents unreferenced files from trimming.
+                indexWriter.deleteUnusedFiles();
+            } catch (AlreadyClosedException ignored) {
+                // That's ok, we'll clean up unused files the next time it's opened.
+            }
         }
     }
 
@@ -2101,24 +2090,10 @@ public class InternalEngine extends Engine {
         }
     }
 
-    static Map<String, String> getReaderAttributes(Directory directory, IndexSettings indexSettings) {
-        Directory unwrap = FilterDirectory.unwrap(directory);
-        boolean defaultOffHeap = FsDirectoryFactory.isHybridFs(unwrap) || unwrap instanceof MMapDirectory;
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put(BlockTreeTermsReader.FST_MODE_KEY, defaultOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name());
-        if (IndexSettings.ON_HEAP_ID_TERMS_INDEX.exists(indexSettings.getSettings())) {
-            final boolean idOffHeap = IndexSettings.ON_HEAP_ID_TERMS_INDEX.get(indexSettings.getSettings()) == false;
-            attributes.put(BlockTreeTermsReader.FST_MODE_KEY + "." + IdFieldMapper.NAME,
-                    idOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name());
-        }
-        return Collections.unmodifiableMap(attributes);
-    }
-
     private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setReaderAttributes(getReaderAttributes(store.directory(), engineConfig.getIndexSettings()));
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
@@ -2273,7 +2248,7 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected void handleMergeException(final Directory dir, final Throwable exc) {
+        protected void handleMergeException(final Throwable exc) {
             engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -2287,7 +2262,7 @@ public class InternalEngine extends Engine {
                      * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
-                    failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
+                    failEngine("merge failed", new MergePolicy.MergeException(exc));
                 }
             });
         }
@@ -2532,16 +2507,6 @@ public class InternalEngine extends Engine {
     private static class AssertingIndexWriter extends IndexWriter {
         AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
-        }
-
-        @Override
-        public long updateDocument(Term term, Iterable<? extends IndexableField> doc) {
-            throw new AssertionError("must not hard update document");
-        }
-
-        @Override
-        public long updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) {
-            throw new AssertionError("must not hard update documents");
         }
 
         @Override

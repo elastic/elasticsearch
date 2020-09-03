@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.FrozenEngine;
@@ -26,8 +25,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
-import org.elasticsearch.xpack.frozen.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.frozen.action.TransportFreezeIndexAction;
+import org.elasticsearch.xpack.frozen.rest.action.RestFreezeIndexAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,12 +35,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            return Optional.of(FrozenEngine::new);
+            final boolean requireCompleteHistory = isSearchableSnapshotStore(indexSettings.getSettings()) == false;
+            return Optional.of(config -> new FrozenEngine(config, requireCompleteHistory));
         } else {
             return Optional.empty();
         }
@@ -50,14 +52,6 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(FrozenEngine.INDEX_FROZEN);
-    }
-
-    @Override
-    public void onIndexModule(IndexModule indexModule) {
-        if (FrozenEngine.INDEX_FROZEN.get(indexModule.getSettings())) {
-            indexModule.addSearchOperationListener(new FrozenEngine.ReacquireEngineSearcherListener());
-        }
-        super.onIndexModule(indexModule);
     }
 
     @Override

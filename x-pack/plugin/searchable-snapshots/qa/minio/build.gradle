@@ -29,7 +29,6 @@ def fixtureAddress = {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
   systemProperty 'test.minio.bucket', 'bucket'
   systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
 }

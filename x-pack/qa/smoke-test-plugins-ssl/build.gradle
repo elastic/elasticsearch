@@ -74,7 +74,6 @@ testClusters.integTest {
       return
     }
     plugin pluginProject.path
-    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1
   }
 }

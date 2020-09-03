@@ -56,7 +56,7 @@ tasks.named("processYamlRestTestResources").configure {
 }
 
 yamlRestTest {
-  dependsOn gceFixture, project(':plugins:discovery-gce').bundlePlugin
+  dependsOn gceFixture
 }
 
 testClusters.yamlRestTest {

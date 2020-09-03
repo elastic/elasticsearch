@@ -20,7 +20,7 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return Map.of("bucket", getProperty("test.gcs.bucket"), "base_path", getProperty("test.gcs.base_path") + "/");
+        return Map.of("bucket", getProperty("test.gcs.bucket"), "base_path", getProperty("test.gcs.base_path"));
     }
 
     @Override

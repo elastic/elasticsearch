@@ -236,7 +236,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return Map.of("base_path", buildBasePath(metadata).buildAsString(),
+        return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()),
             "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 

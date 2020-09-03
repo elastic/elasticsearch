@@ -117,7 +117,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return Map.of("base_path", buildBasePath(metadata).buildAsString(),
+        return Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
             "container", Repository.CONTAINER_SETTING.get(metadata.settings()));
     }
 

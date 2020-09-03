@@ -20,7 +20,7 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return Map.of("container", getProperty("test.azure.container"), "base_path", getProperty("test.azure.base_path") + "/");
+        return Map.of("container", getProperty("test.azure.container"), "base_path", getProperty("test.azure.base_path"));
     }
 
     @Override

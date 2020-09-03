@@ -315,8 +315,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                                         ClusterSettings clusterSettings) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings
-        )));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings)));
         return transports;
     }
 

@@ -34,7 +34,6 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -260,6 +259,6 @@ public class NetworkModuleTests extends ESTestCase {
     private NetworkModule newNetworkModule(Settings settings, NetworkPlugin... plugins) {
         return new NetworkModule(settings, Arrays.asList(plugins), threadPool, null, null, null, null,
             xContentRegistry(), null, new NullDispatcher(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), CompatibleVersion.CURRENT_VERSION);
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 }

@@ -41,7 +41,17 @@ import java.util.Collections;
 import java.util.Date;
 
 /**
- * Common configurations for elasticsearch distribution archives
+ * Provides a DSL and common configurations to define different types of
+ * Elasticsearch distribution archives. See ':distribution:archives'.
+ *
+ * This configures the default artifacts for the distribution specific
+ * subprojects. We have subprojects for two reasons:
+ * 1. Gradle project substitutions can only bind to the default
+ *    configuration of a project
+ * 2. The integ-test-zip and zip distributions have the exact same
+ *    filename, so they must be placed in different directories.
+ * 3. We provide a packed and an unpacked variant of the distribution
+ *    - the unpacked variant is used by consumers like test cluster definitions
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
@@ -50,14 +60,13 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
-        registerDistributionArchivesExtension(project);
+        registerAndConfigureDistributionArchivesExtension(project);
         registerEmptyDirectoryTasks(project);
-        registerSubProjectArtifacts(project);
-        configureGeneralDefaults(project);
+        configureGeneralTaskDefaults(project);
         configureTarDefaults(project);
     }
 
-    private void registerDistributionArchivesExtension(Project project) {
+    private void registerAndConfigureDistributionArchivesExtension(Project project) {
         container = project.container(DistributionArchive.class, name -> {
             var subProjectDir = buildTaskToSubprojectName(name);
             var copyDistributionTaskName = name.substring(0, name.length() - 3);
@@ -67,11 +76,8 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
                 ? new DistributionArchive(project.getTasks().register(name, SymbolicLinkPreservingTar.class), explodedDist, name)
                 : new DistributionArchive(project.getTasks().register(name, Zip.class), explodedDist, name);
         });
-
-        project.getExtensions().add("distribution_archives", container);
-    }
-
-    private void registerSubProjectArtifacts(Project project) {
+        // Each defined distribution archive is linked to a subproject.
+        // A distribution archive definition not matching a sub project will result in build failure.
         container.whenObjectAdded(distributionArchive -> {
             var subProjectName = buildTaskToSubprojectName(distributionArchive.getArchiveTask().getName());
             project.project(subProjectName, sub -> {
@@ -85,9 +91,10 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
                 variant.artifactsProvider(() -> Collections.singletonList(new DirectoryPublishArtifact(explodedArchiveTask)));
             });
         });
+        project.getExtensions().add("distribution_archives", container);
     }
 
-    private void configureGeneralDefaults(Project project) {
+    private void configureGeneralTaskDefaults(Project project) {
         // common config across all copy / archive tasks
         project.getTasks().withType(AbstractCopyTask.class).configureEach(t -> {
             t.dependsOn(project.getTasks().withType(EmptyDirTask.class));

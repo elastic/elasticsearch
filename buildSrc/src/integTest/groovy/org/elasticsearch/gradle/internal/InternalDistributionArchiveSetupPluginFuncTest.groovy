@@ -142,15 +142,15 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         when:
         def result = gradleRunner("copyArchive").build()
 
-        then:
+        then:"tar task executed and target folder contains plain tar"
         result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
         file("producer-tar/build/distributions/elasticsearch.tar.gz").exists()
         file("consumer/build/archives/elasticsearch.tar.gz").exists()
 
         when:
-        result = gradleRunner("copyDir", '-i').build()
-        then:
+        result = gradleRunner("copyDir").build()
+        then:"plain copy task executed and target folder contains plain content"
         result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
         file("producer-tar/build/install/someFile.txt").exists()

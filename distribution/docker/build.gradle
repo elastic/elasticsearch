@@ -6,7 +6,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
-
+import org.gradle.api.internal.artifacts.ArtifactAttributes
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -15,7 +15,16 @@ apply plugin: 'elasticsearch.rest-resources'
 testFixtures.useFixture()
 
 configurations {
-  dockerPlugins
+  ['aarch64DockerSource', 'dockerSource', 'aarch64OssDockerSource', 'ossDockerSource'].each {
+    create(it) {
+      attributes {
+        attribute(ArtifactAttributes.ARTIFACT_FORMAT, "tar.gz")
+      }
+    }
+  }
+}
+
+configurations {
   aarch64DockerSource
   dockerSource
   aarch64OssDockerSource
@@ -146,8 +155,6 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
         from configurations.dockerSource
       }
     }
-
-    from configurations.dockerPlugins
   }
 }
 

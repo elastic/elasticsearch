@@ -102,7 +102,6 @@ distribution_archives {
     }
   }
 
-
   buildOssNoJdkWindowsZip {
     archiveClassifier = 'no-jdk-windows-x86_64'
     content {
@@ -181,13 +180,6 @@ distribution_archives {
   }
 }
 
-
-// This configures the default artifact for the distribution specific
-// subprojects. We have subprojects for two reasons:
-// 1. Gradle project substitutions can only bind to the default
-//    configuration of a project
-// 2. The integ-test-zip and zip distributions have the exact same
-//    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
   apply plugin: 'elasticsearch.internal-distribution-archive-check'

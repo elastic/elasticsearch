@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -773,25 +772,28 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
-    private static final ClusterStateTaskExecutor<Task> CLEAN_RESTORE_STATE_TASK_EXECUTOR = (currentState, tasks) -> {
-        final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-        Set<String> completedRestores = tasks.stream().map(e -> e.uuid).collect(Collectors.toSet());
-        RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
-        boolean changed = false;
-        for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
-            if (completedRestores.contains(entry.uuid())) {
-                changed = true;
-            } else {
-                restoreInProgressBuilder.add(entry);
+    private static final ClusterStateTaskExecutor<Task> CLEAN_RESTORE_STATE_TASK_EXECUTOR = new ClusterStateTaskExecutor<Task>() {
+        @Override
+        public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
+            Set<String> completedRestores = tasks.stream().map(e -> e.uuid).collect(Collectors.toSet());
+            RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
+            boolean changed = false;
+            for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+                if (completedRestores.contains(entry.uuid())) {
+                    changed = true;
+                } else {
+                    restoreInProgressBuilder.add(entry);
+                }
             }
+            if (changed == false) {
+                return resultBuilder.build(currentState);
+            }
+            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(currentState.getCustoms());
+            builder.put(RestoreInProgress.TYPE, restoreInProgressBuilder.build());
+            ImmutableOpenMap<String, ClusterState.Custom> customs = builder.build();
+            return resultBuilder.build(ClusterState.builder(currentState).customs(customs).build());
         }
-        if (changed == false) {
-            return resultBuilder.build(currentState);
-        }
-        ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(currentState.getCustoms());
-        builder.put(RestoreInProgress.TYPE, restoreInProgressBuilder.build());
-        ImmutableOpenMap<String, ClusterState.Custom> customs = builder.build();
-        return resultBuilder.build(ClusterState.builder(currentState).customs(customs).build());
     };
 
     private static final ClusterStateTaskListener CLEAN_RESTORE_STATE_TASK_LISTENER = new ClusterStateTaskListener() {

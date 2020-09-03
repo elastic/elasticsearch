@@ -35,7 +35,6 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 
@@ -91,11 +90,10 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings,
-                                                                        CompatibleVersion restCompatibleFunction) {
+                                                                        ClusterSettings clusterSettings) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher,
-                clusterSettings, getSharedGroupFactory(settings), restCompatibleFunction));
+                clusterSettings, getSharedGroupFactory(settings)));
     }
 
     private SharedGroupFactory getSharedGroupFactory(Settings settings) {

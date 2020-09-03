@@ -37,7 +37,6 @@ import org.elasticsearch.http.nio.NioHttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
@@ -89,11 +88,10 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings,
-                                                                        CompatibleVersion restCompatibleFunction) {
+                                                                        ClusterSettings clusterSettings) {
         return Collections.singletonMap(NIO_HTTP_TRANSPORT_NAME,
             () -> new NioHttpServerTransport(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry,
-                dispatcher, getNioGroupFactory(settings), clusterSettings, restCompatibleFunction));
+                dispatcher, getNioGroupFactory(settings), clusterSettings));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {

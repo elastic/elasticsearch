@@ -26,7 +26,6 @@ import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -56,9 +55,9 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                                           PageCacheRecycler pageCacheRecycler, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, IPFilter ipFilter,
                                           SSLService sslService, NioGroupFactory nioGroupFactory,
-                                          ClusterSettings clusterSettings, CompatibleVersion restCompatibleFunction) {
+                                          ClusterSettings clusterSettings) {
         super(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry, dispatcher, nioGroupFactory,
-            clusterSettings, restCompatibleFunction);
+            clusterSettings);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         this.sslEnabled = HTTP_SSL_ENABLED.get(settings);

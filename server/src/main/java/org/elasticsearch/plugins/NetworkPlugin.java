@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -76,8 +75,7 @@ public interface NetworkPlugin {
                                                                          NamedXContentRegistry xContentRegistry,
                                                                          NetworkService networkService,
                                                                          HttpServerTransport.Dispatcher dispatcher,
-                                                                         ClusterSettings clusterSettings,
-                                                                         CompatibleVersion restCompatibleFunction) {
+                                                                         ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }
 }

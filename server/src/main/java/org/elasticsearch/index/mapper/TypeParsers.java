@@ -398,8 +398,11 @@ public class TypeParsers {
         return copyFields;
     }
 
-    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
+    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, Object value) {
+        if (value == null) {
+            return null;    // use default
+        }
+        SimilarityProvider similarityProvider = parserContext.getSimilarity(value.toString());
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
         }

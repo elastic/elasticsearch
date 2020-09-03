@@ -133,6 +133,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61850")
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;

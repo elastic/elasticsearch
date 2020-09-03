@@ -175,7 +175,7 @@ You can repeat this process to get additional pages of results. If using a PIT,
 you can extend the PIT's retention period using the
 `keep_alive` parameter of each search request.
 
-When you're finished, we recommend deleting your PIT.
+When you're finished, you should delete your PIT.
 
 [source,console]
 ----

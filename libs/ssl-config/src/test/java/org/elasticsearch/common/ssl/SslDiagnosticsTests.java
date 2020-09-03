@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -128,6 +129,25 @@ public class SslDiagnosticsTests extends ESTestCase {
             " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
             " this ssl context ([xpack.http.ssl]) is not configured to trust that issuer" +
             " but trusts [2] other issuers ([CN=Test CA 2, CN=Test CA 3])"));
+    }
+
+    public void testDiagnosticMessageWhenServerTrustsManyCAs() throws Exception {
+        final X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
+        final SSLSession session = session("192.168.1.2");
+        final Map<String, List<X509Certificate>> trustIssuers = new HashMap<>();
+        final X509Certificate dummyCa = loadCertificate("ca2/ca.crt");
+        final int numberOfCAs = randomIntBetween(30, 50);
+        for (int i = 0; i < numberOfCAs; i++) {
+            trustIssuers.put("CN=Authority-" + i + ",OU=security,DC=example,DC=net", randomList(1, 3, () -> dummyCa));
+        }
+        final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.CLIENT, session,
+            "xpack.security.http.ssl", trustIssuers);
+        assertThat(message, Matchers.equalTo("failed to establish trust with client at [192.168.1.2];" +
+            " the client provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the client did not provide a copy of the issuing certificate in the certificate chain;" +
+            " this ssl context ([xpack.security.http.ssl]) is not configured to trust that issuer" +
+            " but trusts [" + numberOfCAs + "] other issuers"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesEndCertificateOnlyWithMimicIssuer() throws Exception {

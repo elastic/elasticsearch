@@ -23,6 +23,7 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -839,6 +840,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 stringConcatenationNode.setLocation(irStoreNode.getLocation());
                 stringConcatenationNode.setExpressionType(String.class);
                 irCompoundNode = stringConcatenationNode;
+
+                // must handle the StringBuilder case for java version <= 8
+                if (irLoadNode instanceof BinaryImplNode && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
+                    ((DupNode)((BinaryImplNode)irLoadNode).getLeftNode()).setDepth(1);
+                }
             // handles when the operation is mathematical
             } else {
                 BinaryMathNode irBinaryMathNode = new BinaryMathNode();

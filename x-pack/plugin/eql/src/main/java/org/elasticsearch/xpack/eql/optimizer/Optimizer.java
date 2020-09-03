@@ -60,7 +60,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE, new ReplaceSurrogateFunction());
+        Batch substitutions = new Batch("Substitution", Limiter.ONCE,
+                new ReplaceSurrogateFunction());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -92,8 +93,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         return Arrays.asList(substitutions, operators, ordering, local, label);
     }
-
-
+    
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {

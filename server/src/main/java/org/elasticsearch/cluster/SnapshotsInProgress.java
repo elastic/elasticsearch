@@ -412,6 +412,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public static final ShardSnapshotStatus UNASSIGNED_QUEUED =
                 new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.QUEUED, null);
 
+        /**
+         * Shard snapshot status for shards that could not be snapshotted because their index was deleted from before the shard snapshot
+         * started.
+         */
+        public static final ShardSnapshotStatus MISSING =
+                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "missing index", null);
+
         private final ShardState state;
 
         @Nullable

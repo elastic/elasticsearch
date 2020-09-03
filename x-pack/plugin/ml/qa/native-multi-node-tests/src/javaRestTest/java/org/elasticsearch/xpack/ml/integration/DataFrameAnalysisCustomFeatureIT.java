@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -55,10 +56,10 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     private static final String NESTED_FIELD = "outer-field.inner-field";
     private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
     private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
-    private static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
-    private static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
-    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
-    private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
+    private static final List<Boolean> BOOLEAN_FIELD_VALUES = org.elasticsearch.common.collect.List.of(false, true);
+    private static final List<Double> NUMERICAL_FIELD_VALUES = org.elasticsearch.common.collect.List.of(1.0, 2.0);
+    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = org.elasticsearch.common.collect.List.of(10, 20);
+    private static final List<String> KEYWORD_FIELD_VALUES = org.elasticsearch.common.collect.List.of("cat", "dog");
 
     private String jobId;
     private String sourceIndex;
@@ -87,7 +88,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
@@ -196,7 +197,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
             }
         } else {
             client().admin().indices().prepareCreate(index)
-                .setMapping(mapping)
+                .addMapping("_doc", mapping, XContentType.JSON)
                 .get();
         }
     }
@@ -205,7 +206,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
-            List<Object> source = List.of(
+            List<Object> source = org.elasticsearch.common.collect.List.of(
                 "@timestamp", "2020-12-12",
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
@@ -219,25 +220,31 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
             List<Object> source = new ArrayList<>();
             if (BOOLEAN_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.common.collect.List.of(BOOLEAN_FIELD,
+                    BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
             }
             if (NUMERICAL_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.common.collect.List.of(NUMERICAL_FIELD,
+                    NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size())));
             }
             if (DISCRETE_NUMERICAL_FIELD.equals(dependentVariable) == false) {
                 source.addAll(
-                    List.of(DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
+                    org.elasticsearch.common.collect.List.of(DISCRETE_NUMERICAL_FIELD,
+                        DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
             }
             if (TEXT_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.common.collect.List.of(TEXT_FIELD,
+                    KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.common.collect.List.of(KEYWORD_FIELD,
+                    KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (NESTED_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.common.collect.List.of(NESTED_FIELD,
+                    KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
-            source.addAll(List.of("@timestamp", "2020-12-12"));
+            source.addAll(org.elasticsearch.common.collect.List.of("@timestamp", "2020-12-12"));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }

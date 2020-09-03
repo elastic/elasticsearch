@@ -451,6 +451,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (cloneEntry.equals(updatedEntries.get(i))) {
                         final ImmutableOpenMap.Builder<RepoShardId, ShardSnapshotStatus> clonesBuilder =
                                 ImmutableOpenMap.builder();
+                        // TODO: needlessly complex, just deal with repo shard id directly
                         final Set<ShardId> busyShards = busyShardsForRepo(
                                 repository.getMetadata().name(), snapshotsInProgress, currentState.metadata());
                         final Set<RepoShardId> busyShardsInRepo = busyShards

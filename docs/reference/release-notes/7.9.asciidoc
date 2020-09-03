@@ -75,7 +75,6 @@ IdentityProvider::
 
 Machine Learning::
 * Always write prediction_probability and prediction_score for classification inference {es-pull}60335[#60335]
-* Get data frame analytics stats API can return multiple responses if more than one error {es-pull}60900[#60900] (issue: {es-issue}60876[#60876])
 * Ensure .ml-config index is updated before clearing anomaly job's finished_time {es-pull}61064[#61064] (issue: {es-issue}61157[#61157])
 * Ensure annotations index mappings are up to date {es-pull}61107[#61107] (issue: {es-issue}74935[#74935])
 * Handle node closed exception in ML result processing {es-pull}60238[#60238] (issue: {es-issue}60130[#60130])

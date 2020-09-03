@@ -6,8 +6,8 @@
 
     <repositories>
         <repository>
-            <id>teamcity-snapshot-local</id>
-            <url>https://artifactory.elstc.co/artifactory/teamcity-snapshot-local</url>
+            <id>teamcity</id>
+            <url>https://artifactory.elstc.co/artifactory/teamcity</url>
             <snapshots>
                 <enabled>true</enabled>
                 <updatePolicy>always</updatePolicy>

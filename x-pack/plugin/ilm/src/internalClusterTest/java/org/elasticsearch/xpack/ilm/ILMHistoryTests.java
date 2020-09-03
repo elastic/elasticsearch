@@ -11,27 +11,30 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
@@ -60,7 +63,8 @@ public class ILMHistoryTests extends ESIntegTestCase {
     }
 
     private void putTestPolicy() throws InterruptedException, java.util.concurrent.ExecutionException {
-        LifecyclePolicy lifecyclePolicy = randomTimeseriesLifecyclePolicy("test");
+        Phase phase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("test", Collections.singletonMap("hot", phase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);
@@ -85,12 +89,17 @@ public class ILMHistoryTests extends ESIntegTestCase {
             }
         });
 
-        assertTrue(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).actionGet().isAcknowledged());
-
         //wait for all history items to index to avoid waiting for timeout in ILMHistoryStore beforeBulk
         assertBusy(() -> {
             SearchResponse search = client().prepareSearch(firstIndex).setQuery(matchQuery("index", firstIndex)).setSize(0).get();
-            assertThat(search.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(search.getHits().getTotalHits().value, is(9L));
+        });
+
+        //make sure ILM is stopped so no new items will be queued in ILM history
+        assertTrue(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).actionGet().isAcknowledged());
+        assertBusy(() -> {
+            GetStatusAction.Response status = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).actionGet();
+            assertThat(status.getMode(), is(OperationMode.STOPPED));
         });
 
         RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(ILMHistoryStore.ILM_HISTORY_ALIAS).get();

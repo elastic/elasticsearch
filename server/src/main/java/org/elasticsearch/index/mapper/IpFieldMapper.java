@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -128,7 +129,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return CONTENT_TYPE;
         }
 
-        private InetAddress parse(Object value) {
+        private static InetAddress parse(Object value) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
             } else {
@@ -194,6 +195,26 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
+            return rangeQuery(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                (lower, upper) -> InetAddressPoint.newRangeQuery(name(), lower, upper)
+            );
+        }
+
+        /**
+         * Processes query bounds into {@code long}s and delegates the
+         * provided {@code builder} to build a range query.
+         */
+        public static Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            BiFunction<InetAddress, InetAddress, Query> builder
+        ) {
             InetAddress lower;
             if (lowerTerm == null) {
                 lower = InetAddressPoint.MIN_VALUE;
@@ -220,7 +241,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 }
             }
 
-            return InetAddressPoint.newRangeQuery(name(), lower, upper);
+            return builder.apply(lower, upper);
         }
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {

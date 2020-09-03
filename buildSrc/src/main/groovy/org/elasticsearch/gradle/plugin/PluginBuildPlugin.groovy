@@ -28,7 +28,6 @@ import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.RunTask
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
@@ -41,9 +40,6 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
-
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.

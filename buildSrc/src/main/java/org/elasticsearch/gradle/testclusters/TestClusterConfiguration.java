@@ -21,13 +21,11 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 
 import java.io.File;
-import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;

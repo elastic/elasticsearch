@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -212,6 +213,43 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repoName, masterName);
         assertAcked(deleteFuture.get());
+    }
+
+    public void testBackToBackClonesForIndexNotInCluster() throws Exception {
+        // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
+        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String indexBlocked = "index-blocked";
+        createSingleShardIndexWithContent(indexBlocked);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        assertAcked(client().admin().indices().prepareDelete(indexBlocked).get());
+
+        final String targetSnapshot1 = "target-snapshot";
+        blockMasterOnShardClone(repoName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture1 = client().admin().cluster()
+                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(indexBlocked).execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        assertThat(cloneFuture1.isDone(), is(false));
+
+        final int extraClones = randomIntBetween(1, 5);
+        final List<ActionFuture<AcknowledgedResponse>> extraCloneFutures = new ArrayList<>(extraClones);
+        for (int i = 0; i < extraClones; i++) {
+            extraCloneFutures.add(client().admin().cluster()
+                    .prepareCloneSnapshot(repoName, sourceSnapshot, "target-snapshot-" + i).setIndices(indexBlocked).execute());
+        }
+
+        awaitNSnapshotsInProgress(1 + extraClones);
+
+        unblockNode(repoName, masterNode);
+        assertAcked(cloneFuture1.get());
+        for (ActionFuture<AcknowledgedResponse> extraCloneFuture : extraCloneFutures) {
+            assertAcked(extraCloneFuture.get());
+        }
     }
 
     @AwaitsFix(bugUrl = "TODO if we want it")

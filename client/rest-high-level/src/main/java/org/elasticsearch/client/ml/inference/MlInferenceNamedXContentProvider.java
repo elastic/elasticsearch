@@ -20,6 +20,7 @@ package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.client.ml.inference.preprocessing.DynamicDomainFeatureExtractor;
+import org.elasticsearch.client.ml.inference.preprocessing.NGram;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
@@ -60,6 +61,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             CustomWordEmbedding::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(DynamicDomainFeatureExtractor.NAME),
             DynamicDomainFeatureExtractor::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(NGram.NAME),
+            NGram::fromXContent));
 
         // Model
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Tree.NAME), Tree::fromXContent));

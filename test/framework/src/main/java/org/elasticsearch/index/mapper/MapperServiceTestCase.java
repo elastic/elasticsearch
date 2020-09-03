@@ -30,6 +30,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -49,6 +50,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -62,6 +64,9 @@ import static org.mockito.Mockito.when;
 public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+
+    protected static final ToXContent.Params INCLUDE_DEFAULTS
+        = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
 
     protected Collection<? extends Plugin> getPlugins() {
         return emptyList();

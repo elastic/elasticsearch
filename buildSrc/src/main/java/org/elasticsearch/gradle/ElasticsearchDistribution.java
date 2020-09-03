@@ -196,6 +196,10 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return getName() + "_" + getType() + "_" + getVersion();
     }
 
+    public String getFilepath() {
+        return configuration.getSingleFile().toString();
+    }
+
     public Configuration getExtracted() {
         switch (getType()) {
             case DEB:

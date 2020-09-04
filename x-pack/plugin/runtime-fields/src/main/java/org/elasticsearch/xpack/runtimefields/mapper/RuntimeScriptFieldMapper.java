@@ -78,7 +78,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
-        return new DocValueFetcher(fieldType().docValueFormat(format, null), () -> lookup.doc().getForField(fieldType()));
+        return new DocValueFetcher(fieldType().docValueFormat(format, null), lookup.doc().getForField(fieldType()));
     }
 
     @Override

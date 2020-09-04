@@ -62,7 +62,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             if (ft == null) {
                 continue;
             }
-            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), () -> context.getForField(ft));
+            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), context.getForField(ft));
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 

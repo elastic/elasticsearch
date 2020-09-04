@@ -27,38 +27,21 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Value fetcher that loads from doc values.
  */
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
-    private final Supplier<IndexFieldData<?>> ifdSource;
-    /**
-     * Field data implementation to load the values. Lazily initialized
-     * because it is expensive.
-     */
-    private IndexFieldData<?> ifd;
+    private final IndexFieldData<?> ifd;
     private Leaf leaf;
 
-    /**
-     * Build the fetcher.
-     * @param format the format to use
-     * @param ifdSource a supplier that will build the field data when we need it.
-     *                  We don't take the {@code IndexFieldData} directly here because
-     *                  it can be expensive to build and use a fair bit of memory so
-     *                  we wait until we're sure we need it.
-     */
-    public DocValueFetcher(DocValueFormat format, Supplier<IndexFieldData<?>> ifdSource) {
+    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd) {
         this.format = format;
-        this.ifdSource = ifdSource;
+        this.ifd = ifd;
     }
 
     public void setNextReader(LeafReaderContext context) {
-        if (ifd == null) {
-            ifd = ifdSource.get();
-        }
         leaf = ifd.load(context).getLeafValueFetcher(format);
     }
 

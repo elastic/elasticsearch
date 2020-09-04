@@ -45,20 +45,23 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         if (fetchFieldsContext == null) {
             return null;
         }
+        FieldValueRetriever retriever = fetchFieldsContext.fieldValueRetriever(
+            searchContext.mapperService(),
+            searchContext.getQueryShardContext().fetchLookup()
+        );
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                fetchFieldsContext.fieldValueRetriever().setNextReader(readerContext);
+                retriever.setNextReader(readerContext);
             }
 
             @Override
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
                 SourceLookup sourceLookup = hitContext.sourceLookup();
-                FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();
 
                 Set<String> ignoredFields = getIgnoredFields(hit);
-                Map<String, DocumentField> documentFields = fieldValueRetriever.retrieve(sourceLookup, ignoredFields);
+                Map<String, DocumentField> documentFields = retriever.retrieve(sourceLookup, ignoredFields);
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }

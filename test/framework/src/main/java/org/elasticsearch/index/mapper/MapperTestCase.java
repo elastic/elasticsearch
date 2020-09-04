@@ -192,7 +192,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }, iw -> {
             IndexSearcher indexSearcher = newSearcher(iw);
             SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
-            ValueFetcher valueFetcher = new DocValueFetcher(format, () -> lookup.doc().getForField(mapper.fieldType()));
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(mapper.fieldType()));
             indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
                 @Override
                 public ScoreMode scoreMode() {

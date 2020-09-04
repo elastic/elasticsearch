@@ -269,9 +269,11 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
 
-        ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
-        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
+        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
+            ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
+        verify(client, times(3)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        assertTrue(argumentCaptor.getAllValues().stream()
+            .anyMatch(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME)));
     }
 
     public void testThatTemplatesWithHiddenAreAppliedOnNewerNodes() {
@@ -287,8 +289,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
 
         ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
-        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
+        verify(client.admin().indices(), atLeastOnce()).putTemplate(argumentCaptor.capture(), anyObject());
+        assertTrue(argumentCaptor.getAllValues().stream()
+            .anyMatch(i -> i.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10)));
 
         existingTemplates.remove(".watch-history-6");
         existingTemplates.put(".watch-history-10", 10);
@@ -298,8 +301,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
 
         argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
-        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
+        verify(client.admin().indices(), atLeastOnce()).putTemplate(argumentCaptor.capture(), anyObject());
+        assertTrue(argumentCaptor.getAllValues().stream()
+            .anyMatch(i -> i.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10)));
         ArgumentCaptor<PutComposableIndexTemplateAction.Request> captor =
             ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
         verify(client, atLeastOnce()).execute(same(PutComposableIndexTemplateAction.INSTANCE), captor.capture(), anyObject());

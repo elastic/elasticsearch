@@ -41,9 +41,12 @@ unit::
 
 metric_type::
 
-  The type of metric. Recognizes `"gauge"` and `"counter"`. By default, fields
-  are assumed to not be a metric. This information should only be specified on
-  numeric fields.
+  The type of metric. Recognizes `"gauge"` and `"counter"`. A gauge is a
+  single-valued measurement that can go up or down over time, such as a
+  temperature. A counter is a single-valued cumulative counter that only goes
+  up, such as the number of requests processed by a web server. By default,
+  fields are assumed to not be a metric. This information should only be
+  specified on numeric fields.
 
 ratio::
 

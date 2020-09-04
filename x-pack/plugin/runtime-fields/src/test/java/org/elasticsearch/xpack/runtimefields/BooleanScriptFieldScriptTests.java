@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.runtimefields;
 import org.elasticsearch.script.ScriptContext;
 
 public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<BooleanScriptFieldScript.Factory> {
-    public static final BooleanScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new BooleanScriptFieldScript(
+    public static final BooleanScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanScriptFieldScript(
+        fieldName,
         params,
         lookup,
         ctx

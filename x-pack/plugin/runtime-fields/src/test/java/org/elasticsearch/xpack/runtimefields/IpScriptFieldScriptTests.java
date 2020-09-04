@@ -9,7 +9,12 @@ package org.elasticsearch.xpack.runtimefields;
 import org.elasticsearch.script.ScriptContext;
 
 public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScriptFieldScript.Factory> {
-    public static final IpScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new IpScriptFieldScript(params, lookup, ctx) {
+    public static final IpScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpScriptFieldScript(
+        fieldName,
+        params,
+        lookup,
+        ctx
+    ) {
         @Override
         public void execute() {
             emitValue("192.168.0.1");

@@ -16,6 +16,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
@@ -33,7 +34,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
@@ -43,8 +44,8 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     private final List<String> results = new ArrayList<>();
     private long chars;
 
-    public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public StringScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**
@@ -62,12 +63,18 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     protected final void emitValue(String v) {
-        if (results.size() >= MAX_VALUES) {
-            throw new IllegalArgumentException("too many runtime values");
-        }
+        checkMaxSize(results.size());
         chars += v.length();
-        if (chars >= MAX_CHARS) {
-            throw new IllegalArgumentException("too many characters in runtime values [" + chars + "]");
+        if (chars > MAX_CHARS) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Runtime field [%s] is emitting [%s] characters while the maximum number of values allowed is [%s]",
+                    fieldName,
+                    chars,
+                    MAX_CHARS
+                )
+            );
         }
         results.add(v);
     }

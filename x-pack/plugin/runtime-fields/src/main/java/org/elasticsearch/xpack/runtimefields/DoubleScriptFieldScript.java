@@ -28,7 +28,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
@@ -38,8 +38,8 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     private double[] values = new double[1];
     private int count;
 
-    public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public DoubleScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**

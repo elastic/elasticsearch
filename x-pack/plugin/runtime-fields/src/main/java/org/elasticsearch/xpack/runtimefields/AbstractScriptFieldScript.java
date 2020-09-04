@@ -17,6 +17,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -30,7 +31,7 @@ public abstract class AbstractScriptFieldScript {
     /**
      * The maximum number of values a script should be allowed to emit.
      */
-    public static final int MAX_VALUES = 1000;
+    static final int MAX_VALUES = 100;
 
     public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<F>(
@@ -59,10 +60,12 @@ public abstract class AbstractScriptFieldScript {
         value -> ((SourceLookup) value).loadSourceIfNeeded()
     );
 
+    protected final String fieldName;
     private final Map<String, Object> params;
     private final LeafSearchLookup leafSearchLookup;
 
-    public AbstractScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        this.fieldName = fieldName;
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
         params = new HashMap<>(params);
         params.put("_source", leafSearchLookup.source());
@@ -96,6 +99,20 @@ public abstract class AbstractScriptFieldScript {
      */
     public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafSearchLookup.doc();
+    }
+
+    protected final void checkMaxSize(int currentSize) {
+        if (currentSize >= MAX_VALUES) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Runtime field [%s] is emitting [%s] values while the maximum number of values allowed is [%s]",
+                    fieldName,
+                    currentSize + 1,
+                    MAX_VALUES
+                )
+            );
+        }
     }
 
     public abstract void execute();

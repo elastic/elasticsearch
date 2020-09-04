@@ -20,11 +20,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<StringScriptFieldScript.Factory> {
-    public static final StringScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new StringScriptFieldScript(
+    public static final StringScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringScriptFieldScript(
+        fieldName,
         params,
         lookup,
         ctx
@@ -50,6 +50,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 StringScriptFieldScript script = new StringScriptFieldScript(
+                    "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
                     reader.leaves().get(0)
@@ -62,7 +63,10 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                     }
                 };
                 Exception e = expectThrows(IllegalArgumentException.class, script::execute);
-                assertThat(e.getMessage(), equalTo("too many runtime values"));
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Runtime field [test] is emitting [101] values while the maximum number of values allowed is [100]")
+                );
             }
         }
     }
@@ -72,6 +76,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 StringScriptFieldScript script = new StringScriptFieldScript(
+                    "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
                     reader.leaves().get(0)
@@ -89,7 +94,10 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                     }
                 };
                 Exception e = expectThrows(IllegalArgumentException.class, script::execute);
-                assertThat(e.getMessage(), startsWith("too many characters in runtime values ["));
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Runtime field [test] is emitting [1310720] characters while the maximum number of values allowed is [1048576]")
+                );
             }
         }
     }

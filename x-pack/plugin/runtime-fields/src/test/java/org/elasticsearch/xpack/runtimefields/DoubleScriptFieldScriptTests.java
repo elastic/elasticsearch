@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.runtimefields;
 import org.elasticsearch.script.ScriptContext;
 
 public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<DoubleScriptFieldScript.Factory> {
-    public static final DoubleScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new DoubleScriptFieldScript(
+    public static final DoubleScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleScriptFieldScript(
+        fieldName,
         params,
         lookup,
         ctx

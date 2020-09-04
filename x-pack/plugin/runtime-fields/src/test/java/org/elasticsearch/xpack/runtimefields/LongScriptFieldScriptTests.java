@@ -9,7 +9,12 @@ package org.elasticsearch.xpack.runtimefields;
 import org.elasticsearch.script.ScriptContext;
 
 public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongScriptFieldScript.Factory> {
-    public static final LongScriptFieldScript.Factory DUMMY = (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
+    public static final LongScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongScriptFieldScript(
+        fieldName,
+        params,
+        lookup,
+        ctx
+    ) {
         @Override
         public void execute() {
             emitValue(1);

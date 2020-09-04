@@ -95,7 +95,7 @@ public final class RepositoriesStatsArchive {
         ArchiveEntry entry;
         while ((entry = archive.peek()) != null && entry.ageInMillis(relativeTimeSupplier) >= retentionPeriod.getMillis()) {
             ArchiveEntry removedEntry = archive.poll();
-            logger.debug("Evicting repository stats [{}]", removedEntry);
+            logger.debug("Evicting repository stats [{}]", removedEntry.repositoryStatsSnapshot);
         }
     }
 

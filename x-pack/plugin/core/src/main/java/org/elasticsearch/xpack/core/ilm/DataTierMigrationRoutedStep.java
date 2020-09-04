@@ -81,17 +81,17 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
         if (allocationPendingAllShards > 0) {
             String tier = INDEX_ROUTING_INCLUDE_SETTING.get(idxMeta.getSettings());
-            boolean targetTierRoleFound = false;
+            boolean targetTierNodeFound = false;
             for (DiscoveryNode node : clusterState.nodes()) {
                 for (DiscoveryNodeRole role : node.getRoles()) {
                     if (role.roleName().equals(tier)) {
-                        targetTierRoleFound = true;
+                        targetTierNodeFound = true;
                         break;
                     }
                 }
             }
             String statusMessage = String.format(Locale.ROOT, "%s lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] " +
-                    "tier" + (targetTierRoleFound ? "" : " but there are currently no [%s] nodes in the cluster"),
+                    "tier" + (targetTierNodeFound ? "" : " but there are currently no [%s] nodes in the cluster"),
                 index, getKey().getAction(), allocationPendingAllShards, tier, tier);
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));

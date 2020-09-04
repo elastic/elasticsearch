@@ -103,6 +103,7 @@ public class AllocationInfo implements ToXContentObject {
         AllocationInfo other = (AllocationInfo) obj;
         return Objects.equals(actualReplicas, other.actualReplicas) &&
             Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate) &&
+            Objects.equals(message, other.message) &&
             Objects.equals(allShardsActive, other.allShardsActive);
     }
 

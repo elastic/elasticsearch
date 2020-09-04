@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends MapperTestCase {
@@ -191,6 +192,15 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testBadNullValue() {
+
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", ""))));
+
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: cannot parse empty date"));
+    }
+
     public void testNullConfigValuesFail() {
         Exception e = expectThrows(MapperParsingException.class,
             () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").nullField("format"))));
@@ -244,6 +254,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     .field("type", "date")
                     .field("format", "test_format"))));
         assertThat(e.getMessage(), containsString("Invalid format: [test_format]: Unknown pattern letter: t"));
+        assertThat(e.getMessage(), containsString("Error parsing [format] on field [field]: Invalid"));
     }
 
     public void testFetchSourceValue() {

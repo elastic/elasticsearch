@@ -341,8 +341,8 @@ date which results in the duration of the session.
 == Counting HTTP responses by using scripted metric aggregation
 
 You can count the different HTTP response types in a web log data set by using 
-scripted metric aggregation as part of the {transform}. You can achieve the same 
-function with filter aggregations, check the 
+scripted metric aggregation as part of the {transform}. You can achieve a 
+similar function with filter aggregations, check the 
 {ref}/transform-examples.html#example-clientips[Finding suspicious client IPs] 
 example for details.
 

@@ -178,6 +178,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         @Override
         public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+            DocValueFormat nanosFormat = DocValueFormat.withNanosecondResolution(format);
             SortedNumericDocValues values = getLongValuesAsNanos();
             return new DocValueFetcher.Leaf() {
                 @Override
@@ -192,7 +193,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
                 @Override
                 public Object nextValue() throws IOException {
-                    return format.format(values.nextValue());
+                    return nanosFormat.format(values.nextValue());
                 }
             };
         }

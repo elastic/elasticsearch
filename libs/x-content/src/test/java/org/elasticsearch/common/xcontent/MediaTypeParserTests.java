@@ -27,7 +27,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MediaTypeParserTests extends ESTestCase {
-    MediaTypeParser mediaTypeParser = XContentType.mediaTypeParser;
+    MediaTypeParser<XContentType> mediaTypeParser = XContentType.mediaTypeParser;
 
     public void testJsonWithParameters() throws Exception {
         String mediaType = "application/json";

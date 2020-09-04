@@ -111,7 +111,7 @@ public enum XContentType implements MediaType {
         }
     };
 
-    public static MediaTypeParser mediaTypeParser = new MediaTypeParser(XContentType.values())
+    public static MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values())
         .withAdditionalMediaType("application/*", JSON)
         .withAdditionalMediaType("application/x-ndjson", JSON);
 
@@ -124,7 +124,7 @@ public enum XContentType implements MediaType {
      * format query string parameter. This method will return {@code null} if no match is found
      */
     public static XContentType fromFormat(String mediaType) {
-        return (XContentType) mediaTypeParser.fromFormat(mediaType);
+        return mediaTypeParser.fromFormat(mediaType);
     }
 
     /**
@@ -133,7 +133,7 @@ public enum XContentType implements MediaType {
      * HTTP header. This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        return (XContentType) mediaTypeParser.fromMediaType(mediaTypeHeaderValue);
+        return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);
     }
 
 

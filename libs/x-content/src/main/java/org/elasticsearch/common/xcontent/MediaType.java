@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Map;
-
 public interface MediaType {
     String type();
     String subtype();

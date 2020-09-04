@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 public class MediaTypeParser<T extends MediaType> {
     private Map<String, T> formatToXContentType = new HashMap<>();
@@ -44,7 +43,7 @@ public class MediaTypeParser<T extends MediaType> {
         return formatToXContentType.get(mediaType.toLowerCase(Locale.ROOT));
     }
 
-    public MediaTypeParser withAdditionalMediaType(String typeSubtype, T xContentType) {
+    public MediaTypeParser<T> withAdditionalMediaType(String typeSubtype, T xContentType) {
         typeSubtypeToMediaType.put(typeSubtype.toLowerCase(Locale.ROOT), xContentType);
         formatToXContentType.put(xContentType.format(), xContentType);
         return this;
@@ -94,17 +93,6 @@ public class MediaTypeParser<T extends MediaType> {
 
         public T getMediaType() {
             return xContentType;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ParsedMediaType parsedMediaType = (ParsedMediaType) o;
-            return Objects.equals(type, parsedMediaType.type) &&
-                Objects.equals(subtype, parsedMediaType.subtype) &&
-                Objects.equals(parameters, parsedMediaType.parameters) &&
-                xContentType == parsedMediaType.xContentType;
         }
 
         public Map<String, String> getParameters() {

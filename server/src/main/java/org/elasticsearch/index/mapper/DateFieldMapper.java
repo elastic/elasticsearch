@@ -217,15 +217,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        protected DateFieldType setupFieldType(BuilderContext context) {
-            DateFormatter formatter;
-            if (Joda.isJodaPattern(indexCreatedVersion, format.getValue())) {
-                formatter = Joda.forPattern(format.getValue()).withLocale(locale.getValue());
-            } else {
-                formatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+        private DateFormatter buildFormatter() {
+            try {
+                if (Joda.isJodaPattern(indexCreatedVersion, format.getValue())) {
+                    return Joda.forPattern(format.getValue()).withLocale(locale.getValue());
+                } else {
+                    return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }
-            return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
-                formatter, resolution, meta.getValue());
         }
 
         @Override
@@ -233,11 +234,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return Arrays.asList(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
+        private Long parseNullValue(DateFormatter formatter) {
+            if (nullValue.getValue() == null) {
+                return null;
+            }
+            try {
+                return formatter.parseMillis(nullValue.getValue());
+            }
+            catch (Exception e) {
+                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+            }
+        }
+
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = setupFieldType(context);
+            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
+                buildFormatter(), resolution, meta.getValue());
             ft.setBoost(boost.getValue());
-            Long nullTimestamp = nullValue.getValue() == null ? null : ft.dateTimeFormatter.parseMillis(nullValue.getValue());
+            Long nullTimestamp = parseNullValue(ft.dateTimeFormatter);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, indexCreatedVersion, this);
         }

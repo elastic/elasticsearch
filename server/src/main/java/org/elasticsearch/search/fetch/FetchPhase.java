@@ -361,7 +361,7 @@ public class FetchPhase implements SearchPhase {
             subReaderContext,
             nestedDocId,
             context.searcher(),
-            context.getQueryShardContext().fetchLookup().source(),
+            new SourceLookup(),  // Use a clean, fresh SourceLookup for the nested context
             sharedCache
         );
 

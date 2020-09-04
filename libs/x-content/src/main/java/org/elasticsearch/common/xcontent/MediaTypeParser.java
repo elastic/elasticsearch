@@ -24,11 +24,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class XContentTypeParser<T extends MediaType> {
+public class MediaTypeParser<T extends MediaType> {
     private Map<String, T> formatToXContentType = new HashMap<>();
     private Map<String, T> typeSubtypeToMediaType = new HashMap<>();
 
-    public XContentTypeParser(T[] acceptedXContentTypes) {
+    public MediaTypeParser(T[] acceptedXContentTypes) {
         for (T xContentType : acceptedXContentTypes) {
             typeSubtypeToMediaType.put(xContentType.typeSubtype(), xContentType);
             formatToXContentType.put(xContentType.format(), xContentType);
@@ -44,7 +44,7 @@ public class XContentTypeParser<T extends MediaType> {
         return formatToXContentType.get(mediaType.toLowerCase(Locale.ROOT));
     }
 
-    public XContentTypeParser withAdditionalMediaType(String typeSubtype, T xContentType) {
+    public MediaTypeParser withAdditionalMediaType(String typeSubtype, T xContentType) {
         typeSubtypeToMediaType.put(typeSubtype.toLowerCase(Locale.ROOT), xContentType);
         formatToXContentType.put(xContentType.format(), xContentType);
         return this;

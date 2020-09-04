@@ -26,18 +26,18 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class XContentTypeParserTests extends ESTestCase {
-    XContentTypeParser xContentTypeParser = XContentType.xContentTypeParser;
+public class MediaTypeParserTests extends ESTestCase {
+    MediaTypeParser mediaTypeParser = XContentType.mediaTypeParser;
 
     public void testJsonWithParameters() throws Exception {
         String mediaType = "application/json";
-        assertThat(xContentTypeParser.parseMediaType(mediaType).getParameters(),
+        assertThat(mediaTypeParser.parseMediaType(mediaType).getParameters(),
             equalTo(Collections.emptyMap()));
-        assertThat(xContentTypeParser.parseMediaType(mediaType + ";").getParameters(),
+        assertThat(mediaTypeParser.parseMediaType(mediaType + ";").getParameters(),
             equalTo(Collections.emptyMap()));
-        assertThat(xContentTypeParser.parseMediaType(mediaType + "; charset=UTF-8").getParameters(),
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8")));
-        assertThat(xContentTypeParser.parseMediaType(mediaType + "; custom=123;charset=UTF-8").getParameters(),
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123;charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "custom", "123")));
     }
 }

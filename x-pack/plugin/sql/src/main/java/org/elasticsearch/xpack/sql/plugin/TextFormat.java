@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.XContentTypeParser;
+import org.elasticsearch.common.xcontent.MediaTypeParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -278,7 +278,7 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    private static final XContentTypeParser<TextFormat> parser = new XContentTypeParser<>(TextFormat.values());
+    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser<>(TextFormat.values());
 
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();

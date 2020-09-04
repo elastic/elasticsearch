@@ -25,6 +25,7 @@ import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
@@ -203,7 +205,11 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         ((InternalClusterInfoService) internalCluster().getMasterNodeInstance(ClusterInfoService.class)).refresh();
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
-        assertAcked(client().admin().cluster().prepareReroute());
+        final ClusterInfo clusterInfo = internalCluster().getMasterNodeInstance(ClusterInfoService.class).getClusterInfo();
+        if (StreamSupport.stream(clusterInfo.getNodeMostAvailableDiskUsages().values().spliterator(), false)
+            .allMatch(cur -> cur.value.getFreeBytes() > WATERMARK_BYTES)) {
+            assertAcked(client().admin().cluster().prepareReroute());
+        }
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForNoInitializingShards(true).get().isTimedOut());

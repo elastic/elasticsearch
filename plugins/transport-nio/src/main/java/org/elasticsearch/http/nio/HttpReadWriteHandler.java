@@ -156,7 +156,6 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
         final HttpPipelinedRequest httpRequest = (HttpPipelinedRequest) msg;
         boolean success = false;
@@ -164,7 +163,6 @@ public class HttpReadWriteHandler implements NioChannelHandler {
             HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
             if (earlyResponse != null) {
                 nioHttpChannel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, nioHttpChannel));
-                nioHttpChannel.sendResponse(earlyResponse, NO_OP);
                 httpRequest.release();
             } else {
                 transport.incomingRequest(httpRequest, nioHttpChannel);

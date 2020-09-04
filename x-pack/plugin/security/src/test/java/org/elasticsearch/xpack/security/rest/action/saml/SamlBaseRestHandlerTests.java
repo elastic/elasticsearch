@@ -11,40 +11,57 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.hamcrest.Matchers;
 
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SamlBaseRestHandlerTests extends ESTestCase {
+
+    private static final long FIXED_MILLIS = 99L;
+    private TestUtils.UpdatableLicenseState licenseState;
 
     public void testSamlAvailableOnTrialAndPlatinum() {
         final SamlBaseRestHandler handler = buildHandler(randomFrom(
             License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE));
-        assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
+        assertNoRecordedFeatureUsage();
+        assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), nullValue());
+        assertFeatureUsageRecorded();
     }
 
     public void testSamlNotAvailableOnBasicStandardOrGold() {
         final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD,
             License.OperationMode.GOLD));
+        assertNoRecordedFeatureUsage();
         Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(e, instanceOf(ElasticsearchException.class));
         ElasticsearchException elasticsearchException = (ElasticsearchException) e;
         assertThat(elasticsearchException.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), contains("saml"));
+        assertFeatureUsageRecorded();
+    }
+
+    protected void assertFeatureUsageRecorded() {
+        assertThat(licenseState.getLastUsed().get(XPackLicenseState.Feature.SECURITY_SAML_REALM), is(FIXED_MILLIS));
+    }
+
+    protected void assertNoRecordedFeatureUsage() {
+        assertThat(licenseState.getLastUsed().get(XPackLicenseState.Feature.SECURITY_SAML_REALM), nullValue());
     }
 
     private SamlBaseRestHandler buildHandler(License.OperationMode licenseMode) {
         final Settings settings = Settings.builder()
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .build();
-        final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState(settings);
+        licenseState = new TestUtils.UpdatableLicenseState(settings, () -> FIXED_MILLIS);
         licenseState.update(licenseMode, true, null);
 
         return new SamlBaseRestHandler(settings, licenseState) {

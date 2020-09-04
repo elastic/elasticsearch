@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -60,11 +62,19 @@ public class InternalRealmsTests extends ESTestCase {
         verify(securityIndex, times(2)).addIndexStateListener(isA(BiConsumer.class));
     }
 
-    public void testIsStandardType() {
-        String type = randomFrom(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE,
-                PkiRealmSettings.TYPE);
-        assertThat(InternalRealms.isStandardRealm(type), is(true));
-        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
-        assertThat(InternalRealms.isStandardRealm(type), is(false));
+    public void testLicenseChecks() {
+        assertThat(InternalRealms.getLicenseFeature(ReservedRealm.TYPE), is(XPackLicenseState.Feature.SECURITY));
+        assertThat(InternalRealms.getLicenseFeature(NativeRealmSettings.TYPE), is(XPackLicenseState.Feature.SECURITY));
+        assertThat(InternalRealms.getLicenseFeature(FileRealmSettings.TYPE), is(XPackLicenseState.Feature.SECURITY));
+
+        assertThat(InternalRealms.getLicenseFeature(LdapRealmSettings.AD_TYPE), is(XPackLicenseState.Feature.SECURITY_AD_REALM));
+        assertThat(InternalRealms.getLicenseFeature(LdapRealmSettings.LDAP_TYPE), is(XPackLicenseState.Feature.SECURITY_LDAP_REALM));
+        assertThat(InternalRealms.getLicenseFeature(PkiRealmSettings.TYPE), is(XPackLicenseState.Feature.SECURITY_PKI_REALM));
+
+        assertThat(InternalRealms.getLicenseFeature(SamlRealmSettings.TYPE), is(XPackLicenseState.Feature.SECURITY_SAML_REALM));
+        assertThat(InternalRealms.getLicenseFeature(OpenIdConnectRealmSettings.TYPE), is(XPackLicenseState.Feature.SECURITY_OIDC_REALM));
+        assertThat(InternalRealms.getLicenseFeature(KerberosRealmSettings.TYPE), is(XPackLicenseState.Feature.SECURITY_KERBEROS_REALM));
+
+        assertThat(InternalRealms.getLicenseFeature(randomAlphaOfLength(12)), is(XPackLicenseState.Feature.SECURITY_CUSTOM_REALM));
     }
 }

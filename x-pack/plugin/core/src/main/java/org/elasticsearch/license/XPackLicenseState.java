@@ -45,14 +45,20 @@ public class XPackLicenseState {
         SECURITY_IP_FILTERING(OperationMode.GOLD, false),
         SECURITY_AUDITING(OperationMode.GOLD, false),
         SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
-        SECURITY_ALL_REALMS(OperationMode.PLATINUM, false),
-        SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
+        SECURITY_LDAP_REALM(OperationMode.GOLD, false),
+        SECURITY_AD_REALM(OperationMode.GOLD, false),
+        SECURITY_PKI_REALM(OperationMode.GOLD, false),
+        SECURITY_SAML_REALM(OperationMode.PLATINUM, false),
+        SECURITY_OIDC_REALM(OperationMode.PLATINUM, false),
+        SECURITY_KERBEROS_REALM(OperationMode.PLATINUM, false),
+        SECURITY_CUSTOM_REALM(OperationMode.PLATINUM, false),
         SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
         SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
         SECURITY_STATS_AND_HEALTH(OperationMode.MISSING, true),
+
 
         WATCHER(OperationMode.STANDARD, true),
         MONITORING(OperationMode.MISSING, true),
@@ -109,12 +115,10 @@ public class XPackLicenseState {
         }
     }
 
-    // temporarily non tracked feeatures which need rework in how they are checked
+    // temporarily non tracked features which need rework in how they are checked
     // so they are not tracked as always used
     private static final Set<Feature> NON_TRACKED_FEATURES = Set.of(
-        Feature.SECURITY_IP_FILTERING,
-        Feature.SECURITY_ALL_REALMS,
-        Feature.SECURITY_STANDARD_REALMS
+        Feature.SECURITY_IP_FILTERING
     );
 
     /** Messages for each feature which are printed when the license expires. */

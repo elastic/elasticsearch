@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
@@ -383,7 +384,11 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings, () -> 0);
+            this(settings, () -> 0);
+        }
+
+        public UpdatableLicenseState(Settings settings, LongSupplier epochMillis) {
+            super(settings, epochMillis);
         }
 
         @Override

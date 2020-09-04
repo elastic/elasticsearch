@@ -49,6 +49,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
@@ -129,6 +131,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -198,19 +201,19 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
-        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+
+        TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
+        licenseState.update(License.OperationMode.ENTERPRISE, true, null);
+
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
-        realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
-                licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
-                Collections.singletonList(firstRealm)));
+        List<Realm> realmList = Arrays.asList(firstRealm, secondRealm);
+        this.realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Factory>emptyMap(),
+            licenseState, threadContext, reservedRealm, realmList, Collections.singletonList(firstRealm)));
+        this.realms.recomputeActiveRealms();
+        // Verify we're configured correctly, otherwise everything else will fail
+        assertThat(this.realms.asList(), equalTo(realmList));
 
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
@@ -256,7 +259,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService, threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
-        service = new AuthenticationService(settings, realms, auditTrailService,
+        service = new AuthenticationService(settings, this.realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService);
     }
@@ -340,8 +343,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         assertTrue(completed.get());
         verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
-        verify(realms).asList();
-        verifyNoMoreInteractions(realms);
+        verify(realms, atLeastOnce()).asList();
     }
 
     public void testAuthenticateSmartRealmOrdering() {
@@ -1594,12 +1596,29 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     static class TestRealms extends Realms {
 
+        private final List<Realm> allRealms;
+        private final List<Realm> internalRealms;
+
         TestRealms(Settings settings, Environment env, Map<String, Factory> factories, XPackLicenseState licenseState,
                    ThreadContext threadContext, ReservedRealm reservedRealm, List<Realm> realms, List<Realm> internalRealms)
                 throws Exception {
             super(settings, env, factories, licenseState, threadContext, reservedRealm);
-            this.realms = realms;
-            this.standardRealmsOnly = internalRealms;
+            this.allRealms = realms;
+            this.internalRealms = internalRealms;
+        }
+
+        @Override
+        protected List<Realm> calculateLicensedRealms(XPackLicenseState license) {
+            if (license.checkFeature(Feature.SECURITY_CUSTOM_REALM)) {
+                return allRealms;
+            } else {
+                return internalRealms;
+            }
+        }
+
+        // Make public for testing
+        public void recomputeActiveRealms() {
+            super.recomputeActiveRealms();
         }
     }
 

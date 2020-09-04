@@ -25,7 +25,7 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class StoreListShortcutNode extends StoreAccessNode {
+public class StoreListShortcutNode extends StoreNode {
 
     /* ---- begin node data ---- */
 
@@ -48,14 +48,13 @@ public class StoreListShortcutNode extends StoreAccessNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getAccessNode().visit(irTreeVisitor, scope);
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getAccessNode().write(classWriter, methodWriter, writeScope);
         getChildNode().write(classWriter, methodWriter, writeScope);
 
         methodWriter.writeDebugInfo(location);

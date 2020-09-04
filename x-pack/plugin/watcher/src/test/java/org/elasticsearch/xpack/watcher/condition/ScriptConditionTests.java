@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.junit.Before;
 
@@ -69,7 +68,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         scripts.put("null.foo", s -> {
             throw new ScriptException("Error evaluating null.foo", new IllegalArgumentException(), emptyList(),
-                    "null.foo", AbstractWatcherIntegrationTestCase.WATCHER_LANG);
+                    "null.foo", Script.DEFAULT_SCRIPT_LANG);
         });
 
         scripts.put("ctx.payload.hits.total.value > 1", vars -> {

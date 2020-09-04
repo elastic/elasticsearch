@@ -29,14 +29,13 @@ def fixtureAddress = {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
   systemProperty 'test.minio.bucket', 'bucket'
   systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
+  plugin repositoryPlugin.path
 
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.searchable_snapshots_feature_enabled', 'true'

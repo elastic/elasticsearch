@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 
 import java.util.HashSet;

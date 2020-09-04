@@ -65,7 +65,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         context.docValuesContext(new FetchDocValuesContext(docValueFields));
         if (context.docValuesContext() == null) {
            return null;
-        } 
+        }
 
         List<DocValueField> fields = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {

@@ -45,6 +45,8 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -53,7 +55,6 @@ import java.util.Collection;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -103,11 +104,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
+        IndexSettings indexSettings = new IndexSettings(meta, Settings.EMPTY);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
-        ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
         MapperService mapperService = new MapperService(
             indexSettings,
@@ -116,7 +121,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            () -> true
+            () -> true,
+            scriptService
         );
         merge(mapperService, mapping);
         return mapperService;

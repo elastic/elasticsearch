@@ -19,13 +19,10 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 
 import java.io.IOException;
@@ -160,10 +157,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
             this.name = null;
             Objects.requireNonNull(definition);
             try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-            } catch (IOException e) {
+                this.definition = Settings.builder().loadFromMap(definition).build();
+            } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to parse [" + definition + "] in [" + field.getPreferredName() + "]", e);
             }
         }

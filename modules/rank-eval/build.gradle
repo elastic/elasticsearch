@@ -32,5 +32,5 @@ restResources {
 
 testClusters.all {
   // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile
+  module ':modules:lang-mustache'
 }

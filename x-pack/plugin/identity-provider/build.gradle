@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-identity-provider'
   description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
@@ -53,6 +54,7 @@ dependencies {
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
@@ -350,6 +352,11 @@ test {
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
+
+internalClusterTest {
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
 
 // xpack modules are installed in real clusters as the meta plugin, so
 // installing them as individual plugins for integ tests doesn't make sense,

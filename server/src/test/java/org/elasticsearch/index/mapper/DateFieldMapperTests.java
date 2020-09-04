@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Builder> {
@@ -332,7 +333,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
                 .endObject().endObject());
 
         Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("[format] must not have a [null] value", e.getMessage());
+        assertThat(e.getMessage(), containsString("[format] must not have a [null] value"));
     }
 
     public void testEmptyName() throws IOException {
@@ -345,6 +346,24 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testBadNullValue() throws IOException {
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "date")
+            .field("format", "")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(Exception.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+
+        assertThat(e.getMessage(),
+            equalTo("Error parsing [format] on field [field]: No date pattern provided"));
     }
 
     public void testTimeZoneParsing() throws Exception {
@@ -435,7 +454,8 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Invalid format: [[test_format]]: Unknown pattern letter: t", e.getMessage());
+        assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
+        assertThat(e.getMessage(), containsString("Error parsing [format] on field [field]: Invalid"));
     }
 
     public void testMeta() throws Exception {

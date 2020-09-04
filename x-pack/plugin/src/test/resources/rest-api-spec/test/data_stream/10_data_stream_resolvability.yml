@@ -1,8 +1,8 @@
 ---
 "Verify data stream resolvability for xpack apis":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -53,8 +53,8 @@
 ---
 "Verify data stream resolvability in ilm explain api":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -117,8 +117,8 @@
 ---
 "Verify data stream resolvability rollup":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -478,8 +478,8 @@
 ---
 "Verify data stream resolvability in EQL search API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.9.1 after backport"
+      version: " - 7.9.1"
+      reason: "EQL data stream resolution only properly works from 7.9.2"
       features: allowed_warnings
 
   - do:

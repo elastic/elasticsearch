@@ -24,14 +24,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
  */
-public enum XContentType {
+public enum XContentType implements MediaType {
 
     /**
      * A JSON based content type.
@@ -114,18 +110,12 @@ public enum XContentType {
             return CborXContent.cborXContent;
         }
     };
-    /**
-     * A regexp to allow parsing media types. It covers two use cases.
-     * 1. Media type with a version - requires a custom vnd.elasticserach subtype and a compatible-with parameter
-     * i.e. application/vnd.elasticsearch+json;compatible-with
-     * 2. Media type without a version - for users not using compatible API i.e. application/json
-     */
-    private static final Pattern MEDIA_TYPE_PATTERN = Pattern.compile(
-        //type
-        "^(application|text)/" +
-            "([^;\\s]+)" + //subtype: json,yaml,etc some of these are defined in x-pack so can't be enumerated
-            "(?:\\s*;.*)?$",
-        Pattern.CASE_INSENSITIVE);
+
+    public static XContentTypeParser xContentTypeParser = new XContentTypeParser(XContentType.values())
+        .withAdditionalMediaType("application/*", JSON)
+        .withAdditionalMediaType("application/x-ndjson", JSON);
+
+
 
     /**
      * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
@@ -134,17 +124,7 @@ public enum XContentType {
      * format query string parameter. This method will return {@code null} if no match is found
      */
     public static XContentType fromFormat(String mediaType) {
-
-        if (mediaType == null) {
-            return null;
-        }
-        for (XContentType type : values()) {
-            if (type.shortName().equalsIgnoreCase(mediaType)) {
-                return type;
-            }
-        }
-
-        return null;
+        return (XContentType) xContentTypeParser.fromFormat(mediaType);
     }
 
     /**
@@ -153,43 +133,9 @@ public enum XContentType {
      * HTTP header. This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        if (mediaTypeHeaderValue == null) {
-            return null;
-        }
-        // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
-        if (mediaTypeHeaderValue.toLowerCase(Locale.ROOT).equals("application/x-ndjson")) {
-            return XContentType.JSON;
-        }
-        if (mediaTypeHeaderValue.toLowerCase(Locale.ROOT).startsWith("application/*")) {
-            return JSON;
-        }
-
-        String mediaType = parseMediaType(mediaTypeHeaderValue);
-        for (XContentType type : values()) {
-            if (type.mediaTypeWithoutParameters().equals(mediaType)) {
-                return type;
-            }
-        }
-
-        return null;
+        return (XContentType) xContentTypeParser.fromMediaType(mediaTypeHeaderValue);
     }
 
-    public static String parseMediaType(String mediaType) {
-        if (mediaType != null) {
-            Matcher matcher = MEDIA_TYPE_PATTERN.matcher(mediaType);
-            if (matcher.find()) {
-                return (matcher.group(1) + "/" + matcher.group(2)).toLowerCase(Locale.ROOT);
-            }
-        }
-
-        return null;
-    }
-
-    private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
-        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
-                stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
-                type.shortName().equalsIgnoreCase(stringType);
-    }
 
     private int index;
 
@@ -211,4 +157,19 @@ public enum XContentType {
 
     public abstract String mediaTypeWithoutParameters();
 
+
+    @Override
+    public String type() {
+        return "application";
+    }
+
+    @Override
+    public String subtype() {
+        return shortName();
+    }
+
+    @Override
+    public String format() {
+        return shortName();
+    }
 }

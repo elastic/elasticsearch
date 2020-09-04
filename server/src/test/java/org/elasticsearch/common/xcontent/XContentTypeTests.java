@@ -26,8 +26,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class XContentTypeTests extends ESTestCase {
+
     public void testFromJson() throws Exception {
         String mediaType = "application/json";
+        XContentType expectedXContentType = XContentType.JSON;
+        assertThat(XContentType.fromMediaType(mediaType), equalTo(expectedXContentType));
+        assertThat(XContentType.fromMediaType(mediaType + ";"), equalTo(expectedXContentType));
+        assertThat(XContentType.fromMediaType(mediaType + "; charset=UTF-8"), equalTo(expectedXContentType));
+    }
+
+    public void testFromNdJson() throws Exception {
+        String mediaType = "application/x-ndjson";
         XContentType expectedXContentType = XContentType.JSON;
         assertThat(XContentType.fromMediaType(mediaType), equalTo(expectedXContentType));
         assertThat(XContentType.fromMediaType(mediaType + ";"), equalTo(expectedXContentType));

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.XContentTypeParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -32,7 +34,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 /**
  * Templating class for displaying SQL responses in text formats.
  */
-enum TextFormat {
+enum TextFormat implements MediaType {
 
     /**
      * Default text writer.
@@ -197,6 +199,7 @@ enum TextFormat {
         boolean hasHeader(RestRequest request) {
             String header = request.param(URL_PARAM_HEADER);
             if (header == null) {
+                //TODO PG in most places we only assume one accept header
                 List<String> values = request.getAllHeaderValues("Accept");
                 if (values != null) {
                     // header values are separated by `;` so try breaking it down
@@ -275,6 +278,8 @@ enum TextFormat {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
+    private static final XContentTypeParser<TextFormat> parser = new XContentTypeParser<>(TextFormat.values());
+
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
@@ -296,15 +301,14 @@ enum TextFormat {
     }
 
     static TextFormat fromMediaTypeOrFormat(String accept) {
-        for (TextFormat text : values()) {
-            String contentType = text.contentType();
-            if (contentType.equalsIgnoreCase(accept)
-                    || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
-                    || text.shortName().equalsIgnoreCase(accept)) {
-                return text;
-            }
+        TextFormat textFormat = parser.fromFormat(accept);
+        if (textFormat != null) {
+            return textFormat;
         }
-
+        textFormat = parser.fromMediaType(accept);
+        if (textFormat != null) {
+            return textFormat;
+        }
         throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
 
@@ -359,5 +363,21 @@ enum TextFormat {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
+    }
+
+
+    @Override
+    public String type() {
+        return "text";
+    }
+
+    @Override
+    public String subtype() {
+        return shortName();
+    }
+
+    @Override
+    public String format() {
+        return shortName();
     }
 }

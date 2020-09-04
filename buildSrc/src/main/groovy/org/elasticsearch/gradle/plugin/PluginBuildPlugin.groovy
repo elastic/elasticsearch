@@ -28,7 +28,6 @@ import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.RunTask
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
@@ -41,9 +40,6 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
-
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -79,10 +75,9 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
                 // Auto add dependent modules to the test cluster
                 if (project.findProject(":modules:${pluginName}") != null) {
-                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
-                    project.testClusters.integTest.module(
-                            project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
-                    )
+                    project.testClusters.all {
+                        module(":modules:${pluginName}")
+                    }
                 }
             }
             PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)

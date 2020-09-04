@@ -332,8 +332,4 @@ public class VerifierTests extends ESTestCase {
                 "define one or use MATCH/QUERY instead",
             error(idxr, "process where string(multi_field.english) == 'foo'"));
     }
-
-    public void testLimitWithFilter() {
-        assertEquals("1:30: Pipe [| filter false] not allowed (yet) after head/tail", error("process where true | head 10 | filter false"));
-    }
 }

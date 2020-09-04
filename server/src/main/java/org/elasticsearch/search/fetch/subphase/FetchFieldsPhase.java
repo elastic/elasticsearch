@@ -46,6 +46,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             return null;
         }
         FieldValueRetriever retriever = fetchFieldsContext.fieldValueRetriever(
+            searchContext.indexShard().shardId().getIndexName(),
             searchContext.mapperService(),
             searchContext.getQueryShardContext().fetchLookup()
         );

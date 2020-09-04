@@ -18,40 +18,27 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.List;
-import java.util.function.BiFunction;
 
 /**
  * The context needed to retrieve fields.
  */
 public class FetchFieldsContext {
-    public static FetchFieldsContext create(
-        String indexName,
-        MapperService mapperService,
-        SearchLookup searchLookup,
-        List<FieldAndFormat> fields
-    ) {
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        if (documentMapper.sourceMapper().enabled() == false) {
+    private final List<FieldAndFormat> fields;
+
+    public FetchFieldsContext(List<FieldAndFormat> fields) {
+        this.fields = fields;
+    }
+
+    public FieldValueRetriever fieldValueRetriever(String indexName, MapperService mapperService, SearchLookup searchLookup) {
+        if (mapperService.documentMapper().sourceMapper().enabled() == false) {
             throw new IllegalArgumentException(
-                "Unable to retrieve the requested [fields] since _source is " + "disabled in the mappings for index [" + indexName + "]"
+                "Unable to retrieve the requested [fields] since _source is disabled in the mappings for index [" + indexName + "]"
             );
         }
-
-        return new FetchFieldsContext((m, s) -> FieldValueRetriever.create(m, s, fields));
-    }
-
-    private final BiFunction<MapperService, SearchLookup, FieldValueRetriever> fieldValueRetriever;
-
-    private FetchFieldsContext(BiFunction<MapperService, SearchLookup, FieldValueRetriever> fieldValueRetriever) {
-        this.fieldValueRetriever = fieldValueRetriever;
-    }
-
-    public FieldValueRetriever fieldValueRetriever(MapperService mapperService, SearchLookup searchLookup) {
-        return fieldValueRetriever.apply(mapperService, searchLookup);
+        return FieldValueRetriever.create(mapperService, searchLookup, fields);
     }
 }

@@ -29,14 +29,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -53,7 +48,6 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -162,37 +156,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     /**
      * Use a {@linkplain FieldMapper} to extract values from doc values.
      */
-    protected final List<?> fetchFromDocValues(FieldMapper mapper, DocValueFormat format, Object sourceValue) throws IOException {
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(any())).thenReturn(mapper.fieldType());
+    protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
+        throws IOException {
+
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
             .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         SetOnce<List<?>> result = new SetOnce<>();
         withLuceneIndex(mapperService, iw -> {
-            ParseContext.Document doc = new ParseContext.Document();
-            ParseContext context = mock(ParseContext.class);
-            when(context.doc()).thenReturn(doc);
-            when(context.sourceToParse()).thenReturn(source(b -> b.field(mapper.name(), sourceValue)));
-            XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                context.sourceToParse().source(),
-                context.sourceToParse().getXContentType()
-            );
-            when(context.parser()).thenReturn(parser);
-            parser.nextToken();
-            XContentParserUtils.ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), mapper.name());
-            parser.nextToken();
-            mapper.parse(context);
-            parser.nextToken();
-            XContentParserUtils.ensureExpectedToken(Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            iw.addDocument(doc);
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
             IndexSearcher indexSearcher = newSearcher(iw);
             SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
-            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(mapper.fieldType()));
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
                 @Override
                 public ScoreMode scoreMode() {

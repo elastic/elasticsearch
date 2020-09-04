@@ -299,19 +299,25 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testFetchDocValuesMillis() throws IOException {
-        DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, "strict_date_time||epoch_millis");
-        DocValueFormat format = mapper.mappedFieldType.docValueFormat(null, null);
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date").field("format", "strict_date_time||epoch_millis"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+        DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123Z";
-        assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
-        assertEquals(List.of(date), fetchFromDocValues(mapper, format, 1589578382123L));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
     public void testFetchDocValuesNanos() throws IOException {
-        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
-        DocValueFormat format = mapper.mappedFieldType.docValueFormat(null, null);
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+        DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
-        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapper, format, 1589578382123L));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
     private DateFieldMapper createMapper(Resolution resolution, String format) {

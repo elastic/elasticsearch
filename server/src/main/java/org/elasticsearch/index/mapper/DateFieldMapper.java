@@ -212,13 +212,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        protected DateFieldType setupFieldType(BuilderContext context) {
+        private DateFormatter buildFormatter() {
             try {
-                DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-                return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
-                    dateTimeFormatter, resolution, meta.getValue());
-            }
-            catch (IllegalArgumentException e) {
+                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+            } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }
         }
@@ -242,7 +239,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = setupFieldType(context);
+            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
+                buildFormatter(), resolution, meta.getValue());
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft.dateTimeFormatter);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),

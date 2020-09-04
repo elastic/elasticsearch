@@ -170,8 +170,8 @@ public class AuthorizationService {
      */
     public void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
                           final ActionListener<Void> listener) throws ElasticsearchSecurityException {
-        // authorization fills in certain transient headers (which must be observed in the listener as well), therefore we
-        // begin by clearing thee existing ones up (as they might be already set by the authorization of a previous parent
+        // authorization fills in certain transient headers (that must be observed in the listener as well), therefore we
+        // begin by clearing the existing ones up (as they might be already set by the authorization of a previous parent
         // action (which ran under the same context (on the same node)))
         try (ThreadContext.StoredContext ignore = securityContext.stashAuthorizationContext()) {
             // prior to doing any authorization lets set the originating action in the context only

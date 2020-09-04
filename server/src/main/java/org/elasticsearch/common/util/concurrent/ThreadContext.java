@@ -135,6 +135,12 @@ public final class ThreadContext implements Writeable {
         };
     }
 
+    /**
+     * Removes the specified transient headers from the current context. The removed transient headers can be
+     * restored by closing the returned {@link StoredContext}. If such a transient header does not exist before
+     * this method is called, it will also not exist after restore (i.e. restoring asserts the existence
+     * and the values for the transient headers, as they existed before invoking this method).
+     */
     public StoredContext stashTransientContext(Collection<String> transientHeadersToStash) {
         if (transientHeadersToStash.isEmpty()) {
             // no-op
@@ -158,9 +164,11 @@ public final class ThreadContext implements Writeable {
         return () -> {
             final ThreadContextStruct afterContext = threadLocal.get();
             Map<String, Object> newAfterTransientHeaders = new HashMap<>(afterContext.transientHeaders);
+            // remove the transients that might have been set in the mean time
             for (String transientHeaderToStash : transientHeadersToStash) {
                 newAfterTransientHeaders.remove(transientHeaderToStash);
             }
+            // fill in the values that existed before stashing
             newAfterTransientHeaders.putAll(stashedTransientHeaders);
             ThreadContextStruct threadContextStruct = new ThreadContextStruct(afterContext.requestHeaders, afterContext.responseHeaders,
                     newAfterTransientHeaders, afterContext.isSystemContext);

@@ -157,14 +157,14 @@ public class CorsHandler {
         if (!Strings.isNullOrEmpty(origin)) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
-                    response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                    setAllowOrigin(response, origin);
                     setVaryHeader(response);
                 } else {
-                    response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, ANY_ORIGIN);
+                    setAllowOrigin(response, ANY_ORIGIN);
                 }
                 return true;
             } else if (config.isOriginAllowed(origin) || isSameOrigin(origin, getHost(request))) {
-                response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                setAllowOrigin(response, origin);
                 setVaryHeader(response);
                 return true;
             }
@@ -209,27 +209,19 @@ public class CorsHandler {
         }
     }
 
-    private void echoRequestOrigin(final HttpRequest request, final HttpResponse response) {
-        setOrigin(response, getOrigin(request));
+    private static boolean isPreflightRequest(final HttpRequest request) {
+        final Map<String, List<String>> headers = request.getHeaders();
+        return request.method().equals(RestRequest.Method.OPTIONS) &&
+            headers.containsKey(ORIGIN) &&
+            headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
 
     private static void setVaryHeader(final HttpResponse response) {
         response.addHeader(VARY, ORIGIN);
     }
 
-    private static void setAnyOrigin(final HttpResponse response) {
-        setOrigin(response, ANY_ORIGIN);
-    }
-
-    private static void setOrigin(final HttpResponse response, final String origin) {
+    private static void setAllowOrigin(final HttpResponse response, final String origin) {
         response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-    }
-
-    private static boolean isPreflightRequest(final HttpRequest request) {
-        final Map<String, List<String>> headers = request.getHeaders();
-        return request.method().equals(RestRequest.Method.OPTIONS) &&
-            headers.containsKey(ORIGIN) &&
-            headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
 
     private void setAllowMethods(final HttpResponse response) {

@@ -119,10 +119,12 @@ data stream's <<data-streams-change-mappings-and-settings,matching index
 template>>.
 
 * *Want larger shards?* +
-Increase the rollover threshold in your {ilm-init} policy.
+Increase your {ilm-init} policy's <<ilm-rollover,rollover threshold>>.
 
 * *Need indices that span shorter intervals?* +
-Offset the increased shard count by deleting older indices sooner.
+Offset the increased shard count by deleting older indices sooner. You can do
+this by lowering the `min_age` threshold for your policy's
+<<ilm-index-lifecycle,delete phase>>.
 
 Every new backing index is an opportunity to further tune your strategy.
 
@@ -143,8 +145,8 @@ The number of shards a node can hold is proportional to the node's
 <<heap-size,heap space>>. For example, a node with a 30GB heap should have at
 most 600 shards. The further below this limit you can keep your nodes, the
 better. If you find your nodes exceeding more than 20 shards per GB, consider
-adding another node. You can use the cat shards API to check the number of
-shards per node.
+adding another node. You can use the <<cat-shards,cat shards API>> to check the
+number of shards per node.
 
 [source,console]
 ----
@@ -154,7 +156,7 @@ GET _cat/shards
 
 To use compressed pointers and save memory, we
 recommend each node have a maximum heap size of 32GB or 50% of the node's
-available memory, whichever is lower.
+available memory, whichever is lower. See <<heap-size>>.
 
 
 [discrete]
@@ -221,8 +223,8 @@ GET /_cat/count/my-index-000001?v
 // TEST[setup:my_index]
 
 Once you have a list of empty indices, you can delete them using the
-<<indices-delete-index,delete index API>>. You can also use this API to delete
-other unneeded indices.
+<<indices-delete-index,delete index API>>. You can also delete any other
+unneeded indices.
 
 [source,console]
 ----

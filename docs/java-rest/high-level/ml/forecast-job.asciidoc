@@ -5,15 +5,15 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Forecast Job API
+=== Forecast job API
 
-The Forecast Job API provides the ability to forecast a {ml} job's behavior based
+The forecast job API provides the ability to forecast a {ml} job's behavior based
 on historical data.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Forecast Job Request
+==== Forecast job request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 All other fields are optional for the request.
@@ -24,7 +24,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 
@@ -40,7 +40,7 @@ include-tagged::{doc-tests-file}[{api}-request-options]
     automatically reduced to below that number.
 
 [id="{upid}-{api}-response"]
-==== Forecast Job Response
+==== Forecast job response
 
 A +{response}+ contains an acknowledgement and the forecast ID
 

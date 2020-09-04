@@ -371,7 +371,7 @@ public class VersionTests extends ESTestCase {
 
     public void testPreviousVersion(){
         Version current = Version.CURRENT;
-        assertThat(current.previousMajor(), equalTo(Version.fromString(Version.CURRENT.major-1+".0.0")));
+        assertThat(current.previousMajor(), equalTo(Version.fromString(Version.CURRENT.major - 1 + ".0.0")));
         assertThat(Version.fromString("7.8.1").previousMajor(), equalTo(Version.fromString("6.0.0")));
         assertThat(Version.V_EMPTY.previousMajor(), equalTo(Version.V_EMPTY));
     }

@@ -302,7 +302,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
         //TODO: USAGE_1 now that we have a version we can implement a REST handler that accepts path, method AND version
-//        Version version = request.getCompatibleVersion();
         Version version = compatibleVersion.get(request.header("Accept"), request.header("Content-Type"), request.hasContent());
 
         try {

@@ -96,7 +96,7 @@ public interface RestHandler {
      * If no version is specified, handler is assumed to be compatible with <code>Version.CURRENT</code>
      * @return a version
      */
-    default Version compatibleWithVersion(){
+    default Version compatibleWithVersion() {
         return Version.CURRENT;
     }
 

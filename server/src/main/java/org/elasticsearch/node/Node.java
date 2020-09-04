@@ -693,11 +693,13 @@ public class Node implements Closeable {
      */
     private CompatibleVersion getRestCompatibleFunction() {
         List<RestCompatibilityPlugin> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibilityPlugin.class);
-        CompatibleVersion compatibleVersion = CompatibleVersion.CURRENT_VERSION;
+        final CompatibleVersion compatibleVersion;
         if (restCompatibilityPlugins.size() > 1) {
             throw new IllegalStateException("Only one RestCompatibilityPlugin is allowed");
         } else if (restCompatibilityPlugins.size() == 1) {
             compatibleVersion = restCompatibilityPlugins.get(0)::getCompatibleVersion;
+        } else {
+            compatibleVersion = CompatibleVersion.CURRENT_VERSION;
         }
         return compatibleVersion;
     }

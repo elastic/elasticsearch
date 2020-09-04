@@ -177,10 +177,6 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-//    public Version getCompatibleVersion() {
-//        return compatibleVersion.get(header("Accept"), header("Content-Type"), hasContent());
-//    }
-
     public enum Method {
         GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
     }

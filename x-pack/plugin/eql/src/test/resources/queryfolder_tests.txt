@@ -565,15 +565,3 @@ process where true | tail 10 | head 7
 ;
 "size":7,
 ;
-
-eventQueryWithFilterPipe
-process where true | filter serial_event_id <= 4
-;
-"range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":true
-;
-
-eventQueryWithFilterAndFilterPipe
-process where serial_event_id > 1 | filter serial_event_id <= 4
-;
-"range":{"serial_event_id":{"from":1,"to":4,"include_lower":false,"include_upper":true
-;

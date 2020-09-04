@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,22 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 
-esplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.elasticsearch.index.rankeval.RankEvalPlugin'
-  hasClientJar = true
-}
+package org.elasticsearch.search.fetch;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'rank_eval'
-  }
-}
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
-testClusters.all {
-  // Modules who's integration is explicitly tested in integration tests
-  module ':modules:lang-mustache'
+import java.io.IOException;
+
+/**
+ * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit
+ */
+public interface FetchSubPhaseProcessor {
+
+    /**
+     * Called when moving to the next {@link LeafReaderContext} for a set of hits
+     */
+    void setNextReader(LeafReaderContext readerContext) throws IOException;
+
+    /**
+     * Called in doc id order for each hit in a leaf reader
+     */
+    void process(HitContext hitContext) throws IOException;
+
 }

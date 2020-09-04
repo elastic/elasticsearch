@@ -428,14 +428,10 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
-  tasks.register('resolveAllDependencies') {
+  tasks.register('resolveAllDependencies', org.elasticsearch.gradle.ResolveAllDependencies) {
+    configs = project.configurations
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
-    }
-    doLast {
-      configurations.findAll { it.isCanBeResolved() &&
-        ((it instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) && it.canSafelyBeResolved())
-      }.each { it.resolve() }
     }
   }
 

@@ -212,10 +212,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        protected DateFieldType setupFieldType(BuilderContext context) {
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-            return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
-                dateTimeFormatter, resolution, meta.getValue());
+        private DateFormatter buildFormatter() {
+            try {
+                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+            }
         }
 
         @Override
@@ -223,11 +225,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
+        private Long parseNullValue(DateFormatter formatter) {
+            if (nullValue.getValue() == null) {
+                return null;
+            }
+            try {
+                return formatter.parseMillis(nullValue.getValue());
+            }
+            catch (Exception e) {
+                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+            }
+        }
+
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = setupFieldType(context);
+            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
+                buildFormatter(), resolution, meta.getValue());
             ft.setBoost(boost.getValue());
-            Long nullTimestamp = nullValue.getValue() == null ? null : ft.dateTimeFormatter.parseMillis(nullValue.getValue());
+            Long nullTimestamp = parseNullValue(ft.dateTimeFormatter);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
         }

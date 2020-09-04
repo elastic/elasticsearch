@@ -78,6 +78,7 @@ public class AuthenticationService {
 
     private final Realms realms;
     private final AuditTrailService auditTrailService;
+    private final AuthenticationFailureHandler failureHandler;
     private final ThreadContext threadContext;
     private final String nodeName;
     private final AnonymousUser anonymousUser;
@@ -88,8 +89,6 @@ public class AuthenticationService {
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
-
-    private volatile AuthenticationFailureHandler failureHandler;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
@@ -206,10 +205,6 @@ public class AuthenticationService {
                 expireAll();
             }
         }
-    }
-
-    public void setFailureHeandler(AuthenticationFailureHandler failureHandler){
-        this.failureHandler = failureHandler;
     }
 
     // pkg private method for testing

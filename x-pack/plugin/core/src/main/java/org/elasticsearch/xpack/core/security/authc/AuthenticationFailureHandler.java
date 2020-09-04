@@ -10,6 +10,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * A AuthenticationFailureHandler is responsible for the handling of a request that has failed authentication. This must
  * consist of returning an exception and this exception can have headers to indicate authentication is required or another
@@ -106,4 +109,11 @@ public interface AuthenticationFailureHandler {
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
     ElasticsearchSecurityException authenticationRequired(String action, ThreadContext context);
+
+    /**
+     * This method is called when failureResponseHeaders need to be set (at startup) or updated (if license state changes)
+     *
+     * @param failureResponseHeaders the Map of failure response heaers to be set
+     */
+    void setHeaders(Map<String, List<String>> failureResponseHeaders);
 }

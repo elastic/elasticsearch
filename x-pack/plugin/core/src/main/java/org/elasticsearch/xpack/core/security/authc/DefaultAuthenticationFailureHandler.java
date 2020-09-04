@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  * response headers like 'WWW-Authenticate'
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
-    private final Map<String, List<String>> defaultFailureResponseHeaders;
+    private volatile Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
      * Constructs default authentication failure handler with provided default
@@ -112,6 +112,11 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     @Override
     public ElasticsearchSecurityException authenticationRequired(String action, ThreadContext context) {
         return createAuthenticationError("action [{}] requires authentication", null, action);
+    }
+
+    @Override
+    public void setHeaders(Map<String, List<String>> failureResponseHeaders){
+        defaultFailureResponseHeaders = failureResponseHeaders;
     }
 
     /**

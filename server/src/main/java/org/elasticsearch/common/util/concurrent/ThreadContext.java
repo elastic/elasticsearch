@@ -383,10 +383,6 @@ public final class ThreadContext implements Writeable {
         threadLocal.set(threadLocal.get().putTransient(key, value));
     }
 
-    public void putTransient(Map<String, Object> transientHeaders) {
-        threadLocal.set(threadLocal.get().putTransient(transientHeaders));
-    }
-
     /**
      * Returns a transient header object or <code>null</code> if there is no header for the given key
      */
@@ -634,18 +630,6 @@ public final class ThreadContext implements Writeable {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             putSingleHeader(key, value, newTransient);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
-        }
-
-        private ThreadContextStruct putTransient(Map<String, Object> headers) {
-            if (headers.isEmpty()) {
-                return this;
-            } else {
-                final Map<String, Object> newHeaders = new HashMap<>(this.transientHeaders);
-                for (Map.Entry<String, Object> entry : headers.entrySet()) {
-                    putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
-                }
-                return new ThreadContextStruct(requestHeaders, responseHeaders, newHeaders, isSystemContext);
-            }
         }
 
         private ThreadContextStruct copyHeaders(Iterable<Map.Entry<String, String>> headers) {

@@ -5,7 +5,7 @@
 
 experimental[]
 
-You can use the following APIs to retrieve repositories meterings.
+You can use the following APIs to retrieve repositories metering information.
 
 This is an API used by Elastic's commercial offerings.
 

@@ -1,7 +1,4 @@
 tag::repositories-metering-body[]
-`<node_id>`::
-(Optional, string) Comma-separated list of node IDs or names used to limit
-returned information.
 `_nodes`::
 (object)
 Contains statistics about the number of nodes selected by the request.
@@ -29,14 +26,14 @@ Name of the cluster. Based on the <<cluster.name>> setting.
 
 `nodes`::
 (object)
-Contains repositories metrics for the nodes selected by the request.
+Contains repositories metering information for the nodes selected by the request.
 +
 .Properties of `nodes`
 [%collapsible%open]
 ====
 `<node_id>`::
 (array)
-An array of repository metrics for the node.
+An array of repository metering information for the node.
 +
 .Properties of objects in `node_id`
 [%collapsible%open]
@@ -98,7 +95,7 @@ Time the repository was created or updated. Recorded in milliseconds
 since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 
 `repository_stopped_at`::
-(long)
+(Optional, long)
 Time the repository was deleted or updated. Recorded in milliseconds
 since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 
@@ -110,7 +107,7 @@ is archived and kept for a certain period of time. This allows retrieving
 the repository metering information of previous repository instantiations.
 
 `archive_version`::
-(long) 
+(Optional, long)
 The cluster state version when this object was archived, this field
 can be used as a logical timestamp to delete all the archived metrics up
 to an observed version. This field is only present for archived

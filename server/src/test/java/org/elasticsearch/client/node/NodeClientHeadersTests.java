@@ -26,12 +26,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
@@ -43,7 +45,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         Actions actions = new Actions(testedActions, taskManager);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, taskManager, () -> "test", null);
+        client.initialize(actions, taskManager, () -> "test", null, new NamedWriteableRegistry(List.of()));
         return client;
     }
 

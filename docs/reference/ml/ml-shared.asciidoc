@@ -522,6 +522,14 @@ The fraction of features that is used when selecting a random bag for each
 candidate split.
 end::dfas-feature-bag-fraction[]
 
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
+
 tag::dfas-iteration[]
 The number of iterations on the analysis.
 end::dfas-iteration[]
@@ -604,7 +612,7 @@ Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
 information about shrinkage, see
-https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 

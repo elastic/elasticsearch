@@ -44,29 +44,14 @@ public abstract class IRNode {
     /**
      * Callback to visit an ir tree node.
      */
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        throw new UnsupportedOperationException("cannot visit ir node type [" + getClass().getCanonicalName() + "]");
-    }
+    public abstract <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
+
+    /**
+     * Visits all child ir tree nodes for this ir tree node.
+     */
+    public abstract <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
 
     /* ---- end visitor ---- */
 
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected int accessElementCount() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
+    protected abstract void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope);
 }

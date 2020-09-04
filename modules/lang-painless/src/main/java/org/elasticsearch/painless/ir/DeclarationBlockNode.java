@@ -44,8 +44,15 @@ public class DeclarationBlockNode extends StatementNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDeclarationBlock(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDeclarationBlock(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (DeclarationNode declarationNode : declarationNodes) {
+            declarationNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

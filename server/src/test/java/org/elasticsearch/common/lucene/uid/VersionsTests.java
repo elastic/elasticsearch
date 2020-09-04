@@ -203,7 +203,14 @@ public class VersionsTests extends ESTestCase {
     public void testLuceneVersionOnUnknownVersions() {
         // between two known versions, should use the lucene version of the previous version
         Version version = VersionUtils.getPreviousVersion(Version.CURRENT);
-        assertEquals(Version.fromId(version.id + 100).luceneVersion, version.luceneVersion);
+        final Version nextVersion = Version.fromId(version.id + 100);
+        if (Version.getDeclaredVersions(Version.class).contains(nextVersion) == false) {
+            // the version is not known, we make an assumption the Lucene version stays the same
+            assertEquals(nextVersion.luceneVersion, version.luceneVersion);
+        } else {
+            // the version is known, the most we can assert is that the Lucene version is not earlier
+            assertTrue(nextVersion.luceneVersion.onOrAfter(version.luceneVersion));
+        }
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = Version.fromString("5.2.1");

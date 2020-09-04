@@ -91,7 +91,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
     public void testRegexpQuery() {
         MappedFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("foo.*", 0, 10, null, randomMockShardContext()));
+            () -> ft.regexpQuery("foo.*", 0, 0, 10, null, randomMockShardContext()));
         assertEquals("[regexp] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 

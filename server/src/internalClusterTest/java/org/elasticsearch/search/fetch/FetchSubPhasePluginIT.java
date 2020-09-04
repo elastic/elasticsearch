@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -113,7 +114,21 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public void hitExecute(SearchContext context, HitContext hitContext) {
+        public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
+            return new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) {
+
+                }
+
+                @Override
+                public void process(HitContext hitContext) {
+                    hitExecute(searchContext, hitContext);
+                }
+            };
+        }
+
+        private void hitExecute(SearchContext context, HitContext hitContext) {
             TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;

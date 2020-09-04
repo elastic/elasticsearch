@@ -189,7 +189,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected Object parseSourceValue(Object value, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
             return null;
         }
 
@@ -215,7 +215,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, version, () -> null, null);
+        }, version, () -> null, null, null);
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));

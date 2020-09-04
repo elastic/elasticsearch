@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -301,56 +299,5 @@ public class OptimizerTests extends ESTestCase {
         plan = ((LimitWithOffset) plan).child();
         assertTrue(plan instanceof OrderBy);
         return ((OrderBy) plan).child();
-    }
-
-
-    public void testFilterPipePushdownEventQuery() {
-        Filter filter = new Filter(EMPTY, rel(), new IsNull(EMPTY, Literal.TRUE));
-        Filter pipe = new Filter(EMPTY, filter, new Equals(EMPTY, timestamp(), Literal.TRUE));
-
-        LogicalPlan optimized = new Optimizer.PushDownFilterPipe().rule(pipe);
-        assertEquals(Filter.class, optimized.getClass());
-        Filter f = (Filter) optimized;
-        Expression exp = f.condition();
-        assertEquals(And.class, exp.getClass());
-
-        And and = (And) exp;
-        assertEquals(filter.condition(), and.left());
-        assertEquals(pipe.condition(), and.right());
-    }
-
-    public void testFilterPipePushdownSequence() {
-        Filter filter = new Filter(EMPTY, rel(), new IsNull(EMPTY, Literal.TRUE));
-        KeyedFilter rule1 = keyedFilter(filter);
-        KeyedFilter rule2 = keyedFilter(filter);
-        KeyedFilter until = keyedFilter(filter);
-        Sequence s = new Sequence(EMPTY, asList(rule1, rule2), until, TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
-        Filter pipe = new Filter(EMPTY, s, new Equals(EMPTY, timestamp(), Literal.TRUE));
-
-        // apply it once to push down the filter
-        LogicalPlan optimized = new Optimizer.PushDownFilterPipe().apply(pipe);
-        // second to combine the filters
-        optimized = new Optimizer.PushDownFilterPipe().apply(optimized);
-        assertEquals(Sequence.class, optimized.getClass());
-
-        Sequence seq = (Sequence) optimized;
-        assertEquals(filter.condition(), condition(seq.until()));
-
-        Expression rule1Condition = condition(seq.children().get(0));
-        And and = (And) rule1Condition;
-        assertEquals(filter.condition(), and.left());
-        assertEquals(pipe.condition(), and.right());
-
-        Expression rule2Condition = condition(seq.children().get(1));
-        and = (And) rule2Condition;
-        assertEquals(filter.condition(), and.left());
-        assertEquals(pipe.condition(), and.right());
-    }
-
-    private Expression condition(LogicalPlan plan) {
-        assertEquals(KeyedFilter.class, plan.getClass());
-        KeyedFilter kf = (KeyedFilter) plan;
-        assertEquals(Filter.class, kf.child().getClass());
-        return ((Filter) kf.child()).condition();
     }
 }

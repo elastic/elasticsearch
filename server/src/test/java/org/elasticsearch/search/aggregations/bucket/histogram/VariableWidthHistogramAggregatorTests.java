@@ -54,8 +54,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -428,14 +431,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
                 assertEquals(2, buckets.size());
 
-                // The smaller cluster
-                assertEquals(4 <= buckets.get(0).getDocCount() && buckets.get(0).getDocCount() <= 6, true);
-                assertEquals(0 <= buckets.get(0).centroid() && buckets.get(0).centroid() <= 200d, true);
+                // The lower cluster
+                assertThat(buckets.get(0).getDocCount(), both(greaterThanOrEqualTo(4L)).and(lessThanOrEqualTo(7L)));
+                assertThat(buckets.get(0).centroid(), both(greaterThanOrEqualTo(0.0)).and(lessThanOrEqualTo(300.0)));
                 assertEquals(1, buckets.get(0).min(), deltaError);
 
-                // The bigger cluster
-                assertEquals(4 <= buckets.get(1).getDocCount() && buckets.get(1).getDocCount() <= 6, true);
-                assertEquals(800d <= buckets.get(1).centroid() && buckets.get(1).centroid() <= 1005d, true);
+                // The higher cluster
+                assertThat(buckets.get(1).getDocCount(), equalTo(dataset.size() - buckets.get(0).getDocCount()));
+                assertThat(buckets.get(1).centroid(), both(greaterThanOrEqualTo(800.0)).and(lessThanOrEqualTo(1005.0)));
                 assertEquals(1005, buckets.get(1).max(), deltaError);
             });
 

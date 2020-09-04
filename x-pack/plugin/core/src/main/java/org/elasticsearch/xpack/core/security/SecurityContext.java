@@ -156,11 +156,7 @@ public class SecurityContext {
      * authorization outcome, leaving the other headers in place, just like {@code ThreadContext#newStoredContext(true)}
      */
     public StoredContext stashAuthorizationContext() {
-        final StoredContext original = threadContext.newStoredContext(true);
-        for (String authorizationHeader : AuthorizationServiceField.ALL_AUTHORIZATION_KEYS) {
-            threadContext.removeTransient(authorizationHeader);
-        }
-        return original;
+        return threadContext.stashTransientContext(AuthorizationServiceField.ALL_AUTHORIZATION_KEYS);
     }
 
     /**

@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -131,6 +132,39 @@ public final class ThreadContext implements Writeable {
             // is still executing, we don't want this runnable to fail with an
             // uncaught exception
             threadLocal.set(context);
+        };
+    }
+
+    public StoredContext stashTransientContext(Collection<String> transientHeadersToStash) {
+        if (transientHeadersToStash.isEmpty()) {
+            // no-op
+            return () -> {
+            };
+        }
+        final ThreadContextStruct beforeContext = threadLocal.get();
+        final Map<String, Object> stashedTransientHeaders = new HashMap<>();
+        Map<String, Object> newBeforeTransientHeaders = new HashMap<>(beforeContext.transientHeaders);
+        for (String transientHeaderToStash : transientHeadersToStash) {
+            Object stashed = newBeforeTransientHeaders.remove(transientHeaderToStash);
+            if (stashed != null) {
+                stashedTransientHeaders.put(transientHeaderToStash, stashed);
+            }
+        }
+        if (false == stashedTransientHeaders.isEmpty()) {
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(beforeContext.requestHeaders, beforeContext.responseHeaders,
+                    newBeforeTransientHeaders, beforeContext.isSystemContext);
+            threadLocal.set(threadContextStruct);
+        }
+        return () -> {
+            final ThreadContextStruct afterContext = threadLocal.get();
+            Map<String, Object> newAfterTransientHeaders = new HashMap<>(afterContext.transientHeaders);
+            for (String transientHeaderToStash : transientHeadersToStash) {
+                newAfterTransientHeaders.remove(transientHeaderToStash);
+            }
+            newAfterTransientHeaders.putAll(stashedTransientHeaders);
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(afterContext.requestHeaders, afterContext.responseHeaders,
+                    newAfterTransientHeaders, afterContext.isSystemContext);
+            threadLocal.set(threadContextStruct);
         };
     }
 
@@ -349,11 +383,8 @@ public final class ThreadContext implements Writeable {
         threadLocal.set(threadLocal.get().putTransient(key, value));
     }
 
-    /**
-     * Removes the transient header object from this context, if it exists.
-     */
-    public void removeTransient(String key) {
-        threadLocal.set(threadLocal.get().removeTransient(key));
+    public void putTransient(Map<String, Object> transientHeaders) {
+        threadLocal.set(threadLocal.get().putTransient(transientHeaders));
     }
 
     /**
@@ -511,7 +542,7 @@ public final class ThreadContext implements Writeable {
             return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, isSystemContext);
         }
 
-        private static void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
+        private static <T> void putSingleHeader(String key, T value, Map<String, T> newHeaders) {
             if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
@@ -601,19 +632,20 @@ public final class ThreadContext implements Writeable {
 
         private ThreadContextStruct putTransient(String key, Object value) {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
-            if (newTransient.putIfAbsent(key, value) != null) {
-                throw new IllegalArgumentException("value for key [" + key + "] already present");
-            }
+            putSingleHeader(key, value, newTransient);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 
-        private ThreadContextStruct removeTransient(String key) {
-            if (false == this.transientHeaders.containsKey(key)) {
+        private ThreadContextStruct putTransient(Map<String, Object> headers) {
+            if (headers.isEmpty()) {
                 return this;
+            } else {
+                final Map<String, Object> newHeaders = new HashMap<>(this.transientHeaders);
+                for (Map.Entry<String, Object> entry : headers.entrySet()) {
+                    putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
+                }
+                return new ThreadContextStruct(requestHeaders, responseHeaders, newHeaders, isSystemContext);
             }
-            Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
-            newTransient.remove(key);
-            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 
         private ThreadContextStruct copyHeaders(Iterable<Map.Entry<String, String>> headers) {

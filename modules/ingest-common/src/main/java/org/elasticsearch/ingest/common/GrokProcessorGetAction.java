@@ -119,22 +119,28 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
+        private final Map<String, String> grokPatterns;
+        private final Map<String, String> sortedGrokPatterns;
+
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
+            this(transportService, actionFilters, GROK_PATTERNS);
+        }
+
+        // visible for testing
+        TransportAction(TransportService transportService, ActionFilters actionFilters, Map<String, String> grokPatterns) {
             super(NAME, transportService, actionFilters, Request::new);
+            this.grokPatterns = grokPatterns;
+            this.sortedGrokPatterns = new TreeMap<>(this.grokPatterns);
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
-                listener.onResponse(new Response(getGrokPatternsResponse(GROK_PATTERNS, request.sorted())));
+                listener.onResponse(new Response(request.sorted() ? sortedGrokPatterns : grokPatterns));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
-        }
-
-        static Map<String, String> getGrokPatternsResponse(Map<String, String> patterns, boolean sorted) {
-            return sorted ? new TreeMap<>(patterns) : patterns;
         }
     }
 

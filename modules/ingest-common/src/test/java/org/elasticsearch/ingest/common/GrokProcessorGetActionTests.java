@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,14 +29,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
     private static final Map<String, String> TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
@@ -59,10 +66,40 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     }
 
     public void testResponseSorting() {
-        Map<String, String> sorted = GrokProcessorGetAction.TransportAction.getGrokPatternsResponse(TEST_PATTERNS, true);
         List<String> sortedKeys = new ArrayList<>(TEST_PATTERNS.keySet());
         Collections.sort(sortedKeys);
-        assertThat(new ArrayList<>(sorted.keySet()), equalTo(sortedKeys));
+        GrokProcessorGetAction.TransportAction transportAction =
+            new GrokProcessorGetAction.TransportAction(mock(TransportService.class), mock(ActionFilters.class), TEST_PATTERNS);
+        GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
+        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<>() {
+            @Override
+            public void onResponse(GrokProcessorGetAction.Response response) {
+                receivedResponse[0] = response;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail();
+            }
+        });
+        assertThat(receivedResponse[0], notNullValue());
+        assertThat(receivedResponse[0].getGrokPatterns().keySet().toArray(), equalTo(sortedKeys.toArray()));
+
+        GrokProcessorGetAction.Response firstResponse = receivedResponse[0];
+        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<>() {
+            @Override
+            public void onResponse(GrokProcessorGetAction.Response response) {
+                receivedResponse[0] = response;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail();
+            }
+        });
+        assertThat(receivedResponse[0], notNullValue());
+        assertThat(receivedResponse[0], not(sameInstance(firstResponse)));
+        assertThat(receivedResponse[0].getGrokPatterns(), sameInstance(firstResponse.getGrokPatterns()));
     }
 
     @SuppressWarnings("unchecked")

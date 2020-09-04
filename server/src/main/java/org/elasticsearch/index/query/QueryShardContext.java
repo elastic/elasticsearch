@@ -301,6 +301,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private SearchLookup fetchLookup = null;
 
+    /**
+     * A {@link SearchLookup} only for use during the fetch phase.
+     */
     public SearchLookup fetchLookup() {
         if (fetchLookup == null) {
             fetchLookup = new SearchLookup(

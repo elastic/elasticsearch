@@ -52,7 +52,6 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
-
     }
 
     public void testWildcardQuery() {

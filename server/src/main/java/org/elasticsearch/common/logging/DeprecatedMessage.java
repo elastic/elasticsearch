@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.logging;
 
+import java.util.Map;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-
-import java.util.Map;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
@@ -30,7 +30,6 @@ import java.util.Map;
  */
 public class DeprecatedMessage extends ESLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
-    private static final String ECS_VERSION = "1.6";
 
     public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
         super(fieldMap(key, xOpaqueId), messagePattern, args);
@@ -38,10 +37,6 @@ public class DeprecatedMessage extends ESLogMessage {
 
     private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
         final MapBuilder<String, Object> builder = MapBuilder.newMapBuilder();
-        builder.put("data_stream.type", "logs");
-        builder.put("data_stream.datatype", "deprecation");
-        builder.put("data_stream.namespace", "elasticsearch");
-        builder.put("ecs.version", ECS_VERSION);
         if (Strings.isNullOrEmpty(key) == false) {
             builder.put("key", key);
         }

@@ -6,11 +6,17 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -21,7 +27,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.ESJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.Setting;
@@ -31,8 +36,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.xpack.core.ClientHelper;
-
-import java.util.function.Consumer;
 
 /**
  * This component manages the construction and lifecycle of the {@link DeprecationIndexingAppender}.
@@ -59,15 +62,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
 
-        final ESJsonLayout ecsLayout = ESJsonLayout.newBuilder()
+        final EcsJsonLayout layout = EcsJsonLayout.newBuilder()
             .setType("deprecation")
-            // This matches the additional fields in the DeprecatedMessage class
-            .setESMessageFields("x-opaque-id,data_stream.type,data_stream.datatype,data_stream.namespace,ecs.version")
+            .setESMessageFields("key,x-opaque-id")
             .setConfiguration(configuration)
             .build();
 
         this.filter = new RateLimitingFilter();
-        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
+        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, layout, consumer);
     }
 
     @Override
@@ -136,11 +138,27 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         public void beforeBulk(long executionId, BulkRequest request) {}
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
+        public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+            long numberOfActions = request.numberOfActions();
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "indexed [{}] deprecation documents into [{}]",
+                    numberOfActions,
+                    Arrays.stream(response.getItems()).map(BulkItemResponse::getIndex).distinct().collect(Collectors.joining(","))
+                );
+            }
+
+            if (response.hasFailures()) {
+                Map<String, String> failures = Arrays.stream(response.getItems())
+                    .filter(BulkItemResponse::isFailed)
+                    .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                logger.error("Bulk write of deprecation logs encountered some failures: [{}]", failures);
+            }
+        }
 
         @Override
         public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-            logger.error("Bulk write of deprecation logs failed: " + failure.getMessage(), failure);
+            logger.error("Bulk write of {} deprecation logs failed: {}", request.numberOfActions(), failure.getMessage(), failure);
         }
     }
 }

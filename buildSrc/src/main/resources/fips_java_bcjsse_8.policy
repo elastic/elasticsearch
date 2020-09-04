@@ -1,4 +1,4 @@
-# Security Policy for JDK 8, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
+// Security Policy for JDK 8, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
 
 grant codeBase "file:${java.home}/lib/ext/localedata.jar" {
           // Allow resource bundles to be loaded for non root locales. See

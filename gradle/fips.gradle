@@ -8,7 +8,7 @@ if (BuildParams.inFipsJvm) {
   allprojects {
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     boolean java8 = BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8
-    boolean zulu8 = java8 && BuildParams.jvmDetails.contains("Zulu")
+    boolean zulu8 = java8 && BuildParams.runtimeJavaDetails.contains("Zulu")
     File fipsSecurity;
     File fipsPolicy;
     if (java8) {

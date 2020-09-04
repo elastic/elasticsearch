@@ -1,4 +1,4 @@
-# Security Policy for JDK 11 and higher, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
+// Security Policy for JDK 11 and higher, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
 
 grant {
      permission java.security.SecurityPermission "putProviderProperty.BCFIPS";

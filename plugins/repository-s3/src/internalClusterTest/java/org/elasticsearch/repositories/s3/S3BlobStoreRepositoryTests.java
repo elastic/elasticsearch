@@ -120,11 +120,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    protected List<String> requestTypesTracked() {
-        return List.of("GET", "LIST", "PUT", "POST");
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");

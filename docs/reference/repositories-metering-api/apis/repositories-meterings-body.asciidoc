@@ -148,7 +148,10 @@ Azure storage https://azure.microsoft.com/en-us/pricing/details/storage/blobs/[p
 `ListObjects`::
 (long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/list[list objects] requests.
 `InsertObject`::
-(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[insert object] requests.
+(long) Number of https://cloud.google.com/storage/docs/json_api/v1/objects/insert[insert object] requests,
+including https://cloud.google.com/storage/docs/uploading-objects[simple], https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload[multipart] and
+https://cloud.google.com/storage/docs/resumable-uploads[resumable] uploads. Resumable uploads can perform multiple http requests to
+insert a single object but they are considered as a single request since they are https://cloud.google.com/storage/docs/resumable-uploads#introduction[billed] as an individual operation.
 
 Google Cloud storage https://cloud.google.com/storage/pricing[pricing].
 ======

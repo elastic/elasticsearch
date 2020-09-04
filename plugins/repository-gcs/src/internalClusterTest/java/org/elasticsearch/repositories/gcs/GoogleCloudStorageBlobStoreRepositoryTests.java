@@ -59,7 +59,6 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -103,11 +102,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
-    }
-
-    @Override
-    protected List<String> requestTypesTracked() {
-        return List.of("GET", "LIST", "POST", "PUT");
     }
 
     @Override
@@ -312,7 +306,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
                 trackRequest("GetObject");
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("ListObjGects");
+                trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
                 trackRequest("GetObject");
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {

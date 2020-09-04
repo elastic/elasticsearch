@@ -247,7 +247,7 @@ public class AzureBlobStore implements BlobStore {
         final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         final long limit;
-        if (length == null){
+        if (length == null) {
             // Loading the blob attributes so we can get its length
             SocketAccess.doPrivilegedVoidException(() -> blockBlobReference.downloadAttributes(null, null, context));
             limit = blockBlobReference.getProperties().getLength() - position;

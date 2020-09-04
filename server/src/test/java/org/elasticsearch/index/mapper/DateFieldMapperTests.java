@@ -308,7 +308,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testFetchDocValuesNanos() throws IOException {
         DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
-        DocValueFormat format = DocValueFormat.withNanosecondResolution(mapper.mappedFieldType.docValueFormat(null, null));
+        DocValueFormat format = mapper.mappedFieldType.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of(date), fetchFromDocValues(mapper, format, date));
         assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapper, format, 1589578382123L));

@@ -81,14 +81,6 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
         if (allocationPendingAllShards > 0) {
             String tier = INDEX_ROUTING_INCLUDE_SETTING.get(idxMeta.getSettings());
-            if (DataTier.validTierName(tier) == false) {
-                String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] is waiting for [%s] shards to be " +
-                        "allocated but the configured data tier [%s] is invalid", getKey().getAction(), index.getName(),
-                    allocationPendingAllShards, tier);
-                logger.debug(errorMessage);
-                throw new IllegalStateException(errorMessage);
-            }
-
             boolean targetTierRoleFound = false;
             for (DiscoveryNode node : clusterState.nodes()) {
                 for (DiscoveryNodeRole role : node.getRoles()) {

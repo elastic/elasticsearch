@@ -78,7 +78,6 @@ as-you-type completion.
 [discrete]
 [[document-ranking-types]]
 ==== Document ranking types
-<<<<<<< HEAD
 
 <<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
 <<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
@@ -97,26 +96,6 @@ as-you-type completion.
 <<shape,`shape`>>::             Arbitrary cartesian geometries.
 
 
-=======
-
-<<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
-<<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
-                                    query time.
-<<rank-features,`rank_features`>>:: Records numeric features to boost hits at
-                                    query time.
-
-
-[discrete]
-[[spatial_datatypes]]
-==== Spatial data types
-
-<<geo-point,`geo_point`>>::     Latitude and longitude points.
-<<geo-shape,`geo_shape`>>::     Complex shapes, such as polygons.
-<<point,`point`>>::             Arbitrary cartesian points.
-<<shape,`shape`>>::             Arbitrary cartesian geometries.
-
-
->>>>>>> build_testclusters_plugins
 [discrete]
 [[other-types]]
 ==== Other types

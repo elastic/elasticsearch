@@ -83,8 +83,8 @@ tasks.withType(NoticeTask).configureEach {
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
-String ossOutputs = "build/outputs/oss"
-String defaultOutputs = "build/outputs/default"
+String ossOutputs = 'build/outputs/oss'
+String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
@@ -151,12 +151,8 @@ tasks.register("buildExternalTestModules") {
 }
 
 Configuration moduleZip(Project module) {
-  Configuration config = project.configurations.findByName(module.name)
-  if (config == null) {
-    config = project.configurations.create(module.name)
-    DependencyHandler deps = project.dependencies
-    deps.add(module.name, deps.project(path: module.path, configuration: 'zip'))
-  }
+  Dependency dep = project.dependencies.project(path: module.path, configuration: 'zip')
+  Configuration config = project.configurations.detachedConfiguration(dep)
   return config
 }
 

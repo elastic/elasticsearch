@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
-import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;

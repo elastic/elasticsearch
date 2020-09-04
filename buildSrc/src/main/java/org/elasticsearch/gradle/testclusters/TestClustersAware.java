@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Jdk;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
@@ -41,6 +42,7 @@ public interface TestClustersAware extends Task {
         // Add legacy BWC JDK runtime as a dependency so it's downloaded before starting the cluster if necessary
         cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
 
+        cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }
 

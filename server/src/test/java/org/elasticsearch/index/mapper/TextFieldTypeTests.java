@@ -26,7 +26,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery87;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -86,7 +86,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         MappedFieldType ft = new TextFieldType("field");
-        assertEquals(new RegexpQuery87(new Term("field","foo.*")),
+        assertEquals(new RegexpQuery(new Term("field","foo.*")),
                 ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
 
         MappedFieldType unsearchable = new TextFieldType("field", false, Collections.emptyMap());

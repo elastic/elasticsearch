@@ -191,8 +191,7 @@ public class TypeParsersTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
-            null, mapperService, type -> typeParser, Version.CURRENT, null, null);
-
+            null, mapperService, type -> typeParser, Version.CURRENT, null, null, null);
         TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
             "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +

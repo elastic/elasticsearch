@@ -53,5 +53,4 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
     }
 
     public abstract TaskProvider<? extends Task> createTask(Project project);
-
 }

@@ -1,4 +1,5 @@
+
 subprojects {
-  // fixtures are mostly external and by default we don't want to check forbidden apis
-  disableTasks('forbiddenApisMain')
+  // fixtures don't have tests, these are external projects used by the build
+  test.enabled = false
 }

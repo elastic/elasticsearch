@@ -26,6 +26,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 
 /**
@@ -55,32 +56,6 @@ public class RestTestUtil {
     static void setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
         testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
         testTask.setClasspath(sourceSet.getRuntimeClasspath());
-
-        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-        project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
-            Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
-            testTask.dependsOn(bundle);
-            if (project.getPath().startsWith(":modules:")) {
-                testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
-            } else {
-                testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
-            }
-        });
-
-        // es-plugins may declare dependencies on additional modules, add those to the test cluster too.
-        project.afterEvaluate(p -> {
-            PluginPropertiesExtension pluginPropertiesExtension = project.getExtensions().findByType(PluginPropertiesExtension.class);
-            if (pluginPropertiesExtension != null) { // not all projects are defined as plugins
-                pluginPropertiesExtension.getExtendedPlugins().forEach(pluginName -> {
-                    Project extensionProject = project.getProject().findProject(":modules:" + pluginName);
-                    if (extensionProject != null) { // extension plugin may be defined, but not required to be a module
-                        Zip extensionBundle = (Zip) extensionProject.getTasks().getByName("bundlePlugin");
-                        testTask.dependsOn(extensionBundle);
-                        testTask.getClusters().forEach(c -> c.module(extensionBundle.getArchiveFile()));
-                    }
-                });
-            }
-        });
     }
 
     /**

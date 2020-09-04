@@ -18,12 +18,6 @@
  */
 apply plugin: 'elasticsearch.test.fixtures'
 
-// installKDC uses tabs in it for the Kerberos ACL file.
-// Ignore it for pattern checking.
-forbiddenPatterns {
-  exclude "**/installkdc.sh"
-}
-
 List<String> services = ["peppa", "hdfs"]
 
 preProcessFixture.doLast {

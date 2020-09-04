@@ -143,7 +143,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             listener::onFailure,
             (leaderHistoryUUID, leaderIndexMetadata) -> {
                 try {
-                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                    start(request, leaderCluster, leaderIndexMetadata.v1(), followerIndexMetadata, leaderHistoryUUID, listener);
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }

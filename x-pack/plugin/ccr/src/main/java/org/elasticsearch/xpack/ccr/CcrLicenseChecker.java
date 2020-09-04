@@ -23,9 +23,12 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -109,11 +112,11 @@ public class CcrLicenseChecker {
      * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
      */
     public void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-            final Client client,
-            final String clusterAlias,
-            final String leaderIndex,
-            final Consumer<Exception> onFailure,
-            final BiConsumer<String[], IndexMetadata> consumer) {
+        final Client client,
+        final String clusterAlias,
+        final String leaderIndex,
+        final Consumer<Exception> onFailure,
+        final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
@@ -127,7 +130,10 @@ public class CcrLicenseChecker {
                 onFailure,
                 remoteClusterStateResponse -> {
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                    IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                    final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                    IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null ?
+                        indexAbstraction.getParentDataStream().getDataStream() : null;
                     if (leaderIndexMetadata == null) {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
@@ -140,7 +146,7 @@ public class CcrLicenseChecker {
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
                             fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, onFailure, historyUUIDs ->
-                                    consumer.accept(historyUUIDs, leaderIndexMetadata));
+                                    consumer.accept(historyUUIDs, Tuple.tuple(leaderIndexMetadata, remoteDataStream)));
                         } else {
                             onFailure.accept(e);
                         }

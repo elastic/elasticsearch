@@ -22,5 +22,3 @@ apply plugin: 'elasticsearch.java'
 dependencies {
   api "org.apache.hadoop:hadoop-minicluster:2.8.5"
 }
-
-test.enabled = false

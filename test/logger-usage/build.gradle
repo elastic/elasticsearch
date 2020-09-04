@@ -17,6 +17,8 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.java'
+
 dependencies {
   api 'org.ow2.asm:asm:7.1'
   api 'org.ow2.asm:asm-tree:7.1'

@@ -21,10 +21,13 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
@@ -53,6 +56,17 @@ public class RestTestUtil {
     static void setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
         testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
         testTask.setClasspath(sourceSet.getRuntimeClasspath());
+
+        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+        project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+            Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
+            testTask.dependsOn(bundle);
+            if (project.getPath().contains("modules:")) {
+                testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
+            } else {
+                testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
+            }
+        });
     }
 
     /**

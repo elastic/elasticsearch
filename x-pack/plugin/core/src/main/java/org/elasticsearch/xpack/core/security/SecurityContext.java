@@ -155,7 +155,7 @@ public class SecurityContext {
      * Compared to {@code ThreadContext#stashContext} this only clears the specific transient headers that are used to convey the
      * authorization outcome, leaving the other headers in place, just like {@code ThreadContext#newStoredContext(true)}. When
      * the returned {@code StoredContext} is closed, the original authorization transient headers are restored (if any did
-     * not originally exist, it will also not exist after the restore)
+     * not originally exist, it will also not exist after the restore).
      */
     public StoredContext stashAuthorizationContext() {
         return threadContext.stashTransientContext(AuthorizationServiceField.ALL_AUTHORIZATION_KEYS);

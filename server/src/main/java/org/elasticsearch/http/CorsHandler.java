@@ -47,7 +47,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,7 +56,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
@@ -71,7 +69,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
  * files: io.netty.handler.codec.http.cors.CorsHandler, io.netty.handler.codec.http.cors.CorsConfig, and
  * io.netty.handler.codec.http.cors.CorsConfigBuilder.
  *
- * It modifies the original netty code to operation on Elasticsearch http request/response abstractions.
+ * It modifies the original netty code to operate on Elasticsearch http request/response abstractions.
  * Additionally, it removes CORS features that are not used by Elasticsearch.
  */
 public class CorsHandler {
@@ -92,7 +90,7 @@ public class CorsHandler {
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     private final Config config;
 
-    private CorsHandler(Config config) {
+    public CorsHandler(Config config) {
         this.config = config;
     }
 
@@ -113,32 +111,9 @@ public class CorsHandler {
         if (!config.isCorsSupportEnabled()) {
             return;
         }
-        String originHeader = getOrigin(httpRequest);
-        if (!Strings.isNullOrEmpty(originHeader)) {
-            final String originHeaderVal;
-            if (config.isAnyOriginSupported()) {
-                originHeaderVal = ANY_ORIGIN;
-            } else if (config.isOriginAllowed(originHeader) || isSameOrigin(originHeader, getHost(httpRequest))) {
-                originHeaderVal = originHeader;
-            } else {
-                originHeaderVal = null;
-            }
-            if (originHeaderVal != null) {
-                httpResponse.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, originHeaderVal);
-            }
+        if (setOrigin(httpRequest, httpResponse)) {
+            setAllowCredentials(httpResponse);
         }
-        if (config.isCredentialsAllowed()) {
-            httpResponse.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
-        }
-
-    }
-
-    private boolean originAllowed(String origin) {
-        if (config.isAnyOriginSupported()) {
-            return true;
-        }
-
-        return config.isOriginAllowed(origin);
     }
 
     private HttpResponse handlePreflight(final HttpRequest request) {
@@ -157,10 +132,8 @@ public class CorsHandler {
     }
 
     private static HttpResponse forbidden(final HttpRequest request) {
-        HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
-//        ctx.writeAndFlush(new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.FORBIDDEN))
-//            .addListener(ChannelFutureListener.CLOSE);
-        return null;
+        // TODO: Content length?
+        return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
     }
 
     private static boolean isSameOrigin(final String origin, final String host) {
@@ -175,24 +148,24 @@ public class CorsHandler {
     }
 
     private void setPreflightHeaders(final HttpResponse response) {
-        response.addHeader("date", dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
+        response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
+        // TODO: Content length?
         response.addHeader("content-length", "0");
     }
 
     private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
-        final String origin = getOrigin(request);
+        String origin = getOrigin(request);
         if (!Strings.isNullOrEmpty(origin)) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
-                    echoRequestOrigin(request, response);
+                    response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
                     setVaryHeader(response);
                 } else {
-                    setAnyOrigin(response);
+                    response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, ANY_ORIGIN);
                 }
                 return true;
-            }
-            if (config.isOriginAllowed(origin)) {
-                setOrigin(response, origin);
+            } else if (config.isOriginAllowed(origin) || isSameOrigin(origin, getHost(request))) {
+                response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
                 setVaryHeader(response);
                 return true;
             }
@@ -430,7 +403,7 @@ public class CorsHandler {
         return new Config(builder);
     }
 
-    public static Config fromSettings(Settings settings) {
+    public static Config buildConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
             return disabled();
         }
@@ -465,5 +438,9 @@ public class CorsHandler {
             .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
             .build();
         return config;
+    }
+
+    public static CorsHandler fromSettings(Settings settings) {
+        return new CorsHandler(buildConfig(settings));
     }
 }

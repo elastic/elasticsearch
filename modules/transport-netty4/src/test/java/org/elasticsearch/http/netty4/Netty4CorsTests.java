@@ -141,7 +141,7 @@ public class Netty4CorsTests extends ESTestCase {
         }
         httpRequest.headers().add(HttpHeaderNames.HOST, host);
         EmbeddedChannel embeddedChannel = new EmbeddedChannel();
-        embeddedChannel.pipeline().addLast(new Netty4CorsHandler(CorsHandler.fromSettings(settings)));
+        embeddedChannel.pipeline().addLast(new Netty4CorsHandler(CorsHandler.buildConfig(settings)));
         Netty4HttpRequest nettyRequest = new Netty4HttpRequest(httpRequest);
         embeddedChannel.writeOutbound(nettyRequest.createResponse(RestStatus.OK, new BytesArray("content")));
         return embeddedChannel.readOutbound();

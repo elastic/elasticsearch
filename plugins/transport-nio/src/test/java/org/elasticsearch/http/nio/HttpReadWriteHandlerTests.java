@@ -384,7 +384,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
     private FullHttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
         HttpHandlingSettings httpSettings = HttpHandlingSettings.fromSettings(settings);
-        CorsHandler.Config corsConfig = CorsHandler.fromSettings(settings);
+        CorsHandler.Config corsConfig = CorsHandler.buildConfig(settings);
         HttpReadWriteHandler handler = new HttpReadWriteHandler(channel, transport, httpSettings, corsConfig, taskScheduler,
             System::nanoTime);
         handler.channelActive();

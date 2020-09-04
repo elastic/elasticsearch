@@ -294,7 +294,7 @@ testClusters {
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
 task largeBlobYamlRestTest(type: RestIntegTestTask) {
-  dependsOn project(':plugins:repository-gcs').bundlePlugin
+  dependsOn bundlePlugin
   if (useFixture) {
     dependsOn createServiceAccountFile
   }
@@ -308,7 +308,7 @@ check.dependsOn largeBlobYamlRestTest
 
 testClusters {
   largeBlobYamlRestTest {
-    plugin project(':plugins:repository-gcs').bundlePlugin.archiveFile
+    plugin bundlePlugin.archiveFile
 
     // force large blob uploads by setting the threshold small, forcing this code path to be tested
     systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'

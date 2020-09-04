@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.DynamicDomainFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.junit.After;
@@ -52,6 +53,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     private static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
     private static final String TEXT_FIELD = "text-field";
     private static final String KEYWORD_FIELD = "keyword-field";
+    private static final String KEYWORD_SUFFIX_FIELD = "keyword-suffix-field";
     private static final String NESTED_FIELD = "outer-field.inner-field";
     private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
     private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
@@ -59,6 +61,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     private static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
     private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
     private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
+    private static final List<String> KEYWORD_SUFFIX_FIELD_VALUES = List.of("io", "com");
 
     private String jobId;
     private String sourceIndex;
@@ -96,7 +99,6 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
 
     public void testNGramCustomFeature() throws Exception {
         initialize("test_ngram_feature_processor");
-        String predictedClassField = NUMERICAL_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, NUMERICAL_FIELD);
 
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
@@ -113,6 +115,57 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                 null,
                 Collections.singletonList(new NGram(TEXT_FIELD, "f", new int[]{1, 2}, 0, 2, true))))
             .setAnalyzedFields(new FetchSourceContext(true, new String[]{TEXT_FIELD, NUMERICAL_FIELD}, new String[]{}))
+            .build();
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray.stream().map(m -> m.get("feature_name").toString()).collect(Collectors.toSet()),
+                everyItem(startsWith("f.")));
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
+        assertModelStatePersisted(stateDocId());
+    }
+
+    public void testDynamicDomainCustomFeature() throws Exception {
+        initialize("test_dynamic_domain_feature_processor");
+        indexData(sourceIndex, 300, 50, NUMERICAL_FIELD);
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(jobId)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
+                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()), null))
+            .setDest(new DataFrameAnalyticsDest(destIndex, null))
+            .setAnalysis(new Regression(NUMERICAL_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(6).build(),
+                null,
+                null,
+                42L,
+                null,
+                null,
+                Collections.singletonList(new DynamicDomainFeatureExtractor(TEXT_FIELD,
+                    KEYWORD_FIELD,
+                    NESTED_FIELD,
+                    KEYWORD_SUFFIX_FIELD,
+                    "f",
+                    null))))
+            .setAnalyzedFields(new FetchSourceContext(true,
+                new String[]{TEXT_FIELD, NUMERICAL_FIELD, NESTED_FIELD, KEYWORD_FIELD, KEYWORD_SUFFIX_FIELD},
+                new String[]{}))
             .build();
         putAnalytics(config);
 
@@ -175,6 +228,9 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
             "        \""+ KEYWORD_FIELD + "\": {\n" +
             "          \"type\": \"keyword\"\n" +
             "        }," +
+            "        \""+ KEYWORD_SUFFIX_FIELD + "\": {\n" +
+            "          \"type\": \"keyword\"\n" +
+            "        }," +
             "        \""+ NESTED_FIELD + "\": {\n" +
             "          \"type\": \"keyword\"\n" +
             "        }," +
@@ -205,19 +261,22 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
+            String keywordSuffix = KEYWORD_SUFFIX_FIELD_VALUES.get(i % KEYWORD_SUFFIX_FIELD_VALUES.size());
             List<Object> source = List.of(
                 "@timestamp", "2020-12-12",
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
                 DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
                 TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
-                KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
+                KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()) + keywordSuffix,
+                KEYWORD_SUFFIX_FIELD, keywordSuffix,
                 NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
             List<Object> source = new ArrayList<>();
+            String keywordSuffix = KEYWORD_SUFFIX_FIELD_VALUES.get(i % KEYWORD_SUFFIX_FIELD_VALUES.size());
             if (BOOLEAN_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
             }
@@ -232,7 +291,10 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                 source.addAll(List.of(TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()) + keywordSuffix));
+            }
+            if (KEYWORD_SUFFIX_FIELD.equals(dependentVariable) == false) {
+                source.addAll(List.of(KEYWORD_SUFFIX_FIELD, keywordSuffix));
             }
             if (NESTED_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));

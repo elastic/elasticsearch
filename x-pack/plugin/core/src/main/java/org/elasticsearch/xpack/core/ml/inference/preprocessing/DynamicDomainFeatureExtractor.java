@@ -178,7 +178,7 @@ public class DynamicDomainFeatureExtractor implements LenientlyParsedPreProcesso
         }
 
         final String topLevelDomain = getString(topLevelDomainField, fields);
-        if (topLevelDomain != null) {
+        if (topLevelDomain != null && topLevelDomain.length() < registeredDomain.length()) {
             fields.put(featurePrefix + "." + SLD_STRING,
                 registeredDomain.substring(0, registeredDomain.length() - topLevelDomain.length() - 1));
             fields.put(featurePrefix + "." + TLD_STRING, topLevelDomain);

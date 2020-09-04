@@ -55,11 +55,9 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             docValueFields.add(new FieldAndFormat(context.collapse().getFieldName(), null));
-        } else {
+        } else if (context.indexShard().indexSettings().getIndexVersionCreated().onOrAfter(IgnoredFieldMapper.DOC_VALUES_VERSION)) {
             // add _ignored field
-            if (context.indexShard().indexSettings().getIndexVersionCreated().onOrAfter(IgnoredFieldMapper.DOC_VALUES_VERSION)) {
-                docValueFields.add(new FieldAndFormat("_ignored", null));
-            }
+            docValueFields.add(new FieldAndFormat("_ignored", null));
         }
 
         context.docValuesContext(new FetchDocValuesContext(docValueFields));

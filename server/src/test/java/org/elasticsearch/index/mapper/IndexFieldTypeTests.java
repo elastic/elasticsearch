@@ -53,7 +53,7 @@ public class IndexFieldTypeTests extends ESTestCase {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         QueryShardException e = expectThrows(QueryShardException.class, () ->
-            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext())));
+            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext())));
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
 

@@ -29,13 +29,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -317,18 +317,6 @@ public class InternalVariableWidthHistogram
 =    */
     private double nextKey(double key){ return key + 1; }
 
-    private static class IteratorAndCurrent {
-
-        private final Iterator<Bucket> iterator;
-        private Bucket current;
-
-        IteratorAndCurrent(Iterator<Bucket> iterator) {
-            this.iterator = iterator;
-            current = iterator.next();
-        }
-
-    }
-
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
@@ -350,10 +338,10 @@ public class InternalVariableWidthHistogram
     }
 
     public List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
+        PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
-                return Double.compare(a.current.centroid, b.current.centroid) < 0;
+            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                return Double.compare(a.current().centroid, b.current().centroid) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
@@ -365,27 +353,27 @@ public class InternalVariableWidthHistogram
 
         List<Bucket> reducedBuckets = new ArrayList<>();
         if(pq.size() > 0) {
-            double key = pq.top().current.centroid();
+            double key = pq.top().current().centroid();
             // list of buckets coming from different shards that have the same key
             List<Bucket> currentBuckets = new ArrayList<>();
             do {
-                IteratorAndCurrent top = pq.top();
+                IteratorAndCurrent<Bucket> top = pq.top();
 
-                if (Double.compare(top.current.centroid(), key) != 0) {
+                if (Double.compare(top.current().centroid(), key) != 0) {
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
                     currentBuckets.clear();
-                    key = top.current.centroid();
+                    key = top.current().centroid();
                 }
 
-                currentBuckets.add(top.current);
+                currentBuckets.add(top.current());
 
-                if (top.iterator.hasNext()) {
-                    Bucket next = top.iterator.next();
-                    assert next.compareKey(top.current) >= 0 : "shards must return data sorted by centroid";
-                    top.current = next;
+                if (top.hasNext()) {
+                    Bucket prev = top.current();
+                    top.next();
+                    assert top.current().compareKey(prev) >= 0 : "shards must return data sorted by centroid";
                     pq.updateTop();
                 } else {
                     pq.pop();

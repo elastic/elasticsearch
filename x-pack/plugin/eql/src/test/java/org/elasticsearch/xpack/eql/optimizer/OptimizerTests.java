@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.optimizer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
+import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
@@ -73,8 +74,10 @@ public class OptimizerTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
+        PostAnalyzer postAnalyzer = new PostAnalyzer();
         Analyzer analyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
-        return optimizer.optimize(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)));
+        return optimizer.optimize(postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql),
+                resolution)), TEST_CFG_CASE_INSENSITIVE));
     }
 
     private LogicalPlan accept(String eql) {
@@ -89,9 +92,6 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
-
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -110,8 +110,6 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -131,8 +129,6 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -155,8 +151,6 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
 
             assertTrue(plan instanceof Filter);
 
@@ -175,8 +169,6 @@ public class OptimizerTests extends ESTestCase {
 
     public void testWildcardEscapes() {
         LogicalPlan plan = defaultPipes(accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'"));
-        assertTrue(plan instanceof Project);
-        plan = ((Project) plan).child();
         assertTrue(plan instanceof Filter);
 
         Filter filter = (Filter) plan;
@@ -231,6 +223,8 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private void checkOffsetAndLimit(LogicalPlan plan, int offset, int limit) {
+        assertTrue(plan instanceof Project);
+        plan = ((Project) plan).child();
         assertTrue(plan instanceof LimitWithOffset);
         LimitWithOffset lo = (LimitWithOffset) plan;
         assertEquals("Incorrect offset", offset, lo.offset());
@@ -299,6 +293,8 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan defaultPipes(LogicalPlan plan) {
+        assertTrue(plan instanceof Project);
+        plan = ((Project) plan).child();
         assertTrue(plan instanceof LimitWithOffset);
         plan = ((LimitWithOffset) plan).child();
         assertTrue(plan instanceof OrderBy);

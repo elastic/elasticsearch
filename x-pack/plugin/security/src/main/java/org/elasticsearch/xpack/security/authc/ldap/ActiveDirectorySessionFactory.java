@@ -75,14 +75,9 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                         }
                     }
                     return config.getSetting(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING,
-                            () -> config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
+                        () -> config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
                 }, threadPool);
         String domainName = config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
-        if (domainName == null) {
-            throw new IllegalArgumentException("missing [" +
-                    RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)
-                    + "] setting for active directory");
-        }
         String domainDN = buildDnFromDomain(domainName);
         final int ldapPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING);
         final int ldapsPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING);

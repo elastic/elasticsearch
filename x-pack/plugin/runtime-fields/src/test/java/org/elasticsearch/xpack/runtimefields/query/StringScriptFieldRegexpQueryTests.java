@@ -59,7 +59,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
                 pattern += "modified";
                 break;
             case 3:
-                flags = randomValueOtherThan(flags, () -> randomInt(0xFFFF));
+                flags = randomValueOtherThan(flags, () -> randomInt(RegExp.ALL));
                 break;
             default:
                 fail();

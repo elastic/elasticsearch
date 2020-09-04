@@ -326,7 +326,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (String action : actions) {
             authorize(authentication, action, request);
             verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
-                    authzInfoRoles(new String[]{SystemUser.ROLE_NAME}));
+                authzInfoRoles(new String[]{SystemUser.ROLE_NAME}));
         }
 
         verifyNoMoreInteractions(auditTrail);

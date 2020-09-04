@@ -94,13 +94,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
     return
   }
-  // FIXME
-  subproj.afterEvaluate { // need to wait until the project has been configured
-    testClusters.integTest {
-      plugin subproj.bundlePlugin.archiveFile
-    }
-    tasks.integTest.dependsOn subproj.bundlePlugin
-  }
+  testClusters.integTest.plugin subproj.path
 }
 
 buildRestTests.docs = fileTree(projectDir) {

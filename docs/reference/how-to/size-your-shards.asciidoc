@@ -100,9 +100,12 @@ deleted indices directly from the file system and free up resources.
 [[use-ds-ilm-for-time-series]]
 ==== For time series data, use data streams and {ilm-init}
 
-Data streams let you store time series data across multiple, time-based backing
-indices. You can use <<index-lifecycle-management,{ilm} ({ilm-init})>>
-lifecycle policies to automatically manage these backing indices.
+<<data-streams,Data streams>> let you store time series data across multiple,
+time-based backing indices. You can use <<index-lifecycle-management,{ilm}
+({ilm-init})>> lifecycle policies to automatically manage these backing indices.
+
+[role="screenshot"]
+image:images/ilm/index-lifecycle-policies.png[]
 
 One advantage of this setup is
 <<getting-started-index-lifecycle-management,automatic rollover>>, which creates

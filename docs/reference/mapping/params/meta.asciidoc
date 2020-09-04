@@ -37,7 +37,7 @@ unit::
 
   The unit of the field. Recognizes `"byte"` as well as
   <<time-units,time units>>. By default, fields are assumed to not have a unit.
-  This information should only be specified on numeric fields.
+  This information may only be specified on numeric fields.
 
 metric_type::
 
@@ -45,11 +45,11 @@ metric_type::
   single-valued measurement that can go up or down over time, such as a
   temperature. A counter is a single-valued cumulative counter that only goes
   up, such as the number of requests processed by a web server. By default,
-  fields are assumed to not be a metric. This information should only be
+  fields are assumed to not be a metric. This information may only be
   specified on numeric fields.
 
 ratio::
 
   Whether the field is a ratio. Recognizes `true` and `false` (default). The
   value should not be `true` when a `unit` is also specified. This information
-  should only be specified on numeric fields.
+  may only be specified on numeric fields.

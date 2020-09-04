@@ -132,8 +132,10 @@ public class CorsHandler {
     }
 
     private static HttpResponse forbidden(final HttpRequest request) {
+        HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
         // TODO: Content length?
-        return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+        response.addHeader("content-length", "0");
+        return response;
     }
 
     private static boolean isSameOrigin(final String origin, final String host) {
@@ -397,15 +399,17 @@ public class CorsHandler {
         }
     }
 
-    public static Config disabled() {
+    public static CorsHandler disabled() {
         Config.Builder builder = new Config.Builder();
         builder.enabled = false;
-        return new Config(builder);
+        return new CorsHandler(new Config(builder));
     }
 
     public static Config buildConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
-            return disabled();
+            Config.Builder builder = new Config.Builder();
+            builder.enabled = false;
+            return new Config(builder);
         }
         String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
         final CorsHandler.Config.Builder builder;

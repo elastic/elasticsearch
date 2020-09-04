@@ -291,7 +291,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.requestCreator =  new Netty4HttpRequestCreator();
-            this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.requestHandler = new Netty4HttpRequestHandler(transport, transport.corsHandler);
         }
 
         @Override
@@ -314,9 +314,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", requestCreator);
-            if (handlingSettings.isCorsEnabled()) {
-                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
-            }
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);

@@ -23,15 +23,20 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpResponse;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
     private final Netty4HttpServerTransport serverTransport;
+    private final CorsHandler corsHandler;
 
-    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport) {
+    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport, CorsHandler corsHandler) {
         this.serverTransport = serverTransport;
+        this.corsHandler = corsHandler;
     }
 
     @Override
@@ -39,7 +44,13 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
         try {
-            serverTransport.incomingRequest(httpRequest, channel);
+            HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
+            if (earlyResponse != null) {
+                ctx.writeAndFlush(earlyResponse);
+                httpRequest.release();
+            } else {
+                serverTransport.incomingRequest(httpRequest, channel);
+            }
             success = true;
         } finally {
             if (success == false) {

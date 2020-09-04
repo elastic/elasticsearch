@@ -151,6 +151,27 @@ public class CorsHandlerTests extends ESTestCase {
         assertThat(httpResponse.status(), equalTo(RestStatus.FORBIDDEN));
     }
 
+    public void testHandleInboundAllowsSameOrigin() {
+        final String validOriginLiteral = "valid-origin";
+        final String originSetting;
+        if (randomBoolean()) {
+            originSetting = validOriginLiteral;
+        } else {
+            originSetting = "/valid-.+/";
+        }
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originSetting)
+            .build();
+        CorsHandler corsHandler = CorsHandler.fromSettings(settings);
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.POST, "/");
+        request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("https://same-host"));
+        request.getHeaders().put(CorsHandler.HOST, Collections.singletonList("same-host"));
+        TestHttpResponse httpResponse = (TestHttpResponse) corsHandler.handleInbound(request);
+        // Since is a Cors enabled request. However, it is not forbidden because the origin is the same as the host.
+        assertThat(httpResponse, nullValue());
+    }
+
     public void testHandleInboundPreflightWithWildcardNoCredentials() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
@@ -230,7 +251,7 @@ public class CorsHandlerTests extends ESTestCase {
         assertNotNull(headers.get(CorsHandler.DATE));
     }
 
-    public void testSetResponseHeadersWithWildcardOrigin() {
+    public void testSetResponseNonCorsRequest() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
@@ -240,97 +261,70 @@ public class CorsHandlerTests extends ESTestCase {
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
 
         TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
-        corsHandler.setCorsResponseHeaders(null, response);
+        corsHandler.setCorsResponseHeaders(request, response);
 
-
+        Map<String, List<String>> headers = response.headers();
+        assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN));
     }
 
-    //    public void testCorsEnabledWithoutAllowOrigins() {
-//        // Set up an HTTP transport with only the CORS enabled setting
-//        Settings settings = Settings.builder()
-//            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
-//            .build();
-//        HttpResponse response = executeRequest(settings, "remote-host", "request-host");
-//        // inspect response and validate
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
-//    }
-//
-//    public void testCorsEnabledWithAllowOrigins() {
-//        final String originValue = "remote-host";
-//        // create an HTTP transport with CORS enabled and allow origin configured
-//        Settings settings = Settings.builder()
-//            .put(SETTING_CORS_ENABLED.getKey(), true)
-//            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-//            .build();
-//        HttpResponse response = executeRequest(settings, originValue, "request-host");
-//        // inspect response and validate
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//    }
-//
-//    public void testCorsAllowOriginWithSameHost() {
-//        String originValue = "remote-host";
-//        String host = "remote-host";
-//        // create an HTTP transport with CORS enabled
-//        Settings settings = Settings.builder()
-//            .put(SETTING_CORS_ENABLED.getKey(), true)
-//            .build();
-//        HttpResponse response = executeRequest(settings, originValue, host);
-//        // inspect response and validate
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//
-//        originValue = "http://" + originValue;
-//        response = executeRequest(settings, originValue, host);
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//
-//        originValue = originValue + ":5555";
-//        host = host + ":5555";
-//        response = executeRequest(settings, originValue, host);
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//
-//        originValue = originValue.replace("http", "https");
-//        response = executeRequest(settings, originValue, host);
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//    }
-//
-//    public void testThatStringLiteralWorksOnMatch() {
-//        final String originValue = "remote-host";
-//        Settings settings = Settings.builder()
-//            .put(SETTING_CORS_ENABLED.getKey(), true)
-//            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-//            .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
-//            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-//            .build();
-//        HttpResponse response = executeRequest(settings, originValue, "request-host");
-//        // inspect response and validate
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS), equalTo("true"));
-//    }
-//
-//    public void testThatAnyOriginWorks() {
-//        final String originValue = NioCorsHandler.ANY_ORIGIN;
-//        Settings settings = Settings.builder()
-//            .put(SETTING_CORS_ENABLED.getKey(), true)
-//            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-//            .build();
-//        HttpResponse response = executeRequest(settings, originValue, "request-host");
-//        // inspect response and validate
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-//        String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-//        assertThat(allowedOrigins, is(originValue));
-//        assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS), nullValue());
-//    }
+    public void testSetResponseHeadersWithWildcardOrigin() {
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+            .build();
+        CorsHandler corsHandler = CorsHandler.fromSettings(settings);
+
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
+        TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
+        corsHandler.setCorsResponseHeaders(request, response);
+
+        Map<String, List<String>> headers = response.headers();
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("*"));
+        assertNull(headers.get(CorsHandler.VARY));
+    }
+
+    public void testSetResponseHeadersWithCredentialsWithWildcard() {
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .build();
+        CorsHandler corsHandler = CorsHandler.fromSettings(settings);
+
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
+        TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
+        corsHandler.setCorsResponseHeaders(request, response);
+
+        Map<String, List<String>> headers = response.headers();
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
+        assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
+    }
+
+    public void testSetResponseHeadersWithNonWildcardOrigin() {
+        boolean allowCredentials = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "valid-origin")
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), allowCredentials)
+            .build();
+        CorsHandler corsHandler = CorsHandler.fromSettings(settings);
+
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
+        TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
+        corsHandler.setCorsResponseHeaders(request, response);
+
+        Map<String, List<String>> headers = response.headers();
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
+        assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
+        if (allowCredentials) {
+            assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
+        } else {
+            assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS));
+        }
+    }
 }

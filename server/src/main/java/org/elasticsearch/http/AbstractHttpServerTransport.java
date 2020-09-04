@@ -74,7 +74,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
-    protected final CorsHandler.Config corsConfig;
     protected final CorsHandler corsHandler;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -99,7 +98,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
-        this.corsConfig = CorsHandler.buildConfig(settings);
         this.corsHandler = CorsHandler.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here

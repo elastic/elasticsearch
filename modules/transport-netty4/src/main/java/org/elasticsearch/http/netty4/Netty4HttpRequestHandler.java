@@ -24,12 +24,18 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.http.CorsHandler;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.HttpUtils;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
+
+    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     private final Netty4HttpServerTransport serverTransport;
     private final CorsHandler corsHandler;
@@ -46,7 +52,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
         try {
             HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
             if (earlyResponse != null) {
-                ctx.writeAndFlush(earlyResponse);
+                channel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, channel));
                 httpRequest.release();
             } else {
                 serverTransport.incomingRequest(httpRequest, channel);
@@ -67,6 +73,14 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
             serverTransport.onException(channel, new Exception(cause));
         } else {
             serverTransport.onException(channel, (Exception) cause);
+        }
+    }
+
+    private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
+        if (HttpUtils.shouldCloseConnection(request)) {
+            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+        } else {
+            return NO_OP;
         }
     }
 }

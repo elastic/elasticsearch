@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -115,7 +116,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             .build();
         TestHttpResponse response = executeRequest(settings, originValue, "https://127.0.0.1");
         assertEquals(originValue, response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN).get(0));
-        assertThat(response.headers().get(CorsHandler.VARY), nullValue());
+        assertThat(response.headers().get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
     }
 
     public void testCorsEnabledWithAllowOriginsAndAllowCredentials() {
@@ -286,7 +287,8 @@ public class DefaultRestChannelTests extends ESTestCase {
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY), null);
+            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY),
+            null);
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -323,7 +325,8 @@ public class DefaultRestChannelTests extends ESTestCase {
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY), null);
+            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY),
+            null);
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());

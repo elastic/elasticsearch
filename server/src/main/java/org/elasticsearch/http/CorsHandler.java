@@ -125,7 +125,6 @@ public class CorsHandler {
             setMaxAge(response);
             setPreflightHeaders(response);
             return response;
-//            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
         } else {
             return forbidden(request);
         }
@@ -133,7 +132,6 @@ public class CorsHandler {
 
     private static HttpResponse forbidden(final HttpRequest request) {
         HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
-        // TODO: Content length?
         response.addHeader("content-length", "0");
         return response;
     }
@@ -151,7 +149,6 @@ public class CorsHandler {
 
     private void setPreflightHeaders(final HttpResponse response) {
         response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
-        // TODO: Content length?
         response.addHeader("content-length", "0");
     }
 

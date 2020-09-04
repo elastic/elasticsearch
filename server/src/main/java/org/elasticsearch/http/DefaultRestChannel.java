@@ -66,11 +66,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final HttpTracer tracerLog;
 
     DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext, @Nullable HttpTracer tracerLog) {
-        this(httpChannel, httpRequest, request, bigArrays, settings, threadContext, null, tracerLog);
-    }
-
-    DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
                        HttpHandlingSettings settings, ThreadContext threadContext, CorsHandler corsHandler,
                        @Nullable HttpTracer tracerLog) {
         super(request, settings.getDetailedErrorsEnabled());
@@ -94,7 +89,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         Releasables.closeWhileHandlingException(httpRequest::release);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
-        if (isCloseConnection()) {
+        if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
 
@@ -184,18 +179,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     response.addHeader(SET_COOKIE, cookie);
                 }
             }
-        }
-    }
-
-    // Determine if the request connection should be closed on completion.
-    private boolean isCloseConnection() {
-        try {
-            final boolean http10 = request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
-            return CLOSE.equalsIgnoreCase(request.header(CONNECTION))
-                || (http10 && !KEEP_ALIVE.equalsIgnoreCase(request.header(CONNECTION)));
-        } catch (Exception e) {
-            // In case we fail to parse the http protocol version out of the request we always close the connection
-            return true;
         }
     }
 }

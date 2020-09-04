@@ -59,10 +59,9 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;

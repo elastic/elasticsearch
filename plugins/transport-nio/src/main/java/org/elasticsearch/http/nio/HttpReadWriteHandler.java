@@ -27,13 +27,17 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.CorsHandler;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.HttpUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
@@ -154,20 +158,21 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
-        final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
+        final HttpPipelinedRequest httpRequest = (HttpPipelinedRequest) msg;
         boolean success = false;
         try {
-            HttpResponse earlyResponse = corsHandler.handleInbound(pipelinedRequest);
+            HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
             if (earlyResponse != null) {
+                nioHttpChannel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, nioHttpChannel));
                 nioHttpChannel.sendResponse(earlyResponse, NO_OP);
-                pipelinedRequest.release();
+                httpRequest.release();
             } else {
-                transport.incomingRequest(pipelinedRequest, nioHttpChannel);
+                transport.incomingRequest(httpRequest, nioHttpChannel);
             }
             success = true;
         } finally {
             if (success == false) {
-                pipelinedRequest.release();
+                httpRequest.release();
             }
         }
     }
@@ -192,5 +197,13 @@ public class HttpReadWriteHandler implements NioChannelHandler {
             "This channel only pipelined responses with a delegate of type: " + NioHttpResponse.class +
                 ". Found type: " + ((HttpPipelinedResponse) message).getDelegateRequest().getClass() + ".";
         return true;
+    }
+
+    private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
+        if (HttpUtils.shouldCloseConnection(request)) {
+            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+        } else {
+            return NO_OP;
+        }
     }
 }

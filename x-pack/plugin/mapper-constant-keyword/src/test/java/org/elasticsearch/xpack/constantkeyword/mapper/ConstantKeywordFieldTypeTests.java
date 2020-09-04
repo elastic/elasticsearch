@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.RegExp87;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
@@ -86,9 +86,9 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
-        assertEquals(new MatchNoDocsQuery(), none.regexpQuery("f..o", RegExp87.ALL, 0, 10, null, null));
+        assertEquals(new MatchNoDocsQuery(), none.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp87.ALL, 0, 10, null, null));
-        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("f..o", RegExp87.ALL, 0, 10, null, null));
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp.ALL, 0, 10, null, null));
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
     }
 }

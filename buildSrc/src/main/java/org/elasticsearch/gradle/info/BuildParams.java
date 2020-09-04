@@ -38,7 +38,7 @@ public class BuildParams {
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
     private static JavaVersion runtimeJavaVersion;
-    private static String jvmDetails;
+    private static String runtimeJavaDetails;
     private static Boolean inFipsJvm;
     private static String gitRevision;
     private static String gitOrigin;
@@ -90,8 +90,8 @@ public class BuildParams {
         return value(runtimeJavaVersion);
     }
 
-    public static String getJvmDetails() {
-        return value(jvmDetails);
+    public static String getRuntimeJavaDetails() {
+        return value(runtimeJavaDetails);
     }
 
     public static Boolean isInFipsJvm() {
@@ -203,12 +203,12 @@ public class BuildParams {
             BuildParams.runtimeJavaVersion = requireNonNull(runtimeJavaVersion);
         }
 
-        public void setInFipsJvm(boolean inFipsJvm) {
-            BuildParams.inFipsJvm = inFipsJvm;
+        public void setRuntimeJavaDetails(String runtimeJavaDetails) {
+            BuildParams.runtimeJavaDetails = runtimeJavaDetails;
         }
 
-        public void setJvmDetails(String jvmDetails) {
-            BuildParams.jvmDetails = jvmDetails;
+        public void setInFipsJvm(boolean inFipsJvm) {
+            BuildParams.inFipsJvm = inFipsJvm;
         }
 
         public void setGitRevision(String gitRevision) {

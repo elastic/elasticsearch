@@ -105,6 +105,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
             params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            params.setRuntimeJavaDetails(getJavaInstallation(runtimeJavaHome).getImplementationName());
             params.setJavaVersions(getAvailableJavaVersions(minimumCompilerVersion));
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -117,7 +118,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
-            params.setJvmDetails(getJavaInstallation(runtimeJavaHome).getImplementationName());
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));

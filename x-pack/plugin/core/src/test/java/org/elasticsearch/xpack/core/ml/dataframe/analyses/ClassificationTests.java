@@ -93,7 +93,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         Classification.ClassAssignmentObjective classAssignmentObjective = randomBoolean() ?
             null : randomFrom(Classification.ClassAssignmentObjective.values());
         Integer numTopClasses = randomBoolean() ? null : randomIntBetween(0, 1000);
-        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
+        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, false);
         Long randomizeSeed = randomBoolean() ? null : randomLong();
         return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, classAssignmentObjective,
             numTopClasses, trainingPercent, randomizeSeed,
@@ -198,19 +198,25 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         }
     }
 
-
-    public void testConstructor_GivenTrainingPercentIsLessThanOne() {
+    public void testConstructor_GivenTrainingPercentIsZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 0.999, randomLong(), null));
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 0.0, randomLong(), null));
 
-        assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
+    }
+
+    public void testConstructor_GivenTrainingPercentIsLessThanZero() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, -1.0, randomLong(), null));
+
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 100.0001, randomLong(), null));
 
-        assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenNumTopClassesIsLessThanZero() {

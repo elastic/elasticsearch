@@ -2,39 +2,42 @@
 [testenv="platinum"]
 [[ccr-getting-started]]
 === Set up {ccr}
+Bringing data closer to your users or application server can reduce latency
+and response time. This guide explains how to set up {ccr} (CCR) between clusters in two datacenters to ensure that users can access data from the
+cluster that is geographically closest, ensuring optimal performance.
+
+In this guide, you'll learn how to:
+
+* Configure a remote cluster with a leader index
+* Create a follower index on a local cluster
+* Create an auto-follow pattern to automatically follow time series indices
+that are periodically created in a remote cluster
+
 You can manually create follower indices to replicate specific indices on a
 remote cluster, or configure auto-follow patterns to automatically create
 follower indices for new time series.
 
-After the follower index is created, the
-<<ccr-remote-recovery, remote recovery>> process copies all of the Lucene
-segment files from the remote cluster to the local cluster.
-
-To set up {ccr}:
-
-. <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
-. <<ccr-getting-started-leader-index,Identify the index (or time series indices) you want to replicate on the remote cluster>>
-. <<ccr-enable-soft-deletes,Enable soft deletes on the leader index>>
-. Manually create a follower index or create an auto-follow pattern:
-  * To replicate the leader index, <<ccr-getting-started-follower-index,manually create a follower index>>
-  * To automatically follow time series indices, <<ccr-getting-started-auto-follow,create an auto-follow pattern>>
-
 [[ccr-getting-started-prerequisites]]
 ==== Prerequisites
-If the Elastic {security-features} are enabled in your local and remote
-clusters, you need a user with appropriate authority to complete the steps
-in this tutorial.
+* <<managing-licenses,Update your {es} license>> or start a trial license
+to enable {ccr}.
+* Add {es} logs. From the {kib} home page, choose *Add log data* and choose
+the *{es} logs*. Follow the instructions to install and start {filebeat}.
 
+[discrete]
+===== Configure user privileges
 By default, you can complete the following steps as the built-in
-`elastic` user. However, you must <<get-started-built-in-users,set a password>>
-for this user before proceeding.
+`elastic` user. However, you must
+<<get-started-built-in-users,set a password>> for this user before
+proceeding.
 
 WARNING: If you are performing these steps in a production environment, do
 not use the `elastic` user.
 
-Alternatively, you can assign the appropriate privileges to a user ID of your
-choice. On the remote cluster that contains the leader index, a user must have
-the `read_ccr` cluster privilege and `monitor` and `read` privileges on the
+If the Elastic {security-features} are enabled in your local and remote
+clusters, assign the appropriate privileges to a user ID of your choice. On
+the remote cluster that contains the leader index, a user must have the
+`read_ccr` cluster privilege and `monitor` and `read` privileges on the
 leader index.
 
 [source,yml]
@@ -49,8 +52,8 @@ ccr_user:
         - read
 --------------------------------------------------
 
-On the local cluster that contains the follower index, the same user will need
-the `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
+On the local cluster that contains the follower index, the same user must
+have the `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
 `manage_follow_index` privileges on the follower index.
 
 [source,yml]
@@ -75,8 +78,7 @@ cluster privilege.
 [[ccr-getting-started-remote-cluster]]
 ==== Connect to a remote cluster
 Connect your local cluster to a
-<<modules-remote-clusters,remote cluster>> to begin using cross-cluster
-replication.
+<<modules-remote-clusters,remote cluster>> to begin using {ccr}.
 
 To configure a {kibana-ref}/working-remote-clusters.html[remote cluster],
 access {kib} and go to
@@ -223,6 +225,10 @@ must reference the
 <<ccr-getting-started-remote-cluster,remote cluster>> and the
 <<ccr-getting-started-leader-index,leader index>> that you created in the remote
 cluster.
+
+After the follower index is created, the
+<<ccr-remote-recovery, remote recovery>> process copies all of the Lucene
+segment files from the remote cluster to the local cluster.
 
 To create a follower index, access {kib} and go to
 *Management > Stack Management*. In the side navigation, select

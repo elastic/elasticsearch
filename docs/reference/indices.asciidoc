@@ -67,6 +67,8 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
 
+(Component templates have been introduced in 7.8.)
+
 [discrete]
 [[monitoring]]
 === Monitoring:

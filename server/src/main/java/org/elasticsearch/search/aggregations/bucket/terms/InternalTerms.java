@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,14 +33,19 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements Terms {
@@ -152,12 +159,28 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
     }
 
+    protected final BucketOrder reduceOrder;
     protected final BucketOrder order;
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+    /**
+     * Creates a new {@link InternalTerms}
+     * @param name The name of the aggregation
+     * @param reduceOrder The {@link BucketOrder} that should be used to merge shard results.
+     * @param order The {@link BucketOrder} that should be used to sort the final reduce.
+     * @param requiredSize The number of top buckets.
+     * @param minDocCount The minimum number of documents allowed per bucket.
+     * @param metadata The metadata associated with the aggregation.
+     */
+    protected InternalTerms(String name,
+                            BucketOrder reduceOrder,
+                            BucketOrder order,
+                            int requiredSize,
+                            long minDocCount,
+                            Map<String, Object> metadata) {
         super(name, metadata);
+        this.reduceOrder = reduceOrder;
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
@@ -168,13 +191,21 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
      */
     protected InternalTerms(StreamInput in) throws IOException {
        super(in);
-       order = InternalOrder.Streams.readOrder(in);
+       reduceOrder = InternalOrder.Streams.readOrder(in);
+       if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+           order = InternalOrder.Streams.readOrder(in);
+       } else {
+           order = reduceOrder;
+       }
        requiredSize = readSize(in);
        minDocCount = in.readVLong();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            reduceOrder.writeTo(out);
+        }
         order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
@@ -189,21 +220,128 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     @Override
     public abstract B getBucketByKey(String term);
 
-    @Override
+    private BucketOrder getReduceOrder(List<InternalAggregation> aggregations) {
+        BucketOrder thisReduceOrder = null;
+        for (InternalAggregation aggregation : aggregations) {
+            @SuppressWarnings("unchecked")
+            InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
+            if (terms.getBuckets().size() == 0) {
+                continue;
+            }
+            if (thisReduceOrder == null) {
+                thisReduceOrder = terms.reduceOrder;
+            } else if (thisReduceOrder.equals(terms.reduceOrder) == false) {
+                return order;
+            }
+        }
+        return thisReduceOrder != null ? thisReduceOrder : order;
+    }
+
+    private long getDocCountError(InternalTerms<?, ?> terms) {
+        int size = terms.getBuckets().size();
+        if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.order)) {
+            return 0;
+        } else if (InternalOrder.isCountDesc(terms.order)) {
+            if (terms.getDocCountError() > 0) {
+                // If there is an existing docCountError for this agg then
+                // use this as the error for this aggregation
+                return terms.getDocCountError();
+            } else {
+                // otherwise use the doc count of the last term in the
+                // aggregation
+                return terms.getBuckets().stream().mapToLong(Bucket::getDocCount).min().getAsLong();
+            }
+        } else {
+            return -1;
+        }
+    }
+
+    private List<B> reduceMergeSort(List<InternalAggregation> aggregations,
+                                    BucketOrder reduceOrder, ReduceContext reduceContext) {
+        assert isKeyOrder(reduceOrder);
+        final Comparator<MultiBucketsAggregation.Bucket> cmp = reduceOrder.comparator();
+        final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(IteratorAndCurrent<B> a, IteratorAndCurrent<B> b) {
+                return cmp.compare(a.current(), b.current()) < 0;
+            }
+        };
+        for (InternalAggregation aggregation : aggregations) {
+            @SuppressWarnings("unchecked")
+            InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
+            if (terms.getBuckets().isEmpty() == false) {
+                assert reduceOrder.equals(reduceOrder);
+                pq.add(new IteratorAndCurrent(terms.getBuckets().iterator()));
+            }
+        }
+        List<B> reducedBuckets = new ArrayList<>();
+        // list of buckets coming from different shards that have the same key
+        List<B> currentBuckets = new ArrayList<>();
+        B lastBucket = null;
+        while (pq.size() > 0) {
+            final IteratorAndCurrent<B> top = pq.top();
+            assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
+            if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
+                // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                final B reduced = reduceBucket(currentBuckets, reduceContext);
+                reducedBuckets.add(reduced);
+                currentBuckets.clear();
+            }
+            lastBucket = top.current();
+            currentBuckets.add(top.current());
+            if (top.hasNext()) {
+                top.next();
+                assert cmp.compare(top.current(), lastBucket) > 0 : "shards must return data sorted by key";
+                pq.updateTop();
+            } else {
+                pq.pop();
+            }
+        }
+
+        if (currentBuckets.isEmpty() == false) {
+            final B reduced = reduceBucket(currentBuckets, reduceContext);
+            reducedBuckets.add(reduced);
+        }
+        return reducedBuckets;
+    }
+
+    private List<B> reduceLegacy(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        Map<Object, List<B>> bucketMap = new HashMap<>();
+        for (InternalAggregation aggregation : aggregations) {
+            @SuppressWarnings("unchecked")
+            InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
+            if (terms.getBuckets().isEmpty() == false) {
+                for (B bucket : terms.getBuckets()) {
+                    List<B> bucketList = bucketMap.get(bucket.getKey());
+                    if (bucketList == null) {
+                        bucketList = new ArrayList<>();
+                        bucketMap.put(bucket.getKey(), bucketList);
+                    }
+                    bucketList.add(bucket);
+                }
+            }
+        }
+        List<B> reducedBuckets =  new ArrayList<>();
+        for (List<B> sameTermBuckets : bucketMap.values()) {
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
+            reducedBuckets.add(b);
+        }
+        return reducedBuckets;
+    }
+
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        Map<Object, List<B>> buckets = new HashMap<>();
         long sumDocCountError = 0;
         long otherDocCount = 0;
         InternalTerms<A, B> referenceTerms = null;
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
             InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
-            if (referenceTerms == null && !aggregation.getClass().equals(UnmappedTerms.class)) {
+            if (referenceTerms == null && aggregation.getClass().equals(UnmappedTerms.class) == false) {
                 referenceTerms = terms;
             }
             if (referenceTerms != null &&
-                    !referenceTerms.getClass().equals(terms.getClass()) &&
-                    !terms.getClass().equals(UnmappedTerms.class)) {
+                    referenceTerms.getClass().equals(terms.getClass()) == false &&
+                    terms.getClass().equals(UnmappedTerms.class) == false) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
                 throw new AggregationExecutionException("Merging/Reducing the aggregations failed when computing the aggregation ["
@@ -211,22 +349,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                         + "types in two different indices");
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
-            final long thisAggDocCountError;
-            if (terms.getBuckets().size() < getShardSize() || InternalOrder.isKeyOrder(order)) {
-                thisAggDocCountError = 0;
-            } else if (InternalOrder.isCountDesc(order)) {
-                if (terms.getDocCountError() > 0) {
-                    // If there is an existing docCountError for this agg then
-                    // use this as the error for this aggregation
-                    thisAggDocCountError = terms.getDocCountError();
-                } else {
-                    // otherwise use the doc count of the last term in the
-                    // aggregation
-                    thisAggDocCountError = terms.getBuckets().get(terms.getBuckets().size() - 1).docCount;
-                }
-            } else {
-                thisAggDocCountError = -1;
-            }
+            final long thisAggDocCountError = getDocCountError(terms);
             if (sumDocCountError != -1) {
                 if (thisAggDocCountError == -1) {
                     sumDocCountError = -1;
@@ -244,28 +367,30 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 // Note that if the error is unbounded (-1) this will be fixed
                 // later in this method.
                 bucket.docCountError -= thisAggDocCountError;
-                List<B> bucketList = buckets.get(bucket.getKey());
-                if (bucketList == null) {
-                    bucketList = new ArrayList<>();
-                    buckets.put(bucket.getKey(), bucketList);
-                }
-                bucketList.add(bucket);
             }
         }
-
+        /**
+         * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
+         * That allows to perform a merge sort when reducing multiple aggregations together.
+         * For backward compatibility, we disable the merge sort and use ({@link InternalTerms#reduceLegacy} if any of
+         * the provided aggregations use a different {@link InternalTerms#reduceOrder}.
+         */
+        BucketOrder thisReduceOrder = getReduceOrder(aggregations);
+        List<B> reducedBuckets = isKeyOrder(thisReduceOrder) ?
+            reduceMergeSort(aggregations, thisReduceOrder, reduceContext) : reduceLegacy(aggregations, reduceContext);
         final B[] list;
         if (reduceContext.isFinalReduce()) {
-            final int size = Math.min(requiredSize, buckets.size());
+            final int size = Math.min(requiredSize, reducedBuckets.size());
+            // final comparator
             final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
-            for (List<B> sameTermBuckets : buckets.values()) {
-                final B b = reduceBucket(sameTermBuckets, reduceContext);
+            for (B bucket : reducedBuckets) {
                 if (sumDocCountError == -1) {
-                    b.docCountError = -1;
+                    bucket.docCountError = -1;
                 } else {
-                    b.docCountError += sumDocCountError;
+                    bucket.docCountError += sumDocCountError;
                 }
-                if (b.docCount >= minDocCount) {
-                    B removed = ordered.insertWithOverflow(b);
+                if (bucket.docCount >= minDocCount) {
+                    B removed = ordered.insertWithOverflow(bucket);
                     if (removed != null) {
                         otherDocCount += removed.getDocCount();
                         reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
@@ -273,7 +398,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                         reduceContext.consumeBucketsAndMaybeBreak(1);
                     }
                 } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket));
                 }
             }
             list = createBucketsArray(ordered.size());
@@ -281,19 +406,18 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 list[i] = ordered.pop();
             }
         } else {
-            // keep all buckets on partial reduce
-            // TODO: we could prune the buckets when sorting by key
-            list = createBucketsArray(buckets.size());
-            int pos = 0;
-            for (List<B> sameTermBuckets : buckets.values()) {
-                final B b = reduceBucket(sameTermBuckets, reduceContext);
+            // we can prune the list on partial reduce if the aggregation is ordered by key
+            // and not filtered (minDocCount == 0)
+            int size = isKeyOrder(order) && minDocCount == 0 ? Math.min(requiredSize, reducedBuckets.size()) : reducedBuckets.size();
+            list = createBucketsArray(size);
+            for (int i = 0; i < size; i++) {
                 reduceContext.consumeBucketsAndMaybeBreak(1);
+                list[i] = reducedBuckets.get(i);
                 if (sumDocCountError == -1) {
-                    b.docCountError = -1;
+                    list[i].docCountError = -1;
                 } else {
-                    b.docCountError += sumDocCountError;
+                    list[i].docCountError += sumDocCountError;
                 }
-                list[pos++] = b;
             }
         }
         long docCountError;
@@ -302,7 +426,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return create(name, Arrays.asList(list), docCountError, otherDocCount);
+        return create(name, Arrays.asList(list), thisReduceOrder, docCountError, otherDocCount);
     }
 
     @Override
@@ -334,7 +458,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     protected abstract int getShardSize();
 
-    protected abstract A create(String name, List<B> buckets, long docCountError, long otherDocCount);
+    protected abstract A create(String name, List<B> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount);
 
     /**
      * Create an array to hold some buckets. Used in collecting the results.
@@ -351,13 +475,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         InternalTerms<?,?> that = (InternalTerms<?,?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(reduceOrder, that.reduceOrder)
                 && Objects.equals(order, that.order)
                 && Objects.equals(requiredSize, that.requiredSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), minDocCount, order, requiredSize);
+        return Objects.hash(super.hashCode(), minDocCount, reduceOrder, order, requiredSize);
     }
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,

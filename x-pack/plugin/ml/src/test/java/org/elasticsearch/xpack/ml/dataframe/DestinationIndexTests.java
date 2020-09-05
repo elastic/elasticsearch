@@ -161,16 +161,13 @@ public class DestinationIndexTests extends ESTestCase {
 
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();
 
-        assertThat(createIndexRequest.settings().keySet(),
-            containsInAnyOrder("index.number_of_shards", "index.number_of_replicas", "index.sort.field", "index.sort.order"));
+        assertThat(createIndexRequest.settings().keySet(), containsInAnyOrder("index.number_of_shards", "index.number_of_replicas"));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_shards", -1), equalTo(5));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_replicas", -1), equalTo(1));
-        assertThat(createIndexRequest.settings().get("index.sort.field"), equalTo("ml__id_copy"));
-        assertThat(createIndexRequest.settings().get("index.sort.order"), equalTo("asc"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings())) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("_doc.properties.ml__id_copy.type", map), equalTo("keyword"));
+            assertThat(extractValue("_doc.properties.ml__incremental_id.type", map), equalTo("long"));
             assertThat(extractValue("_doc.properties.field_1", map), equalTo("field_1_mappings"));
             assertThat(extractValue("_doc.properties.field_2", map), equalTo("field_2_mappings"));
             assertThat(extractValue("_doc.properties.numerical-field.type", map), equalTo("integer"));
@@ -280,7 +277,7 @@ public class DestinationIndexTests extends ESTestCase {
         assertThat(putMappingRequest.indices(), arrayContaining(DEST_INDEX));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, putMappingRequest.source())) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("properties.ml__id_copy.type", map), equalTo("keyword"));
+            assertThat(extractValue("properties.ml__incremental_id.type", map), equalTo("long"));
             return map;
         }
     }

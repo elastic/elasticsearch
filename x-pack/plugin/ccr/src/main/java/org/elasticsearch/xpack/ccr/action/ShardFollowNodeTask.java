@@ -18,6 +18,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
@@ -524,7 +525,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof NodeClosedException ||
             actual instanceof NoSuchRemoteClusterException ||
             (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
-            actual instanceof EsRejectedExecutionException;
+            actual instanceof EsRejectedExecutionException ||
+            actual instanceof CircuitBreakingException;
     }
 
     // These methods are protected for testing purposes:

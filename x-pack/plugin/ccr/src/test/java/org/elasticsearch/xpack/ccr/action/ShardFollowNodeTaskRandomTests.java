@@ -7,9 +7,11 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -285,7 +287,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     List<TestResponse> item = new ArrayList<>();
                     // Sometimes add a random retryable error
                     if (sometimes()) {
-                        Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
+                        Exception error = randomFrom(
+                            new UnavailableShardsException(new ShardId("test", "test", 0), ""),
+                            new CircuitBreakingException("test", randomInt(), randomInt()),
+                            new EsRejectedExecutionException("test"));
                         item.add(new TestResponse(error, mappingVersion, settingsVersion, null));
                     }
                     // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -22,7 +23,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             leafFactory,
             randomAlphaOfLength(5),
             randomAlphaOfLength(6),
-            randomInt(0xFFFF),
+            randomInt(RegExp.ALL),
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );
     }
@@ -56,7 +57,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
                 pattern += "modified";
                 break;
             case 3:
-                flags = randomValueOtherThan(flags, () -> randomInt(0xFFFF));
+                flags = randomValueOtherThan(flags, () -> randomInt(RegExp.ALL));
                 break;
             default:
                 fail();

@@ -170,8 +170,8 @@ public class Classification implements DataFrameAnalysis {
         if (numTopClasses != null && (numTopClasses < 0 || numTopClasses > 1000)) {
             throw ExceptionsHelper.badRequestException("[{}] must be an integer in [0, 1000]", NUM_TOP_CLASSES.getPreferredName());
         }
-        if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
+        if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);

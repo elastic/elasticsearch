@@ -9,11 +9,7 @@ package org.elasticsearch.xpack.runtimefields.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -268,26 +264,21 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     );
                 }
             }
-            Map<String, Object> map = org.elasticsearch.common.collect.Map.of(
-                "index_patterns",
-                "*",
-                "priority",
-                Integer.MAX_VALUE - 1,
-                "template",
-                org.elasticsearch.common.collect.Map.of(
-                    "settings",
-                    Collections.emptyMap(),
-                    "mappings",
-                    org.elasticsearch.common.collect.Map.of("dynamic_templates", dynamicTemplates)
-                )
-            );
-
-            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).map(map);
-            String string = Strings.toString(builder);
-            System.out.println(string);
 
             List<Map<String, Object>> bodies = Collections.singletonList(
-                map
+                org.elasticsearch.common.collect.Map.of(
+                    "index_patterns",
+                    "*",
+                    "priority",
+                    Integer.MAX_VALUE - 1,
+                    "template",
+                    org.elasticsearch.common.collect.Map.of(
+                        "settings",
+                        Collections.emptyMap(),
+                        "mappings",
+                        org.elasticsearch.common.collect.Map.of("dynamic_templates", dynamicTemplates)
+                    )
+                )
             );
             ClientYamlTestResponse response = executionContext.callApi(
                 "indices.put_index_template",
@@ -295,7 +286,6 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                 bodies,
                 Collections.emptyMap()
             );
-
 
             assertThat(response.getStatusCode(), equalTo(200));
             // There are probably some warning about overlapping templates. Ignore them.

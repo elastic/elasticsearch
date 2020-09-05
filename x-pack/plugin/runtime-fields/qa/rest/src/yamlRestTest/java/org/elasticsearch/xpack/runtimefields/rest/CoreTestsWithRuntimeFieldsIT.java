@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -58,7 +57,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                 // The setup section contains an unsupported option
                 continue;
             }
-            if (false == modifySection(candidate.getTestPath(), candidate.getTestSection().getExecutableSections())) {
+            if (false == modifySection(candidate.getTestSection().getExecutableSections())) {
                 // The test section contains an unsupported option
                 continue;
             }
@@ -80,7 +79,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
      * with scripts that load from source.
      */
     private static ClientYamlTestSuite modifiedSuite(ClientYamlTestCandidate candidate) {
-        if (false == modifySection(candidate.getSuitePath() + "/setup", candidate.getSetupSection().getExecutableSections())) {
+        if (false == modifySection(candidate.getSetupSection().getExecutableSections())) {
             return null;
         }
         List<ExecutableSection> setup = new ArrayList<>(candidate.getSetupSection().getExecutableSections().size() + 1);
@@ -99,7 +98,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
      * Replace field configuration in {@code indices.create} with scripts
      * that load from the source.
      */
-    private static boolean modifySection(String sectionName, List<ExecutableSection> executables) {
+    private static boolean modifySection(List<ExecutableSection> executables) {
         for (ExecutableSection section : executables) {
             if (false == (section instanceof DoSection)) {
                 continue;
@@ -232,10 +231,6 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     Map.entry("runtime_type", type),
                     Map.entry("script", painlessToLoadFromSource("{name}", type))
                 );
-                Map<String, Object> body = Map.ofEntries(
-                    Map.entry("match_mapping_type", type.equals("keyword") ? "string" : type),
-                    Map.entry("mapping", mapping)
-                );
                 if (type.contentEquals("keyword")) {
                     /*
                      * For "string"-type dynamic mappings emulate our default
@@ -248,7 +243,6 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                 } else {
                     dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
                 }
-                dynamicTemplates.add(Map.of(type, body));
             }
             List<Map<String, Object>> bodies = List.of(
                 Map.ofEntries(

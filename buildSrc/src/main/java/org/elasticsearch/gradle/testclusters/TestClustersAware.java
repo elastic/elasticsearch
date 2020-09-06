@@ -19,9 +19,11 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
+import java.util.concurrent.Callable;
 
 public interface TestClustersAware extends Task {
 
@@ -34,6 +36,7 @@ public interface TestClustersAware extends Task {
         }
 
         cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
+        cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }
 

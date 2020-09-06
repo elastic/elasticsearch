@@ -35,8 +35,7 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
-    private Engine.Searcher searcher;
-    private Releasable onClose;
+    private volatile Engine.Searcher searcher;
 
     public LegacyReaderContext(long id, IndexService indexService, IndexShard indexShard, Engine.SearcherSupplier reader,
                                ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
@@ -59,8 +58,8 @@ public class LegacyReaderContext extends ReaderContext {
             // This ensures that we wrap the searcher's reader with the user's permissions
             // when they are available.
             if (searcher == null) {
-                Engine.Searcher delegate = searcherSupplier.acquireSearcher(source);
-                onClose = delegate::close;
+                final Engine.Searcher delegate = searcherSupplier.acquireSearcher(source);
+                addOnClose(delegate);
                 // wrap the searcher so that closing is a noop, the actual closing happens when this context is closed
                 searcher = new Engine.Searcher(delegate.source(), delegate.getDirectoryReader(),
                     delegate.getSimilarity(), delegate.getQueryCache(), delegate.getQueryCachingPolicy(), () -> {});
@@ -68,12 +67,6 @@ public class LegacyReaderContext extends ReaderContext {
             return searcher;
         }
         return super.acquireSearcher(source);
-    }
-
-
-    @Override
-    void doClose() {
-        Releasables.close(onClose, super::doClose);
     }
 
     @Override

@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
@@ -152,21 +151,17 @@ public final class TimeSeriesRestDriver {
 
     public static void createFullPolicy(RestClient client, String policyName, TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(MigrateAction.NAME, new MigrateAction(false));
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
         hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
-        warmActions.put(MigrateAction.NAME, new MigrateAction(false));
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
-        coldActions.put(MigrateAction.NAME, new MigrateAction(false));
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(25));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "integTest-3"), null, null));
         Map<String, LifecycleAction> frozenActions = new HashMap<>();
-        frozenActions.put(MigrateAction.NAME, new MigrateAction(false));
         frozenActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));

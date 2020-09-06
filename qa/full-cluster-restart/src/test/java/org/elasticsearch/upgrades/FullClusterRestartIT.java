@@ -1527,7 +1527,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testEnableSoftDeletesOnRestore() throws Exception {
-        final int numDocs;
+        final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -1535,7 +1535,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             createIndex(index, settings.build());
             ensureGreen(index);
-            numDocs = randomIntBetween(0, 100);
+            int numDocs = randomIntBetween(0, 100);
             indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
             // create repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
@@ -1553,7 +1553,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
             client().performRequest(createRepoRequest);
             // create snapshot
-            Request createSnapshot = new Request("PUT", "/_snapshot/repo/test-snapshot");
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
             createSnapshot.addParameter("wait_for_completion", "true");
             createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
             client().performRequest(createSnapshot);
@@ -1570,19 +1570,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             restoreCommand.endObject();
             restoreCommand.endObject();
-            Request restoreRequest = new Request("POST", "/_snapshot/repo/test-snapshot/_restore");
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
             restoreRequest.addParameter("wait_for_completion", "true");
             restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
             client().performRequest(restoreRequest);
             ensureGreen(restoredIndex);
-            numDocs = countOfIndexedRandomDocuments();
+            int numDocs = countOfIndexedRandomDocuments();
             assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_search"))));
         }
     }
 
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         assumeTrue("soft deletes is introduced in 6.5", getOldClusterVersion().onOrAfter(Version.V_6_5_0));
-        final int numDocs;
+        final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -1590,7 +1590,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
             createIndex(index, settings.build());
             ensureGreen(index);
-            numDocs = randomIntBetween(0, 100);
+            int numDocs = randomIntBetween(0, 100);
             indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
             // create repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
@@ -1608,7 +1608,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
             client().performRequest(createRepoRequest);
             // create snapshot
-            Request createSnapshot = new Request("PUT", "/_snapshot/repo/test-snapshot");
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
             createSnapshot.addParameter("wait_for_completion", "true");
             createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
             client().performRequest(createSnapshot);
@@ -1624,7 +1624,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             restoreCommand.endObject();
             restoreCommand.endObject();
-            Request restoreRequest = new Request("POST", "/_snapshot/repo/test-snapshot/_restore");
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
             restoreRequest.addParameter("wait_for_completion", "true");
             restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
             final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));

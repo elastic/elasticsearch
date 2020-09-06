@@ -43,14 +43,13 @@ if (useFixture) {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
+  plugin repositoryPlugin.path
 
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.searchable_snapshots_feature_enabled', 'true'

@@ -33,9 +33,3 @@ gradle.projectsEvaluated {
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
 }
-
-testingConventions.naming {
-  IT {
-    baseClass "org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase"
-  }
-}

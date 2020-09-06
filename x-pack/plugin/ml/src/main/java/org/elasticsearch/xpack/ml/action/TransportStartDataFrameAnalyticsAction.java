@@ -67,7 +67,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -599,6 +601,7 @@ public class TransportStartDataFrameAnalyticsAction
         private final DataFrameAnalyticsAuditor auditor;
         private final MlMemoryTracker memoryTracker;
         private final IndexNameExpressionResolver resolver;
+        private final IndexTemplateConfig inferenceIndexTemplate;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -606,7 +609,8 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
+                            IndexTemplateConfig inferenceIndexTemplate) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.client = Objects.requireNonNull(client);
             this.clusterService = Objects.requireNonNull(clusterService);
@@ -614,6 +618,7 @@ public class TransportStartDataFrameAnalyticsAction
             this.auditor = Objects.requireNonNull(auditor);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.resolver = Objects.requireNonNull(resolver);
+            this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -698,6 +703,20 @@ public class TransportStartDataFrameAnalyticsAction
                 return;
             }
 
+            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
+                ok -> executeTask(analyticsTaskState, task),
+                error -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(error);
+                    String msg = "Failed to create internal index template [" + inferenceIndexTemplate.getTemplateName() + "]";
+                    logger.error(msg, cause);
+                    task.markAsFailed(error);
+                }
+            );
+
+            MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
+        }
+
+        private void executeTask(DataFrameAnalyticsTaskState analyticsTaskState, AllocatedPersistentTask task) {
             if (analyticsTaskState == null) {
                 DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                     task.getAllocationId(), null);

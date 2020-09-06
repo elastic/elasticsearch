@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,13 +54,16 @@ public class DocumentMapperParser {
 
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
+    private final ScriptService scriptService;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry, Supplier<QueryShardContext> queryShardContextSupplier) {
+            SimilarityService similarityService, MapperRegistry mapperRegistry,
+            Supplier<QueryShardContext> queryShardContextSupplier, ScriptService scriptService) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.queryShardContextSupplier = queryShardContextSupplier;
+        this.scriptService = scriptService;
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
@@ -67,12 +71,12 @@ public class DocumentMapperParser {
 
     public Mapper.TypeParser.ParserContext parserContext() {
         return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null);
+                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null, scriptService);
     }
 
     public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
         return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter);
+            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

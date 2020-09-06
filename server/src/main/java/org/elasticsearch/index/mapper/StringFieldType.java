@@ -25,7 +25,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery87;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -141,7 +141,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
-        RegexpQuery87 query = new RegexpQuery87(new Term(name(), indexedValueForSearch(value)), syntaxFlags, 
+        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags,
             matchFlags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);

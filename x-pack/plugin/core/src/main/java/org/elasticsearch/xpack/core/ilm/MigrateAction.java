@@ -44,6 +44,10 @@ public class MigrateAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
+    public MigrateAction() {
+        this(true);
+    }
+
     public MigrateAction(boolean enabled) {
         this.enabled = enabled;
     }

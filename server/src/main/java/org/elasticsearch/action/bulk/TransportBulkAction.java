@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -404,6 +405,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
+            // expect most of the case one bulk only contains single index
+            final Map<Index, String> indexRoutingMap = new HashMap<>(1);
             Metadata metadata = clusterState.metadata();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
@@ -429,6 +432,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             MappingMetadata mappingMd = indexMetadata.mapping();
                             Version indexCreated = indexMetadata.getCreationVersion();
                             indexRequest.resolveRouting(metadata);
+                            if (indexMetadata.isBulkRoutingEnabled()
+                                && indexRequest.routing() == null
+                                && indexRequest.id() == null) {
+                                // neither _id nor _routing is specified,
+                                // and "index.bulk_routing.enabled" setting is true
+                                // group bulk request to a single shard
+                                String tmpRouting = indexRoutingMap.get(concreteIndex);
+                                if (tmpRouting == null) {
+                                    tmpRouting = UUIDs.randomBase64UUID().substring(12);
+                                    indexRoutingMap.put(concreteIndex, tmpRouting);
+                                }
+                                indexRequest.routing(tmpRouting);
+                            }
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:

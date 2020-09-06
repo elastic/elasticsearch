@@ -154,7 +154,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
-            Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
+        Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
         "index.number_of_routing_shards",
@@ -266,7 +266,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
     public static final Setting<Version> SETTING_INDEX_VERSION_CREATED =
-            Setting.versionSetting(SETTING_VERSION_CREATED, Version.V_EMPTY, Property.IndexScope, Property.PrivateIndex);
+        Setting.versionSetting(SETTING_VERSION_CREATED, Version.V_EMPTY, Property.IndexScope, Property.PrivateIndex);
 
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
@@ -302,16 +302,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
-
+    public static final String INDEX_BULK_ROUTING_ENABLED = "index.bulk_routing.enabled";
+    public static final Setting<Boolean> INDEX_BULK_ROUTING_ENABLED_SETTING =
+        Setting.boolSetting(INDEX_BULK_ROUTING_ENABLED, false, Property.Dynamic, Property.IndexScope);
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
      */
     public static final Setting<ActiveShardCount> SETTING_WAIT_FOR_ACTIVE_SHARDS =
         new Setting<>("index.write.wait_for_active_shards",
-                      "1",
-                      ActiveShardCount::parseString,
-                      Setting.Property.Dynamic,
-                      Setting.Property.IndexScope);
+            "1",
+            ActiveShardCount::parseString,
+            Setting.Property.Dynamic,
+            Setting.Property.IndexScope);
 
     public static final String SETTING_INDEX_HIDDEN = "index.hidden";
     /**
@@ -326,7 +328,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     private static final String INDEX_FORMAT = "index.format";
     public static final Setting<Integer> INDEX_FORMAT_SETTING =
-            Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
+        Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
@@ -390,32 +392,35 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
 
+    private final boolean bulkRoutingEnabled;
+
     private IndexMetadata(
-            final Index index,
-            final long version,
-            final long mappingVersion,
-            final long settingsVersion,
-            final long aliasesVersion,
-            final long[] primaryTerms,
-            final State state,
-            final int numberOfShards,
-            final int numberOfReplicas,
-            final Settings settings,
-            final ImmutableOpenMap<String, MappingMetadata> mappings,
-            final ImmutableOpenMap<String, AliasMetadata> aliases,
-            final ImmutableOpenMap<String, DiffableStringMap> customData,
-            final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
-            final DiscoveryNodeFilters requireFilters,
-            final DiscoveryNodeFilters initialRecoveryFilters,
-            final DiscoveryNodeFilters includeFilters,
-            final DiscoveryNodeFilters excludeFilters,
-            final Version indexCreatedVersion,
-            final Version indexUpgradedVersion,
-            final int routingNumShards,
-            final int routingPartitionSize,
-            final ActiveShardCount waitForActiveShards,
-            final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
-            final boolean isSystem) {
+        final Index index,
+        final long version,
+        final long mappingVersion,
+        final long settingsVersion,
+        final long aliasesVersion,
+        final long[] primaryTerms,
+        final State state,
+        final int numberOfShards,
+        final int numberOfReplicas,
+        final Settings settings,
+        final ImmutableOpenMap<String, MappingMetadata> mappings,
+        final ImmutableOpenMap<String, AliasMetadata> aliases,
+        final ImmutableOpenMap<String, DiffableStringMap> customData,
+        final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
+        final DiscoveryNodeFilters requireFilters,
+        final DiscoveryNodeFilters initialRecoveryFilters,
+        final DiscoveryNodeFilters includeFilters,
+        final DiscoveryNodeFilters excludeFilters,
+        final Version indexCreatedVersion,
+        final Version indexUpgradedVersion,
+        final int routingNumShards,
+        final int routingPartitionSize,
+        final ActiveShardCount waitForActiveShards,
+        final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
+        final boolean isSystem,
+        final boolean bulkRoutingEnabled) {
 
         this.index = index;
         this.version = version;
@@ -448,6 +453,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
+        this.bulkRoutingEnabled = bulkRoutingEnabled;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -548,6 +554,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public ActiveShardCount getWaitForActiveShards() {
         return waitForActiveShards;
+    }
+
+    public boolean isBulkRoutingEnabled() {
+        return bulkRoutingEnabled;
     }
 
     public Settings getSettings() {
@@ -1197,7 +1207,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
             if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {
                 throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
-                        + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
+                    + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
@@ -1250,38 +1260,40 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(settings);
             if (waitForActiveShards.validate(numberOfReplicas) == false) {
                 throw new IllegalArgumentException("invalid " + SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey() +
-                                                   "[" + waitForActiveShards + "]: cannot be greater than " +
-                                                   "number of shard copies [" + (numberOfReplicas + 1) + "]");
+                    "[" + waitForActiveShards + "]: cannot be greater than " +
+                    "number of shard copies [" + (numberOfReplicas + 1) + "]");
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+            final boolean bulkRoutingEnabled = settings.getAsBoolean(INDEX_BULK_ROUTING_ENABLED, false);
 
             return new IndexMetadata(
-                    new Index(index, uuid),
-                    version,
-                    mappingVersion,
-                    settingsVersion,
-                    aliasesVersion,
-                    primaryTerms,
-                    state,
-                    numberOfShards,
-                    numberOfReplicas,
-                    tmpSettings,
-                    mappings.build(),
-                    tmpAliases.build(),
-                    customMetadata.build(),
-                    filledInSyncAllocationIds.build(),
-                    requireFilters,
-                    initialRecoveryFilters,
-                    includeFilters,
-                    excludeFilters,
-                    indexCreatedVersion,
-                    indexUpgradedVersion,
-                    getRoutingNumShards(),
-                    routingPartitionSize,
-                    waitForActiveShards,
-                    rolloverInfos.build(),
-                    isSystem);
+                new Index(index, uuid),
+                version,
+                mappingVersion,
+                settingsVersion,
+                aliasesVersion,
+                primaryTerms,
+                state,
+                numberOfShards,
+                numberOfReplicas,
+                tmpSettings,
+                mappings.build(),
+                tmpAliases.build(),
+                customMetadata.build(),
+                filledInSyncAllocationIds.build(),
+                requireFilters,
+                initialRecoveryFilters,
+                includeFilters,
+                excludeFilters,
+                indexCreatedVersion,
+                indexUpgradedVersion,
+                getRoutingNumShards(),
+                routingPartitionSize,
+                waitForActiveShards,
+                rolloverInfos.build(),
+                isSystem,
+                bulkRoutingEnabled);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {

@@ -310,10 +310,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public static final Setting<ActiveShardCount> SETTING_WAIT_FOR_ACTIVE_SHARDS =
         new Setting<>("index.write.wait_for_active_shards",
-              "1",
-                           ActiveShardCount::parseString,
-                           Setting.Property.Dynamic,
-                           Setting.Property.IndexScope);
+                      "1",
+                      ActiveShardCount::parseString,
+                      Setting.Property.Dynamic,
+                      Setting.Property.IndexScope);
 
     public static final String SETTING_INDEX_HIDDEN = "index.hidden";
     /**
@@ -328,7 +328,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     private static final String INDEX_FORMAT = "index.format";
     public static final Setting<Integer> INDEX_FORMAT_SETTING =
-        Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
+            Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
@@ -419,42 +419,40 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int routingPartitionSize,
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
-            final boolean isSystem,
-            final boolean bulkRoutingEnabled) {
+            final boolean isSystem) {
 
-            this.index = index;
-            this.version = version;
-            assert mappingVersion >= 0 : mappingVersion;
-            this.mappingVersion = mappingVersion;
-            assert settingsVersion >= 0 : settingsVersion;
-            this.settingsVersion = settingsVersion;
-            assert aliasesVersion >= 0 : aliasesVersion;
-            this.aliasesVersion = aliasesVersion;
-            this.primaryTerms = primaryTerms;
-            assert primaryTerms.length == numberOfShards;
-            this.state = state;
-            this.numberOfShards = numberOfShards;
-            this.numberOfReplicas = numberOfReplicas;
-            this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
-            this.settings = settings;
-            this.mappings = mappings;
-            this.customData = customData;
-            this.aliases = aliases;
-            this.inSyncAllocationIds = inSyncAllocationIds;
-            this.requireFilters = requireFilters;
-            this.includeFilters = includeFilters;
-            this.excludeFilters = excludeFilters;
-            this.initialRecoveryFilters = initialRecoveryFilters;
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.indexUpgradedVersion = indexUpgradedVersion;
-            this.routingNumShards = routingNumShards;
-            this.routingFactor = routingNumShards / numberOfShards;
-            this.routingPartitionSize = routingPartitionSize;
-            this.waitForActiveShards = waitForActiveShards;
-            this.rolloverInfos = rolloverInfos;
-            this.isSystem = isSystem;
-            this.bulkRoutingEnabled = bulkRoutingEnabled;
-            assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
+        this.index = index;
+        this.version = version;
+        assert mappingVersion >= 0 : mappingVersion;
+        this.mappingVersion = mappingVersion;
+        assert settingsVersion >= 0 : settingsVersion;
+        this.settingsVersion = settingsVersion;
+        assert aliasesVersion >= 0 : aliasesVersion;
+        this.aliasesVersion = aliasesVersion;
+        this.primaryTerms = primaryTerms;
+        assert primaryTerms.length == numberOfShards;
+        this.state = state;
+        this.numberOfShards = numberOfShards;
+        this.numberOfReplicas = numberOfReplicas;
+        this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
+        this.settings = settings;
+        this.mappings = mappings;
+        this.customData = customData;
+        this.aliases = aliases;
+        this.inSyncAllocationIds = inSyncAllocationIds;
+        this.requireFilters = requireFilters;
+        this.includeFilters = includeFilters;
+        this.excludeFilters = excludeFilters;
+        this.initialRecoveryFilters = initialRecoveryFilters;
+        this.indexCreatedVersion = indexCreatedVersion;
+        this.indexUpgradedVersion = indexUpgradedVersion;
+        this.routingNumShards = routingNumShards;
+        this.routingFactor = routingNumShards / numberOfShards;
+        this.routingPartitionSize = routingPartitionSize;
+        this.waitForActiveShards = waitForActiveShards;
+        this.rolloverInfos = rolloverInfos;
+        this.isSystem = isSystem;
+        assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
     public Index getIndex() {

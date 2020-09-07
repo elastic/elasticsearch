@@ -42,8 +42,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAggregationsTests extends ESTestCase {
 

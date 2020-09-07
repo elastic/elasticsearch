@@ -31,6 +31,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Base64;
 
 final class TransportSearchHelper {
@@ -106,6 +107,10 @@ final class TransportSearchHelper {
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
+    }
+
+    static boolean hasLocalIndices(String scrollId) {
+        return Arrays.stream(parseScrollId(scrollId).getContext()).anyMatch(c -> c.getClusterAlias() == null);
     }
 
     private TransportSearchHelper() {

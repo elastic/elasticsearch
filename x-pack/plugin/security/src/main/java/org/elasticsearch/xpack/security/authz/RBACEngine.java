@@ -20,6 +20,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -261,7 +262,7 @@ public class RBACEngine implements AuthorizationEngine {
                 // if the action is a search scroll action, we first authorize that the user can execute the action for some
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
-                if (SearchScrollAction.NAME.equals(action)) {
+                if (SearchScrollAction.NAME.equals(action) && ((SearchScrollRequest) request).hasLocalIndices()) {
                     authorizeIndexActionName(action, authorizationInfo, null, listener);
                 } else {
                     // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.

@@ -28,6 +28,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.stream.IntStream;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchHelperTests extends ESTestCase {
@@ -85,5 +87,31 @@ public class TransportSearchHelperTests extends ESTestCase {
         } else {
             assertThat(parseScrollId.getContext()[2].getSearchContextId().getReaderId(), equalTo(""));
         }
+    }
+
+    public void testHasLocalIndices() {
+
+        final int nResults = randomIntBetween(1, 3);
+        AtomicArray<SearchPhaseResult> array = new AtomicArray<>(nResults);
+
+        boolean hasLocal = false;
+        for (int i = 0; i < nResults; i++) {
+            DiscoveryNode node = new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT);
+            SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
+                new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(randomAlphaOfLength(8), 1), node);
+            String clusterAlias = randomBoolean() ? randomAlphaOfLength(8) : null;
+            hasLocal = hasLocal || (clusterAlias == null);
+            testSearchPhaseResult.setSearchShardTarget(
+                new SearchShardTarget("node_" + i,
+                                      new ShardId(randomAlphaOfLength(8),
+                                                  randomAlphaOfLength(8),
+                                                  randomInt()),
+                                      clusterAlias,
+                                      null));
+            array.setOnce(i, testSearchPhaseResult);
+        }
+        final Version version = VersionUtils.randomVersion(random());
+        String scrollId = TransportSearchHelper.buildScrollId(array, version);
+        assertEquals(hasLocal, TransportSearchHelper.hasLocalIndices(scrollId));
     }
 }

@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -32,6 +31,7 @@ import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -886,7 +886,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()
-                .regexpQuery(new BytesRef("co"), RegExp87.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+                .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
     }
 

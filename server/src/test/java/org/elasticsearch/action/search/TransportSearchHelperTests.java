@@ -28,8 +28,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.stream.IntStream;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchHelperTests extends ESTestCase {

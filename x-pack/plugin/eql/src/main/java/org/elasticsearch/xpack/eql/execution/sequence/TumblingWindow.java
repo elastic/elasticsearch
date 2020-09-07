@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -20,13 +21,14 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
-import org.elasticsearch.xpack.eql.session.Results.Type;
+import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 
 import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 
 /**
  * Time-based window encapsulating query creation and advancement.
@@ -95,9 +97,9 @@ public class TumblingWindow implements Executable {
         client.query(base.queryRequest(), wrap(p -> baseCriterion(baseStage, p, listener), listener::onFailure));
     }
 
-    private void baseCriterion(int baseStage, Payload p, ActionListener<Payload> listener) {
+    private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
-        List<SearchHit> hits = p.values();
+        List<SearchHit> hits = searchHits(r);
 
         log.trace("Found [{}] hits", hits.size());
 
@@ -167,8 +169,8 @@ public class TumblingWindow implements Executable {
 
         log.trace("Querying until stage {}", request);
 
-        client.query(request, wrap(p -> {
-            List<SearchHit> hits = p.values();
+        client.query(request, wrap(r -> {
+            List<SearchHit> hits = searchHits(r);
 
             log.trace("Found [{}] hits", hits.size());
             // no more results for until - let the other queries run
@@ -208,8 +210,8 @@ public class TumblingWindow implements Executable {
 
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
-        client.query(request, wrap(p -> {
-            List<SearchHit> hits = p.values();
+        client.query(request, wrap(r -> {
+            List<SearchHit> hits = searchHits(r);
 
             log.trace("Found [{}] hits", hits.size());
 
@@ -298,8 +300,8 @@ public class TumblingWindow implements Executable {
             return;
         }
 
-        client.get(hits(completed), wrap(searchHits -> {
-            listener.onResponse(new SequencePayload(completed, searchHits, false, timeTook()));
+        client.get(hits(completed), wrap(hits -> {
+            listener.onResponse(new SequencePayload(completed, hits, false, timeTook()));
             matcher.clear();
         }, listener::onFailure));
     }

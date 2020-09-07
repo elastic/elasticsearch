@@ -542,6 +542,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Specifies the search context that Elasticsearch should use to perform the query
+     *
+     * @param searchContextId the base64 encoded string of the search context id
+     * @param keepAlive       the extended time to live for the search context
+     */
+    public SearchRequestBuilder setSearchContext(String searchContextId, TimeValue keepAlive) {
+        sourceBuilder().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, keepAlive));
+        return this;
+    }
+
     @Override
     public String toString() {
         if (request.source() != null) {

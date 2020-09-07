@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-watcher'
   description 'Elasticsearch Expanded Pack Plugin - Watcher'
@@ -78,7 +79,7 @@ forbiddenPatterns {
   exclude '**/*.p12'
 }
 
-test {
+internalClusterTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.

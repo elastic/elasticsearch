@@ -95,6 +95,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -107,6 +108,7 @@ public abstract class Engine implements Closeable {
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
+    public static final String CAN_MATCH_SEARCH_SOURCE = "can_match"; // TODO: Make source of search enum?
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -588,31 +590,17 @@ public abstract class Engine implements Closeable {
 
     public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
 
-
     /**
-     * Returns a new searcher instance. The consumer of this
-     * API is responsible for releasing the returned searcher in a
-     * safe manner, preferably in a try/finally block.
-     *
-     * @param source the source API or routing that triggers this searcher acquire
-     *
-     * @see Searcher#close()
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public final Searcher acquireSearcher(String source) throws EngineException {
-        return acquireSearcher(source, SearcherScope.EXTERNAL);
+    public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {
+        return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
     /**
-     * Returns a new searcher instance. The consumer of this
-     * API is responsible for releasing the returned searcher in a
-     * safe manner, preferably in a try/finally block.
-     *
-     * @param source the source API or routing that triggers this searcher acquire
-     * @param scope the scope of this searcher ie. if the searcher will be used for get or search purposes
-     *
-     * @see Searcher#close()
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -621,35 +609,60 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            assert assertSearcherIsWarmedUp(source, scope);
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            final ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            AtomicBoolean released = new AtomicBoolean(false);
-            Searcher engineSearcher = new Searcher(source, acquire,
-                engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
-                () -> {
-                if (released.compareAndSet(false, true)) {
+            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            SearcherSupplier reader = new SearcherSupplier(wrapper) {
+                @Override
+                public Searcher acquireSearcherInternal(String source) {
+                    assert assertSearcherIsWarmedUp(source, scope);
+                    return new Searcher(source, acquire, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
+                        engineConfig.getQueryCachingPolicy(), () -> {});
+                }
+
+                @Override
+                protected void doClose() {
                     try {
                         referenceManager.release(acquire);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("failed to close", e);
+                    } catch (AlreadyClosedException e) {
+                        // This means there's a bug somewhere: don't suppress it
+                        throw new AssertionError(e);
                     } finally {
                         store.decRef();
                     }
-                } else {
-                    /* In general, readers should never be released twice or this would break reference counting. There is one rare case
-                     * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
-                     * amount of time, this is why we only log a warning instead of throwing an exception. */
-                    logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
                 }
-              });
+            };
             releasable = null; // success - hand over the reference to the engine reader
-            return engineSearcher;
+            return reader;
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
-            maybeFailEngine("acquire_searcher", ex);
+            maybeFailEngine("acquire_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+            logger.error(() -> new ParameterizedMessage("failed to acquire reader"), ex);
+            throw new EngineException(shardId, "failed to acquire reader", ex);
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    public final Searcher acquireSearcher(String source) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL);
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        return acquireSearcher(source, scope, Function.identity());
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+        SearcherSupplier releasable = null;
+        try {
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
+            Searcher searcher = reader.acquireSearcher(source);
+            releasable = null;
+            return new Searcher(source, searcher.getDirectoryReader(), searcher.getSimilarity(),
+                searcher.getQueryCache(), searcher.getQueryCachingPolicy(), () -> Releasables.close(searcher, reader));
         } finally {
             Releasables.close(releasable);
         }
@@ -1156,6 +1169,36 @@ public abstract class Engine implements Closeable {
          */
         default void onFailedEngine(String reason, @Nullable Exception e) {
         }
+    }
+
+    public abstract static class SearcherSupplier implements Releasable {
+        private final Function<Searcher, Searcher> wrapper;
+        private final AtomicBoolean released = new AtomicBoolean(false);
+
+        public SearcherSupplier(Function<Searcher, Searcher> wrapper) {
+            this.wrapper = wrapper;
+        }
+
+        public final Searcher acquireSearcher(String source) {
+            if (released.get()) {
+                throw new AlreadyClosedException("SearcherSupplier was closed");
+            }
+            final Searcher searcher = acquireSearcherInternal(source);
+            return CAN_MATCH_SEARCH_SOURCE.equals(source) ? searcher : wrapper.apply(searcher);
+        }
+
+        @Override
+        public final void close() {
+            if (released.compareAndSet(false, true)) {
+                doClose();
+            } else {
+                assert false : "SearchSupplier was released twice";
+            }
+        }
+
+        protected abstract void doClose();
+
+        protected abstract Searcher acquireSearcherInternal(String source);
     }
 
     public static final class Searcher extends IndexSearcher implements Releasable {

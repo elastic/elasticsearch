@@ -18,7 +18,7 @@ setup:
               node:
                 type: keyword
               voltage_times_ten:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
@@ -29,7 +29,7 @@ setup:
                     multiplier: 10
               # Test fetching from _source
               voltage_times_ten_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
@@ -38,7 +38,7 @@ setup:
                     multiplier: 10
               # Test fetching many values
               temperature_digits:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
@@ -51,7 +51,7 @@ setup:
                     }
               # Test now
               millis_ago:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
@@ -82,7 +82,7 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.voltage_times_ten.type: runtime_script }
+  - match: {sensor.mappings.properties.voltage_times_ten.type: runtime }
   - match: {sensor.mappings.properties.voltage_times_ten.runtime_type: long }
   - match:
       sensor.mappings.properties.voltage_times_ten.script.source: |
@@ -165,11 +165,11 @@ setup:
                   last:
                     type: keyword
                   first_script:
-                    type: runtime_script
+                    type: runtime
                     runtime_type: long
                     script: emitValue(doc['users.first'].value.length())
                   last_script:
-                    type: runtime_script
+                    type: runtime
                     runtime_type: long
                     script: emitValue(doc['users.last'].value.length())
   - do:

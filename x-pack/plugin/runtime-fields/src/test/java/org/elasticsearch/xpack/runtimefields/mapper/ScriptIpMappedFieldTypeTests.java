@@ -60,12 +60,9 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
-        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime_script] with runtime type [ip] does not support custom formats"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom formats"));
         e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
-        assertThat(
-            e.getMessage(),
-            equalTo("Field [test] of type [runtime_script] with runtime type [ip] does not support custom time zones")
-        );
+        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom time zones"));
     }
 
     @Override
@@ -333,7 +330,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 }

@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.compat;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RestCompatibilityPlugin;
+import org.elasticsearch.rest.RestStatus;
 
-import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,7 +23,8 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
     );
 
     @Override
-    public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent) {
+    public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent)
+        throws ElasticsearchStatusException {
         String aVersion = parseVersion(acceptHeader);
         byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
         String cVersion = parseVersion(contentTypeHeader);
@@ -30,48 +32,42 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
 
         // accept version must be current or prior
         if (acceptVersion > Version.CURRENT.major || acceptVersion < Version.CURRENT.major - 1) {
-            throw new CompatibleApiException(
-                String.format(
-                    Locale.ROOT,
-                    "Compatible version must be equal or less then the current version. " + "Accept=%s Content-Type=%s",
-                    acceptHeader,
-                    contentTypeHeader
-                )
+            throw new ElasticsearchStatusException(
+                "Compatible version must be equal or less then the current version. Accept={}} Content-Type={}}",
+                RestStatus.BAD_REQUEST,
+                acceptHeader,
+                contentTypeHeader
             );
         }
         if (hasContent) {
 
             // content-type version must be current or prior
             if (contentTypeVersion > Version.CURRENT.major || contentTypeVersion < Version.CURRENT.major - 1) {
-                throw new CompatibleApiException(
-                    String.format(
-                        Locale.ROOT,
-                        "Compatible version must be equal or less then the current version. " + "Accept=%s Content-Type=%s",
-                        acceptHeader,
-                        contentTypeHeader
-                    )
+                throw new ElasticsearchStatusException(
+                    "Compatible version must be equal or less then the current version. Accept={} Content-Type={}",
+                    RestStatus.BAD_REQUEST,
+                    acceptHeader,
+                    contentTypeHeader,
+                    RestStatus.BAD_REQUEST
                 );
             }
             // if both accept and content-type are sent, the version must match
             if (contentTypeVersion != acceptVersion) {
-                throw new CompatibleApiException(
-                    String.format(
-                        Locale.ROOT,
-                        "Content-Type and Accept version requests have to match. " + "Accept=%s Content-Type=%s",
-                        acceptHeader,
-                        contentTypeHeader
-                    )
+                throw new ElasticsearchStatusException(
+                    "Content-Type and Accept version requests have to match. Accept={} Content-Type={}",
+                    RestStatus.BAD_REQUEST,
+                    acceptHeader,
+                    contentTypeHeader
+
                 );
             }
             // both headers should be versioned or none
             if ((cVersion == null && aVersion != null) || (aVersion == null && cVersion != null)) {
-                throw new CompatibleApiException(
-                    String.format(
-                        Locale.ROOT,
-                        "Versioning is required on both Content-Type and Accept headers. " + "Accept=%s Content-Type=%s",
-                        acceptHeader,
-                        contentTypeHeader
-                    )
+                throw new ElasticsearchStatusException(
+                    "Versioning is required on both Content-Type and Accept headers. Accept={} Content-Type={}",
+                    RestStatus.BAD_REQUEST,
+                    acceptHeader,
+                    contentTypeHeader
                 );
             }
             if (contentTypeVersion < Version.CURRENT.major) {

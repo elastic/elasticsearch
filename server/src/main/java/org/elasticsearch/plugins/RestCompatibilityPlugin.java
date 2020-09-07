@@ -19,9 +19,23 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 
+
+/**
+ * An extension point for Compatible API plugin implementation.
+ */
 public interface RestCompatibilityPlugin {
-    Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent);
+    /**
+     * Returns a version which was requested on Accept and Content-Type headers
+     *
+     * @param acceptHeader      - a media-type value from Accept header
+     * @param contentTypeHeader - a media-type value from Content-Type header
+     * @param hasContent        - a flag indicating if a request has content
+     * @return a requested Compatible API Version
+     */
+    Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent)
+        throws ElasticsearchStatusException;
 }

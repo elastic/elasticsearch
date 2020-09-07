@@ -6,12 +6,11 @@
 
 package org.elasticsearch.compat;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
 import org.hamcrest.Matcher;
-
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -28,7 +27,7 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()), isCompatible());
 
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent())
         );
 
@@ -38,7 +37,7 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         assertThat(requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()), not(isCompatible()));
 
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent())
         );
 
@@ -48,22 +47,22 @@ public class CompatibleVersionPluginTests extends ESTestCase {
 
         // tests when body present and one of the headers missing - versioning is required on both when body is present
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyPresent())
         );
 
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent())
         );
 
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent())
         );
 
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent())
         );
 
@@ -92,12 +91,12 @@ public class CompatibleVersionPluginTests extends ESTestCase {
 
     public void testObsoleteVersion() {
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(OBSOLETE_VERSION), bodyPresent())
         );
 
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(null), bodyNotPresent())
         );
     }
@@ -127,7 +126,7 @@ public class CompatibleVersionPluginTests extends ESTestCase {
 
         // different versions on different media types
         expectThrows(
-            CompatibleApiException.class,
+            ElasticsearchStatusException.class,
             () -> requestWith(
                 acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
                 contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=8"),
@@ -176,7 +175,7 @@ public class CompatibleVersionPluginTests extends ESTestCase {
     }
 
     private String bodyNotPresent() {
-        return null;
+        return "";
     }
 
     private String bodyPresent() {
@@ -192,18 +191,11 @@ public class CompatibleVersionPluginTests extends ESTestCase {
     }
 
     private String acceptHeader(String value) {
-        return mediaType(value);
+        return value;
     }
 
     private String contentTypeHeader(String value) {
-        return mediaType(value);
-    }
-
-    private List<String> headerValue(String value) {
-        if (value != null) {
-            return List.of(value);
-        }
-        return null;
+        return value;
     }
 
     private String mediaType(String version) {

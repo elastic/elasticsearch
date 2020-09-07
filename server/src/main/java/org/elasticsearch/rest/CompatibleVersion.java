@@ -19,12 +19,17 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 
+/**
+ * An interface used to specify a function that returns a compatible API version
+ * Intended to be used in a code base instead of a plugin.
+ */
 @FunctionalInterface
 public interface CompatibleVersion {
-    Version get(@Nullable String acceptHeader, @Nullable String contentTypeHeader, boolean hasContent);
+    Version get(@Nullable String acceptHeader, @Nullable String contentTypeHeader, boolean hasContent) throws ElasticsearchStatusException;
 
     CompatibleVersion CURRENT_VERSION = (acceptHeader, contentTypeHeader, hasContent) -> Version.CURRENT;
 }

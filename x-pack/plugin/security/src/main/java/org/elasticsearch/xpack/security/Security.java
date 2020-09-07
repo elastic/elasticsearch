@@ -252,7 +252,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
-import org.elasticsearch.xpack.security.support.SecurityCacheRegistry;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
@@ -442,7 +442,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
         securityIndex.get().addIndexStateListener(privilegeStore::onSecurityIndexStateChange);
-        securityIndex.get().addIndexStateListener(SecurityCacheRegistry::onSecurityIndexStageChange);
+        securityIndex.get().addIndexStateListener(CacheInvalidatorRegistry::onSecurityIndexStageChange);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);

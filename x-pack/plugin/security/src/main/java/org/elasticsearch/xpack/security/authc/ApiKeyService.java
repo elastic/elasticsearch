@@ -83,8 +83,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.support.SecurityCacheBuilder;
-import org.elasticsearch.xpack.security.support.SecurityCacheRegistry;
+import org.elasticsearch.xpack.security.support.ConsistentCache;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -111,7 +111,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -180,7 +179,7 @@ public class ApiKeyService {
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
-    private final SecurityCacheBuilder.SecurityCache<String, CachedApiKeyDoc, ApiKeyDoc> apiKeyDocCache;
+    private final ConsistentCache<String, CachedApiKeyDoc> apiKeyDocCache;
     private final Cache<String, BytesReference> roleDescriptorsBytesCache;
 
     private volatile long lastExpirationRunMs;
@@ -206,16 +205,17 @@ public class ApiKeyService {
                 .setExpireAfterWrite(ttl)
                 .setMaximumWeight(maximumWeight)
                 .build();
-            roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
+            this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
                 .setExpireAfterAccess(ttl)
                 .setMaximumWeight(maximumWeight * 2)
                 .build();
-            apiKeyDocCache = SecurityCacheBuilder.<String, CachedApiKeyDoc, ApiKeyDoc>builder()
-                .setMaximumWeight(maximumWeight)
-                .setExpireAfterWrite(TimeValue.timeValueMinutes(5))
-                .valueFunc(ApiKeyDoc::toCachedApiKeyDoc)
-                .build();
-            SecurityCacheRegistry.registerCacheInvalidator("api_key", new SecurityCacheRegistry.CacheInvalidator() {
+            this.apiKeyDocCache = new ConsistentCache<>(
+                CacheBuilder.<String, CachedApiKeyDoc>builder()
+                    .setMaximumWeight(maximumWeight)
+                    .setExpireAfterWrite(TimeValue.timeValueMinutes(5))
+                    .build()
+            );
+            CacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
                     apiKeyDocCache.invalidate(keys);
@@ -231,8 +231,8 @@ public class ApiKeyService {
             });
         } else {
             this.apiKeyAuthCache = null;
-            apiKeyDocCache = null;
-            roleDescriptorsBytesCache = null;
+            this.apiKeyDocCache = null;
+            this.roleDescriptorsBytesCache = null;
         }
 
     }
@@ -396,7 +396,7 @@ public class ApiKeyService {
                 }
             }));
 
-        final BiConsumer<String, ApiKeyDoc> cacheItemConsumer;
+        final ConsistentCache.Checkpoint<String, CachedApiKeyDoc> checkpoint;
         if (apiKeyDocCache != null) {
             CachedApiKeyDoc existing = apiKeyDocCache.get(docId);
             if (existing != null) {
@@ -408,17 +408,9 @@ public class ApiKeyService {
                 }
             }
             // API key doc not found in cache
-            cacheItemConsumer = apiKeyDocCache.prepareCacheItemConsumer((id, doc) -> {
-                final CachedApiKeyDoc cdoc = doc.toCachedApiKeyDoc();
-                try {
-                    roleDescriptorsBytesCache.computeIfAbsent(cdoc.roleDescriptorsHash, k -> doc.roleDescriptorsBytes);
-                    roleDescriptorsBytesCache.computeIfAbsent(cdoc.limitedByRoleDescriptorsHash, k -> doc.limitedByRoleDescriptorsBytes);
-                } catch (ExecutionException e) {
-                    logger.error("Failed to cache API key role descriptor bytes", e);
-                }
-            });
+            checkpoint = apiKeyDocCache.checkpoint();
         } else {
-            cacheItemConsumer = null;
+            checkpoint = null;
         }
 
         final GetRequest getRequest = client
@@ -433,8 +425,14 @@ public class ApiKeyService {
                         response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
-                    if (cacheItemConsumer != null) {
-                        cacheItemConsumer.accept(docId, apiKeyDoc);
+                    if (checkpoint != null) {
+                        final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
+                        if (checkpoint.put(docId, cachedApiKeyDoc)) {
+                            roleDescriptorsBytesCache.computeIfAbsent(
+                                cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
+                            roleDescriptorsBytesCache.computeIfAbsent(
+                                cachedApiKeyDoc.limitedByRoleDescriptorsHash, k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
+                        }
                     }
                     validator.accept(apiKeyDoc);
                 } else {

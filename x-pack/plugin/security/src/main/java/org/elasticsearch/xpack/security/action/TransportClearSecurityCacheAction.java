@@ -18,7 +18,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
-import org.elasticsearch.xpack.security.support.SecurityCacheRegistry;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,9 +63,9 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
     @Override
     protected ClearSecurityCacheResponse.Node nodeOperation(ClearSecurityCacheRequest.Node request, Task task) {
         if (request.getKeys() == null || request.getKeys().length == 0) {
-            SecurityCacheRegistry.invalidateAll(request.getCacheName());
+            CacheInvalidatorRegistry.invalidateAll(request.getCacheName());
         } else {
-            SecurityCacheRegistry.invalidate(request.getCacheName(), List.of(request.getKeys()));
+            CacheInvalidatorRegistry.invalidate(request.getCacheName(), List.of(request.getKeys()));
         }
         return new ClearSecurityCacheResponse.Node(clusterService.localNode());
     }

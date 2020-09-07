@@ -13,7 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
-public class SecurityCacheRegistry {
+/**
+ * A registry that provides common cache invalidation services for caches that relies on the security index.
+ */
+public class CacheInvalidatorRegistry {
 
     private static final Map<String, CacheInvalidator> cacheInvalidators = new ConcurrentHashMap<>();
 
@@ -23,9 +26,9 @@ public class SecurityCacheRegistry {
     }
 
     public static void onSecurityIndexStageChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(
-            previousState,
-            currentState) || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+        if (isMoveFromRedToNonRed(previousState, currentState)
+            || isIndexDeleted(previousState, currentState)
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             cacheInvalidators.values().forEach(CacheInvalidator::invalidateAll);
         }
     }

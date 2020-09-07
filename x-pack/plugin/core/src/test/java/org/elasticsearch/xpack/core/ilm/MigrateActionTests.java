@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
+
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
     @Override
@@ -30,7 +32,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
     }
 
     public void testToSteps() {
-        String phase = randomFrom(TimeseriesLifecycleType.VALID_PHASES);
+        String phase = randomValueOtherThan(DELETE_PHASE, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
         {

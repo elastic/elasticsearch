@@ -132,8 +132,14 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             List.of()
         );
 
-        expectThrows(ResourceNotFoundException.class, () -> DeleteDataStreamTransportAction.removeDataStream(
-            getMetadataDeleteIndexService(), cs, new DeleteDataStreamAction.Request(new String[] {dataStreamName})));
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> DeleteDataStreamTransportAction.removeDataStream(
+                getMetadataDeleteIndexService(),
+                cs,
+                new DeleteDataStreamAction.Request(new String[] { dataStreamName })
+            )
+        );
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName + "*" });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);

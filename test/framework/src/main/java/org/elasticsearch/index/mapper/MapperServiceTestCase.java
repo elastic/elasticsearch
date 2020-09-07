@@ -158,6 +158,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
+    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        buildFields.accept(builder);
+        return builder.endObject().endObject();
+    }
+
     protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);

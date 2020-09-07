@@ -70,7 +70,7 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexWildcardPatterns() throws Exception {
-        createIndex("test1", Settings.EMPTY, null, "\"my_alias\" : {}");
+        createIndex("test1", Settings.EMPTY, null, "\"my_alias\" : {}, \"test_alias\" : {}");
         createIndex("test2", Settings.EMPTY, null, "\"my_alias\" : {}");
 
         StringBuilder bulk = new StringBuilder();

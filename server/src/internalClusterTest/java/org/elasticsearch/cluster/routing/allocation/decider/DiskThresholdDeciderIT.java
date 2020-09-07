@@ -23,6 +23,7 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -45,6 +46,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.After;
@@ -153,6 +156,58 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
         refreshDiskUsage();
         assertThat(getShardRoutings(dataNode0Id), empty());
+
+        // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
+        fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
+        refreshDiskUsage();
+        assertThat(getShardRoutings(dataNode0Id), hasSize(1));
+    }
+
+    public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws InterruptedException {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String dataNodeName = internalCluster().startDataOnlyNode();
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        assertAcked(client().admin().cluster().preparePutRepository("repo")
+            .setType("fs").setSettings(settings));
+
+        final InternalClusterInfoService clusterInfoService
+            = (InternalClusterInfoService) internalCluster().getMasterNodeInstance(ClusterInfoService.class);
+        internalCluster().getMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+
+        final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
+        final Path dataNode0Path = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
+
+        createIndex("test", Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
+            .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+            .build());
+        final long minShardSize = createReasonableSizedShards();
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repo", "snap")
+            .setWaitForCompletion(true).get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+
+        assertAcked(client().admin().indices().prepareDelete("test").get());
+
+        // reduce disk size of node 0 so that no shards fit below the low watermark, forcing all shards onto the other data node
+        fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
+        refreshDiskUsage();
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
+                EnableAllocationDecider.Rebalance.NONE.toString()).build()).get();
+
+        client().admin().cluster().prepareRestoreSnapshot("repo", "snap")
+            .setWaitForCompletion(true).get();
+
+        assertThat(getShardRoutings(dataNode0Id), empty());
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()).build()).get();
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);

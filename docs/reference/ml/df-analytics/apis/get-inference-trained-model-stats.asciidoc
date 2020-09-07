@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference-stats]]
-= Get {infer} trained model statistics API
+= Get trained model statistics API
 [subs="attributes"]
 ++++
-<titleabbrev>Get {infer} trained model stats</titleabbrev>
+<titleabbrev>Get trained model stats</titleabbrev>
 ++++
 
-Retrieves usage information for trained {infer} models.
+Retrieves usage information for trained models.
 
 experimental[]
 
@@ -72,14 +72,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
 `count`::
 (integer)
-The total number of trained model statistics that matched the requested ID patterns.
-Could be higher than the number of items in the `trained_model_stats` array as the
-size of the array is restricted by the supplied `size` parameter.
+The total number of trained model statistics that matched the requested ID 
+patterns. Could be higher than the number of items in the `trained_model_stats` 
+array as the size of the array is restricted by the supplied `size` parameter.
 
 `trained_model_stats`::
 (array)
-An array of trained model statistics, which are sorted by the `model_id` value in
-ascending order.
+An array of trained model statistics, which are sorted by the `model_id` value 
+in ascending order.
 +
 .Properties of trained model stats
 [%collapsible%open]
@@ -112,11 +112,11 @@ This is across all inference contexts, including all pipelines.
 
 `cache_miss_count`:::
 (integer)
-The number of times the model was loaded for inference and was not retrieved from the
-cache. If this number is close to the `inference_count`, then the cache
-is not being appropriately used. This can be remedied by increasing the cache's size
-or its time-to-live (TTL). See <<general-ml-settings>> for the
-appropriate settings.
+The number of times the model was loaded for inference and was not retrieved 
+from the cache. If this number is close to the `inference_count`, then the cache 
+is not being appropriately used. This can be solved by increasing the cache size 
+or its time-to-live (TTL). See <<general-ml-settings>> for the appropriate 
+settings.
 
 `failure_count`:::
 (integer)

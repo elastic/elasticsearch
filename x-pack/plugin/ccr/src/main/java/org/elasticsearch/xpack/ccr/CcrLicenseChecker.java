@@ -131,9 +131,6 @@ public class CcrLicenseChecker {
                 remoteClusterStateResponse -> {
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
                     final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
-                    IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
-                    final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null ?
-                        indexAbstraction.getParentDataStream().getDataStream() : null;
                     if (leaderIndexMetadata == null) {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
@@ -142,6 +139,9 @@ public class CcrLicenseChecker {
                         onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
                         return;
                     }
+                    IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null ?
+                        indexAbstraction.getParentDataStream().getDataStream() : null;
                     final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {

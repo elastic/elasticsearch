@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference]]
-= Get {infer} trained model API
+= Get trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Get {infer} trained model</titleabbrev>
+<titleabbrev>Get trained model</titleabbrev>
 ++++
 
-Retrieves configuration information for a trained {infer} model.
+Retrieves configuration information for a trained model.
 
 experimental[]
 
@@ -33,7 +33,8 @@ Required privileges which should be added to a custom role:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+For more information, see <<security-privileges>> and 
+{ml-docs-setup-privileges}.
 
 
 [[ml-get-inference-desc]]
@@ -69,9 +70,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 
 `include_model_definition`::
 (Optional, boolean)
-Specifies if the model definition should be returned in the response. Defaults 
-to `false`. When `true`, only a single model must match the ID patterns 
-provided, otherwise a bad request is returned.
+Specifies whether the model definition is returned in the response. Defaults to 
+`false`. When `true`, only a single model must match the ID patterns provided. 
+Otherwise, a bad request is returned.
 
 `size`::
 (Optional, integer) 
@@ -140,7 +141,7 @@ Idetifier for the trained model.
 
 `tags`:::
 (string)
-A comma delimited string of tags. A {infer} model can have many tags, or none.
+A comma delimited string of tags. A trained model can have many tags, or none.
 
 `version`:::
 (string)

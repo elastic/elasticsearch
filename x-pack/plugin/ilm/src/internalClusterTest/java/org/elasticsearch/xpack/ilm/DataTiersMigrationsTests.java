@@ -6,11 +6,16 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -20,6 +25,7 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -30,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -68,6 +75,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
         settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
+        settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
         return settings.build();
     }
 
@@ -88,7 +96,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     public void testIndexDataTierMigration() throws Exception {
-        internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
+        internalCluster().startMasterOnlyNodes(1, Settings.EMPTY);
         logger.info("starting hot data node");
         internalCluster().startNode(hotNode(Settings.EMPTY));
 
@@ -144,6 +152,99 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             assertThat(indexLifecycleExplainResponse.getPhase(), is("frozen"));
             assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
         });
+    }
+
+    public void testDisabledMigrateActionInHotPhaseDontMoveIndicesAwayFromHotNodes() throws Exception {
+        internalCluster().startMasterOnlyNodes(1, Settings.EMPTY);
+        logger.info("starting hot data node");
+        internalCluster().startNode(hotNode(Settings.EMPTY));
+        logger.info("starting warm data node");
+        internalCluster().startNode(warmNode(Settings.EMPTY));
+        logger.info("starting cold data node");
+        internalCluster().startNode(coldNode(Settings.EMPTY));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(false)));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 3)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();
+        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        assertTrue(res.isAcknowledged());
+
+        // ILM has run
+        assertBusy(() -> {
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
+                explainRequest).get();
+
+            IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("hot"));
+            assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
+        });
+
+
+        // verify index is allocated only on the hot node
+        for (int shardId = 0; shardId < 3; shardId++) {
+            ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest().setIndex(managedIndex).setShard(shardId)
+                .setPrimary(true);
+
+            ClusterAllocationExplainResponse allocationExplainResponse = client().execute(ClusterAllocationExplainAction.INSTANCE, request)
+                .get();
+            Set<DiscoveryNodeRole> roles = allocationExplainResponse.getExplanation().getCurrentNode().getRoles();
+            assertThat(roles.size(), is(1));
+            assertThat(roles.iterator().next().roleName(), is(DataTier.DATA_HOT));
+        }
+    }
+
+    public void testDisableAutoAllocationOfNewIndicesToHotButEnableMigrateAction() throws Exception {
+        internalCluster().startMasterOnlyNodes(1, Settings.EMPTY);
+        logger.info("starting hot data node");
+        internalCluster().startNode(hotNode(Settings.EMPTY));
+        logger.info("starting warm data node");
+        internalCluster().startNode(warmNode(Settings.EMPTY));
+        logger.info("starting cold data node");
+        internalCluster().startNode(coldNode(Settings.EMPTY));
+
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction()));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 3)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            // this will disable the auto allocation of the index to the hot node
+            .putNull(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)
+            .build();
+        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        assertTrue(res.isAcknowledged());
+
+        // ILM has run
+        assertBusy(() -> {
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
+                explainRequest).get();
+
+            IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("hot"));
+            assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
+        });
+
+
+        // verify index is allocated only on the hot node
+        for (int shardId = 0; shardId < 3; shardId++) {
+            ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest().setIndex(managedIndex).setShard(shardId)
+                .setPrimary(true);
+
+            ClusterAllocationExplainResponse allocationExplainResponse = client().execute(ClusterAllocationExplainAction.INSTANCE, request)
+                .get();
+            Set<DiscoveryNodeRole> roles = allocationExplainResponse.getExplanation().getCurrentNode().getRoles();
+            assertThat(roles.size(), is(1));
+            assertThat(roles.iterator().next().roleName(), is(DataTier.DATA_HOT));
+        }
+
     }
 
 }

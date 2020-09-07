@@ -54,18 +54,18 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RuntimeScriptFieldMapperTests extends MapperTestCase {
+public class RuntimeFieldMapperTests extends MapperTestCase {
 
     private final String[] runtimeTypes;
 
-    public RuntimeScriptFieldMapperTests() {
-        this.runtimeTypes = RuntimeScriptFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
+    public RuntimeFieldMapperTests() {
+        this.runtimeTypes = RuntimeFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
         Arrays.sort(runtimeTypes);
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "runtime_script").field("runtime_type", "keyword");
+        b.field("type", "runtime").field("runtime_type", "keyword");
         b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
     }
 
@@ -75,7 +75,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "runtime_script")
+            .field("type", "runtime")
             .field("script", "keyword('test')")
             .endObject()
             .endObject()
@@ -83,7 +83,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .endObject();
 
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: runtime_type must be specified for runtime_script field [my_field]", exception.getMessage());
+        assertEquals("Failed to parse mapping: runtime_type must be specified for runtime field [my_field]", exception.getMessage());
     }
 
     public void testScriptIsRequired() throws Exception {
@@ -92,7 +92,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "runtime_script")
+            .field("type", "runtime")
             .field("runtime_type", randomFrom(runtimeTypes))
             .endObject()
             .endObject()
@@ -100,7 +100,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .endObject();
 
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: script must be specified for runtime_script field [my_field]", exception.getMessage());
+        assertEquals("Failed to parse mapping: script must be specified for runtime field [my_field]", exception.getMessage());
     }
 
     public void testCopyToIsNotSupported() throws IOException {
@@ -109,7 +109,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "runtime_script")
+            .field("type", "runtime")
             .field("runtime_type", randomFrom(runtimeTypes))
             .field("script", "keyword('test')")
             .field("copy_to", "field")
@@ -118,7 +118,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .endObject()
             .endObject();
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: runtime_script field does not support [copy_to]", exception.getMessage());
+        assertEquals("Failed to parse mapping: runtime field [my_field] does not support [copy_to]", exception.getMessage());
     }
 
     public void testMultiFieldsIsNotSupported() throws IOException {
@@ -127,7 +127,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "runtime_script")
+            .field("type", "runtime")
             .field("runtime_type", randomFrom(runtimeTypes))
             .field("script", "keyword('test')")
             .startObject("fields")
@@ -140,7 +140,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .endObject()
             .endObject();
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: runtime_script field does not support [fields]", exception.getMessage());
+        assertEquals("Failed to parse mapping: runtime field [my_field] does not support [fields]", exception.getMessage());
     }
 
     public void testStoredScriptsAreNotSupported() throws Exception {
@@ -149,7 +149,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "runtime_script")
+            .field("type", "runtime")
             .field("runtime_type", randomFrom(runtimeTypes))
             .startObject("script")
             .field("id", "test")
@@ -159,59 +159,53 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             .endObject()
             .endObject();
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals(
-            "Failed to parse mapping: stored scripts specified but not supported for runtime_script field [my_field]",
-            exception.getMessage()
-        );
+        assertEquals("Failed to parse mapping: stored scripts are not supported for runtime field [my_field]", exception.getMessage());
     }
 
     public void testUnsupportedRuntimeType() {
         MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping("unsupported")));
-        assertEquals(
-            "Failed to parse mapping: runtime_type [unsupported] not supported for runtime_script field [field]",
-            exc.getMessage()
-        );
+        assertEquals("Failed to parse mapping: runtime_type [unsupported] not supported for runtime field [field]", exc.getMessage());
     }
 
     public void testBoolean() throws IOException {
         MapperService mapperService = createMapperService(mapping("boolean"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping("boolean")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testDouble() throws IOException {
         MapperService mapperService = createMapperService(mapping("double"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping("double")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testIp() throws IOException {
         MapperService mapperService = createMapperService(mapping("ip"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping("ip")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testKeyword() throws IOException {
         MapperService mapperService = createMapperService(mapping("keyword"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping("keyword")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testLong() throws IOException {
         MapperService mapperService = createMapperService(mapping("long"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping("long")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testDate() throws IOException {
         MapperService mapperService = createMapperService(mapping("date"));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping("date")), Strings.toString(mapperService.documentMapper()));
     }
 
@@ -219,7 +213,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping("date", b -> b.field("format", "yyyy-MM-dd"));
         MapperService mapperService = createMapperService(mapping.get());
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
     }
 
@@ -227,7 +221,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         CheckedSupplier<XContentBuilder, IOException> mapping = () -> mapping("date", b -> b.field("locale", "en_GB"));
         MapperService mapperService = createMapperService(mapping.get());
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
     }
 
@@ -238,7 +232,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
         );
         MapperService mapperService = createMapperService(mapping.get());
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeFieldMapper.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
     }
 
@@ -248,7 +242,15 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> createMapperService(mapping(runtimeType, b -> b.field("format", "yyyy-MM-dd")))
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: format can not be specified for runtime_type [" + runtimeType + "]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Failed to parse mapping: format can not be specified for [runtime] field [field] "
+                    + "of runtime_type ["
+                    + runtimeType
+                    + "]"
+            )
+        );
     }
 
     public void testNonDateWithLocale() {
@@ -257,7 +259,15 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> createMapperService(mapping(runtimeType, b -> b.field("locale", "en_GB")))
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: locale can not be specified for runtime_type [" + runtimeType + "]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Failed to parse mapping: locale can not be specified for [runtime] field [field] of "
+                    + "runtime_type ["
+                    + runtimeType
+                    + "]"
+            )
+        );
     }
 
     public void testFieldCaps() throws Exception {
@@ -323,7 +333,7 @@ public class RuntimeScriptFieldMapperTests extends MapperTestCase {
                 {
                     mapping.startObject("field");
                     {
-                        mapping.field("type", "runtime_script").field("runtime_type", type);
+                        mapping.field("type", "runtime").field("runtime_type", type);
                         mapping.startObject("script");
                         {
                             mapping.field("source", "dummy_source").field("lang", "test");

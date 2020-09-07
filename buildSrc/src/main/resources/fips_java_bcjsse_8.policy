@@ -1,3 +1,10 @@
+// Security Policy for JDK 8, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
+
+grant codeBase "file:${java.home}/lib/ext/localedata.jar" {
+          // Allow resource bundles to be loaded for non root locales. See
+          // https://github.com/elastic/elasticsearch/issues/39981
+          permission java.lang.RuntimePermission "accessClassInPackage.sun.util.*";
+};
 grant {
      permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
      permission java.security.SecurityPermission "putProviderProperty.BCJSSE";

@@ -24,28 +24,31 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MediaTypeParser<T extends MediaType> {
-    private Map<String, T> formatToXContentType = new HashMap<>();
+    private Map<String, T> formatToMediaType = new HashMap<>();
     private Map<String, T> typeSubtypeToMediaType = new HashMap<>();
 
-    public MediaTypeParser(T[] acceptedXContentTypes) {
-        for (T xContentType : acceptedXContentTypes) {
-            typeSubtypeToMediaType.put(xContentType.typeSubtype(), xContentType);
-            formatToXContentType.put(xContentType.format(), xContentType);
+    public MediaTypeParser(T[] acceptedMediaTypes) {
+        for (T mediaType : acceptedMediaTypes) {
+            typeSubtypeToMediaType.put(mediaType.typeSubtype(), mediaType);
+            formatToMediaType.put(mediaType.format(), mediaType);
         }
     }
 
-    public T fromMediaType(String contentTypeHeader) {
-        ParsedMediaType parsedMediaType = parseMediaType(contentTypeHeader);
+    public T fromMediaType(String mediaType) {
+        ParsedMediaType parsedMediaType = parseMediaType(mediaType);
         return parsedMediaType != null ? parsedMediaType.getMediaType() : null;
     }
 
-    public T fromFormat(String mediaType) {
-        return formatToXContentType.get(mediaType.toLowerCase(Locale.ROOT));
+    public T fromFormat(String format) {
+        if(format == null) {
+            return null;
+        }
+        return formatToMediaType.get(format.toLowerCase(Locale.ROOT));
     }
 
     public MediaTypeParser<T> withAdditionalMediaType(String typeSubtype, T xContentType) {
         typeSubtypeToMediaType.put(typeSubtype.toLowerCase(Locale.ROOT), xContentType);
-        formatToXContentType.put(xContentType.format(), xContentType);
+        formatToMediaType.put(xContentType.format(), xContentType);
         return this;
     }
 
@@ -78,21 +81,25 @@ public class MediaTypeParser<T extends MediaType> {
         return null;
     }
 
+    /**
+     * A media type object that contains all the information provided on a Content-Type or Accept header
+     * // TODO PG to be extended with getCompatibleAPIVersion and more
+     */
     public class ParsedMediaType {
         private final String type;
         private final String subtype;
         private final Map<String, String> parameters;
-        private final T xContentType;
+        private final T mediaType;
 
-        public ParsedMediaType(String type, String subtype, Map<String, String> parameters, T xContentType) {
+        public ParsedMediaType(String type, String subtype, Map<String, String> parameters, T mediaType) {
             this.type = type;
             this.subtype = subtype;
             this.parameters = parameters;
-            this.xContentType = xContentType;
+            this.mediaType = mediaType;
         }
 
         public T getMediaType() {
-            return xContentType;
+            return mediaType;
         }
 
         public Map<String, String> getParameters() {

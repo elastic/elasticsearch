@@ -34,9 +34,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
+public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
 
-    public static final String CONTENT_TYPE = "runtime_script";
+    public static final String CONTENT_TYPE = "runtime";
 
     public static final TypeParser PARSER = new TypeParser((name, parserContext) -> new Builder(name, new ScriptCompiler() {
         @Override
@@ -49,7 +49,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     private final Script script;
     private final ScriptCompiler scriptCompiler;
 
-    protected RuntimeScriptFieldMapper(
+    protected RuntimeFieldMapper(
         String simpleName,
         AbstractScriptMappedFieldType mappedFieldType,
         MultiFields multiFields,
@@ -66,7 +66,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new RuntimeScriptFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
+        return new RuntimeFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
     }
 
     @Override
@@ -182,8 +182,8 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             }
         );
 
-        private static RuntimeScriptFieldMapper toType(FieldMapper in) {
-            return (RuntimeScriptFieldMapper) in;
+        private static RuntimeFieldMapper toType(FieldMapper in) {
+            return (RuntimeFieldMapper) in;
         }
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -243,7 +243,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public RuntimeScriptFieldMapper build(BuilderContext context) {
+        public RuntimeFieldMapper build(BuilderContext context) {
             BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
@@ -254,13 +254,13 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             }
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field does not support [fields]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
             CopyTo copyTo = this.copyTo.build();
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
-            return new RuntimeScriptFieldMapper(
+            return new RuntimeFieldMapper(
                 name,
                 fieldTypeResolver.apply(this, context),
                 MultiFields.empty(),
@@ -274,19 +274,37 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
         static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
             Script script = Script.parse(scriptObject);
             if (script.getType() == ScriptType.STORED) {
-                throw new IllegalArgumentException(
-                    "stored scripts specified but not supported for " + CONTENT_TYPE + " field [" + name + "]"
-                );
+                throw new IllegalArgumentException("stored scripts are not supported for " + CONTENT_TYPE + " field [" + name + "]");
             }
             return script;
         }
 
         private void formatAndLocaleNotSupported() {
             if (format.getValue() != null) {
-                throw new IllegalArgumentException("format can not be specified for runtime_type [" + runtimeType.getValue() + "]");
+                throw new IllegalArgumentException(
+                    "format can not be specified for ["
+                        + CONTENT_TYPE
+                        + "] field ["
+                        + name
+                        + "] of "
+                        + runtimeType.name
+                        + " ["
+                        + runtimeType.getValue()
+                        + "]"
+                );
             }
             if (locale.getValue() != null) {
-                throw new IllegalArgumentException("locale can not be specified for runtime_type [" + runtimeType.getValue() + "]");
+                throw new IllegalArgumentException(
+                    "locale can not be specified for ["
+                        + CONTENT_TYPE
+                        + "] field ["
+                        + name
+                        + "] of "
+                        + runtimeType.name
+                        + " ["
+                        + runtimeType.getValue()
+                        + "]"
+                );
             }
         }
     }

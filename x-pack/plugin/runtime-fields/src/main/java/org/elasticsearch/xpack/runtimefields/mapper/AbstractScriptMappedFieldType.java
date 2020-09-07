@@ -43,7 +43,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
 
     @Override
     public final String typeName() {
-        return RuntimeScriptFieldMapper.CONTENT_TYPE;
+        return RuntimeFieldMapper.CONTENT_TYPE;
     }
 
     @Override
@@ -147,7 +147,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against ["
-                    + RuntimeScriptFieldMapper.CONTENT_TYPE
+                    + RuntimeFieldMapper.CONTENT_TYPE
                     + "] fields while ["
                     + ALLOW_EXPENSIVE_QUERIES.getKey()
                     + "] is set to [false]."

@@ -136,10 +136,24 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Removes the specified transient headers from the current context. The removed transient headers can be
-     * restored by closing the returned {@link StoredContext}. If such a transient header does not exist before
-     * this method is called, it will also not exist after restore (i.e. restoring asserts the existence
-     * and the values for the transient headers, as they existed before invoking this method).
+     * Removes the specified transient headers from the current context. When the returned
+     * {@link StoredContext} is closed, it will restore these transient headers to their original
+     * value (including restoring them to an <i>unset</i> value if they did not originally exist).
+     * Closing the {@code StoredContext} has no affect on any other header - any headers 
+     * (other than those names specified in {@code transientHeadersToStash} that were
+     * added to the {@code ThreadContext} will be retained.
+     *
+     * For example, at the end of the following code, the ThreadContext will have transient
+     * values {@code "a"=1}, {@code "b"=1}, {@code "d"=2} and {@code "c"} will not be set.
+     * <pre>
+     * threadContext.putTransient("a", 1);  
+     * threadContext.putTransient("b", 1);   
+     * try (ThreadContext.StoredContext restore = threadContext.stashTransientContext(List.of("b", "c")) ) {
+     *   threadContext.putTransient("b", 2);   
+     *   threadContext.putTransient("c", 2);   
+     *   threadContext.putTransient("d", 2); 
+     * }
+     * </pre>
      */
     public StoredContext stashTransientContext(Collection<String> transientHeadersToStash) {
         if (transientHeadersToStash.isEmpty()) {

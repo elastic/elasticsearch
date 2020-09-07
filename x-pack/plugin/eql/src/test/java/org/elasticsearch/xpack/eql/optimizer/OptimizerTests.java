@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
@@ -31,6 +33,9 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -45,14 +50,17 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_INSENSITIVE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
@@ -102,6 +110,7 @@ public class OptimizerTests extends ESTestCase {
             assertEquals(((FieldAttribute) check.field()).name(), "command_line");
         }
     }
+
     public void testIsNotNull() {
         List<String> tests = Arrays.asList(
             "foo where command_line != null",
@@ -247,6 +256,28 @@ public class OptimizerTests extends ESTestCase {
         return new KeyedFilter(EMPTY, child, emptyList(), timestamp(), tiebreaker());
     }
 
+    private static KeyedFilter keyedFilter(LogicalPlan child, NamedExpression... keys) {
+        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker());
+    }
+
+    private static Attribute key(String name) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, DataTypes.INTEGER, emptyMap(), true));
+    }
+
+    private static Sequence sequence(LogicalPlan...rules) {
+        List<KeyedFilter> collect = Stream.of(rules)
+                .map(r -> r instanceof KeyedFilter ? (KeyedFilter) r : keyedFilter(r))
+                .collect(toList());
+
+        return new Sequence(EMPTY, collect, keyedFilter(rel()), TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
+    }
+
+    private static Expression filterCondition(LogicalPlan plan) {
+        assertEquals(Filter.class, plan.getClass());
+        Filter f = (Filter) plan;
+        return f.condition();
+    }
+
     public void testSkipQueryOnLimitZero() {
         KeyedFilter rule1 = keyedFilter(new LocalRelation(EMPTY, emptyList()));
         KeyedFilter rule2 = keyedFilter(new Filter(EMPTY, rel(), new IsNull(EMPTY, Literal.TRUE)));
@@ -272,8 +303,7 @@ public class OptimizerTests extends ESTestCase {
         Filter filter = new Filter(EMPTY, rel(), new IsNull(EMPTY, Literal.TRUE));
         KeyedFilter rule1 = keyedFilter(filter);
         KeyedFilter rule2 = keyedFilter(filter);
-        KeyedFilter until = keyedFilter(filter);
-        Sequence s = new Sequence(EMPTY, asList(rule1, rule2), until, TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
+        Sequence s = sequence(rule1, rule2);
         OrderBy o = new OrderBy(EMPTY, s, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.DESC, NullsPosition.FIRST)));
 
         LogicalPlan optimized = new Optimizer.PushDownOrderBy().rule(o);
@@ -299,5 +329,177 @@ public class OptimizerTests extends ESTestCase {
         plan = ((LimitWithOffset) plan).child();
         assertTrue(plan instanceof OrderBy);
         return ((OrderBy) plan).child();
+    }
+
+    public void testCombineFilters() {
+        Expression left = new IsNull(EMPTY, Literal.TRUE);
+        Expression right = new Equals(EMPTY, timestamp(), Literal.TRUE);
+
+        Filter filterChild = new Filter(EMPTY, rel(), left);
+        Filter filterParent = new Filter(EMPTY, filterChild, right);
+
+        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filterParent);
+
+        assertEquals(Filter.class, result.getClass());
+        Expression condition = ((Filter) result).condition();
+        assertEquals(And.class, condition.getClass());
+        And and = (And) condition;
+        assertEquals(left, and.left());
+        assertEquals(right, and.right());
+    }
+
+    public void testPushDownFilterUnary() {
+        Expression left = new IsNull(EMPTY, Literal.TRUE);
+
+        OrderBy order = new OrderBy(EMPTY, rel(), emptyList());
+        Filter filter = new Filter(EMPTY, order, left);
+
+        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filter);
+
+        assertEquals(OrderBy.class, result.getClass());
+        OrderBy o = (OrderBy) result;
+        assertEquals(Filter.class, o.child().getClass());
+        Filter f = (Filter) o.child();
+
+        assertEquals(rel(), f.child());
+        assertEquals(filter.condition(), f.condition());
+    }
+
+    public void testPushDownFilterDoesNotApplyOnNonUnary() {
+        Expression left = new IsNull(EMPTY, Literal.TRUE);
+
+        KeyedFilter rule1 = keyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter rule2 = keyedFilter(new Filter(EMPTY, rel(), new IsNull(EMPTY, Literal.TRUE)));
+
+        Sequence s = sequence(rule1, rule2);
+        Filter filter = new Filter(EMPTY, s, left);
+
+        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filter);
+
+        assertEquals(Filter.class, result.getClass());
+        Filter f = (Filter) result;
+        assertEquals(s, f.child());
+    }
+
+    public void testKeySameConstraints() {
+        ZoneId zd = randomZone();
+        Attribute a = key("a");
+
+        Expression keyCondition = new GreaterThan(EMPTY, a, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+        Expression filter = new Equals(EMPTY, timestamp(), Literal.TRUE);
+
+        KeyedFilter rule1 = keyedFilter(new Filter(EMPTY, rel(), keyCondition), a);
+        KeyedFilter rule2 = keyedFilter(new Filter(EMPTY, rel(), filter), a);
+
+        Sequence s = sequence(rule1, rule2);
+
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
+
+        assertEquals(Sequence.class, result.getClass());
+        Sequence seq = (Sequence) result;
+
+        List<KeyedFilter> queries = seq.queries();
+        assertEquals(rule1, queries.get(0));
+        KeyedFilter query2 = queries.get(1);
+        assertEquals(keyCondition, filterCondition(query2.child()));
+        assertEquals(filter, filterCondition(query2.child().children().get(0)));
+    }
+
+    public void sameSameTwoKeysConstraints() {
+        ZoneId zd = randomZone();
+        Attribute a = key("a");
+        Attribute b = key("b");
+
+        Expression keyACondition = new GreaterThan(EMPTY, a, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+        Expression keyBCondition = new Equals(EMPTY, b, Literal.TRUE);
+
+        KeyedFilter rule1 = keyedFilter(new Filter(EMPTY, rel(), keyACondition), a, b);
+        KeyedFilter rule2 = keyedFilter(new Filter(EMPTY, rel(), keyBCondition), a, b);
+
+        Sequence s = sequence(rule1, rule2);
+
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
+
+        assertEquals(Sequence.class, result.getClass());
+        Sequence seq = (Sequence) result;
+
+        List<KeyedFilter> queries = seq.queries();
+        KeyedFilter query1 = queries.get(0);
+        assertEquals(keyBCondition, filterCondition(query1.child()));
+        assertEquals(keyACondition, filterCondition(query1.child().children().get(0)));
+
+        KeyedFilter query2 = queries.get(1);
+        assertEquals(keyACondition, filterCondition(query2.child()));
+        assertEquals(keyBCondition, filterCondition(query2.child().children().get(0)));
+    }
+
+    public void testDifferentOneKeyConstraints() {
+        ZoneId zd = randomZone();
+        Attribute a = key("a");
+        Attribute b = key("b");
+
+        Expression keyARuleACondition = new GreaterThan(EMPTY, a, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+        Expression keyBRuleACondition = new GreaterThan(EMPTY, b, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+
+        Expression keyARuleBCondition = new Equals(EMPTY, a, Literal.TRUE);
+        Expression keyBRuleBCondition = new Equals(EMPTY, b, Literal.TRUE);
+
+        KeyedFilter rule1 = keyedFilter(new Filter(EMPTY, rel(), keyARuleACondition), a);
+        KeyedFilter rule2 = keyedFilter(new Filter(EMPTY, rel(), keyBRuleBCondition), b);
+
+        Sequence s = sequence(rule1, rule2);
+
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
+
+        assertEquals(Sequence.class, result.getClass());
+        Sequence seq = (Sequence) result;
+
+        List<KeyedFilter> queries = seq.queries();
+        KeyedFilter query1 = queries.get(0);
+
+        assertEquals(keyARuleBCondition, filterCondition(query1.child()));
+        assertEquals(keyARuleACondition, filterCondition(query1.child().children().get(0)));
+
+        KeyedFilter query2 = queries.get(1);
+        assertEquals(keyBRuleACondition, filterCondition(query2.child()));
+        assertEquals(keyBRuleBCondition, filterCondition(query2.child().children().get(0)));
+    }
+
+    public void testQueryLevelTwoKeyConstraints() {
+        ZoneId zd = randomZone();
+        Attribute a1 = key("a1");
+        Attribute a2 = key("a2");
+
+        Attribute b1 = key("b1");
+        Attribute b2 = key("b2");
+
+        Expression keyA1RuleACondition = new GreaterThan(EMPTY, a1, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+        Expression keyA2RuleACondition = new LessThan(EMPTY, a2, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+        Expression ruleACondition = new And(EMPTY, keyA1RuleACondition, keyA2RuleACondition);
+
+        Expression ruleBCondition = new Equals(EMPTY, key("someKey"), Literal.TRUE);
+
+        KeyedFilter rule1 = keyedFilter(new Filter(EMPTY, rel(), ruleACondition), a1, a2);
+        KeyedFilter rule2 = keyedFilter(new Filter(EMPTY, rel(), ruleBCondition), b1, b2);
+
+        Sequence s = sequence(rule1, rule2);
+
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
+
+        assertEquals(Sequence.class, result.getClass());
+        Sequence seq = (Sequence) result;
+
+        List<KeyedFilter> queries = seq.queries();
+        KeyedFilter query1 = queries.get(0);
+
+        assertEquals(rule1, query1);
+
+        KeyedFilter query2 = queries.get(1);
+        // rewrite constraints for key B
+        Expression keyB1RuleACondition = new GreaterThan(EMPTY, b1, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+        Expression keyB2RuleACondition = new LessThan(EMPTY, b2, new Literal(EMPTY, 1, DataTypes.INTEGER), zd);
+
+        assertEquals(new And(EMPTY, keyB1RuleACondition, keyB2RuleACondition), filterCondition(query2.child()));
+        assertEquals(ruleBCondition, filterCondition(query2.child().children().get(0)));
     }
 }

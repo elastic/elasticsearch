@@ -37,6 +37,7 @@ import org.elasticsearch.client.ilm.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.ilm.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.ilm.LifecyclePolicy;
 import org.elasticsearch.client.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.client.ilm.MigrateAction;
 import org.elasticsearch.client.ilm.OperationMode;
 import org.elasticsearch.client.ilm.Phase;
 import org.elasticsearch.client.ilm.PhaseExecutionInfo;
@@ -146,6 +147,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(MigrateAction.NAME, new MigrateAction(false));
         hotActions.put(RolloverAction.NAME, new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
         Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
         lifecyclePhases.put("hot", hotPhase);

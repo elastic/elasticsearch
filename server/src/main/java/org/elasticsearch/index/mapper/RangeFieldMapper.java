@@ -106,8 +106,8 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             this.type = type;
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             if (this.type != RangeType.DATE) {
-                format.setSerializerPredicate(id -> false);
-                locale.setSerializerPredicate(id -> false);
+                format.setSerializerPredicate(() -> false);
+                locale.setSerializerPredicate(() -> false);
             }
         }
 

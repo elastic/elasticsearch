@@ -146,14 +146,14 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     }
 
     private void handleRequest(Object msg) {
-        final HttpPipelinedRequest httpRequest = (HttpPipelinedRequest) msg;
+        final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
         boolean success = false;
         try {
-            transport.incomingRequest(httpRequest, nioHttpChannel);
+            transport.incomingRequest(pipelinedRequest, nioHttpChannel);
             success = true;
         } finally {
             if (success == false) {
-                httpRequest.release();
+                pipelinedRequest.release();
             }
         }
     }

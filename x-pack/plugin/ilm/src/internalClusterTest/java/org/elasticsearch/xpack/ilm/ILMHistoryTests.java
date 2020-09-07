@@ -34,6 +34,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
@@ -93,7 +94,7 @@ public class ILMHistoryTests extends ESIntegTestCase {
         assertBusy(() -> {
             try {
                 SearchResponse search = client().prepareSearch(firstIndex).setQuery(matchQuery("index", firstIndex)).setSize(0).get();
-                assertThat(search.getHits().getTotalHits().value, is(9L));
+                assertHitCount(search, 9);
             } catch (Exception e) {
                 //assertBusy will stop on first non-assertion error and it can happen when we try to search too early
                 //instead of failing the whole test change it to assertion error and wait some more time

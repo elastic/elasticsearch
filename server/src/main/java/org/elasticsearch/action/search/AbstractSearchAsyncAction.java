@@ -546,24 +546,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-     * This method should be called if a search phase failed to ensure all relevant search contexts and resources are released.
-     * this method will also notify the listener and sends back a failure to the user.
+     * This method should be called if a search phase failed to ensure all relevant reader contexts are released.
+     * This method will also notify the listener and sends back a failure to the user.
      *
      * @param exception the exception explaining or causing the phase failure
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
-        results.getSuccessfulResults().forEach((entry) -> {
-            if (entry.getContextId() != null) {
-                try {
-                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.trace("failed to release context", inner);
+        // we don't release persistent readers (point in time).
+        if (request.pointInTimeBuilder() == null) {
+            results.getSuccessfulResults().forEach((entry) -> {
+                if (entry.getContextId() != null) {
+                    try {
+                        SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                        Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                        sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                    } catch (Exception inner) {
+                        inner.addSuppressed(exception);
+                        logger.trace("failed to release context", inner);
+                    }
                 }
-            }
-        });
+            });
+        }
         listener.onFailure(exception);
     }
 

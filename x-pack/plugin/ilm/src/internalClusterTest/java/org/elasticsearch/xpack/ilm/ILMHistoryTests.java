@@ -95,6 +95,8 @@ public class ILMHistoryTests extends ESIntegTestCase {
                 SearchResponse search = client().prepareSearch(firstIndex).setQuery(matchQuery("index", firstIndex)).setSize(0).get();
                 assertThat(search.getHits().getTotalHits().value, is(9L));
             } catch (Exception e) {
+                //assertBusy will stop on first non-assertion error and it can happen when we try to search too early
+                //instead of failing the whole test change it to assertion error and wait some more time
                 fail(e.getMessage());
             }
         });

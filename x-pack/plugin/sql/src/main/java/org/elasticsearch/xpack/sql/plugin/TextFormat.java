@@ -102,6 +102,11 @@ enum TextFormat implements MediaType {
         protected String eol() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public String subtype() {
+            return "plain";
+        }
     },
 
     /**
@@ -217,6 +222,11 @@ enum TextFormat implements MediaType {
                 return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
             }
         }
+
+        @Override
+        public String subtype() {
+            return "csv";
+        }
     },
 
     TSV() {
@@ -265,6 +275,11 @@ enum TextFormat implements MediaType {
             }
 
             return sb.toString();
+        }
+
+        @Override
+        public String subtype() {
+            return "tab-separated-values";
         }
     };
 
@@ -372,12 +387,12 @@ enum TextFormat implements MediaType {
     }
 
     @Override
-    public String subtype() {
+    public String format() {
         return shortName();
     }
 
     @Override
-    public String format() {
-        return shortName();
+    public String typeSubtype() {
+        return contentType();
     }
 }

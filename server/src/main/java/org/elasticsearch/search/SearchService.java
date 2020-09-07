@@ -512,10 +512,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
-                processFailure(readerContext, e);
+                // we handle the failure in the failure listener below
                 throw e;
             }
-        }, ActionListener.runAfter(listener, markAsUsed::close));
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
@@ -542,7 +542,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Query phase failed", e);
-                processFailure(readerContext, e);
+                // we handle the failure in the failure listener below
                 throw e;
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
@@ -583,10 +583,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Fetch phase failed", e);
-                processFailure(readerContext, e);
+                // we handle the failure in the failure listener below
                 throw e;
             }
-        }, ActionListener.runAfter(listener, markAsUsed::close));
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
@@ -612,8 +612,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return searchContext.fetchResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                logger.trace("Fetch phase failed", e);
-                processFailure(readerContext, e);
+                // we handle the failure in the failure listener below
                 throw e;
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));

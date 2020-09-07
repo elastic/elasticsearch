@@ -192,7 +192,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected InternalTerms(StreamInput in) throws IOException {
        super(in);
        reduceOrder = InternalOrder.Streams.readOrder(in);
-       if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+       if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
            order = InternalOrder.Streams.readOrder(in);
        } else {
            order = reduceOrder;
@@ -203,7 +203,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             reduceOrder.writeTo(out);
         }
         order.writeTo(out);

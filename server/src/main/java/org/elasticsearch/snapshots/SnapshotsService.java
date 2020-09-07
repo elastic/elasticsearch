@@ -1887,14 +1887,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         execute(ClusterState currentState, List<UpdateIndexShardSnapshotStatusRequest> tasks) {
             int changedCount = 0;
             final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-            final Map<String, Set<ShardId>> reusedShardIdsByRepo = new HashMap<>();
+            final List<UpdateIndexShardSnapshotStatusRequest> unconsumedTasks = new ArrayList<>(tasks);
             for (SnapshotsInProgress.Entry entry : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 if (entry.state().completed()) {
                     entries.add(entry);
                     continue;
                 }
                 ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = null;
-                for (UpdateIndexShardSnapshotStatusRequest updateSnapshotState : tasks) {
+                for (Iterator<UpdateIndexShardSnapshotStatusRequest> iterator = unconsumedTasks.iterator(); iterator.hasNext(); ) {
+                    final UpdateIndexShardSnapshotStatusRequest updateSnapshotState = iterator.next();
                     final Snapshot updatedSnapshot = updateSnapshotState.snapshot();
                     final String updatedRepository = updatedSnapshot.getRepository();
                     if (entry.repository().equals(updatedRepository) == false) {
@@ -1921,21 +1922,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shards.put(finishedShardId, updateSnapshotState.status());
                         changedCount++;
                     } else {
-                        final Set<ShardId> reusedShardIds = reusedShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
-                        if (reusedShardIds.contains(finishedShardId) == false) {
-                            final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
-                            if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
-                                continue;
-                            }
-                            if (shards == null) {
-                                shards = ImmutableOpenMap.builder(entry.shards());
-                            }
-                            final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
-                            logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
-                                    finishedStatus.nodeId(), finishedStatus.generation());
-                            shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
-                            reusedShardIds.add(finishedShardId);
+                        final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
+                        if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
+                            continue;
                         }
+                        if (shards == null) {
+                            shards = ImmutableOpenMap.builder(entry.shards());
+                        }
+                        final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
+                        logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
+                                finishedStatus.nodeId(), finishedStatus.generation());
+                        shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
+                        iterator.remove();
                     }
                 }
 

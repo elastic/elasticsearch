@@ -11,7 +11,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.xpack.runtimefields.mapper.RuntimeScriptFieldMapper;
+import org.elasticsearch.xpack.runtimefields.mapper.RuntimeFieldMapper;
 
 import java.util.Collections;
 import java.util.List;
@@ -21,7 +21,7 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(RuntimeScriptFieldMapper.CONTENT_TYPE, RuntimeScriptFieldMapper.PARSER);
+        return Collections.singletonMap(RuntimeFieldMapper.CONTENT_TYPE, RuntimeFieldMapper.PARSER);
     }
 
     @Override

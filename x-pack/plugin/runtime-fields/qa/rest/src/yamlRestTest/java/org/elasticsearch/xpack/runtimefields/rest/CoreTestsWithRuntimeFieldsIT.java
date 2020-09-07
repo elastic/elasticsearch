@@ -42,7 +42,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     /**
      * Builds test parameters similarly to {@link ESClientYamlSuiteTestCase#createParameters()},
-     * replacing the body of index creation commands so that fields are {@code runtime_script}s
+     * replacing the body of index creation commands so that fields are {@code runtime}s
      * that load from {@code source} instead of their original type. Test configurations that
      * do are not modified to contain runtime fields are not returned as they are tested
      * elsewhere.
@@ -163,7 +163,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     if (toLoad == null) {
                         continue;
                     }
-                    propertyMap.put("type", "runtime_script");
+                    propertyMap.put("type", "runtime");
                     propertyMap.put("runtime_type", type);
                     propertyMap.put("script", toLoad);
                     propertyMap.remove("store");
@@ -230,7 +230,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                 }
                 Map<String, Object> mapping = org.elasticsearch.common.collect.Map.of(
                     "type",
-                    "runtime_script",
+                    "runtime",
                     "runtime_type",
                     type,
                     "script",

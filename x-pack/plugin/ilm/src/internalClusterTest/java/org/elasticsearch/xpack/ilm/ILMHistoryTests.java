@@ -92,7 +92,7 @@ public class ILMHistoryTests extends ESIntegTestCase {
         //wait for all history items to index to avoid waiting for timeout in ILMHistoryStore beforeBulk
         assertBusy(() -> {
             SearchResponse search = client().prepareSearch(firstIndex).setQuery(matchQuery("index", firstIndex)).setSize(0).get();
-            assertThat(search.getHits().getTotalHits().value, is(9L));
+            assertThat(search.getHits().getTotalHits().value, is(11L));
         });
 
         //make sure ILM is stopped so no new items will be queued in ILM history

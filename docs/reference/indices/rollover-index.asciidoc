@@ -22,7 +22,7 @@ POST /alias1/_rollover/my-index-000002
   }
 }
 ----
-// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/62043"]
+// TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/alias1\n/]
 
 
 [[rollover-index-api-request]]

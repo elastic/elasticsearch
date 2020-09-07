@@ -67,6 +67,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
+    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -321,6 +322,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        if (exception == null) {
+            HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
+            if (earlyResponse != null) {
+                httpChannel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, httpChannel));
+                httpRequest.release();
+                return;
+            }
+        }
+
         Exception badRequestCause = exception;
 
         /*
@@ -381,6 +391,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
             return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+        }
+    }
+
+    private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
+        if (HttpUtils.shouldCloseConnection(request)) {
+            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+        } else {
+            return NO_OP;
         }
     }
 }

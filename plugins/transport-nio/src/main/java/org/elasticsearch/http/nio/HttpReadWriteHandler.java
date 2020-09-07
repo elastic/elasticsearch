@@ -26,18 +26,11 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.http.CorsHandler;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
-import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.http.HttpUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
@@ -54,12 +47,9 @@ import java.util.function.LongSupplier;
 
 public class HttpReadWriteHandler implements NioChannelHandler {
 
-    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
-
     private final NettyAdaptor adaptor;
     private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
-    private final CorsHandler corsHandler;
     private final TaskScheduler taskScheduler;
     private final LongSupplier nanoClock;
     private final long readTimeoutNanos;
@@ -68,10 +58,9 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                CorsHandler corsHandler, TaskScheduler taskScheduler, LongSupplier nanoClock) {
+                                TaskScheduler taskScheduler, LongSupplier nanoClock) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
-        this.corsHandler = corsHandler;
         this.taskScheduler = taskScheduler;
         this.nanoClock = nanoClock;
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
@@ -160,13 +149,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         final HttpPipelinedRequest httpRequest = (HttpPipelinedRequest) msg;
         boolean success = false;
         try {
-            HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
-            if (earlyResponse != null) {
-                nioHttpChannel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, nioHttpChannel));
-                httpRequest.release();
-            } else {
-                transport.incomingRequest(httpRequest, nioHttpChannel);
-            }
+            transport.incomingRequest(httpRequest, nioHttpChannel);
             success = true;
         } finally {
             if (success == false) {
@@ -195,13 +178,5 @@ public class HttpReadWriteHandler implements NioChannelHandler {
             "This channel only pipelined responses with a delegate of type: " + NioHttpResponse.class +
                 ". Found type: " + ((HttpPipelinedResponse) message).getDelegateRequest().getClass() + ".";
         return true;
-    }
-
-    private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
-        if (HttpUtils.shouldCloseConnection(request)) {
-            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
-        } else {
-            return NO_OP;
-        }
     }
 }

@@ -290,7 +290,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.requestCreator =  new Netty4HttpRequestCreator();
-            this.requestHandler = new Netty4HttpRequestHandler(transport, transport.corsHandler);
+            this.requestHandler = new Netty4HttpRequestHandler(transport);
         }
 
         @Override

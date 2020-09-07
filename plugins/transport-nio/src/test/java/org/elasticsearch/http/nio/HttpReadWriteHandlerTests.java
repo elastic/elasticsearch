@@ -93,8 +93,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         channel = mock(NioHttpChannel.class);
         taskScheduler = mock(TaskScheduler.class);
 
-        CorsHandler corsHandler = CorsHandler.disabled();
-        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsHandler, taskScheduler, System::nanoTime);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, taskScheduler, System::nanoTime);
         handler.channelActive();
     }
 
@@ -210,7 +209,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         TaskScheduler taskScheduler = new TaskScheduler();
 
         Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
-        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsHandler, taskScheduler, timeValues::next);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, taskScheduler, timeValues::next);
         handler.channelActive();
 
         prepareHandlerForResponse(handler);

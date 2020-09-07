@@ -59,12 +59,12 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
         ClusterName clusterName = new ClusterName("test");
         int nodes = randomIntBetween(1, 10);
         List<RepositoriesNodeMeteringResponse> nodeResponses = new ArrayList<>(nodes);
-        for (int i = 0; i < nodes; i++) {
-            DiscoveryNode node = new DiscoveryNode("nodeId" + i, buildNewFakeTransportAddress(), Version.CURRENT);
+        for (int nodeId = 0; nodeId < nodes; nodeId++) {
+            DiscoveryNode node = new DiscoveryNode("nodeId" + nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
             int numberOfRepos = randomInt(10);
             List<RepositoryStatsSnapshot> nodeRepoStats = new ArrayList<>(numberOfRepos);
 
-            for (int j = 0; j < numberOfRepos; j++) {
+            for (int clusterVersion = 0; clusterVersion < numberOfRepos; clusterVersion++) {
                 String repoId = randomAlphaOfLength(10);
                 String repoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 String repoType = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -76,7 +76,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
                 RepositoryStatsSnapshot statsSnapshot = new RepositoryStatsSnapshot(
                     repositoryInfo,
                     new RepositoryStats(Map.of("GET", randomLongBetween(0, 2000))),
-                    archived ? j : RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION,
+                    archived ? clusterVersion : RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION,
                     archived
                 );
                 nodeRepoStats.add(statsSnapshot);

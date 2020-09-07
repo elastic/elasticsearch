@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -90,6 +91,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
+
+;
 
 public class IndexLifecycleRunnerTests extends ESTestCase {
     private static final NamedXContentRegistry REGISTRY;
@@ -171,7 +174,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Phase phase = policy.getPhases().get(phaseName);
         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(phaseExecutionInfo);
-        LifecycleAction action = randomFrom(phase.getActions().values());
+        LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
         Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null));
         StepKey stepKey = step.getKey();
 
@@ -729,7 +732,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Phase phase = policy.getPhases().get(phaseName);
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
-        LifecycleAction action = randomFrom(phase.getActions().values());
+        LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY));
         Settings indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)

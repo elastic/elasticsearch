@@ -858,14 +858,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new ActionListener<>() {
             @Override
             public void onResponse(T resp) {
-                releasable.close();
+                Releasables.close(releasable);
                 listener.onResponse(resp);
             }
 
             @Override
             public void onFailure(Exception exc) {
                 processFailure(context, exc);
-                releasable.close();
+                Releasables.close(releasable);
                 listener.onFailure(exc);
             }
         };

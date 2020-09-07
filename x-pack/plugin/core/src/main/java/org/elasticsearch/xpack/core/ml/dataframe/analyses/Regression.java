@@ -130,8 +130,8 @@ public class Regression implements DataFrameAnalysis {
                       @Nullable LossFunction lossFunction,
                       @Nullable Double lossFunctionParameter,
                       @Nullable List<PreProcessor> featureProcessors) {
-        if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
+        if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);

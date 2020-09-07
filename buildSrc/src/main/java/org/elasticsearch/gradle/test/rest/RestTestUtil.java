@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -60,25 +59,10 @@ public class RestTestUtil {
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
             testTask.dependsOn(bundle);
-            if (project.getPath().startsWith(":modules:")) {
+            if (project.getPath().contains("modules:")) {
                 testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
             } else {
                 testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
-            }
-        });
-
-        // es-plugins may declare dependencies on additional modules, add those to the test cluster too.
-        project.afterEvaluate(p -> {
-            PluginPropertiesExtension pluginPropertiesExtension = project.getExtensions().findByType(PluginPropertiesExtension.class);
-            if (pluginPropertiesExtension != null) { // not all projects are defined as plugins
-                pluginPropertiesExtension.getExtendedPlugins().forEach(pluginName -> {
-                    Project extensionProject = project.getProject().findProject(":modules:" + pluginName);
-                    if (extensionProject != null) { // extension plugin may be defined, but not required to be a module
-                        Zip extensionBundle = (Zip) extensionProject.getTasks().getByName("bundlePlugin");
-                        testTask.dependsOn(extensionBundle);
-                        testTask.getClusters().forEach(c -> c.module(extensionBundle.getArchiveFile()));
-                    }
-                });
             }
         });
     }

@@ -5,30 +5,30 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete Trained Model API
+=== Delete trained model API
 
 experimental[]
 
-Deletes a previously saved Trained Model.
+Deletes a previously saved trained model.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Delete Trained Model request
+==== Delete trained model request
 
-A +{request}+ requires a valid Trained Model ID.
+A +{request}+ requires a valid trained model ID.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new DELETE request referencing an existing Trained Model
+<1> Constructing a new DELETE request referencing an existing trained model
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ object acknowledges the Trained Model deletion.
+The returned +{response}+ object acknowledges the trained model deletion.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

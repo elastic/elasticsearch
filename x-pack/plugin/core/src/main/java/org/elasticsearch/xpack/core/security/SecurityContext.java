@@ -158,7 +158,7 @@ public class SecurityContext {
      * not originally exist, it will also not exist after the restore).
      */
     public StoredContext stashAuthorizationContext() {
-        return threadContext.stashTransientContext(AuthorizationServiceField.ALL_AUTHORIZATION_KEYS);
+        return threadContext.stashTransientHeaders(AuthorizationServiceField.ALL_AUTHORIZATION_KEYS);
     }
 
     /**

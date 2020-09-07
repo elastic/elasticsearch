@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public final class AuthorizationServiceField {
 
@@ -14,7 +14,7 @@ public final class AuthorizationServiceField {
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
     public static final String AUTHORIZATION_INFO_KEY = "_authz_info";
 
-    public static final Collection<String> ALL_AUTHORIZATION_KEYS = Arrays.asList(INDICES_PERMISSIONS_KEY, ORIGINATING_ACTION_KEY,
+    public static final Collection<String> ALL_AUTHORIZATION_KEYS = List.of(INDICES_PERMISSIONS_KEY, ORIGINATING_ACTION_KEY,
             AUTHORIZATION_INFO_KEY);
 
     private AuthorizationServiceField() {}

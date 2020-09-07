@@ -2311,77 +2311,69 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (entry.snapshot().equals(updateSnapshotState.snapshot())) {
                             logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot(),
                                     finishedShardId, updateSnapshotState.status().state());
-                            if (entry.state().completed() == false && entry.repository().equals(updatedRepository)
-                                    && reusedConcreteShardIds.contains(finishedShardId) == false) {
-                                final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
-                                if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
-                                    continue;
-                                }
-                                if (updated == false) {
-                                    shards.putAll(entry.shards());
-                                    updated = true;
-                                }
-                                shards.put(finishedShardId, updateSnapshotState.status());
-                                changedCount++;
-                            } else {
-                                // TODO: horribly inefficient obv.
-                                final Map<String, IndexId> indicesLookup =
-                                        entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
-                                if (entry.repository().equals(updatedRepository) &&
-                                        entry.state().completed() == false && reusedConcreteShardIds.contains(finishedShardId) == false) {
-                                    if (entry.source() == null) {
-                                        if (entry.shards().keys().contains(finishedShardId)) {
-                                            final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
+                            if (updated == false) {
+                                shards.putAll(entry.shards());
+                                updated = true;
+                            }
+                            shards.put(finishedShardId, updateSnapshotState.status());
+                            changedCount++;
+                        } else {
+                            // TODO: horribly inefficient obv.
+                            final Map<String, IndexId> indicesLookup =
+                                    entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
+                            if (entry.repository().equals(updatedRepository) &&
+                                    entry.state().completed() == false && reusedConcreteShardIds.contains(finishedShardId) == false) {
+                                if (entry.source() == null) {
+                                    if (entry.shards().keys().contains(finishedShardId)) {
+                                        final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
+                                        if (existingStatus.state() != ShardState.QUEUED) {
+                                            continue;
+                                        }
+                                        if (updated == false) {
+                                            shards.putAll(entry.shards());
+                                            updated = true;
+                                        }
+                                        final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
+                                        logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
+                                                finishedStatus.nodeId(), finishedStatus.generation());
+                                        shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(),
+                                                finishedStatus.generation()));
+                                        reusedConcreteShardIds.add(finishedShardId);
+                                        final RepoShardId repoShardId = SnapshotsInProgress.repoShardId(
+                                                indicesLookup.get(finishedShardId.getIndexName()), finishedShardId.getId());
+                                        reusedShardIds.add(repoShardId);
+                                    }
+                                } else {
+                                    if (indicesLookup.containsKey(finishedShardId.getIndexName())) {
+                                        final RepoShardId repoShardId = SnapshotsInProgress.repoShardId(
+                                                indicesLookup.get(finishedShardId.getIndexName()), finishedShardId.getId());
+                                        if (entry.clones().containsKey(repoShardId)) {
+                                            final ShardSnapshotStatus existingStatus = entry.clones().get(repoShardId);
                                             if (existingStatus.state() != ShardState.QUEUED) {
                                                 continue;
                                             }
                                             if (updated == false) {
-                                                shards.putAll(entry.shards());
+                                                clones.putAll(entry.clones());
                                                 updated = true;
                                             }
                                             final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
                                             logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
                                                     finishedStatus.nodeId(), finishedStatus.generation());
-                                            shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(),
-                                                    finishedStatus.generation()));
+                                            clones.put(repoShardId, new ShardSnapshotStatus(
+                                                    currentState.nodes().getLocalNodeId(), finishedStatus.generation()));
                                             reusedConcreteShardIds.add(finishedShardId);
-                                            final RepoShardId repoShardId = SnapshotsInProgress.repoShardId(
-                                                    indicesLookup.get(finishedShardId.getIndexName()), finishedShardId.getId());
                                             reusedShardIds.add(repoShardId);
-                                        }
-                                    } else {
-                                        if (indicesLookup.containsKey(finishedShardId.getIndexName())) {
-                                            final RepoShardId repoShardId = SnapshotsInProgress.repoShardId(
-                                                    indicesLookup.get(finishedShardId.getIndexName()), finishedShardId.getId());
-                                            if (entry.clones().containsKey(repoShardId)) {
-                                                final ShardSnapshotStatus existingStatus = entry.clones().get(repoShardId);
-                                                if (existingStatus.state() != ShardState.QUEUED) {
-                                                    continue;
-                                                }
-                                                if (updated == false) {
-                                                    clones.putAll(entry.clones());
-                                                    updated = true;
-                                                }
-                                                final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
-                                                logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
-                                                        finishedStatus.nodeId(), finishedStatus.generation());
-                                                clones.put(repoShardId, new ShardSnapshotStatus(
-                                                        currentState.nodes().getLocalNodeId(), finishedStatus.generation()));
-                                                reusedConcreteShardIds.add(finishedShardId);
-                                                reusedShardIds.add(repoShardId);
-                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-
-                    if (updated) {
-                        entries.add(entry.withShardStates(shards.build()).withClones(clones.build()));
-                    } else {
-                        entries.add(entry);
-                    }
+                }
+                if (updated) {
+                    entries.add(entry.withShardStates(shards.build()).withClones(clones.build()));
+                } else {
+                    entries.add(entry);
                 }
             }
             if (changedCount > 0) {

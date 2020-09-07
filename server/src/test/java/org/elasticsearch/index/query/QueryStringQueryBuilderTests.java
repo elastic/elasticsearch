@@ -40,7 +40,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery87;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -730,8 +730,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryStringQuery("/foo*bar/").defaultField(TEXT_FIELD_NAME)
             .maxDeterminizedStates(5000)
             .toQuery(createShardContext());
-        assertThat(query, instanceOf(RegexpQuery87.class));
-        RegexpQuery87 regexpQuery = (RegexpQuery87) query;
+        assertThat(query, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) query;
         assertTrue(regexpQuery.toString().contains("/foo*bar/"));
     }
 

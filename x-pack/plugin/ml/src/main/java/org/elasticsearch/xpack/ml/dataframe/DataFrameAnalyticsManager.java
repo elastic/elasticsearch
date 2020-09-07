@@ -28,10 +28,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -49,6 +51,9 @@ import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Clock;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -263,11 +268,27 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setRefresh(true);
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
-                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-                reindexRequest.setDestIndex(config.getDest().getIndex());
-                reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
-                reindexRequest.setParentTask(task.getParentTaskId());
                 reindexRequest.getSearchRequest().allowPartialSearchResults(false);
+                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
+                reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
+                reindexRequest.setDestIndex(config.getDest().getIndex());
+
+                // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
+                reindexRequest.setSlices(1);
+                Map<String, Object> counterValueParam = new HashMap<>();
+                counterValueParam.put("value", -1);
+                reindexRequest.setScript(
+                    new Script(
+                        Script.DEFAULT_SCRIPT_TYPE,
+                        Script.DEFAULT_SCRIPT_LANG,
+                        // We use indirection here because top level params are immutable.
+                        // This is a work around at the moment but the plan is to make this a feature of reindex API.
+                        "ctx._source." + DestinationIndex.INCREMENTAL_ID + " = ++params.counter.value",
+                        Collections.singletonMap("counter", counterValueParam)
+                    )
+                );
+
+                reindexRequest.setParentTask(task.getParentTaskId());
 
                 final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);

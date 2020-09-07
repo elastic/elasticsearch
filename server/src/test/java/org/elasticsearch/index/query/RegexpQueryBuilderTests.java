@@ -20,9 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegExp87;
-import org.apache.lucene.search.RegexpQuery87;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.search.RegexpQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -50,7 +48,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         }
         if (randomBoolean()) {
             query.caseInsensitive(true);
-        }        
+        }
         if (randomBoolean()) {
             query.maxDeterminizedStates(randomInt(50000));
         }
@@ -82,8 +80,8 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     @Override
     protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(RegexpQuery87.class));
-        RegexpQuery87 regexpQuery = (RegexpQuery87) query;
+        assertThat(query, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) query;
 
         String expectedFieldName = expectedFieldName( queryBuilder.fieldName());
         assertThat(regexpQuery.getField(), equalTo(expectedFieldName));
@@ -152,8 +150,8 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
-    }        
-    
+    }
+
     public void testParseFailsWithCaseSensitive() throws IOException {
         String json =
                 "{\n" +
@@ -166,12 +164,5 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[regexp] query does not support [case_insensitive] = false", e.getMessage());
-   }   
-    
-   public void testDeadCode() {
-       assertTrue(RegExp87.class + " should be replaced with 8.7's "+RegExp.class, 
-           org.apache.lucene.util.Version.LATEST.major == 8 && org.apache.lucene.util.Version.LATEST.minor < 7);
    }
-    
-    
 }

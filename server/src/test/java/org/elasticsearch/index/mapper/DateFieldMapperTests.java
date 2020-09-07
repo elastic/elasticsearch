@@ -348,6 +348,42 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
+    public void testNanosNullValue() throws IOException {
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "date_nanos")
+            .field("null_value", "2016-03-11")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DateFieldMapper df = (DateFieldMapper) mapper.mappers().getMapper("field");
+        DateFieldMapper.DateFieldType ft = df.fieldType();
+        long expectedNullValue = ft.parse("2016-03-11");
+
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()),
+            XContentType.JSON));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(expectedNullValue, pointField.numericValue().longValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(expectedNullValue, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+    }
+
     public void testBadNullValue() throws IOException {
 
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()

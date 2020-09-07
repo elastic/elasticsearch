@@ -253,12 +253,12 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        private Long parseNullValue(DateFormatter formatter) {
+        private Long parseNullValue(DateFieldType fieldType) {
             if (nullValue == null) {
                 return null;
             }
             try {
-                return formatter.parseMillis(nullValue);
+                return fieldType.parse(nullValue);
             }
             catch (Exception e) {
                 throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
@@ -269,7 +269,7 @@ public final class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(BuilderContext context) {
             DateFieldType ft = new DateFieldType(buildFullName(context), indexed, hasDocValues, buildFormatter(context), resolution, meta);
 
-            Long nullTimestamp = parseNullValue(ft.dateTimeFormatter);
+            Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, fieldType, ft, ignoreMalformed(context), nullTimestamp, nullValue,
                 multiFieldsBuilder.build(this, context), copyTo);
         }

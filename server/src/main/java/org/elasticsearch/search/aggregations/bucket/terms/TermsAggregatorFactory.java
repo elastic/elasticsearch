@@ -374,8 +374,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      *  which directly linked to maxOrd, so we need to limit).
                      */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories,
-                            ordinalsValuesSource, order, format, bucketCountThresholds, context, parent, false,
-                            subAggCollectMode, showTermDocCountError, metadata);
+                        a -> a.new StandardTermsResults(),
+                        ordinalsValuesSource, order, format, bucketCountThresholds, context, parent, false,
+                        subAggCollectMode, showTermDocCountError, metadata);
 
                 }
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);

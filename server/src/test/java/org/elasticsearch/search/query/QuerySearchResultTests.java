@@ -39,7 +39,6 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -77,8 +76,7 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
-        Version version = VersionUtils.randomVersion(random());
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
+        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
         assertEquals(querySearchResult.getContextId(), deserialized.getContextId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);

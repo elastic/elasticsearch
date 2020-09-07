@@ -129,6 +129,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             verifyCcrMonitoring("metrics-20210101", "metrics-20210101");
             verifyAutoFollowMonitoring();
         }, 30, TimeUnit.SECONDS);
+        deleteAutoFollowPattern("test_pattern");
     }
 
     public void testPutAutoFollowPatternThatOverridesRequiredLeaderSetting() throws IOException {
@@ -242,6 +243,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             ensureYellow(dataStreamName);
             verifyDocuments(client(), dataStreamName, numDocs + 1);
         });
+        deleteAutoFollowPattern("test_pattern");
     }
 
     private int getNumberOfSuccessfulFollowedIndices() throws IOException {

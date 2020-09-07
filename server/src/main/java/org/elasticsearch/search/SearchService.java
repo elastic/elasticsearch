@@ -699,9 +699,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setTask(searchTask);
 
             // pre process
-            dfsPhase.preProcess(context);
             queryPhase.preProcess(context);
-            fetchPhase.preProcess(context);
 
             // compute the context keep alive
             long keepAlive = defaultKeepAlive;

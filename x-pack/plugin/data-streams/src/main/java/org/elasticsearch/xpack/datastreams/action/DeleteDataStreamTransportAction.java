@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.datastreams.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -125,6 +127,14 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
             }
 
             snapshottingDataStreams.addAll(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
+        }
+
+        if (dataStreams.isEmpty()) {
+            if (request.isNamesContainsWildcardPattern()) {
+                return currentState;
+            } else {
+                throw new ResourceNotFoundException("data streams " + Arrays.toString(request.getNames()) + " not found");
+            }
         }
 
         if (snapshottingDataStreams.isEmpty() == false) {

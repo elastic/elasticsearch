@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.datastreams.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -28,6 +29,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -129,8 +131,13 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             ),
             List.of()
         );
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
+
+        expectThrows(ResourceNotFoundException.class, () -> DeleteDataStreamTransportAction.removeDataStream(
+            getMetadataDeleteIndexService(), cs, new DeleteDataStreamAction.Request(new String[] {dataStreamName})));
+
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName + "*" });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
+        assertThat(newState, sameInstance(cs));
         assertThat(newState.metadata().dataStreams().size(), equalTo(cs.metadata().dataStreams().size()));
         assertThat(
             newState.metadata().dataStreams().keySet(),

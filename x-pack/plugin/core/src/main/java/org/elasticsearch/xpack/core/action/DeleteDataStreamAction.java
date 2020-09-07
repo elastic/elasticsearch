@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
@@ -33,9 +35,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
+        private final boolean namesContainsWildcardPattern;
 
         public Request(String[] names) {
             this.names = Objects.requireNonNull(names);
+            this.namesContainsWildcardPattern = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
         }
 
         public String[] getNames() {
@@ -54,12 +58,16 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
+            this.namesContainsWildcardPattern = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(names);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(namesContainsWildcardPattern);
+            }
         }
 
         @Override
@@ -96,6 +104,10 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;
+        }
+
+        public boolean isNamesContainsWildcardPattern() {
+            return namesContainsWildcardPattern;
         }
     }
 

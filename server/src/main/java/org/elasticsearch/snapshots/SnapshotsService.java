@@ -444,6 +444,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> updatedEntries = new ArrayList<>(snapshotsInProgress.entries());
                 boolean changed = false;
+                final String localNodeId = currentState.nodes().getLocalNodeId();
                 final Map<String, IndexId> inFlightIndexIds =
                         getInFlightIndexIds(updatedEntries, repository.getMetadata().name());
                 final ShardGenerations shardGenerations = repoData.shardGenerations();
@@ -465,7 +466,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 if (busyShardsInRepo.contains(repoShardId)) {
                                     clonesBuilder.put(repoShardId, ShardSnapshotStatus.UNASSIGNED_QUEUED);
                                 } else {
-                                    clonesBuilder.put(repoShardId, new ShardSnapshotStatus(currentState.nodes().getLocalNodeId(),
+                                    clonesBuilder.put(repoShardId, new ShardSnapshotStatus(localNodeId,
                                             shardGenerations.getShardGen(count.v1(), shardId)));
                                 }
                             }
@@ -2210,6 +2211,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
             final Map<String, Set<ShardId>> reusedShardIdsByRepo = new HashMap<>();
             final Map<String, Set<RepoShardId>> reusedRepoShardIdsByRepo = new HashMap<>();
+            final String localNodeId = currentState.nodes().getLocalNodeId();
             for (SnapshotsInProgress.Entry entry : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 boolean updated = false;
                 final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
@@ -2230,7 +2232,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 updated = true;
                             }
                             changedCount++;
-                            clones.put(finishedShardId, updateSnapshotState.status);
+                            clones.put(finishedShardId, updateSnapshotState.status());
                         } else {
                             if (entry.source() == null) {
                                 final IndexMetadata indexMeta = currentState.metadata().index(finishedShardId.indexName());
@@ -2238,11 +2240,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     continue;
                                 }
                                 final ShardId finishedConcreteShardId = new ShardId(indexMeta.getIndex(), finishedShardId.shardId());
-                                if (entry.repository().equals(updatedRepository) &&
-                                        entry.state().completed() == false && entry.shards().keys().contains(finishedConcreteShardId)
+                                if (entry.repository().equals(updatedRepository) && entry.state().completed() == false
                                         && reusedConcreteShardIds.contains(finishedConcreteShardId) == false) {
                                     final ShardSnapshotStatus existingStatus = entry.shards().get(finishedConcreteShardId);
-                                    if (existingStatus.state() != ShardState.QUEUED) {
+                                    if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                                         continue;
                                     }
                                     if (updated == false) {
@@ -2256,22 +2257,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     // reassignment to actual shard snapshots
                                     ShardRouting primary = currentState.routingTable().index(finishedConcreteShardId.getIndex())
                                             .shard(finishedConcreteShardId.id()).primaryShard();
+                                    final String newGeneration = updateSnapshotState.status().generation();
                                     final ShardSnapshotStatus shardSnapshotStatus;
                                     if (primary == null || !primary.assignedToNode()) {
-                                        shardSnapshotStatus =
-                                                new ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated",
-                                                        updateSnapshotState.status().generation());
-                                    } else if (primary.relocating() || primary.initializing()) {
                                         shardSnapshotStatus = new ShardSnapshotStatus(
-                                                primary.currentNodeId(), ShardState.WAITING, updateSnapshotState.status().generation());
-                                    } else if (!primary.started()) {
+                                                null, ShardState.MISSING, "primary shard is not allocated", newGeneration);
+                                    } else if (primary.relocating() || primary.initializing()) {
                                         shardSnapshotStatus =
-                                                new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
-                                                        "primary shard hasn't been started yet",
-                                                        updateSnapshotState.status().generation());
+                                                new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, newGeneration);
+                                    } else if (primary.started() == false) {
+                                        shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
+                                                "primary shard hasn't been started yet", newGeneration);
                                     } else {
-                                        shardSnapshotStatus =
-                                                new ShardSnapshotStatus(primary.currentNodeId(), updateSnapshotState.status().generation());
+                                        shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), newGeneration);
                                     }
                                     shards.put(finishedConcreteShardId, shardSnapshotStatus);
                                     if (shardSnapshotStatus.isActive()) {
@@ -2281,10 +2279,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 }
                             } else {
                                 if (entry.repository().equals(updatedRepository) &&
-                                        entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
-                                        && entry.clones().containsKey(finishedShardId)) {
+                                        entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false) {
                                     final ShardSnapshotStatus existingStatus = entry.clones().get(finishedShardId);
-                                    if (existingStatus.state() != ShardState.QUEUED) {
+                                    if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                                         continue;
                                     }
                                     if (updated == false) {
@@ -2357,8 +2354,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
                                         logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
                                                 finishedStatus.nodeId(), finishedStatus.generation());
-                                        clones.put(repoShardId, new ShardSnapshotStatus(
-                                                currentState.nodes().getLocalNodeId(), finishedStatus.generation()));
+                                        clones.put(repoShardId, new ShardSnapshotStatus(localNodeId, finishedStatus.generation()));
                                         reusedConcreteShardIds.add(finishedShardId);
                                         reusedShardIds.add(repoShardId);
                                     }

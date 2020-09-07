@@ -3429,6 +3429,51 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
+    public void testAllowEnableSoftDeletesDuringRestore() throws Exception {
+        createRepository("test-repo", "fs");
+        final Settings.Builder settings = Settings.builder();
+        settings.put(INDEX_SOFT_DELETES_SETTING.getKey(), false);
+        createIndex("test-index", settings.build());
+        ensureGreen();
+        int numDocs = 0;
+        if (randomBoolean()) {
+            numDocs = between(1, 100);
+            indexRandomDocs("test-index", numDocs);
+            flush("test-index");
+        }
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snapshot")
+            .setIndices("test-index").setWaitForCompletion(true).get();
+        client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snapshot")
+            .setIndexSettings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true))
+            .setRenamePattern("test-index").setRenameReplacement("new-index")
+            .setWaitForCompletion(true)
+            .get();
+        ensureGreen("new-index");
+        assertDocCount("new-index", numDocs);
+    }
+
+    public void testForbidDisableSoftDeletesDuringRestore() throws Exception {
+        createRepository("test-repo", "fs");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        }
+        createIndex("test-index", settings.build());
+        ensureGreen();
+        if (randomBoolean()) {
+            indexRandomDocs("test-index", between(0, 100));
+            flush("test-index");
+        }
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "snapshot-0")
+            .setIndices("test-index").setWaitForCompletion(true).get();
+        final SnapshotRestoreException restoreError = expectThrows(SnapshotRestoreException.class,
+            () -> client().admin().cluster().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setIndexSettings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false))
+                .setRenamePattern("test-index").setRenameReplacement("new-index")
+                .get());
+        assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+    }
+
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {
         for (SnapshotInfo snapshotInfo : response.getSnapshots()) {
             final List<String> expected = snapshotInfo.indices();

@@ -19,13 +19,13 @@ setup:
                 type: keyword
                 store: true
               day_of_week:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: |
                   emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching from _source
               day_of_week_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: |
                   Instant instant = Instant.ofEpochMilli(params._source.timestamp);
@@ -33,7 +33,7 @@ setup:
                   emitValue(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching many values
               day_of_week_letters:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: |
                   for (String dow: doc['day_of_week']) {
@@ -42,7 +42,7 @@ setup:
                     }
                   }
               prefixed_node:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script:
                   source: |
@@ -75,7 +75,7 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.day_of_week.type: runtime_script }
+  - match: {sensor.mappings.properties.day_of_week.type: runtime }
   - match: {sensor.mappings.properties.day_of_week.runtime_type: keyword }
   - match:
       sensor.mappings.properties.day_of_week.script.source: |
@@ -91,7 +91,7 @@ setup:
         include_defaults: true
   - match:
       sensor.mappings.day_of_week.mapping.day_of_week:
-        type: runtime_script
+        type: runtime
         runtime_type: keyword
         script:
           source: |
@@ -202,11 +202,11 @@ setup:
                   last:
                     type: keyword
                   first_script:
-                    type: runtime_script
+                    type: runtime
                     runtime_type: keyword
                     script: emitValue(doc['users.first'].value)
                   last_script:
-                    type: runtime_script
+                    type: runtime
                     runtime_type: keyword
                     script: emitValue(doc['users.last'].value)
   - do:

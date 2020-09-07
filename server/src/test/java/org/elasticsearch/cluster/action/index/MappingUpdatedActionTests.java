@@ -105,7 +105,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         List<ActionListener<Void>> inFlightListeners = new CopyOnWriteArrayList<>();
         final MappingUpdatedAction mua = new MappingUpdatedAction(Settings.builder()
             .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null) {
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
             protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
@@ -153,7 +153,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         when(client.admin()).thenReturn(adminClient);
 
         MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         mua.setClient(client);
 
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -180,7 +180,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         when(client.admin()).thenReturn(adminClient);
 
         MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         mua.setClient(client);
 
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();

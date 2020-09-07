@@ -56,7 +56,7 @@ public class TransportSearchHelperTests extends ESTestCase {
         final Version version = VersionUtils.randomVersion(random());
         boolean includeUUID = version.onOrAfter(Version.V_7_7_0);
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
-        String scrollId = TransportSearchHelper.buildScrollId(queryResults, version);
+        String scrollId = TransportSearchHelper.buildScrollId(queryResults);
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
         assertEquals(3, parseScrollId.getContext().length);
         assertEquals("node_1", parseScrollId.getContext()[0].getNode());

@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -145,6 +146,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
+        private Predicate<Boolean> serializerPredicate = id -> true;
         private Function<T, String> conflictSerializer = Object::toString;
         private T value;
         private boolean isSet;
@@ -229,6 +231,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Set a serialization predicate for this parameter.
+         *
+         * The predicate is passed the value of `include_defaults`
+         */
+        public Parameter<T> setSerializerPredicate(Predicate<Boolean> serializerPredicate) {
+            this.serializerPredicate = serializerPredicate;
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
@@ -254,7 +266,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (includeDefaults || isConfigured()) {
+            if ((includeDefaults || isConfigured()) && serializerPredicate.test(includeDefaults)) {
                 serializer.serialize(builder, name, getValue());
             }
         }

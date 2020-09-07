@@ -69,7 +69,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * object from the scroll context with the current authentication context
      */
     @Override
-    public void validateSearchContext(ReaderContext readerContext, TransportRequest request) {
+    public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
         if (licenseState.isSecurityEnabled()) {
             if (readerContext.scrollContext() != null) {
                 final Authentication originalAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);

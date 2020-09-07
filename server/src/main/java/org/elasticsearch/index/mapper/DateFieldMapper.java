@@ -477,6 +477,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+            if (format == null || "epoch_millis".equals(format)) {
+                return DocValueFormat.RAW;
+            }
             DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
                 dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());

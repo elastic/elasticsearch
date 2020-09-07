@@ -105,7 +105,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     }
 
     @Override
-    public final String getDescription() {
+    public String getDescription() {
         return "open search context: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
     }
 

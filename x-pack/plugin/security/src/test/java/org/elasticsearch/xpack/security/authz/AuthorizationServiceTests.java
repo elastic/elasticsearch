@@ -600,7 +600,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClearScrollAction.NAME), eq(clearScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));
 
-        final SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
+        when(searchScrollRequest.hasLocalIndices()).thenReturn(true);
         authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));

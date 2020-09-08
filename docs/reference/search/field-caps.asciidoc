@@ -1,5 +1,9 @@
 [[search-field-caps]]
-=== Field Capabilities API
+=== Field capabilities API
+++++
+<titleabbrev>Field capabilities</titleabbrev>
+++++
+
 
 Allows you to retrieve the capabilities of fields among multiple indices.
 For data streams, the API returns field capabilities among the stream's backing

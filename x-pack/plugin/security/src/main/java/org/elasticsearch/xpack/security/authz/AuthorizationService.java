@@ -152,8 +152,7 @@ public class AuthorizationService {
     }
 
     private AuthorizationInfo getAuthorizationInfoFromContext() {
-        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY),
-                "authorization info is missing from context");
+        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
     }
 
     /**
@@ -169,10 +168,12 @@ public class AuthorizationService {
      */
     public void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
                           final ActionListener<Void> listener) throws ElasticsearchSecurityException {
-        // authorization fills in certain transient headers (that must be observed in the listener as well), therefore we
-        // begin by clearing the existing ones up (as they might be already set by the authorization of a previous parent
-        // action (which ran under the same context (on the same node)))
-        try (ThreadContext.StoredContext ignore = stashAuthorizationContext()) {
+        /* authorization fills in certain transient headers (that must be observed in the listener as well), therefore we
+         * begin by clearing the existing ones up (as they might be already set by the authorization of a previous parent
+         * action (which ran under the same context (on the same node))).
+         * When the returned {@code StoredContext} is closed, ALL the original headers are restored.
+         */
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false, AuthorizationServiceField.ALL_AUTHORIZATION_KEYS)) {
             // prior to doing any authorization lets set the originating action in the context only
             threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, action);
 
@@ -547,16 +548,6 @@ public class AuthorizationService {
                 });
             }, listener::onFailure));
         }, listener::onFailure));
-    }
-
-    /**
-     * Compared to {@code ThreadContext#stashContext} this only clears the specific transient headers that are used to convey the
-     * authorization outcome, leaving the other headers in place, just like {@code ThreadContext#newStoredContext(true)}. When
-     * the returned {@code StoredContext} is closed, the original authorization transient headers are restored (if any did
-     * not originally exist, it will also not exist after the restore).
-     */
-    private ThreadContext.StoredContext stashAuthorizationContext() {
-        return threadContext.stashTransientHeaders(AuthorizationServiceField.ALL_AUTHORIZATION_KEYS);
     }
 
     private static IllegalArgumentException illegalArgument(String message) {

@@ -136,61 +136,6 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Removes the specified transient headers from the current context. When the returned
-     * {@link StoredContext} is closed, it will restore these transient headers to their original
-     * value (including restoring them to an <i>unset</i> value if they did not originally exist).
-     * Closing the {@code StoredContext} has no affect on any other header - any headers
-     * (other than those names specified in {@code transientHeadersToStash} that were
-     * added to the {@code ThreadContext} will be retained.
-     *
-     * For example, at the end of the following code, the ThreadContext will have transient
-     * values {@code "a"=1}, {@code "b"=1}, {@code "d"=2} and {@code "c"} will not be set.
-     * <pre>
-     * threadContext.putTransient("a", 1);
-     * threadContext.putTransient("b", 1);
-     * try (ThreadContext.StoredContext restore = threadContext.stashTransientContext(List.of("b", "c")) ) {
-     *   threadContext.putTransient("b", 2);
-     *   threadContext.putTransient("c", 2);
-     *   threadContext.putTransient("d", 2);
-     * }
-     * </pre>
-     */
-    public StoredContext stashTransientHeaders(Collection<String> transientHeadersToStash) {
-        if (transientHeadersToStash.isEmpty()) {
-            // no-op
-            return () -> {
-            };
-        }
-        final ThreadContextStruct beforeContext = threadLocal.get();
-        final Map<String, Object> stashedTransientHeaders = new HashMap<>();
-        Map<String, Object> newBeforeTransientHeaders = new HashMap<>(beforeContext.transientHeaders);
-        for (String transientHeaderToStash : transientHeadersToStash) {
-            if (newBeforeTransientHeaders.containsKey(transientHeaderToStash)) {
-                Object stashed = newBeforeTransientHeaders.remove(transientHeaderToStash);
-                stashedTransientHeaders.put(transientHeaderToStash, stashed);
-            }
-        }
-        if (false == stashedTransientHeaders.isEmpty()) {
-            ThreadContextStruct threadContextStruct = new ThreadContextStruct(beforeContext.requestHeaders, beforeContext.responseHeaders,
-                    newBeforeTransientHeaders, beforeContext.isSystemContext);
-            threadLocal.set(threadContextStruct);
-        }
-        return () -> {
-            final ThreadContextStruct afterContext = threadLocal.get();
-            Map<String, Object> newAfterTransientHeaders = new HashMap<>(afterContext.transientHeaders);
-            // remove the transients that might have been set in the mean time
-            for (String transientHeaderToStash : transientHeadersToStash) {
-                newAfterTransientHeaders.remove(transientHeaderToStash);
-            }
-            // fill in the values that existed before stashing
-            newAfterTransientHeaders.putAll(stashedTransientHeaders);
-            ThreadContextStruct threadContextStruct = new ThreadContextStruct(afterContext.requestHeaders, afterContext.responseHeaders,
-                    newAfterTransientHeaders, afterContext.isSystemContext);
-            threadLocal.set(threadContextStruct);
-        };
-    }
-
-    /**
      * Captures the current thread context as writeable, allowing it to be serialized out later
      */
     public Writeable captureAsWriteable() {
@@ -241,10 +186,37 @@ public final class ThreadContext implements Writeable {
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
     public StoredContext newStoredContext(boolean preserveResponseHeaders) {
+        return newStoredContext(preserveResponseHeaders, List.of());
+    }
+
+    /**
+     * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
+     * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
+     * restored by closing the returned {@link StoredContext}.
+     *
+     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
+     */
+    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
         final ThreadContextStruct context = threadLocal.get();
-        return ()  -> {
-            if (preserveResponseHeaders && threadLocal.get() != context) {
-                threadLocal.set(context.putResponseHeaders(threadLocal.get().responseHeaders));
+        // clear specific transient headers from the current context
+        Map<String, Object> newTransientHeaders = null;
+        for (String transientHeaderToClear : transientHeadersToClear) {
+            if (context.transientHeaders.containsKey(transientHeaderToClear)) {
+                if (newTransientHeaders == null) {
+                    newTransientHeaders = new HashMap<>(context.transientHeaders);
+                }
+                newTransientHeaders.remove(transientHeaderToClear);
+            }
+        }
+        if (newTransientHeaders != null) {
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(context.requestHeaders, context.responseHeaders,
+                    newTransientHeaders, context.isSystemContext, context.warningHeadersSize);
+            threadLocal.set(threadContextStruct);
+        }
+        return () -> {
+            if (preserveResponseHeaders && false == threadLocal.get().responseHeaders.equals(context.responseHeaders)) {
+                threadLocal.set(new ThreadContextStruct(context.requestHeaders, new HashMap<>(threadLocal.get().responseHeaders),
+                        context.transientHeaders, context.isSystemContext, threadLocal.get().warningHeadersSize));
             } else {
                 threadLocal.set(context);
             }

@@ -1886,8 +1886,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public ClusterTasksResult<UpdateIndexShardSnapshotStatusRequest>
                         execute(ClusterState currentState, List<UpdateIndexShardSnapshotStatusRequest> tasks) {
             int changedCount = 0;
+            int startedCount = 0;
             final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
             final List<UpdateIndexShardSnapshotStatusRequest> unconsumedTasks = new ArrayList<>(tasks);
+            final Set<UpdateIndexShardSnapshotStatusRequest> executedTasks = new HashSet<>();
             for (SnapshotsInProgress.Entry entry : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 if (entry.state().completed()) {
                     entries.add(entry);
@@ -1911,7 +1913,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             continue;
                         }
                         if (existing.state().completed()) {
-                            // No point in doing noop updates that might happen if data nodes resend shard status after a disconnect
+                            // No point in doing noop updates that might happen if data nodes resends shard status after a disconnect.
+                            iterator.remove();
                             continue;
                         }
                         logger.trace("[{}] Updating shard [{}] with status [{}]", updatedSnapshot,
@@ -1920,8 +1923,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             shards = ImmutableOpenMap.builder(entry.shards());
                         }
                         shards.put(finishedShardId, updateSnapshotState.status());
+                        executedTasks.add(updateSnapshotState);
                         changedCount++;
-                    } else {
+                    } else if (executedTasks.contains(updateSnapshotState)) {
                         final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
                         if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                             continue;
@@ -1934,6 +1938,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 finishedStatus.nodeId(), finishedStatus.generation());
                         shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
                         iterator.remove();
+                        startedCount++;
                     }
                 }
 
@@ -1944,7 +1949,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             if (changedCount > 0) {
-                logger.trace("changed cluster state triggered by {} snapshot state updates", changedCount);
+                logger.trace("changed cluster state triggered by [{}] snapshot state updates and resulted in starting " +
+                        "[{}] shard snapshots", changedCount, startedCount);
                 return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks)
                         .build(ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
                                 SnapshotsInProgress.of(entries)).build());

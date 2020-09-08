@@ -43,7 +43,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
         boolean shouldIntercept = licenseState.isSecurityEnabled();
-        var featureUsageChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
         if (requestInfo.getRequest() instanceof BulkShardRequest && shouldIntercept) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
@@ -58,7 +58,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                         boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                        if ((fls || dls) && featureUsageChecker.get()) {
+                        if ((fls || dls) && licenseChecker.get()) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
                             bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +

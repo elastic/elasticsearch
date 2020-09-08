@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -79,8 +78,7 @@ public class LogicalPlanTests extends ESTestCase {
     private LogicalPlan wrapFilter(Expression exp) {
         LogicalPlan filter = new Filter(Source.EMPTY, relation(), exp);
         Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
         LogicalPlan head = new Head(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.SIZE, DataTypes.INTEGER), sorted);
         return head;
     }

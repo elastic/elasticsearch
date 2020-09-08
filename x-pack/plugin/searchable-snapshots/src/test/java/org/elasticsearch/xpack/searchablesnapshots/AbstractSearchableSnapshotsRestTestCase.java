@@ -8,20 +8,14 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,7 +25,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,7 +32,6 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
@@ -250,26 +242,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
-        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).verify(verify).settings(settings)));
-
-        final Response response = client().performRequest(request);
-        assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
-    }
-
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
-        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-
-        final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
-    }
-
     protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         try {
@@ -404,19 +376,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             equalTo(RestStatus.OK.getStatus())
         );
         return extractValue(responseAsMap(response), index + ".settings");
-    }
-
-    protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        final XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        assertThat("Unknown XContentType", xContentType, notNullValue());
-
-        BytesReference bytesReference = Streams.readFully(response.getEntity().getContent());
-
-        try (InputStream responseBody = bytesReference.streamInput()) {
-            return XContentHelper.convertToMap(xContentType.xContent(), responseBody, true);
-        } catch (Exception e) {
-            throw new IOException(bytesReference.utf8ToString(), e);
-        }
     }
 
     @SuppressWarnings("unchecked")

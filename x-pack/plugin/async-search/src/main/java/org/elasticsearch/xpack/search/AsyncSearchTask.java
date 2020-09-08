@@ -84,6 +84,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     String type,
                     String action,
                     TaskId parentTaskId,
+                    Supplier<String> descriptionSupplier,
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
@@ -91,7 +92,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     Client client,
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
-        super(id, type, action, "async_search", parentTaskId, taskHeaders);
+        super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;

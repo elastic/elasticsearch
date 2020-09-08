@@ -87,6 +87,7 @@ setup:
 
 ---
 "Aggregation of different numeric types is supported":
+  # sum agg
   - do:
       search:
         index: test*
@@ -98,6 +99,7 @@ setup:
                 field: my_counter
   - match: { aggregations.my_counter_sum.value: 3.68934881474211E19 }
 
+  # histogram agg
   - do:
       search:
         index: test*
@@ -115,3 +117,23 @@ setup:
   - match: { aggregations.my_counter_histo.buckets.1.doc_count: 2 }
   - match: { aggregations.my_counter_histo.buckets.2.key: 1.8446744073709552E19 }
   - match: { aggregations.my_counter_histo.buckets.2.doc_count: 1 }
+
+  # terms agg bucket values are converted to double
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          aggs:
+            my_counter_terms:
+              terms:
+                field: my_counter
+  - length: { aggregations.my_counter_terms.buckets: 4 }
+  - match: { aggregations.my_counter_terms.buckets.0.key: 0.0 }
+  - match: { aggregations.my_counter_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.my_counter_terms.buckets.1.key: 1000000.0 }
+  - match: { aggregations.my_counter_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.my_counter_terms.buckets.2.key: 9.223372036854776E18 }
+  - match: { aggregations.my_counter_terms.buckets.2.doc_count: 2 }
+  - match: { aggregations.my_counter_terms.buckets.3.key: 1.8446744073709552E19 }
+  - match: { aggregations.my_counter_terms.buckets.3.doc_count: 1 }

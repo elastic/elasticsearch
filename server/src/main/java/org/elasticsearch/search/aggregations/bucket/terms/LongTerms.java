@@ -156,10 +156,31 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        boolean unsignedLongFormat = false;
+        boolean rawFormat = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof DoubleTerms) {
                 return agg.reduce(aggregations, reduceContext);
             }
+            if (agg instanceof LongTerms) {
+                if (((LongTerms) agg).format == DocValueFormat.RAW) {
+                    rawFormat = true;
+                } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                    unsignedLongFormat = true;
+                }
+            }
+        }
+        if (rawFormat && unsignedLongFormat) { // if we have mixed formats, convert results to double format
+            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
+            for (InternalAggregation agg : aggregations) {
+                if (agg instanceof LongTerms) {
+                    DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
+                    newAggs.add(dTerms);
+                } else {
+                    newAggs.add(agg);
+                }
+            }
+            return newAggs.get(0).reduce(newAggs, reduceContext);
         }
         return super.reduce(aggregations, reduceContext);
     }

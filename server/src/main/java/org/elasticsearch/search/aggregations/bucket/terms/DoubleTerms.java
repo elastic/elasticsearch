@@ -146,7 +146,8 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean promoteToDouble = false;
         for (InternalAggregation agg : aggregations) {
-            if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
+            if (agg instanceof LongTerms &&
+                (((LongTerms) agg).format == DocValueFormat.RAW || ((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) ) {
                 /*
                  * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
                  * compatible

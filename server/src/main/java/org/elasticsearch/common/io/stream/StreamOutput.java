@@ -829,12 +829,12 @@ public abstract class StreamOutput extends OutputStream {
                         o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
                     }),
             entry(
-                // TODO: improve serialization of BigInteger
-                BigInteger.class,
-                (o, v) -> {
-                    o.writeByte((byte) 26);
-                    o.writeString(v.toString());
-                }
+                    // TODO: improve serialization of BigInteger
+                    BigInteger.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 26);
+                        o.writeString(v.toString());
+                    }
             ));
 
     private static Class<?> getGenericType(Object value) {

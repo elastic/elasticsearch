@@ -86,7 +86,7 @@ GET /my_index/_search
 For queries with sort on an `unsigned_long` field,
 for a particular document {es} returns a sort value of the type `Long`
 if the value of this document is within the range of long values,
-or of the type `BigIntger` if the value exceeds this range.
+or of the type `BigInteger` if the value exceeds this range.
 
 WARNING: Not all {es} clients can properly handle big integer values.
 
@@ -104,17 +104,19 @@ GET /my_index/_search
 
 Similarly to sort values, script values of an `unsigned_long` field
 produce `BigInteger` or `Long` values. The same values: `BigInteger` or
-`Long` are returned as keys for `terms` aggregation.
+`Long` are used for `terms` aggregation.
 
 ==== Queries with mixed numeric types
 
-Search queries across several numeric types one of which `unsigned_long` are supported,
-except queries with sort. Thus, a sort query across two indexes where the same field
-is `unsigned_long` in one index, and `long` in another, doesn't produce correct results
-and must be avoided. If there is a need for a such kind of sorting, script based
-sorting can be used instead.
-Aggregations across several numeric types one of which `unsigned_long` are supported,
-except a terms aggregation.
+Search queries across several numeric types one of which `unsigned_long` are
+supported, except queries with sort. Thus, a sort query across two indexes
+where the same field name has an `unsigned_long` type in one index,
+and `long` type in another, doesn't produce correct results and must
+be avoided. If there is a need for such kind of sorting, script based sorting
+can be used instead.
+
+Aggregations across several numeric types one of which is `unsigned_long` are
+supported. In this case, values are converted to the `double` type.
 
 
 [[unsigned-long-params]]

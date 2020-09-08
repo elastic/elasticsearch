@@ -36,8 +36,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests.getClassificationDefinition;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 
 /**
@@ -71,8 +69,12 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        client().performRequest(new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN));
-        client().performRequest(new Request("DELETE", MlStatsIndex.indexPattern()));
+        final Request deleteInferenceRequest = new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN);
+        deleteInferenceRequest.addParameter("allow_system_index_access", "true");
+        client().performRequest(deleteInferenceRequest);
+        final Request deleteStatsRequest = new Request("DELETE", MlStatsIndex.indexPattern());
+        deleteStatsRequest.addParameter("allow_system_index_access", "true");
+        client().performRequest(deleteStatsRequest);
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +

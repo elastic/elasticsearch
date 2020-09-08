@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -301,7 +302,7 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
-        LOGGER.debug("rewriting features {}", newFeatureIndexMapping);
+        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }
@@ -343,7 +344,7 @@ public class TreeInferenceModel implements InferenceModel {
             if (node instanceof LeafNode) {
                 LeafNode leafNode = (LeafNode) node;
                 if (leafNode.leafValue.length > 1) {
-                    return (double)leafNode.leafValue.length;
+                    return leafNode.leafValue.length;
                 } else {
                     max = Math.max(leafNode.leafValue[0], max);
                 }

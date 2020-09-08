@@ -69,7 +69,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 public class OptimizerTests extends ESTestCase {
 
-
     private static final String INDEX_NAME = "test";
     private EqlParser parser = new EqlParser();
     private IndexResolution index = loadIndexResolution("mapping-default.json");
@@ -363,7 +362,6 @@ public class OptimizerTests extends ESTestCase {
      * \filter X
      */
     public void testKeySameConstraints() {
-        ZoneId zd = randomZone();
         Attribute a = key("a");
 
         Expression keyCondition = gtExpression(a);
@@ -436,7 +434,6 @@ public class OptimizerTests extends ESTestCase {
      * \filter b == 1
      */
     public void testDifferentOneKeyConstraints() {
-        ZoneId zd = randomZone();
         Attribute a = key("a");
         Attribute b = key("b");
 
@@ -525,7 +522,6 @@ public class OptimizerTests extends ESTestCase {
      * same
      */
     public void testSkipKeySameWithDisjunctionConstraints() {
-        ZoneId zd = randomZone();
         Attribute a = key("a");
 
         Expression keyCondition = gtExpression(a);
@@ -560,7 +556,6 @@ public class OptimizerTests extends ESTestCase {
      * \filter x == 1
      */
     public void testExtractKeySameFromDisjunction() {
-        ZoneId zd = randomZone();
         Attribute a = key("a");
 
         Expression keyCondition = gtExpression(a);

@@ -206,7 +206,7 @@ public class ApiKeyService {
                 .setMaximumWeight(maximumWeight)
                 .build();
             this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
-                .setExpireAfterAccess(ttl)
+                .setExpireAfterAccess(TimeValue.timeValueHours(1))
                 .setMaximumWeight(maximumWeight * 2)
                 .build();
             this.apiKeyDocCache = new ConsistentCache<>(

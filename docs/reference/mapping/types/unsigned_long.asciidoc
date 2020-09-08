@@ -3,10 +3,6 @@
 
 [[unsigned-long]]
 === Unsigned long data type
-++++
-<titleabbrev>Unsigned long</titleabbrev>
-++++
-
 Unsigned long is a numeric field type that represents an unsigned 64-bit
 integer with a minimum value of 0 and a maximum value of +2^64^-1+
 (from 0 to 18446744073709551615 inclusive).
@@ -117,42 +113,3 @@ can be used instead.
 
 Aggregations across several numeric types one of which is `unsigned_long` are
 supported. In this case, values are converted to the `double` type.
-
-
-[[unsigned-long-params]]
-==== Parameters for unsigned long fields
-
-The following parameters are accepted:
-
-[horizontal]
-
-<<doc-values,`doc_values`>>::
-
-    Should the field be stored on disk in a column-stride fashion, so that it
-    can later be used for sorting, aggregations, or scripting? Accepts `true`
-    (default) or `false`.
-
-<<ignore-malformed,`ignore_malformed`>>::
-
-    If `true`, malformed numbers are ignored. If `false` (default), malformed
-    numbers throw an exception and reject the whole document.
-
-<<mapping-index,`index`>>::
-
-    Should the field be searchable? Accepts `true` (default) and `false`.
-
-<<null-value,`null_value`>>::
-
-    Accepts a numeric value of the same `type` as the field which is
-    substituted for any explicit `null` values.  Defaults to `null`, which
-    means the field is treated as missing.
-
-<<mapping-store,`store`>>::
-
-    Whether the field value should be stored and retrievable separately from
-    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
-    (default).
-
-<<mapping-field-meta,`meta`>>::
-
-    Metadata about the field.

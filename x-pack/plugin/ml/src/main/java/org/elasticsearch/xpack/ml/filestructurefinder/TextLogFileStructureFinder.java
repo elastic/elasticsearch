@@ -111,7 +111,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         Map<String, String> messageMapping = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text");
         SortedMap<String, Object> mappings = new TreeMap<>();
         mappings.put("message", messageMapping);
-        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
+        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timestampFormatFinder.getEsDateMappingTypeWithoutFormat());
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
         fieldStats.put("message", FileStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
@@ -151,7 +151,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
             .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern, customGrokPatternDefinitions, null, mappings,
-                interimTimestampField, timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone))
+                interimTimestampField, timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone,
+                timestampFormatFinder.needNanosecondPrecision()))
             .setMappings(mappings)
             .setFieldStats(fieldStats)
             .setExplanation(explanation)

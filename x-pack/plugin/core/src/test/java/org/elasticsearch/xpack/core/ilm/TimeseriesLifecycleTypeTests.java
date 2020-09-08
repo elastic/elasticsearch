@@ -637,7 +637,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
             actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.INSTANCE.shouldInjectMigrateStepForPhase(phase), is(false));
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
         {
@@ -645,7 +645,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, null, null, null));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.INSTANCE.shouldInjectMigrateStepForPhase(phase), is(true));
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
         }
 
         {
@@ -653,7 +653,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.INSTANCE.shouldInjectMigrateStepForPhase(phase), is(false));
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
         {
@@ -661,7 +661,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.INSTANCE.shouldInjectMigrateStepForPhase(phase), is(false));
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
     }
 

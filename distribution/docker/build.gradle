@@ -15,16 +15,6 @@ apply plugin: 'elasticsearch.rest-resources'
 testFixtures.useFixture()
 
 configurations {
-  ['aarch64DockerSource', 'dockerSource', 'aarch64OssDockerSource', 'ossDockerSource'].each {
-    create(it) {
-      attributes {
-        attribute(ArtifactAttributes.ARTIFACT_FORMAT, "tar.gz")
-      }
-    }
-  }
-}
-
-configurations {
   aarch64DockerSource
   dockerSource
   aarch64OssDockerSource

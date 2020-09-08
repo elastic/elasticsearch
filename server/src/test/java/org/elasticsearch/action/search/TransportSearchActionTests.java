@@ -836,6 +836,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
                 }
+                if (source.pointInTimeBuilder() != null) {
+                    source.pointInTimeBuilder(null);
+                }
             }
             searchRequest.setCcsMinimizeRoundtrips(true);
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));

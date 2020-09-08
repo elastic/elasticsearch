@@ -1422,7 +1422,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
         if (pointInTimeBuilder != null) {
-            builder.field(POINT_IN_TIME.getPreferredName(), pointInTimeBuilder);
+            pointInTimeBuilder.toXContent(builder, params);
         }
         return builder;
     }
@@ -1735,8 +1735,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(POINT_IN_TIME.getPreferredName());
             builder.field(ID_FIELD.getPreferredName(), id);
             builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
+            builder.endObject();
             return builder;
         }
 

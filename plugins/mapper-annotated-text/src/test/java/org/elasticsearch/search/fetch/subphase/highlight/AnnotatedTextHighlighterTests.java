@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.highlight;
+package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -28,7 +28,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -48,14 +47,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
-import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.highlight.AnnotatedPassageFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
 import java.text.BreakIterator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Locale;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -70,7 +66,6 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
 
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
         Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(wrapperAnalyzer);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -93,17 +88,14 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
 
-        LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-        HitContext mockHitContext = new HitContext(null, context, 0, null, new HashMap<>());
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer, mockHitContext);
-
         AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
         for (int i = 0; i < markedUpInputs.length; i++) {
             annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
         }
-        mockHitContext.cache().put(AnnotatedText.class.getName(), annotations);
-
-        AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(annotations,new DefaultEncoder());
+        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
+        hiliteAnalyzer.setAnnotations(annotations);
+        AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
+        passageFormatter.setAnnotations(annotations);
 
         ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
         for (int i = 0; i < annotations.length; i++) {
@@ -113,13 +105,24 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
         assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
-
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, hiliteAnalyzer, null,
-                passageFormatter, locale,
-                breakIterator, rawValue, noMatchSize);
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            searcher,
+            hiliteAnalyzer,
+            null,
+            passageFormatter,
+            locale,
+            breakIterator,
+            "index",
+            "text",
+            query,
+            noMatchSize,
+            expectedPassages.length,
+            name -> "text".equals(name),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
         highlighter.setFieldMatcher((name) -> "text".equals(name));
-        final Snippet[] snippets =
-            highlighter.highlightField("text", query, topDocs.scoreDocs[0].doc, expectedPassages.length);
+        final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
         assertEquals(expectedPassages.length, snippets.length);
         for (int i = 0; i < snippets.length; i++) {
             assertEquals(expectedPassages[i], snippets[i].getText());

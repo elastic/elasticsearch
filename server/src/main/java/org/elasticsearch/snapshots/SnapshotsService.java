@@ -1888,7 +1888,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             int changedCount = 0;
             int startedCount = 0;
             final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+            // Tasks to check for updates for running snapshots.
             final List<UpdateIndexShardSnapshotStatusRequest> unconsumedTasks = new ArrayList<>(tasks);
+            // Tasks that were used to complete an existing in-progress shard snapshot
             final Set<UpdateIndexShardSnapshotStatusRequest> executedTasks = new HashSet<>();
             for (SnapshotsInProgress.Entry entry : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 if (entry.state().completed()) {
@@ -1926,6 +1928,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         executedTasks.add(updateSnapshotState);
                         changedCount++;
                     } else if (executedTasks.contains(updateSnapshotState)) {
+                        // tasks that completed a shard might allow starting a new shard snapshot for the current snapshot
                         final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
                         if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                             continue;

@@ -476,6 +476,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 // rarely the master node fails over twice when shutting down the initial master and fails the transport listener
                 assertThat(rex.repository(), is("_all"));
                 assertThat(rex.getMessage(), endsWith("Failed to update cluster state during repository operation"));
+            } catch (SnapshotMissingException sme) {
+                // very rarely a master node fail-over happens at such a time that the client on the data-node sees a disconnect exception
+                // after the master has already started the delete, leading to the delete retry to run into a situation where the
+                // snapshot has already been deleted potentially
+                assertThat(sme.getSnapshotName(), is(firstSnapshot));
             }
         }
         expectThrows(SnapshotException.class, snapshotThreeFuture::actionGet);

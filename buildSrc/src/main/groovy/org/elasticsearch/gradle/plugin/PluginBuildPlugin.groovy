@@ -62,7 +62,14 @@ class PluginBuildPlugin implements Plugin<Project> {
         createBundleTasks(project, extension)
 
         project.afterEvaluate {
-
+            project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
+                // Auto add dependent modules to the test cluster
+                if (project.findProject(":modules:${pluginName}") != null) {
+                    project.testClusters.all {
+                        module(":modules:${pluginName}")
+                    }
+                }
+            }
             PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
             configurePublishing(project, extension1)
             String name = extension1.name

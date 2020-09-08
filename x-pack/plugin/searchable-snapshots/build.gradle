@@ -38,7 +38,7 @@ artifacts {
   testArtifacts testJar
 }
 
-testClusters.integTest {
+testClusters.all {
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
   }

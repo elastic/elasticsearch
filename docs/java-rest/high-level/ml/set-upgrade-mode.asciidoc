@@ -5,9 +5,9 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Set Upgrade Mode API
+=== Set upgrade mode API
 
-The Set Upgrade Mode API temporarily halts all {ml} job and {dfeed} tasks when `enabled=true`. Their
+The set upgrade mode API temporarily halts all {ml} job and {dfeed} tasks when `enabled=true`. Their
 reported states remain unchanged. Consequently, when exiting upgrade mode the halted {ml} jobs and
 {dfeeds} will return to their previous state.
 
@@ -17,7 +17,7 @@ When `enabled=true`, no new jobs can be opened, and no job or {dfeed} tasks will
 be running. Be sure to set `enabled=false` once upgrade actions are completed.
 
 [id="{upid}-{api}-request"]
-==== Set Upgrade Mode Request
+==== Set upgrade mode request
 
 A +{request}+ object gets created setting the desired `enabled` state.
 
@@ -30,7 +30,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 execution should wait.
 
 [id="{upid}-{api}-response"]
-==== Set Upgrade Mode Response
+==== Set upgrade mode response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

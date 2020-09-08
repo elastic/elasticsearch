@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.DependenciesInfoTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -86,6 +87,7 @@ String ossOutputs = 'build/outputs/oss'
 String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
+String externalTestOutputs = 'build/outputs/external-test'
 
 tasks.register("processOssOutputs", Sync) {
   into ossOutputs
@@ -98,6 +100,10 @@ tasks.register("processDefaultOutputs", Sync) {
 
 tasks.register("processSystemdOutputs", Sync) {
   into systemdOutputs
+}
+
+tasks.register("processExternalTestOutputs", Sync) {
+  into externalTestOutputs
 }
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
@@ -139,11 +145,22 @@ tasks.register("buildTransportModules") {
   dependsOn "processTransportOutputs"
   outputs.dir "${transportOutputs}/modules"
 }
+tasks.register("buildExternalTestModules") {
+  dependsOn "processExternalTestOutputs"
+  outputs.dir "${externalTestOutputs}/modules"
+}
+
+Configuration moduleZip(Project module) {
+  Dependency dep = project.dependencies.project(path: module.path, configuration: 'zip')
+  Configuration config = project.configurations.detachedConfiguration(dep)
+  return config
+}
 
 void copyModule(Sync copyTask, Project module) {
+  Configuration moduleConfig = moduleZip(module)
   copyTask.configure {
-    dependsOn "${module.path}:bundlePlugin"
-    from({ zipTree(module.bundlePlugin.outputs.files.singleFile) }) {
+    dependsOn moduleConfig
+    from({ zipTree(moduleConfig.singleFile) }) {
       includeEmptyDirs false
 
       // these are handled separately in the log4j config tasks below
@@ -196,9 +213,10 @@ tasks.named("buildDefaultLog4jConfig").configure {
 
 // copy log4j2.properties from modules that have it
 void copyLog4jProperties(Task buildTask, Project module) {
-  buildTask.dependsOn "${module.path}:bundlePlugin"
+  Configuration moduleConfig = moduleZip(module)
+  buildTask.dependsOn moduleConfig
   buildTask.doFirst {
-    FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
+    FileTree tree = zipTree(moduleConfig.singleFile)
     FileTree filtered = tree.matching {
       include 'config/log4j2.properties'
       include '*/config/log4j2.properties' // could be in a bundled plugin
@@ -255,6 +273,10 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
 }
 
 copyModule(processSystemdOutputs, project(':modules:systemd'))
+
+project(':test:external-modules').subprojects.each { Project testModule ->
+  copyModule(processExternalTestOutputs, testModule)
+}
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
@@ -360,6 +382,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}/**"
           }
+        }
+        if (BuildParams.isSnapshotBuild()) {
+          from(project(':distribution').buildExternalTestModules)
         }
         if (project.path.startsWith(':distribution:packages')) {
           from(project(':distribution').buildSystemdModule)

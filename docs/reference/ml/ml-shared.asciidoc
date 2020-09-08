@@ -62,6 +62,21 @@ when there are no matches or only partial matches.
 --
 end::allow-no-match[]
 
+tag::allow-no-match-models[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no models that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
+--
+end::allow-no-match-models[]
+
 tag::analysis[]
 Defines the type of {dfanalytics} you want to perform on your source index. For
 example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.

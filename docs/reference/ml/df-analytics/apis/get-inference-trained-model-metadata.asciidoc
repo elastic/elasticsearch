@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference-metadata]]
-= Get {infer} trained model metadata API
+= Get trained model metadata API
 [subs="attributes"]
 ++++
 <titleabbrev>Get {infer} trained model metadata</titleabbrev>
 ++++
 
-Retrieves training metadata information for trained {infer} models.
+Retrieves training metadata information for trained models.
 
 experimental[]
 
@@ -39,7 +39,7 @@ For more information, see <<security-privileges>> and {ml-docs-setup-privileges}
 [[ml-get-inference-metadata-desc]]
 == {api-description-title}
 
-You can get training metadata information for multiple trained models in a single API
+You can get metadata for multiple trained models in a single API
 request by using a comma-separated list of model IDs or a wildcard expression.
 
 
@@ -56,7 +56,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `allow_no_match`::
 (Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 
 `from`::
 (Optional, integer)
@@ -124,7 +124,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-impo
 
 `classes`:::
 (array)
-If the trained model is a classification model, feature importance stastics are gathered
+If the trained model is a classification model, feature importance statistics are gathered
 per target class value.
 +
 .Properties of class feature importance

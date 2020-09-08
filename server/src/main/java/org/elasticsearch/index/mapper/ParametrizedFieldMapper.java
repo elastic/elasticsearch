@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -146,6 +147,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
+        private BooleanSupplier serializerPredicate = () -> true;
         private Function<T, String> conflictSerializer = Object::toString;
         private T value;
         private boolean isSet;
@@ -230,6 +232,15 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets an additional check on whether or not this parameter should be serialized,
+         * after the existing 'set' and 'include_defaults' checks.
+         */
+        public Parameter<T> setShouldSerialize(BooleanSupplier shouldSerialize) {
+            this.serializerPredicate = shouldSerialize;
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
@@ -255,7 +266,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (includeDefaults || isConfigured()) {
+            if ((includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean()) {
                 serializer.serialize(builder, name, getValue());
             }
         }

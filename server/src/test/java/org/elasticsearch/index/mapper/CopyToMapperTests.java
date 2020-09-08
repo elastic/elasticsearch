@@ -108,11 +108,8 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
-        XContentBuilder dynamicBuilder = JsonXContent.contentBuilder().startObject();
-        parsedDoc.dynamicMappingsUpdate().toXContent(dynamicBuilder, ToXContent.EMPTY_PARAMS);
-        dynamicBuilder.endObject();
 
-        merge(mapperService, dynamicBuilder);
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("new_field");
         assertThat(fieldMapper.typeName(), equalTo("long"));

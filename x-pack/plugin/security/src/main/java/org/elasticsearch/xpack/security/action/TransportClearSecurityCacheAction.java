@@ -63,9 +63,9 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
     @Override
     protected ClearSecurityCacheResponse.Node nodeOperation(ClearSecurityCacheRequest.Node request, Task task) {
         if (request.getKeys() == null || request.getKeys().length == 0) {
-            CacheInvalidatorRegistry.invalidateAll(request.getCacheName());
+            CacheInvalidatorRegistry.invalidateCache(request.getCacheName());
         } else {
-            CacheInvalidatorRegistry.invalidate(request.getCacheName(), List.of(request.getKeys()));
+            CacheInvalidatorRegistry.invalidateByKey(request.getCacheName(), List.of(request.getKeys()));
         }
         return new ClearSecurityCacheResponse.Node(clusterService.localNode());
     }

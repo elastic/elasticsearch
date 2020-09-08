@@ -34,14 +34,14 @@ public class CacheInvalidatorRegistry {
     }
 
     public static void invalidateByKey(String cacheName, Collection<String> keys) {
-        final CacheInvalidator cacheInvalidator = cacheInvalidators.get(name);
+        final CacheInvalidator cacheInvalidator = cacheInvalidators.get(cacheName);
         if (cacheInvalidator != null) {
             cacheInvalidator.invalidate(keys);
         }
     }
 
     public static void invalidateCache(String cacheName) {
-        final CacheInvalidator cacheInvalidator = cacheInvalidators.get(name);
+        final CacheInvalidator cacheInvalidator = cacheInvalidators.get(cacheName);
         if (cacheInvalidator != null) {
             cacheInvalidator.invalidateAll();
         }

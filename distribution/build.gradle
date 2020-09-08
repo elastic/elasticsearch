@@ -253,10 +253,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   copyLog4jProperties(buildOssLog4jConfig, module)
   copyLog4jProperties(buildDefaultLog4jConfig, module)
 
-  // make sure the module's integration tests run after the integ-test-zip (ie rest tests)
-  module.afterEvaluate({
-    module.integTest.mustRunAfter(':distribution:archives:integ-test-zip:integTest')
-  })
   restTestExpansions['expected.modules.count'] += 1
 }
 

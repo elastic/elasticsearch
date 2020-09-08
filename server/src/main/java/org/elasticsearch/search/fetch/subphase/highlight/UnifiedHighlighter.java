@@ -77,7 +77,7 @@ public class UnifiedHighlighter implements Highlighter {
                 keywordIgnoreAbove = mapper.ignoreAbove();
             }
             int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-            Analyzer analyzer = getAnalyzer(fieldContext.context.getMapperService().documentMapper(), fieldContext.hitContext);
+            Analyzer analyzer = getAnalyzer(fieldContext.context.getMapperService().documentMapper());
             PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
             IndexSearcher searcher = fieldContext.context.searcher();
             OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -173,7 +173,7 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
 
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
+    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
         return docMapper.mappers().indexAnalyzer();
     }
 

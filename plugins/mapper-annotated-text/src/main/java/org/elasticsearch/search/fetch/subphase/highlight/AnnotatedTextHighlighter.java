@@ -62,8 +62,8 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
-        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, hitContext));
+    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
+        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper));
     }
 
     @Override

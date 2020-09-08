@@ -39,7 +39,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         // in a mixed cluster with some nodes <7.7.0 it will install template version 10, but if all nodes are <=7.7.0 template v11
         // is used.
         final String expectedMixedClusterTemplate = templatePrefix + (UPGRADE_FROM_VERSION.before(Version.V_7_7_0) ? "10" : "11");
-        final String expectedFinalTemplate = templatePrefix + "11";
+        final String expectedFinalTemplate = templatePrefix + "12";
 
         if (ClusterType.MIXED == CLUSTER_TYPE) {
             final Request request = new Request("HEAD", "/_template/" + expectedMixedClusterTemplate);
@@ -50,7 +50,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
-            Response response = client().performRequest(new Request("HEAD", "/_template/" + expectedFinalTemplate));
+            Response response = client().performRequest(new Request("HEAD", "/_index_template/" + expectedFinalTemplate));
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }

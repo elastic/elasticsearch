@@ -24,6 +24,7 @@ import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context, SearchLookup lookup) {
         if (context.explain() == false || context.hasOnlySuggest()) {
             return null;
         }

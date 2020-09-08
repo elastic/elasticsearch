@@ -292,26 +292,19 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            this.lookup = new SearchLookup(
-                getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup));
+            this.lookup = newSearchLookup();
         }
         return this.lookup;
     }
 
-    private SearchLookup fetchLookup = null;
-
     /**
-     * A {@link SearchLookup} only for use during the fetch phase.
+     * Build a new {@link SearchLookup}.
      */
-    public SearchLookup fetchLookup() {
-        if (fetchLookup == null) {
-            fetchLookup = new SearchLookup(
-                getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
-            );
-        }
-        return fetchLookup;
+    public SearchLookup newSearchLookup() {
+        return new SearchLookup(
+            getMapperService(),
+            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+        );
     }
 
     public NestedScope nestedScope() {

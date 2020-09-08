@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ import java.util.Map;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context, SearchLookup lookup) throws IOException {
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldName();
@@ -63,7 +64,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             if (ft == null) {
                 continue;
             }
-            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), context.getForField(ft));
+            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), lookup.doc().getForField(ft));
             fields.put(fieldAndFormat.field, fetcher);
         }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
+    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext, SearchLookup lookup) {
         FetchFieldsContext fetchFieldsContext = searchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
             return null;
@@ -48,7 +49,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         FieldValueRetriever retriever = fetchFieldsContext.fieldValueRetriever(
             searchContext.indexShard().shardId().getIndexName(),
             searchContext.mapperService(),
-            searchContext.getQueryShardContext().fetchLookup()
+            lookup
         );
         return new FetchSubPhaseProcessor() {
             @Override

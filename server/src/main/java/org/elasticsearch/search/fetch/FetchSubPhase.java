@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -105,5 +106,5 @@ public interface FetchSubPhase {
      * If nothing should be executed for the provided {@link SearchContext}, then the
      * implementation should return {@code null}
      */
-    FetchSubPhaseProcessor getProcessor(SearchContext searchContext) throws IOException;
+    FetchSubPhaseProcessor getProcessor(SearchContext searchContext, SearchLookup lookup) throws IOException;
 }

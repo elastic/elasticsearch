@@ -54,6 +54,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -102,9 +103,10 @@ public class FetchPhase {
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
             Map<String, Object> sharedCache = new HashMap<>();
 
+            SearchLookup lookup = context.getQueryShardContext().newSearchLookup();
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
-                FetchSubPhaseProcessor processor = fsp.getProcessor(context);
+                FetchSubPhaseProcessor processor = fsp.getProcessor(context, lookup);
                 if (processor != null) {
                     processors.add(processor);
                 }
@@ -127,8 +129,15 @@ public class FetchPhase {
                 }
                 assert currentReaderContext != null;
 
-                HitContext hit
-                    = prepareHitContext(context, fieldsVisitor, docId, storedToRequestedFields, currentReaderContext, sharedCache);
+                HitContext hit = prepareHitContext(
+                    context,
+                    lookup,
+                    fieldsVisitor,
+                    docId,
+                    storedToRequestedFields,
+                    currentReaderContext,
+                    sharedCache
+                );
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
@@ -220,12 +229,20 @@ public class FetchPhase {
         return -1;
     }
 
-    private HitContext prepareHitContext(SearchContext context, FieldsVisitor fieldsVisitor, int docId,
+    private HitContext prepareHitContext(SearchContext context, SearchLookup lookup, FieldsVisitor fieldsVisitor, int docId,
                                          Map<String, Set<String>> storedToRequestedFields,
                                          LeafReaderContext subReaderContext, Map<String, Object> sharedCache) throws IOException {
         int rootDocId = findRootDocumentIfNested(context, subReaderContext, docId - subReaderContext.docBase);
         if (rootDocId == -1) {
-            return prepareNonNestedHitContext(context, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, sharedCache);
+            return prepareNonNestedHitContext(
+                context,
+                lookup,
+                fieldsVisitor,
+                docId,
+                storedToRequestedFields,
+                subReaderContext,
+                sharedCache
+            );
         } else {
             return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields, subReaderContext, sharedCache);
         }
@@ -239,6 +256,7 @@ public class FetchPhase {
      *     fetch subphases that use the hit context to access the preloaded source.
      */
     private HitContext prepareNonNestedHitContext(SearchContext context,
+                                   SearchLookup lookup,
                                    FieldsVisitor fieldsVisitor,
                                    int docId,
                                    Map<String, Set<String>> storedToRequestedFields,
@@ -252,7 +270,7 @@ public class FetchPhase {
                 subReaderContext,
                 subDocId,
                 context.searcher(),
-                context.getQueryShardContext().fetchLookup().source(),
+                lookup.source(),
                 sharedCache
             );
         } else {
@@ -272,7 +290,7 @@ public class FetchPhase {
                 subReaderContext,
                 subDocId,
                 context.searcher(),
-                context.getQueryShardContext().fetchLookup().source(),
+                lookup.source(),
                 sharedCache
             );
             if (fieldsVisitor.source() != null) {

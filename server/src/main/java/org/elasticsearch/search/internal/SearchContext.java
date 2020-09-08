@@ -230,8 +230,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
-    public abstract <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType);
-
     public abstract TimeValue timeout();
 
     public abstract void timeout(TimeValue timeout);

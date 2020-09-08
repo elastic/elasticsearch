@@ -245,11 +245,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return in.getForField(fieldType);
-    }
-
-    @Override
     public TimeValue timeout() {
         return in.timeout();
     }

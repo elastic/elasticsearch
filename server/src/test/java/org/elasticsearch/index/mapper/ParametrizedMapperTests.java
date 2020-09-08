@@ -127,7 +127,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
-            searchAnalyzer.setSerializerPredicate(
+            searchAnalyzer.setShouldSerialize(
                 () -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
         }
 

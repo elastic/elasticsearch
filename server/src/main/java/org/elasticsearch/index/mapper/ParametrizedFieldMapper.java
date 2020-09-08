@@ -232,12 +232,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
-         * Set a serialization predicate for this parameter.
-         *
-         * The predicate is passed the value of `include_defaults`
+         * Sets an additional check on whether or not this parameter should be serialized,
+         * after the existing 'set' and 'include_defaults' checks.
          */
-        public Parameter<T> setSerializerPredicate(BooleanSupplier serializerPredicate) {
-            this.serializerPredicate = serializerPredicate;
+        public Parameter<T> setShouldSerialize(BooleanSupplier shouldSerialize) {
+            this.serializerPredicate = shouldSerialize;
             return this;
         }
 

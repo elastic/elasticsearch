@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class MigrateAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "migrate";
@@ -68,7 +69,7 @@ public class MigrateAction implements LifecycleAction, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return 111;
+        return Objects.hashCode(enabled);
     }
 
     @Override

@@ -267,6 +267,10 @@ setup:
   - is_true: acknowledged
 
   - do:
+      indices.create:
+        index: simple-data-streamz
+
+  - do:
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged

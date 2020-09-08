@@ -35,11 +35,18 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private final boolean namesContainsWildcardPattern;
+
+        // Security intercepts requests and rewrites names if wildcards are used to expand to concrete resources
+        // that a user has privileges for.
+        // This keeps track whether wildcards were originally specified in names,
+        // So that in the case no matches ds are found, that either an
+        // empty response can be returned in case wildcards were used or
+        // 404 status code returned in case no wildcard were used.
+        private final boolean wildcardExpressionsOriginallySpecified;
 
         public Request(String[] names) {
             this.names = Objects.requireNonNull(names);
-            this.namesContainsWildcardPattern = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
+            this.wildcardExpressionsOriginallySpecified = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
         }
 
         public String[] getNames() {
@@ -58,7 +65,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
-            this.namesContainsWildcardPattern = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
+            this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
         }
 
         @Override
@@ -66,7 +73,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeStringArray(names);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBoolean(namesContainsWildcardPattern);
+                out.writeBoolean(wildcardExpressionsOriginallySpecified);
             }
         }
 
@@ -75,12 +82,15 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return wildcardExpressionsOriginallySpecified == request.wildcardExpressionsOriginallySpecified &&
+                Arrays.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            int result = Objects.hash(wildcardExpressionsOriginallySpecified);
+            result = 31 * result + Arrays.hashCode(names);
+            return result;
         }
 
         @Override
@@ -106,8 +116,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             return this;
         }
 
-        public boolean isNamesContainsWildcardPattern() {
-            return namesContainsWildcardPattern;
+        public boolean isWildcardExpressionsOriginallySpecified() {
+            return wildcardExpressionsOriginallySpecified;
         }
     }
 

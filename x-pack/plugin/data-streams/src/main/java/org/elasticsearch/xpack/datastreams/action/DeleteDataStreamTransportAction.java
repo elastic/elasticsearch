@@ -26,7 +26,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -101,7 +100,7 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return removeDataStream(deleteIndexService, currentState, request);
+                    return removeDataStream(deleteIndexService, indexNameExpressionResolver, currentState, request);
                 }
 
                 @Override
@@ -114,23 +113,17 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
 
     static ClusterState removeDataStream(
         MetadataDeleteIndexService deleteIndexService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState currentState,
         DeleteDataStreamAction.Request request
     ) {
-        Set<String> dataStreams = new HashSet<>();
-        Set<String> snapshottingDataStreams = new HashSet<>();
-        for (String name : request.getNames()) {
-            for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
-                if (Regex.simpleMatch(name, dataStreamName)) {
-                    dataStreams.add(dataStreamName);
-                }
-            }
-
-            snapshottingDataStreams.addAll(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
-        }
+        Set<String> dataStreams = new HashSet<>(
+            indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.getNames())
+        );
+        Set<String> snapshottingDataStreams = new HashSet<>(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
 
         if (dataStreams.isEmpty()) {
-            if (request.isNamesContainsWildcardPattern()) {
+            if (request.isWildcardExpressionsOriginallySpecified()) {
                 return currentState;
             } else {
                 throw new ResourceNotFoundException("data streams " + Arrays.toString(request.getNames()) + " not found");

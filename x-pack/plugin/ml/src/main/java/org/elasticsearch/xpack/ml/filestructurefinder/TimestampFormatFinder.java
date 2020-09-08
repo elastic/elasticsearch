@@ -1329,6 +1329,11 @@ public final class TimestampFormatFinder {
                     for (int pos = 0; pos < format.length(); ++pos) {
                         char curChar = format.charAt(pos);
                         if (curChar == '\'') {
+                            // Literal single quotes are escaped by using two consecutive single quotes.
+                            // Technically this code does the wrong thing in this case, as it flips quoting
+                            // from off to on or on to off and then back.  However, since by definition there
+                            // is nothing in between the consecutive single quotes in this case, the net
+                            // effect is correct and good enough for what this method is doing.
                             notQuoted = !notQuoted;
                             consecutiveSs = 0;
                         } else if (notQuoted) {

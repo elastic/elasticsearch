@@ -5,18 +5,18 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Get Trained Models Stats API
+=== Get trained models stats API
 
 experimental[]
 
-Retrieves one or more Trained Model statistics.
+Retrieves one or more trained model statistics.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Trained Models Stats request
+==== Get trained models stats request
 
-A +{request}+ requires either a Trained Model ID, a comma-separated list of
-IDs, or the special wildcard `_all` to get stats for all Trained Models.
+A +{request}+ requires either a trained model ID, a comma-separated list of
+IDs, or the special wildcard `_all` to get stats for all trained models.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -24,8 +24,8 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET request referencing an existing Trained Model
 <2> Set the paging parameters
-<3> Allow empty response if no Trained Models match the provided ID patterns.
-    If false, an error will be thrown if no Trained Models match the
+<3> Allow empty response if no trained models match the provided ID patterns.
+    If false, an error will be thrown if no trained models match the
     ID patterns.
 
 include::../execution.asciidoc[]
@@ -34,7 +34,7 @@ include::../execution.asciidoc[]
 ==== Response
 
 The returned +{response}+ contains the statistics
-for the requested Trained Model.
+for the requested trained model.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

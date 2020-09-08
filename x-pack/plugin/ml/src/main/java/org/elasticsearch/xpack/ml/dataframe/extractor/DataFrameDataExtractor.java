@@ -9,16 +9,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ClearScrollAction;
-import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -46,28 +41,28 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * An implementation that extracts data from elasticsearch using search and scroll on a client.
- * It supports safe and responsive cancellation by continuing the scroll until a new timestamp
- * is seen.
+ * An implementation that extracts data from elasticsearch using ranged searches
+ * on the incremental id.
+ * We detect the end of the extraction by doing an additional search at the end
+ * which should return empty results.
+ * It supports safe and responsive cancellation by continuing from the latest
+ * incremental id that was seen.
  * Note that this class is NOT thread-safe.
  */
 public class DataFrameDataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
-    private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
     public static final String NULL_VALUE = "\0";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
-    private String scrollId;
-    private String lastSortKey;
+    private long lastSortKey = -1;
     private boolean isCancelled;
     private boolean hasNext;
     private boolean searchHasShardFailure;
@@ -122,7 +117,7 @@ public class DataFrameDataExtractor {
             throw new NoSuchElementException();
         }
 
-        Optional<List<Row>> hits = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
+        Optional<List<Row>> hits = Optional.ofNullable(nextSearch());
         if (hits.isPresent() && hits.get().isEmpty() == false) {
             lastSortKey = hits.get().get(hits.get().size() - 1).getSortKey();
         } else {
@@ -131,8 +126,7 @@ public class DataFrameDataExtractor {
         return hits;
     }
 
-    protected List<Row> initScroll() throws IOException {
-        LOGGER.debug("[{}] Initializing scroll", context.jobId);
+    protected List<Row> nextSearch() throws IOException {
         return tryRequestWithSearchResponse(() -> executeSearchRequest(buildSearchRequest()));
     }
 
@@ -154,7 +148,7 @@ public class DataFrameDataExtractor {
             }
             LOGGER.warn(new ParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
             markScrollAsErrored();
-            return initScroll();
+            return nextSearch();
         }
     }
 
@@ -163,24 +157,24 @@ public class DataFrameDataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest() {
+        long from = lastSortKey + 1;
+        long to = from + context.scrollSize;
+
+        LOGGER.debug(() -> new ParameterizedMessage(
+            "[{}] Searching docs with [{}] in [{}, {})", context.jobId, DestinationIndex.INCREMENTAL_ID, from, to));
+
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
-                .setScroll(SCROLL_TIMEOUT)
                 // This ensures the search throws if there are failures and the scroll context gets cleared automatically
                 .setAllowPartialSearchResults(false)
-                .addSort(DestinationIndex.ID_COPY, SortOrder.ASC)
+                .addSort(DestinationIndex.INCREMENTAL_ID, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize);
 
-        if (lastSortKey == null) {
-            searchRequestBuilder.setQuery(context.query);
-        } else {
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Searching docs with [{}] greater than [{}]",
-                context.jobId, DestinationIndex.ID_COPY, lastSortKey));
-            QueryBuilder queryPlusLastSortKey = QueryBuilders.boolQuery()
+        searchRequestBuilder.setQuery(
+            QueryBuilders.boolQuery()
                 .filter(context.query)
-                .filter(QueryBuilders.rangeQuery(DestinationIndex.ID_COPY).gt(lastSortKey));
-            searchRequestBuilder.setQuery(queryPlusLastSortKey);
-        }
+                .filter(QueryBuilders.rangeQuery(DestinationIndex.INCREMENTAL_ID).gte(from).lt(to))
+        );
 
         setFetchSource(searchRequestBuilder);
 
@@ -206,10 +200,8 @@ public class DataFrameDataExtractor {
     }
 
     private List<Row> processSearchResponse(SearchResponse searchResponse) {
-        scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
-            clearScroll(scrollId);
             return null;
         }
 
@@ -218,7 +210,6 @@ public class DataFrameDataExtractor {
         for (SearchHit hit : hits) {
             if (isCancelled) {
                 hasNext = false;
-                clearScroll(scrollId);
                 break;
             }
             rows.add(createRow(hit));
@@ -301,33 +292,10 @@ public class DataFrameDataExtractor {
         return new Row(extractedValues, hit, isTraining);
     }
 
-    private List<Row> continueScroll() throws IOException {
-        LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
-        return tryRequestWithSearchResponse(() -> executeSearchScrollRequest(scrollId));
-    }
-
     private void markScrollAsErrored() {
         // This could be a transient error with the scroll Id.
         // Reinitialise the scroll and try again but only once.
-        scrollId = null;
         searchHasShardFailure = true;
-    }
-
-    protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
-                () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE)
-                .setScroll(SCROLL_TIMEOUT)
-                .setScrollId(scrollId)
-                .get());
-    }
-
-    private void clearScroll(String scrollId) {
-        if (scrollId != null) {
-            ClearScrollRequest request = new ClearScrollRequest();
-            request.addScrollId(scrollId);
-            ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
-                    () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet());
-        }
     }
 
     public List<String> getFieldNames() {
@@ -439,11 +407,11 @@ public class DataFrameDataExtractor {
         }
 
         public int getChecksum() {
-            return Arrays.hashCode(values);
+            return (int) getSortKey();
         }
 
-        public String getSortKey() {
-            return (String) hit.getSortValues()[0];
+        public long getSortKey() {
+            return (long) hit.getSortValues()[0];
         }
     }
 }

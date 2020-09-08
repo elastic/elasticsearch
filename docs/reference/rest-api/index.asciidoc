@@ -30,6 +30,7 @@ endif::[]
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<migration-api,Migration APIs>>
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
+* <<repositories-metering-apis,Repositories Metering APIs>>
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
 ifdef::permanently-unreleased-branch[]
@@ -63,6 +64,7 @@ include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
+include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 ifdef::permanently-unreleased-branch[]

@@ -244,6 +244,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     /**
+     * Checks if the state should be persisted, if true doSaveState is called before continuing. Inherited classes
+     * can overwrite this, to provide a better logic, when state should be saved.
+     *
+     * @return true if state should be saved, false if not.
+     */
+    protected boolean triggerSaveState() {
+        // implementors can overwrite this with something more intelligent than every-50
+        return (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0);
+    }
+
+    /**
      * Re-schedules the search request if necessary, this method can be called to apply a change
      * in maximumRequestsPerSecond immediately
      */
@@ -253,7 +264,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return;
         }
 
-        reQueueThrottledSearch();
+        reQueueThrottledSearch(false);
+    }
+
+    /**
+     * Re-schedules the current search request to run immediately, iff one is scheduled.
+     *
+     * Call this if you need the indexer to fast forward a scheduled(throttled) search once in order to complete a full cycle.
+     */
+    protected void runSearchImmediatly() {
+        reQueueThrottledSearch(true);
     }
 
     // protected, so it can be overwritten by tests
@@ -509,11 +529,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
 
         try {
-            // TODO probably something more intelligent than every-50 is needed
-            if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
-                doSaveState(IndexerState.INDEXING, position, () -> {
-                    nextSearch();
-                });
+            if (triggerSaveState()) {
+                doSaveState(IndexerState.INDEXING, position, () -> { nextSearch(); });
             } else {
                 nextSearch();
             }
@@ -599,11 +616,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
     }
 
-    private synchronized void reQueueThrottledSearch() {
+    private synchronized void reQueueThrottledSearch(boolean now) {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
         if (scheduledNextSearch != null) {
-            TimeValue executionDelay = calculateThrottlingDelay(
+            TimeValue executionDelay = now ? TimeValue.ZERO : calculateThrottlingDelay(
                 currentMaxDocsPerSecond,
                 lastDocCount,
                 lastSearchStartTimeNanos,

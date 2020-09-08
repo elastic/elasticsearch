@@ -97,34 +97,6 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
     }
 
-    void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
-            || getState() == IndexerState.STOPPED
-            || getState() == IndexerState.STOPPING) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
-        }
-        TransformState state = new TransformState(
-            context.getTaskState(),
-            getState(),
-            getPosition(),
-            context.getCheckpoint(),
-            context.getStateReason(),
-            getProgress(),
-            null, // Node attributes
-            shouldStopAtCheckpoint
-        );
-        doSaveState(state, ActionListener.wrap(r -> {
-            // We only want to update this internal value if it is persisted as such
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onResponse(null);
-        }, statsExc -> {
-            logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onFailure(statsExc);
-        }));
-    }
-
     @Override
     protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
@@ -312,7 +284,6 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private void doSaveState(TransformState state, ActionListener<Void> listener) {
-
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
@@ -328,6 +299,10 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                     context.shutdown();
                 }
+
+                // call all listeners that wait for state to be saved
+                callAndResetSaveStateListeners();
+
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
                     transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {

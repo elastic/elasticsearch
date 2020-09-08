@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +88,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected volatile boolean auditBulkFailures = true;
     // Indicates that the source has changed for the current run
     protected volatile boolean hasSourceChanged = true;
+
+    protected final AtomicReference<Collection<ActionListener<Void>>> saveStateListeners = new AtomicReference<>();
 
     private final Map<String, String> fieldMappings;
 
@@ -157,6 +161,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected float getMaxDocsPerSecond() {
         return docsPerSecond;
+    }
+
+    @Override
+    protected boolean triggerSaveState() {
+        // trigger in case of listeners waiting for state being saved
+        return saveStateListeners.get() != null || super.triggerSaveState();
     }
 
     public TransformConfig getConfig() {
@@ -506,6 +516,43 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         auditor.info(transformConfig.getId(), "Received abort request, stopping transform.");
         logger.info("[{}] transform received abort request. Stopping indexer.", transformConfig.getId());
         context.shutdown();
+    }
+
+    protected void callAndResetSaveStateListeners() {
+        Collection<ActionListener<Void>> listeners = saveStateListeners.getAndSet(null);
+        if (listeners != null) {
+            for (ActionListener<Void> l : listeners) {
+                l.onResponse(null);
+            }
+        }
+    }
+
+    void stopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        IndexerState indexerState = getState();
+
+        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
+            || indexerState == IndexerState.STOPPED
+            || indexerState == IndexerState.STOPPING) {
+            shouldStopAtCheckpointListener.onResponse(null);
+            return;
+        }
+
+        saveStateListeners.getAndUpdate(currentListeners -> {
+            if (currentListeners == null) {
+                currentListeners = new ArrayList<>();
+            }
+            currentListeners.add(shouldStopAtCheckpointListener);
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+            return currentListeners;
+        });
+
+        // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
+        runSearchImmediatly();
+    }
+
+    void stopAndSaveState() {
+        onStop();
+        doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
     }
 
     synchronized void handleFailure(Exception e) {

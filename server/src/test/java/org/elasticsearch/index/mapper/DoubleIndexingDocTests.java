@@ -18,20 +18,9 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;

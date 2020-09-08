@@ -1602,6 +1602,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             boolean changed = false;
 
             final String repoName = deleteEntry.repository();
+            // Computing the new assignments can be quite costly, only do it once below if actually needed
+            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = null;
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.repository().equals(repoName)) {
                     if (entry.state().completed() == false) {
@@ -1617,9 +1619,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // No shards can be updated in this snapshot so we just add it as is again
                             snapshotEntries.add(entry);
                         } else {
-                            final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = shards(snapshotsInProgress,
-                                    updatedDeletions, currentState.metadata(), currentState.routingTable(), entry.indices(),
-                                    entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, repoName);
+                            if (shardAssignments == null) {
+                                shardAssignments = shards(snapshotsInProgress,
+                                        updatedDeletions, currentState.metadata(), currentState.routingTable(), entry.indices(),
+                                        entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, repoName);
+                            }
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder =
                                     ImmutableOpenMap.builder(entry.shards());
                             for (ShardId shardId : canBeUpdated) {
@@ -1728,7 +1732,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
                 assert indexRoutingTable != null;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                    final ShardId shardId = indexRoutingTable.shard(i).shardId();
                     final String shardRepoGeneration;
                     if (useShardGenerations) {
                         if (isNewIndex) {
@@ -1902,11 +1906,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else {
                         final String updatedRepository = updateSnapshotState.snapshot().getRepository();
                         final Set<ShardId> reusedShardIds = reusedShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
-                        if (entry.repository().equals(updatedRepository) &&
-                            entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
-                                && entry.shards().keys().contains(finishedShardId)) {
+                        if (entry.state().completed() == false && entry.repository().equals(updatedRepository)
+                                && reusedShardIds.contains(finishedShardId) == false) {
                             final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
-                            if (existingStatus.state() != ShardState.QUEUED) {
+                            if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                                 continue;
                             }
                             if (updated == false) {

@@ -22,7 +22,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -37,13 +36,12 @@ import java.util.List;
 /**
  * Aggregation phase of a search request, used to collect aggregations
  */
-public class AggregationPhase implements SearchPhase {
+public class AggregationPhase {
 
     @Inject
     public AggregationPhase() {
     }
 
-    @Override
     public void preProcess(SearchContext context) {
         if (context.aggregations() != null) {
             List<Aggregator> collectors = new ArrayList<>();
@@ -73,7 +71,6 @@ public class AggregationPhase implements SearchPhase {
         }
     }
 
-    @Override
     public void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);

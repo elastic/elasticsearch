@@ -14,12 +14,12 @@ setup:
               message:
                 type: keyword
               day_of_week:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: |
                   emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               tomorrow:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
@@ -31,7 +31,7 @@ setup:
               voltage:
                 type: double
               voltage_times_ten:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
@@ -41,7 +41,7 @@ setup:
                   params:
                     multiplier: 10
               voltage_percent:
-                type: runtime_script
+                type: runtime
                 runtime_type: double
                 script:
                   source: |
@@ -51,7 +51,7 @@ setup:
                   params:
                     max: 5.8
               ip:
-                type: runtime_script
+                type: runtime
                 runtime_type: ip
                 script:
                   source: |
@@ -59,7 +59,7 @@ setup:
                     int end = m.indexOf(" ");
                     emitValue(m.substring(0, end));
               over_v:
-                type: runtime_script
+                type: runtime
                 runtime_type: boolean
                 script:
                   source: |

@@ -179,6 +179,41 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
+    
+    
+    public void testTermQueryIgnoresWildcardSyntax() throws IOException {
+        // Test for bug https://github.com/elastic/elasticsearch/issues/62081
+        // where term queries honoured wildcard quwery syntax
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        Document doc = new Document();
+        ParseContext.Document parseDoc = new ParseContext.Document();
+        addFields(parseDoc, doc, "foo?");
+        indexDoc(parseDoc, doc, iw);
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        
+        expectMatch(searcher, "foo*", 0);
+        expectMatch(searcher, "foo?", 1);
+        expectMatch(searcher, "?oo?", 0);
+        
+        reader.close();
+        dir.close();
+    }
+    
+    private void expectMatch(IndexSearcher searcher, String term,long count) throws IOException {
+        Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_QSC);
+        TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
+        assertThat(td.totalHits.value, equalTo(count));        
+    }
+    
 
 
     public void testSearchResultsVersusKeywordField() throws IOException {

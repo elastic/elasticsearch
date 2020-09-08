@@ -33,6 +33,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp.Kind;
@@ -844,7 +845,36 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+            String searchTerm = BytesRefs.toString(value);
+            String ngramIndexPattern = addLineEndChars(searchTerm);
+            
+            // Break search term into tokens
+            Set<String> tokens = new LinkedHashSet<>();
+            getNgramTokens(tokens, ngramIndexPattern);
+            BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+            int clauseCount = 0;
+            for (String string : tokens) {
+                if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                    break;
+                }
+                addClause(string, rewritten, Occur.MUST);
+                clauseCount++;
+            }
+            Supplier<Automaton> deferredAutomatonSupplier = () -> {
+                return Automata.makeString(searchTerm);
+            };
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), searchTerm, deferredAutomatonSupplier);
+            if (clauseCount > 0) {
+                // We can accelerate execution with the ngram query
+                BooleanQuery approxQuery = rewritten.build();
+                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
+                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
+                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
+                return verifyingBuilder.build();
+            } else  {
+                // We have no concrete characters
+                return new MatchNoDocsQuery();
+            }
         }
 
         @Override

@@ -1331,10 +1331,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        return RepositoryData.snapshotsFromXContent(
-            XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                CompressorFactory.COMPRESSOR.streamInput(cacheEntry.v2().streamInput())), cacheEntry.v1(), false);
+        try (InputStream input = CompressorFactory.COMPRESSOR.threadLocalInputStream(cacheEntry.v2().streamInput())) {
+            return RepositoryData.snapshotsFromXContent(
+                    XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                            LoggingDeprecationHandler.INSTANCE, input), cacheEntry.v1(), false);
+        }
     }
 
     private RepositoryException corruptedStateException(@Nullable Exception cause) {
@@ -2081,7 +2082,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         } else {
                             try (InputStream stream = maybeRateLimitRestores(new SlicedInputStream(fileInfo.numberOfParts()) {
                                 @Override
-                                protected InputStream openSlice(long slice) throws IOException {
+                                protected InputStream openSlice(int slice) throws IOException {
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {

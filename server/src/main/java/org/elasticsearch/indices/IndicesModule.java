@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -105,10 +104,10 @@ public class IndicesModule extends AbstractModule {
 
         // builtin mappers
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-            mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
+            mappers.put(type.typeName(), type.parser());
         }
         for (RangeType type : RangeType.values()) {
-            mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
+            mappers.put(type.typeName(), type.parser());
         }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanFieldMapper.PARSER);
         mappers.put(BinaryFieldMapper.CONTENT_TYPE, BinaryFieldMapper.PARSER);

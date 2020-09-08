@@ -114,7 +114,7 @@ public class OneHotEncoding implements PreProcessor {
         return Objects.hash(field, hotMap, custom);
     }
 
-    public Builder builder(String field) {
+    public static Builder builder(String field) {
         return new Builder(field);
     }
 

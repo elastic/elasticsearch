@@ -62,6 +62,21 @@ when there are no matches or only partial matches.
 --
 end::allow-no-match[]
 
+tag::allow-no-match-models[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no models that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
+--
+end::allow-no-match-models[]
+
 tag::analysis[]
 Defines the type of {dfanalytics} you want to perform on your source index. For
 example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
@@ -522,6 +537,14 @@ The fraction of features that is used when selecting a random bag for each
 candidate split.
 end::dfas-feature-bag-fraction[]
 
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
+
 tag::dfas-iteration[]
 The number of iterations on the analysis.
 end::dfas-iteration[]
@@ -672,6 +695,10 @@ end::frequent-category-count[]
 tag::from[]
 Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
 end::from[]
+
+tag::from-models[]
+Skips the specified number of models. The default value is `0`.
+end::from-models[]
 
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
@@ -1256,6 +1283,11 @@ tag::size[]
 Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value
 is `100`.
 end::size[]
+
+tag::size-models[]
+Specifies the maximum number of models to obtain. The default value
+is `100`.
+end::size-models[]
 
 tag::snapshot-id[]
 Identifier for the model snapshot.

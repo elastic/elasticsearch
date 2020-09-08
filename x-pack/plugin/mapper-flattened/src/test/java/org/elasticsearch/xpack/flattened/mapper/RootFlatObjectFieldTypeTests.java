@@ -97,11 +97,11 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         RootFlatObjectFieldType ft = createDefaultFieldType();
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
-        Query actual = ft.regexpQuery("val.*", 0, 10, null, MOCK_QSC);
+        Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_QSC);
         assertEquals(expected, actual);
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("val.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("val.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }

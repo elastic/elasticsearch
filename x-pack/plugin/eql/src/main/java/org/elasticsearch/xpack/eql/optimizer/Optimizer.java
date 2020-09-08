@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -101,7 +102,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         return Arrays.asList(substitutions, operators, constraints, operators, ordering, local, label);
     }
-    
+
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
@@ -305,30 +306,29 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // collect constraints for each filter
             join.queries().forEach(k ->
-            k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
                                   , Filter.class));
 
             if (constraints.isEmpty() == false) {
-                
                 List<KeyedFilter> queries = join.queries().stream()
                         .map(k -> addConstraint(k, constraints))
                         .collect(toList());
 
                 join = join.with(queries, join.until(), join.direction());
             }
-                
+
             return join;
         }
 
         private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
             List<Constraint> constraints = new ArrayList<>();
             List<? extends NamedExpression> keys = filter.keys();
-            
+
             List<Expression> and = Predicates.splitAnd(condition);
             for (Expression exp : and) {
                 // if there are no conjunction and at least one key matches, save the expression along with the key
                 // and its ordinal so it can be replaced
-                if (exp.anyMatch(Order.class::isInstance) == false) {
+                if (exp.anyMatch(Or.class::isInstance) == false) {
                     // comparisons against variables are not done
                     // hence why on the first key match, the expression is picked up
                     exp.anyMatch(e -> {
@@ -345,14 +345,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return constraints;
         }
-        
+
         // adapt constraint to the given filter by replacing the keys accordingly in the expressions
         private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
             Expression constraint = Predicates.combineAnd(constraints.stream()
                 .map(c -> c.constraintFor(k))
                 .filter(c -> c != null)
                 .collect(toList()));
-            
+
             return constraint != null
                     ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
                     : k;
@@ -379,7 +379,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             }
-            
+
             return limit;
         }
     }

@@ -405,7 +405,8 @@ public final class FileStructureUtils {
                                                                    Map<String, Object> csvProcessorSettings,
                                                                    Map<String, Object> mappingsForConversions,
                                                                    String timestampField, List<String> timestampFormats,
-                                                                   boolean needClientTimezone, boolean needNanosecondPrecision) {
+                                                                   boolean needClientTimezone,
+                                                                   boolean needNanosecondPrecision) {
 
         if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
             return null;

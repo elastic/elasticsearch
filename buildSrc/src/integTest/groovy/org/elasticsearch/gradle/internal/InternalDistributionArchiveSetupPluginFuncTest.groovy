@@ -100,7 +100,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
         distribution_archives {
-            buildProducerTar {
+            producerTar {
                 content {
                     project.copySpec {
                         from 'someFile.txt'
@@ -111,21 +111,13 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         
         project('consumer') { p ->
             configurations {
-                consumeArchive {
-                    attributes {
-                      attribute(ArtifactAttributes.ARTIFACT_FORMAT, "tar.gz")
-                    }
-                }
-                consumeDir {
-                    attributes {
-                      attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
-                    }
-                }
+                consumeArchive {}
+                consumeDir {}
             }
             
             dependencies {
-                consumeDir project(':producer-tar')
-                consumeArchive project(':producer-tar')
+                consumeDir project(path: ':producer-tar', configuration:'extracted')
+                consumeArchive project(path: ':producer-tar', configuration:'default' )
             }
             
             tasks.register("copyDir", Copy) {

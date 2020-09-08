@@ -25,33 +25,32 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
-import org.gradle.api.internal.artifacts.ConfigurationVariantInternal;
-import org.gradle.api.internal.artifacts.publish.AbstractPublishArtifact;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.Copy;
-import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
 import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.Date;
+
+import static org.elasticsearch.gradle.util.Util.capitalize;
+import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT;
 
 /**
  * Provides a DSL and common configurations to define different types of
  * Elasticsearch distribution archives. See ':distribution:archives'.
- *
+ * <p>
  * This configures the default artifacts for the distribution specific
  * subprojects. We have subprojects for two reasons:
  * 1. Gradle project substitutions can only bind to the default
- *    configuration of a project
+ * configuration of a project
  * 2. The integ-test-zip and zip distributions have the exact same
- *    filename, so they must be placed in different directories.
+ * filename, so they must be placed in different directories.
  * 3. We provide a packed and an unpacked variant of the distribution
- *    - the unpacked variant is used by consumers like test cluster definitions
+ * - the unpacked variant is used by consumers like test cluster definitions
+ * 4. Having per-distribution sub-projects means we can build them in parallel.
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
@@ -68,27 +67,26 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
     private void registerAndConfigureDistributionArchivesExtension(Project project) {
         container = project.container(DistributionArchive.class, name -> {
-            var subProjectDir = buildTaskToSubprojectName(name);
-            var copyDistributionTaskName = name.substring(0, name.length() - 3);
-            var explodedDist = project.getTasks()
-                .register(copyDistributionTaskName, Copy.class, copy -> copy.into(subProjectDir + "/build/install/"));
+            var subProjectDir = archiveToSubprojectName(name);
+            var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
+            TaskContainer tasks = project.getTasks();
+            var explodedDist = tasks.register(copyDistributionTaskName, Copy.class, copy -> copy.into(subProjectDir + "/build/install/"));
+            var archiveTaskName = "build" + capitalize(name);
             return name.endsWith("Tar")
-                ? new DistributionArchive(project.getTasks().register(name, SymbolicLinkPreservingTar.class), explodedDist, name)
-                : new DistributionArchive(project.getTasks().register(name, Zip.class), explodedDist, name);
+                ? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)
+                : new DistributionArchive(tasks.register(archiveTaskName, Zip.class), explodedDist, name);
         });
         // Each defined distribution archive is linked to a subproject.
         // A distribution archive definition not matching a sub project will result in build failure.
         container.whenObjectAdded(distributionArchive -> {
-            var subProjectName = buildTaskToSubprojectName(distributionArchive.getArchiveTask().getName());
+            var subProjectName = archiveToSubprojectName(distributionArchive.getName());
             project.project(subProjectName, sub -> {
                 sub.getPlugins().apply("base");
                 sub.getArtifacts().add("default", distributionArchive.getArchiveTask());
-                var explodedArchiveTask = distributionArchive.getExplodedArchiveTask();
-                var defaultConfiguration = sub.getConfigurations().getByName("default");
-                var publications = defaultConfiguration.getOutgoing();
-                var variant = (ConfigurationVariantInternal) publications.getVariants().maybeCreate("directory");
-                variant.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-                variant.artifactsProvider(() -> Collections.singletonList(new DirectoryPublishArtifact(explodedArchiveTask)));
+                var extractedConfiguration = sub.getConfigurations().create("extracted");
+                extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+                sub.getArtifacts().add("extracted", distributionArchive.getExplodedArchiveTask());
+
             });
         });
         project.getExtensions().add("distribution_archives", container);
@@ -105,7 +103,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
         // common config across all archives
         project.getTasks().withType(AbstractArchiveTask.class).configureEach(t -> {
-            String subdir = buildTaskToSubprojectName(t.getName());
+            String subdir = archiveTaskToSubprojectName(t.getName());
             t.getDestinationDirectory().set(project.file(subdir + "/build/distributions"));
             t.getArchiveBaseName().set(subdir.contains("oss") ? "elasticsearch-oss" : "elasticsearch");
         });
@@ -124,7 +122,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         // create the directory that we want, and then point CopySpec to its
         // parent to copy to the root of the distribution
         File logsDir = new File(project.getBuildDir(), "logs-hack/logs");
-        project.getExtensions().add("logsDir", new File(project.getBuildDir(), "logs-hack/logs"));
+        project.getExtensions().getExtraProperties().set("logsDir", new File(project.getBuildDir(), "logs-hack/logs"));
         project.getTasks().register("createLogsDir", EmptyDirTask.class, t -> {
             t.setDir(logsDir);
             t.setDirMode(0755);
@@ -145,52 +143,11 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         });
     }
 
-    private String buildTaskToSubprojectName(String taskName) {
-        return taskName.substring("build".length()).replaceAll("[A-Z]", "-$0").toLowerCase().substring(1);
+    private static String archiveTaskToSubprojectName(String taskName) {
+        return archiveToSubprojectName(taskName).substring("build".length() + 1);
     }
 
-    private static class DirectoryPublishArtifact extends AbstractPublishArtifact {
-
-        private final TaskProvider<Copy> providerTask;
-
-        DirectoryPublishArtifact(TaskProvider<Copy> providerTask) {
-            super(providerTask);
-            this.providerTask = providerTask;
-        }
-
-        @Override
-        public String getName() {
-            return providerTask.getName();
-        }
-
-        @Override
-        public String getExtension() {
-            return "";
-        }
-
-        @Override
-        public String getType() {
-            return ArtifactTypeDefinition.DIRECTORY_TYPE;
-        }
-
-        @Override
-        public String getClassifier() {
-            return null;
-        }
-
-        @Override
-        public File getFile() {
-            return providerTask.get().getOutputs().getFiles().getSingleFile();
-        }
-
-        @Override
-        public Date getDate() {
-            return null;
-        }
-
-        @Override
-        public boolean shouldBePublished() {
-            return false;
-        }
+    private static String archiveToSubprojectName(String taskName) {
+        return taskName.replaceAll("[A-Z]", "-$0").toLowerCase();
     }
 }

@@ -25,6 +25,8 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 
+import java.util.function.Supplier;
+
 public class DistributionArchive implements Named {
 
     private TaskProvider<? extends AbstractArchiveTask> archiveTask;
@@ -41,9 +43,9 @@ public class DistributionArchive implements Named {
         this.archiveTask.configure(abstractArchiveTask -> abstractArchiveTask.getArchiveClassifier().set(classifier));
     }
 
-    public void content(ContentProvider p) {
-        this.archiveTask.configure(t -> { t.with(p.provide()); });
-        this.explodedDistTask.configure(t -> { t.with(p.provide()); });
+    public void content(Supplier<CopySpec> p) {
+        this.archiveTask.configure(t -> t.with(p.get()));
+        this.explodedDistTask.configure(t -> t.with(p.get()));
     }
 
     @Override
@@ -57,9 +59,5 @@ public class DistributionArchive implements Named {
 
     public TaskProvider<Copy> getExplodedArchiveTask() {
         return explodedDistTask;
-    }
-
-    interface ContentProvider {
-        CopySpec provide();
     }
 }

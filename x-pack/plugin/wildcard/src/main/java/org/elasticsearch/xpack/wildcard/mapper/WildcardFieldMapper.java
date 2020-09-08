@@ -846,40 +846,27 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             String searchTerm = BytesRefs.toString(value);
-            String ngramIndexPattern = addLineEndChars(searchTerm);
-            
-            // Break search term into tokens
-            Set<String> tokens = new LinkedHashSet<>();
-            getNgramTokens(tokens, ngramIndexPattern);
-            BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-            int clauseCount = 0;
-            for (String string : tokens) {
-                if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                    break;
+            return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+        }
+        
+        private String escapeWildcardSyntax(String term) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < term.length();) {
+                final int c = term.codePointAt(i);
+                int length = Character.charCount(c);
+                // Escape any reserved characters
+                if (c == WildcardQuery.WILDCARD_STRING || c == WildcardQuery.WILDCARD_CHAR || c == WildcardQuery.WILDCARD_ESCAPE) {
+                    result.append("\\");
                 }
-                addClause(string, rewritten, Occur.MUST);
-                clauseCount++;
+                result.appendCodePoint(c);
+                i += length;
             }
-            Supplier<Automaton> deferredAutomatonSupplier = () -> {
-                return Automata.makeString(searchTerm);
-            };
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), searchTerm, deferredAutomatonSupplier);
-            if (clauseCount > 0) {
-                // We can accelerate execution with the ngram query
-                BooleanQuery approxQuery = rewritten.build();
-                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return verifyingBuilder.build();
-            } else  {
-                // We have no concrete characters
-                return new MatchNoDocsQuery();
-            }
+            return result.toString();
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            return wildcardQuery(value + "*", method, context);
+            return wildcardQuery(escapeWildcardSyntax(value) + "*", method, context);
         }
 
         @Override

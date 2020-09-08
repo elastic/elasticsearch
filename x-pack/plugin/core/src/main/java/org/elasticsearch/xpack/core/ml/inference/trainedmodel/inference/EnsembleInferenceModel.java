@@ -114,19 +114,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         return targetType;
     }
 
-    private double[] getFeatures(Map<String, Object> fields) {
-        double[] features = new double[featureNames.length];
-        int i = 0;
-        for (String featureName : featureNames) {
-            Double val = InferenceHelpers.toDouble(fields.get(featureName));
-            features[i++] = val == null ? Double.NaN : val;
-        }
-        return features;
-    }
-
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
-        return innerInfer(getFeatures(fields), config, featureDecoderMap);
+        return innerInfer(InferenceModel.extractFeatures(featureNames, fields), config, featureDecoderMap);
     }
 
     @Override
@@ -142,9 +132,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (preparedForInference == false) {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
-        LOGGER.debug("Inference called with feature names [{}]",
-            featureNames == null ? "<null>" : Strings.arrayToCommaDelimitedString(featureNames));
-        assert featureNames != null && featureNames.length > 0;
+        LOGGER.debug("Inference called with feature names [{}]", Strings.arrayToCommaDelimitedString(featureNames));
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;

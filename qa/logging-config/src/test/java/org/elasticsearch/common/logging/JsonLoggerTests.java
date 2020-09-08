@@ -85,6 +85,17 @@ public class JsonLoggerTests extends ESTestCase {
         Configurator.shutdown(context);
         super.tearDown();
     }
+    public void testCompatibleLog() throws Exception {
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+            testLogger.deprecate("someKey", "deprecated message1")
+                .compatibleApiWarning("compatibleKey","compatible API message");
+
+            final Path path = PathUtils.get(
+                System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+            );
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
@@ -117,6 +128,38 @@ public class JsonLoggerTests extends ESTestCase {
         }
 
         assertWarnings("deprecated message1");
+    }
+
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
+
+                assertThat(
+                    jsonLogs,
+                    contains(
+                        allOf(
+                            hasEntry("type", "deprecation"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.logger", "deprecation.test"),
+                            hasEntry("cluster.name", "elasticsearch"),
+                            hasEntry("node.name", "sample-name"),
+                            hasEntry("message", "deprecated message1"),
+                            hasEntry("x-opaque-id", "someId")
+                        ),
+                        allOf(
+                            hasEntry("type", "compatible"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.logger", "compatible.test"),
+                            hasEntry("cluster.name", "elasticsearch"),
+                            hasEntry("node.name", "sample-name"),
+                            hasEntry("message", "compatible API message"),
+                            hasEntry("x-opaque-id", "someId")
+                        )
+                    )
+                );
+            }
+
+            assertWarnings("deprecated message1", "compatible API message");
+        });
     }
 
     public void testDeprecatedMessage() throws Exception {

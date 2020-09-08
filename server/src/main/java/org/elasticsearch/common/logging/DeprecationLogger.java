@@ -45,10 +45,7 @@ public class DeprecationLogger {
     public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
 
     private final Logger logger;
-
-    private DeprecationLogger(Logger parentLogger) {
-        this.logger = parentLogger;
-    }
+    private final Logger compatibleLogger;
 
     /**
      * Creates a new deprecation logger for the supplied class. Internally, it delegates to
@@ -65,16 +62,21 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public static DeprecationLogger getLogger(String name) {
-        return new DeprecationLogger(getDeprecatedLoggerForName(name));
+        return new DeprecationLogger(name);
     }
 
-    private static Logger getDeprecatedLoggerForName(String name) {
+    private DeprecationLogger(String parentLoggerName) {
+        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName,"deprecation"));
+        this.compatibleLogger = LogManager.getLogger(getLoggerName(parentLoggerName,"compatible"));
+    }
+
+    private static String getLoggerName(String name, String prefix) {
         if (name.startsWith("org.elasticsearch")) {
-            name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
+            name = name.replace("org.elasticsearch.", "org.elasticsearch."+prefix+".");
         } else {
-            name = "deprecation." + name;
+            name = prefix +"."+ name;
         }
-        return LogManager.getLogger(name);
+        return name;
     }
 
     private static String toLoggerName(final Class<?> cls) {
@@ -102,6 +104,13 @@ public class DeprecationLogger {
 
             logger.log(DEPRECATION, deprecationMessage);
 
+            return this;
+        }
+
+        public DeprecationLoggerBuilder compatibleApiWarning(String key, String msg, Object[] params) {
+            String opaqueId = HeaderWarning.getXOpaqueId();
+            ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
+            compatibleLogger.log(DEPRECATION, deprecationMessage);
             return this;
         }
     }

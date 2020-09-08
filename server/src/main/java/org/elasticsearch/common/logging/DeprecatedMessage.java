@@ -36,9 +36,19 @@ public class DeprecatedMessage  {
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object... args) {
+        return getEsLogMessage(category, key, xOpaqueId, messagePattern, args, "elasticsearch.deprecation");
+
+    }
+
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
+    public static ESLogMessage compatibleDeprecationMessage(String key, String xOpaqueId, String messagePattern, Object... args){
+        return getEsLogMessage(category, key, xOpaqueId, messagePattern, args, "elasticsearch.compatible");
+    }
+
+    private static ESLogMessage getEsLogMessage(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object[] args, String type) {
         ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args)
             .field("data_stream.type", "logs")
-            .field("data_stream.dataset", "elasticsearch.deprecation")
+            .field("data_stream.dataset", type)
             .field("data_stream.namespace", "default")
             .field("ecs.version", ECS_VERSION)
             .field(KEY_FIELD_NAME, key)

@@ -56,6 +56,15 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     /**
+     * This method is called when failureResponseHeaders need to be set (at startup) or updated (if license state changes)
+     *
+     * @param failureResponseHeaders the Map of failure response headers to be set
+     */
+    public void setHeaders(Map<String, List<String>> failureResponseHeaders){
+        defaultFailureResponseHeaders = failureResponseHeaders;
+    }
+
+    /**
      * For given 'WWW-Authenticate' header value returns the priority based on
      * the auth-scheme. Lower number denotes more secure and preferred
      * auth-scheme than the higher number.
@@ -112,11 +121,6 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     @Override
     public ElasticsearchSecurityException authenticationRequired(String action, ThreadContext context) {
         return createAuthenticationError("action [{}] requires authentication", null, action);
-    }
-
-    @Override
-    public void setHeaders(Map<String, List<String>> failureResponseHeaders){
-        defaultFailureResponseHeaders = failureResponseHeaders;
     }
 
     /**

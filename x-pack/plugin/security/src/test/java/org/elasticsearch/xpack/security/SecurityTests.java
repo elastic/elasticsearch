@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -36,6 +37,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -77,6 +79,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -492,15 +496,17 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(request, ActionListener.wrap(result -> {assertTrue(completed.compareAndSet(false, true));
-                                                                    }, this::logAndFail));
+        service.authenticate(request, ActionListener.wrap(result -> {
+            assertTrue(completed.compareAndSet(false, true));
+        }, this::logAndFail));
         assertTrue(completed.compareAndSet(true, false));
         threadContext.stashContext();
         licenseState.update(
             randomFrom(License.OperationMode.GOLD, License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM),
             true, null);
-        service.authenticate(request, ActionListener.wrap(result -> {assertTrue(completed.compareAndSet(false, true));
-                                                                    }, this::VerifyMissingAuthenticationException));
+        service.authenticate(request, ActionListener.wrap(result -> {
+            assertTrue(completed.compareAndSet(false, true));
+        }, this::VerifyBasicAuthenticationHeader));
         if(completed.get()){
             fail("authentication succeeded but it shouldn't");
         }
@@ -511,7 +517,10 @@ public class SecurityTests extends ESTestCase {
         fail("unexpected exception " + e.getMessage());
     }
 
-    private void VerifyMissingAuthenticationException(Exception e) {
-        assertThat(e.getMessage(), containsString("missing authentication credentials for REST request"));
+    private void VerifyBasicAuthenticationHeader(Exception e) {
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"),
+            hasItem("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 }

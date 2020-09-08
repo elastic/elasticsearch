@@ -571,10 +571,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 return defaultFailureResponseHeaders;
             };
-            failureHandler = new DefaultAuthenticationFailureHandler(headersSupplier.get());
-            AuthenticationFailureHandler finalFailureHandler = failureHandler;
+            DefaultAuthenticationFailureHandler finalDefaultFailureHandler = new DefaultAuthenticationFailureHandler(headersSupplier.get());
+            failureHandler = finalDefaultFailureHandler;
             getLicenseState().addListener(() -> {
-                finalFailureHandler.setHeaders(headersSupplier.get());
+                finalDefaultFailureHandler.setHeaders(headersSupplier.get());
             });
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");

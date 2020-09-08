@@ -391,6 +391,7 @@ Returns:
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
+      "index.routing.allocation.include._tier" : "data_hot",
       "index.provided_name" : "my-index-000001"
     }
   }
@@ -423,6 +424,13 @@ Returns:
         "uuid": "n6gzFZTgS664GUfx0Xrpjw",
         "version": {
           "created": ...
+        },
+        "routing": {
+          "allocation": {
+            "include": {
+              "_tier": "data_hot"
+            }
+          }
         },
         "provided_name" : "my-index-000001"
       }
@@ -670,4 +678,4 @@ URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.y
 
 
 This causes  {es} to
-reject requests that explicitly specfiy a data stream or index in the request body.
+reject requests that explicitly specify a data stream or index in the request body.

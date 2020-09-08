@@ -8,26 +8,7 @@
 
 experimental::[]
 
-{es} supports the following EQL functions:
-
-* <<eql-fn-add>>
-* <<eql-fn-between>>
-* <<eql-fn-cidrmatch>>
-* <<eql-fn-concat>>
-* <<eql-fn-divide>>
-* <<eql-fn-endswith>>
-* <<eql-fn-indexof>>
-* <<eql-fn-length>>
-* <<eql-fn-match>>
-* <<eql-fn-modulo>>
-* <<eql-fn-multiply>>
-* <<eql-fn-number>>
-* <<eql-fn-startswith>>
-* <<eql-fn-string>>
-* <<eql-fn-stringcontains>>
-* <<eql-fn-substring>>
-* <<eql-fn-subtract>>
-* <<eql-fn-wildcard>>
+{es} supports the following <<eql-functions,EQL functions>>.
 
 [discrete]
 [[eql-fn-add]]
@@ -129,9 +110,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<left>`::
@@ -145,9 +126,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<right>`::
@@ -161,9 +142,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<greedy_matching>`::
@@ -419,9 +400,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<substring>`::
@@ -434,9 +415,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
@@ -497,9 +478,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<substring>`::
@@ -518,9 +499,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<start_pos>`::
@@ -584,9 +565,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 *Returns:* integer or `null`
@@ -634,9 +615,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<reg_exp>`::
@@ -831,9 +812,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 
 If this argument is `null`, the function returns `null`.
 --
@@ -899,9 +880,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<substring>`::
@@ -914,9 +895,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
@@ -998,9 +979,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 
 `<substring>`::
 (Required, string or `null`)
@@ -1010,9 +991,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 
 *Returns:* boolean or `null`
 
@@ -1167,9 +1148,9 @@ If using a field as the argument, this parameter supports only the following
 field data types:
 
 * <<keyword,`keyword`>>
-* <<constant-keyword,`constant_keyword`>>
+* <<constant-keyword-field-type,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword,`constant_keyword`>> sub-field
+  <<constant-keyword-field-type,`constant_keyword`>> sub-field
 --
 
 `<wildcard_exp>`::

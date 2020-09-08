@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -143,7 +142,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
      * Options for regular expression queries
      */
     public static class Builder {
-        private int flagsValue = RegExp87.ALL;
+        private int flagsValue = RegExp.ALL;
         private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
         public Builder() {

@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-inference]]
-= Delete {infer} trained model API
+= Delete trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Delete {infer} trained model</titleabbrev>
+<titleabbrev>Delete trained model</titleabbrev>
 ++++
 
 Deletes an existing trained {infer} model that is currently not referenced by an 
@@ -42,8 +42,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 == {api-response-codes-title}
 
 `409`::
-  The code indicates that the trained {infer} model is referenced by an ingest 
-  pipeline and cannot be deleted.
+  The code indicates that the trained model is referenced by an ingest pipeline 
+  and cannot be deleted.
 
 
 [[ml-delete-inference-example]]

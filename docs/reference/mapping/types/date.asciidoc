@@ -1,5 +1,5 @@
 [[date]]
-=== Date data type
+=== Date field type
 ++++
 <titleabbrev>Date</titleabbrev>
 ++++

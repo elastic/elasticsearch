@@ -187,6 +187,9 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 this.contexts.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endArray();
             }
+            if (this.meta.getValue().isEmpty() == false) {
+                builder.field(this.meta.name, this.meta.getValue());
+            }
         }
 
         @Override

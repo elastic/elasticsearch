@@ -256,7 +256,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TRANSFORM_INTERNAL_INDEX_PREFIX + "*," +
             TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" +
             "/_search");
-        getStatsDocsRequest.addParameter("allow_system_index_access", "true");
 
         getStatsDocsRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +

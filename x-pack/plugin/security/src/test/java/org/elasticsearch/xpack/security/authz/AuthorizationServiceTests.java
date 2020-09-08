@@ -412,17 +412,28 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testUserWithNoRolesCanPerformRemoteSearchWithScroll() throws IOException {
+    public void testUserWithNoRolesPerformsRemoteSearchWithScroll() throws IOException {
         final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
-        when(parsedScrollId.hasLocalIndices()).thenReturn(false);
+        final boolean hasLocalIndices = randomBoolean();
+        when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
         final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
         when(searchScrollRequest.parsedScrollId()).thenReturn(parsedScrollId);
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
-        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
-                                         authzInfoRoles(Role.EMPTY.names()));
+        if (hasLocalIndices) {
+            assertThrowsAuthorizationException(
+                () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
+                "indices:data/read/scroll", "test user"
+            );
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
+                                            eq("indices:data/read/scroll"), eq(searchScrollRequest),
+                                            authzInfoRoles(Role.EMPTY.names()));
+        } else {
+            authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
+                                             authzInfoRoles(Role.EMPTY.names()));
+        }
         verifyNoMoreInteractions(auditTrail);
     }
 

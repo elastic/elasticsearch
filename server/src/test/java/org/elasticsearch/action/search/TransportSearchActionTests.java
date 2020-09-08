@@ -829,7 +829,9 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequestTests.setUp();
             SearchRequest searchRequest = searchRequestTests.createSearchRequest();
             searchRequest.scroll((Scroll)null);
-            searchRequest.source().pointInTimeBuilder(null);
+            if (searchRequest.source() != null) {
+                searchRequest.source().pointInTimeBuilder(null);
+            }
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {

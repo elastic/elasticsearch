@@ -219,6 +219,23 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getTotalHits().value);
         assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
         assertEquals("1.3.0+build.1234567", response.getHits().getHits()[1].getSourceAsMap().get("version"));
+
+        // test case sensitivity / insensitivity
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", ".*alpha.*")).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", ".*Alpha.*")).get();
+        assertEquals(0, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.regexpQuery("version", ".*Alpha.*").caseInsensitive(true))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
+
     }
 
     public void testFuzzyQuery() throws Exception {

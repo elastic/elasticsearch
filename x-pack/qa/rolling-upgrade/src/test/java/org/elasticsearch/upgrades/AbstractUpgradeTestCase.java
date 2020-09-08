@@ -156,13 +156,15 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
      *                                      index does not cause an error
      * @param exceptions List of keys to ignore in the index mappings.
      *                   The key is a '.' separated path.
+     * @param setAllowSystemIndexParam Whether the flag to allow access to system indices should be set.
      * @throws IOException Yes
      */
     @SuppressWarnings("unchecked")
     protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
                                                             String indexName,
                                                             boolean notAnErrorIfIndexDoesNotExist,
-                                                            Set<String> exceptions) throws IOException {
+                                                            Set<String> exceptions,
+                                                            boolean setAllowSystemIndexParam) throws IOException {
 
         Request getTemplate = new Request("GET", "_template/" + templateName);
         Response templateResponse = client().performRequest(getTemplate);
@@ -173,6 +175,9 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         assertNotNull(templateMappings);
 
         Request getIndexMapping = new Request("GET", indexName + "/_mapping");
+        if (setAllowSystemIndexParam) {
+            getIndexMapping.addParameter("allow_system_index_access", "true");
+        }
         Response indexMappingResponse;
         try {
             indexMappingResponse = client().performRequest(getIndexMapping);
@@ -269,7 +274,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     protected void assertLegacyTemplateMatchesIndexMappings(String templateName,
                                                             String indexName) throws IOException {
-        assertLegacyTemplateMatchesIndexMappings(templateName, indexName, false, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(templateName, indexName, false, Collections.emptySet(), false);
     }
 
     private boolean areBooleanObjectsAndEqual(Object a, Object b) {

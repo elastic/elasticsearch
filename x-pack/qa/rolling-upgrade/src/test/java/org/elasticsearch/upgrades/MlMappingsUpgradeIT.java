@@ -132,6 +132,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             Request getMappings = new Request("GET", ".ml-config/_mappings");
+            getMappings.addParameter("allow_system_index_access", "true");
             Response response = client().performRequest(getMappings);
 
             Map<String, Object> responseLevel = entityAsMap(response);
@@ -174,13 +175,13 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
 
-        assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config", false, configIndexExceptions);
+        assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config", false, configIndexExceptions, true);
         // the true parameter means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true, Collections.emptySet());
-        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
+        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, Collections.emptySet(), false);
         assertLegacyTemplateMatchesIndexMappings(".ml-state", ".ml-state-000001");
         assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
-        assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(), true);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
     }

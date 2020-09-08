@@ -58,7 +58,6 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
                     RestStatus.BAD_REQUEST,
                     acceptHeader,
                     contentTypeHeader
-
                 );
             }
             // both headers should be versioned or none

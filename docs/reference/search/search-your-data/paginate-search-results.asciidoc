@@ -1,18 +1,11 @@
 [[paginate-search-results]]
 == Paginate search results
 
-By default, the <<search-search,search API>> returns the top 10 matching documents.
-
-To paginate through a larger set of results, you can use the search API's `size`
-and `from` parameters. The `size` parameter is the number of matching documents
-to return. The `from` parameter is a zero-indexed offset from the beginning of
-the complete result set that indicates the document you want to start with.
-
-The following search API request sets the `from` offset to `5`, meaning the
-request offsets, or skips, the first five matching documents.
-
-The `size` parameter is `20`, meaning the request can return up to 20 documents,
-starting at the offset.
+By default, searches return the top 10 matching hits. To page through a larger
+set of results, you can use the <<search-search,search API>>'s `from` and `size`
+parameters. The `from` parameter defines the number of hits to skip, defaulting
+to `0`. The `size` parameter is the maximum number of hits to return. Together,
+these two parameters define a page of results.
 
 [source,console]
 ----
@@ -28,28 +21,175 @@ GET /_search
 }
 ----
 
-By default, you cannot page through more than 10,000 documents using the `from`
-and `size` parameters. This limit is set using the
-<<index-max-result-window,`index.max_result_window`>> index setting.
+Avoid using `from` and `size` to page too deeply or request too many results at
+once. Search requests usually span multiple shards. Each shard must load its
+requested hits and the hits for any previous pages into memory. For deep pages
+or large sets of results, these operations can significantly increase memory and
+CPU usage, resulting in degraded performance or node failures.
 
-Deep paging or requesting many results at once can result in slow searches.
-Results are sorted before being returned. Because search requests usually span
-multiple shards, each shard must generate its own sorted results. These separate
-results must then be combined and sorted to ensure that the overall sort order
-is correct.
+By default, you cannot use `from` and `size` to page through more than 10,000
+hits. This limit is a safeguard set by the
+<<index-max-result-window,`index.max_result_window`>> index setting. If you need
+to page through more than 10,000 hits, use the <<search-after,`search_after`>>
+parameter instead.
 
-As an alternative to deep paging, we recommend using
-<<scroll-search-results,scroll>> or the
-<<search-after,`search_after`>> parameter.
+WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal doc
+IDs can be completely different across replicas of the same data. When paging
+search hits, you might occasionally see that documents with the same sort values
+are not ordered consistently.
 
-WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal
-doc IDs can be completely different across replicas of the same
-data. When paginating, you might occasionally see that documents with the same
-sort values are not ordered consistently.
+[discrete]
+[[search-after]]
+=== Search after
+
+You can use the `search_after` parameter to retrieve the next page of hits
+using a set of <<sort-search-results,sort values>> from the previous page.
+
+Using `search_after` requires multiple search requests with the same `query` and
+`sort` values. If a <<near-real-time,refresh>> occurs between these requests,
+the order of your results may change, causing inconsistent results across pages. To
+prevent this, you can create a <<point-in-time-api,point in time (PIT)>> to
+preserve the current index state over your searches.
+
+[source,console]
+----
+POST /my-index-000001/_pit?keep_alive=1m
+----
+// TEST[setup:my_index]
+
+The API returns a PIT ID.
+
+[source,console-result]
+----
+{
+  "id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
+}
+----
+// TESTRESPONSE[s/"id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
+
+To get the first page of results, submit a search request with a `sort`
+argument. If using a PIT, specify the PIT ID in the `pit.id` parameter.
+
+IMPORTANT: We recommend you include a tiebreaker field in your `sort`. This
+tiebreaker field should contain a unique value for each document. If you don't
+include a tiebreaker field, your paged results could miss or duplicate hits.
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "size": 10000,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  },
+  "pit": {
+	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+	    "keep_alive": "1m"
+  },
+  "sort": [ <2>
+    {"@timestamp": "asc"},
+    {"tie_breaker_id": "asc"}
+  ]
+}
+----
+// TEST[catch:missing]
+
+<1> PIT ID for the search.
+<2> Sorts hits for the search.
+
+The search response includes an array of `sort` values for each hit. If you used
+a PIT, the response's `pit_id` parameter contains an updated PIT ID.
+
+[source,console-result]
+----
+{
+  "pit_id" : "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA==", <1>
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : ...,
+  "hits" : {
+    "total" : ...,
+    "max_score" : null,
+    "hits" : [
+      ...
+      {
+        "_index" : "my-index-000001",
+        "_id" : "FaslK3QBySSL_rrj9zM5",
+        "_score" : null,
+        "_source" : ...,
+        "sort" : [                                <2>
+          4098435132000,
+          "FaslK3QBySSL_rrj9zM5"
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[skip: unable to access PIT ID]
+
+<1> Updated `id` for the point in time.
+<2> Sort values for the last returned hit.
+
+To get the next page of results, rerun the previous search using the last hit's
+sort values as the `search_after` argument. If using a PIT, use the latest PIT
+ID in the `pit.id` parameter. The search's `query` and `sort` arguments must
+remain unchanged. If provided, the `from` argument must be `0` (default) or `-1`.
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "size": 10000,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  },
+  "pit": {
+	    "id":  "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA==", <1>
+	    "keep_alive": "1m"
+  },
+  "sort": [
+    {"@timestamp": "asc"},
+    {"tie_breaker_id": "asc"}
+  ],
+  "search_after": [                                <2>
+    4098435132000,
+    "FaslK3QBySSL_rrj9zM5"
+  ]
+}
+----
+// TEST[catch:missing]
+
+<1> PIT ID returned by the previous search.
+<2> Sort values from the previous search's last hit.
+
+You can repeat this process to get additional pages of results. If using a PIT,
+you can extend the PIT's retention period using the
+`keep_alive` parameter of each search request.
+
+When you're finished, you should delete your PIT.
+
+[source,console]
+----
+DELETE /_pit
+{
+    "id" : "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA=="
+}
+----
+// TEST[catch:missing]
+
 
 [discrete]
 [[scroll-search-results]]
 === Scroll search results
+
+IMPORTANT: We no longer recommend using the scroll API for deep pagination. If
+you need to preserve the index state while paging through more than 10,000 hits,
+use the <<search-after,`search_after`>> parameter with a point in time (PIT).
 
 While a `search` request returns a single ``page'' of results, the `scroll`
 API can be used to retrieve large numbers of results (or even all results)
@@ -125,13 +265,13 @@ POST /_search/scroll                                                            
     for another `1m`.
 <3> The `scroll_id` parameter
 
-The `size` parameter allows you to configure the maximum number of hits to be 
-returned with each batch of results.  Each call to the `scroll` API returns the 
-next batch of results until there are no more results left to return, ie the 
+The `size` parameter allows you to configure the maximum number of hits to be
+returned with each batch of results.  Each call to the `scroll` API returns the
+next batch of results until there are no more results left to return, ie the
 `hits` array is empty.
 
-IMPORTANT: The initial search request and each subsequent scroll request each 
-return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t 
+IMPORTANT: The initial search request and each subsequent scroll request each
+return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t
 always change — in any case, only the most recently received `_scroll_id` should be used.
 
 NOTE: If the request specifies aggregations, only the initial search response
@@ -340,85 +480,3 @@ For append only time-based indices, the `timestamp` field can be used safely.
 
 NOTE: By default the maximum number of slices allowed per scroll is limited to 1024.
 You can update the `index.max_slices_per_scroll` index setting to bypass this limit.
-
-[discrete]
-[[search-after]]
-=== Search after
-
-Pagination of results can be done by using the `from` and `size` but the cost becomes prohibitive when the deep pagination is reached.
-The `index.max_result_window` which defaults to 10,000 is a safeguard, search requests take heap memory and time proportional to `from + size`.
-The <<scroll-search-results,scroll>> API is recommended for efficient deep scrolling but scroll contexts are costly and it is not
-recommended to use it for real time user requests.
-The `search_after` parameter circumvents this problem by providing a live cursor.
-The idea is to use the results from the previous page to help the retrieval of the next page.
-
-Suppose that the query to retrieve the first page looks like this:
-
-[source,console]
---------------------------------------------------
-GET my-index-000001/_search
-{
-  "size": 10,
-  "query": {
-    "match" : {
-      "message" : "foo"
-    }
-  },
-  "sort": [
-    {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}      <1>
-  ]
-}
---------------------------------------------------
-// TEST[setup:my_index]
-// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
-
-<1> A copy of the `_id` field with `doc_values` enabled
-
-[IMPORTANT]
-A field with one unique value per document should be used as the tiebreaker
-of the sort specification. Otherwise the sort order for documents that have
-the same sort values would be undefined and could lead to missing or duplicate
-results. The <<mapping-id-field,`_id` field>> has a unique value per document
-but it is not recommended to use it as a tiebreaker directly.
-Beware that `search_after` looks for the first document which fully or partially
-matches tiebreaker's provided value. Therefore if a document has a tiebreaker value of
-`"654323"` and you `search_after` for `"654"` it would still match that document
-and return results found after it.
-<<doc-values,doc value>> are disabled on this field so sorting on it requires
-to load a lot of data in memory. Instead it is advised to duplicate (client side
- or with a <<ingest-processors,set ingest processor>>) the content
-of the <<mapping-id-field,`_id` field>> in another field that has
-<<doc-values,doc value>> enabled and to use this new field as the tiebreaker
-for the sort.
-
-The result from the above request includes an array of `sort values` for each document.
-These `sort values` can be used in conjunction with the `search_after` parameter to start returning results "after" any
-document in the result list.
-For instance we can use the `sort values` of the last document and pass it to `search_after` to retrieve the next page of results:
-
-[source,console]
---------------------------------------------------
-GET my-index-000001/_search
-{
-  "size": 10,
-  "query": {
-    "match" : {
-      "message" : "foo"
-    }
-  },
-  "search_after": [1463538857, "654323"],
-  "sort": [
-    {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}
-  ]
-}
---------------------------------------------------
-// TEST[setup:my_index]
-// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
-
-NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.
-
-`search_after` is not a solution to jump freely to a random page but rather to scroll many queries in parallel.
-It is very similar to the `scroll` API but unlike it, the `search_after` parameter is stateless, it is always resolved against the latest
- version of the searcher. For this reason the sort order may change during a walk depending on the updates and deletes of your index.

@@ -34,10 +34,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -57,6 +59,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
+    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES = () ->
+        new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return randomNonNegativeLong();
+            }
+    };
+
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
     }
@@ -73,21 +83,21 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, clusterSettings, random),
                 new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-                EmptySnapshotsInfoService.INSTANCE);
+                SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService,
-            EmptySnapshotsInfoService.INSTANCE);
+            SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
                 gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-                EmptySnapshotsInfoService.INSTANCE);
+                SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES);
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {

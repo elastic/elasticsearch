@@ -44,4 +44,9 @@ public class SnapshotShardSizeInfo {
         assert false : "Expected shard with snapshot recovery source but was " + shardRouting;
         return null;
     }
+
+    public long getShardSize(ShardRouting shardRouting, long fallback) {
+        final Long shardSize = getShardSize(shardRouting);
+        return shardSize == null ? fallback : shardSize;
+    }
 }

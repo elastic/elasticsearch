@@ -35,6 +35,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -148,25 +149,20 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                                 protected void doRun() {
                                     final Repository repository = repositoriesServiceSupplier.get().repository(
                                         snapshotRecoverySource.snapshot().getRepository());
-                                    if (repository instanceof BlobStoreRepository) {
-                                        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-                                        final BlobContainer blobContainer = blobStoreRepository.shardContainer(
-                                            snapshotRecoverySource.index(), shardRouting.id());
-                                        // TODO: get this info via the .snapshot system index (and cache it there)
-                                        final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(
-                                            blobContainer, snapshotRecoverySource.snapshot().getSnapshotId());
-                                        final long snapshotShardSize = snapshot.totalSize();
-                                        boolean updated;
-                                        synchronized (InternalSnapshotsInfoService.this) {
-                                            final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes =
-                                                ImmutableOpenMap.builder(snapshotShardSizes);
-                                            updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
-                                            snapshotShardSizes = newSnapshotShardSizes.build();
-                                        }
-                                        if (updated) {
-                                            rerouteServiceSupplier.get().reroute("snapshot shard size updated",
-                                                Priority.HIGH, ActionListener.wrap(() -> {}));
-                                        }
+                                    final IndexShardSnapshotStatus status =
+                                        repository.getShardSnapshotStatus(snapshotRecoverySource.snapshot().getSnapshotId(),
+                                        snapshotRecoverySource.index(), shardRouting.shardId());
+                                    final long snapshotShardSize = status.asCopy().getTotalSize();
+                                    boolean updated;
+                                    synchronized (InternalSnapshotsInfoService.this) {
+                                        final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes =
+                                            ImmutableOpenMap.builder(snapshotShardSizes);
+                                        updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
+                                        snapshotShardSizes = newSnapshotShardSizes.build();
+                                    }
+                                    if (updated) {
+                                        rerouteServiceSupplier.get().reroute("snapshot shard size updated",
+                                            Priority.HIGH, ActionListener.wrap(() -> {}));
                                     }
                                 }
 

@@ -83,8 +83,8 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         return this;
     }
 
-    public boolean hasLocalIndices() {
-        return TransportSearchHelper.hasLocalIndices(scrollId);
+    public ParsedScrollId parsedScrollId() {
+        return TransportSearchHelper.parseScrollId(scrollId);
     }
 
     /**

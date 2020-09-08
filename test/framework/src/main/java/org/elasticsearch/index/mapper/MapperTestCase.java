@@ -20,12 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -166,30 +161,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            IndexSearcher indexSearcher = newSearcher(iw);
             SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
-            indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
-                @Override
-                public ScoreMode scoreMode() {
-                    return ScoreMode.COMPLETE_NO_SCORES;
-                }
-
-                @Override
-                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                    valueFetcher.setNextReader(context);
-                    return new LeafCollector() {
-                        @Override
-                        public void setScorer(Scorable scorer) throws IOException {}
-
-                        @Override
-                        public void collect(int doc) throws IOException {
-                            lookup.source().setSegmentAndDocument(context, doc);
-                            result.set(valueFetcher.fetchValues(lookup.source()));
-                        }
-                    };
-                }
-            });
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(lookup.source()));
         });
         return result.get();
     }

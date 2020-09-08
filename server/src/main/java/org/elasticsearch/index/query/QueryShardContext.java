@@ -290,6 +290,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private SearchLookup lookup = null;
 
+    /**
+     * Get the lookup to use during the search.
+     */
     public SearchLookup lookup() {
         if (this.lookup == null) {
             this.lookup = newSearchLookup();
@@ -298,7 +301,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Build a new {@link SearchLookup}.
+     * Build a new {@link SearchLookup}. Prefer {@link #lookup()} for things
+     * like queries and scripts. Call this only when you are sure you need a
+     * <strong>new</strong> lookup.
      */
     public SearchLookup newSearchLookup() {
         return new SearchLookup(

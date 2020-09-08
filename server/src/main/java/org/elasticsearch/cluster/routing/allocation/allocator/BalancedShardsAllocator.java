@@ -765,7 +765,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * TODO: We could be smarter here and group the shards by index and then
              * use the sorter to save some iterations.
              */
-            final AllocationDeciders deciders = allocation.deciders();
             final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> comparator = (o1, o2) -> {
                 if (o1.primary() ^ o2.primary()) {

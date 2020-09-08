@@ -1593,7 +1593,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         settings, namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        new SystemIndices(Map.of())),
+                        new SystemIndices(Map.of()),
+                        null),
                     clusterSettings,
                         shardLimitValidator
                 );

@@ -141,7 +141,17 @@ public class AnalyticsProcessManager {
             // Fetch existing model state (if any)
             BytesReference state = getModelState(config);
 
-            if (processContext.startProcess(dataExtractorFactory, task, state)) {
+            boolean isProcessStarted;
+            try {
+                isProcessStarted = processContext.startProcess(dataExtractorFactory, task, state);
+            } catch (Exception e) {
+                processContext.stop();
+                task.setFailed(processContext.getFailureReason() == null ?
+                        e : ExceptionsHelper.serverError(processContext.getFailureReason()));
+                return;
+            }
+
+            if (isProcessStarted) {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.get().process(processContext.process.get()));
                 executorServiceForProcess.execute(() -> processData(task, processContext, state));
             } else {

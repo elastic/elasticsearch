@@ -114,6 +114,7 @@ addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
 List startTasks = gradle.startParameter.taskNames
@@ -126,6 +127,10 @@ project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'bu
 
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"
+}
+
+project(":test:external-modules").children.each { testProject ->
+  testProject.name = "test-${testProject.name}"
 }
 
 // look for extra plugins for elasticsearch

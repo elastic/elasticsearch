@@ -280,7 +280,7 @@ public final class TransformInternalIndex {
                         .field(TYPE, KEYWORD)
                     .endObject()
                     .startObject(SourceConfig.QUERY.getPreferredName())
-                        .field(ENABLED, "false")
+                        .field(ENABLED, false)
                     .endObject()
                 .endObject()
             .endObject()

@@ -76,7 +76,7 @@ include a tiebreaker field, your paged results could miss or duplicate hits.
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /_search
 {
   "size": 10000,
   "query": {
@@ -140,7 +140,7 @@ remain unchanged. If provided, the `from` argument must be `0` (default) or `-1`
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /_search
 {
   "size": 10000,
   "query": {

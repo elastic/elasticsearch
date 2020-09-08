@@ -1522,10 +1522,10 @@ setup:
           }
 
 ---
-"Test put regression given training_percent is less than one":
+"Test put regression given training_percent is less than zero":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "regression-training-percent-is-less-than-one"
         body: >
@@ -1539,7 +1539,7 @@ setup:
             "analysis": {
               "regression": {
                 "dependent_variable": "foo",
-                "training_percent": 0.999
+                "training_percent": -1.0
               }
             }
           }
@@ -1548,7 +1548,7 @@ setup:
 "Test put regression given training_percent is greater than hundred":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "regression-training-percent-is-greater-than-hundred"
         body: >
@@ -1914,10 +1914,10 @@ setup:
           }
 
 ---
-"Test put classification given training_percent is less than one":
+"Test put classification given training_percent is less than zero":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "classification-training-percent-is-less-than-one"
         body: >
@@ -1931,7 +1931,7 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "training_percent": 0.999
+                "training_percent": -1.0
               }
             }
           }
@@ -1940,7 +1940,7 @@ setup:
 "Test put classification given training_percent is greater than hundred":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "classification-training-percent-is-greater-than-hundred"
         body: >

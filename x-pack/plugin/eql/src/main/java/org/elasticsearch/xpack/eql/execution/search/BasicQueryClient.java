@@ -34,12 +34,12 @@ public class BasicQueryClient implements QueryClient {
 
     private final EqlConfiguration cfg;
     private final Client client;
-    private final String indices;
+    private final String[] indices;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
-        this.indices = cfg.indexAsWildcard();
+        this.indices = cfg.indices();
     }
 
     @Override

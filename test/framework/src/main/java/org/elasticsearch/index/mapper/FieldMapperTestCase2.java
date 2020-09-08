@@ -228,4 +228,9 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
         ToXContent.Params params = includeDefaults ? new ToXContent.MapParams(Map.of("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
         return mapping(b -> builder.toXContent(b, params));
     }
+
+    @Override
+    public void testMinimalToMaximal() {
+        assumeFalse("`include_defaults` includes unsupported properties in non-parametrized mappers", false);
+    }
 }

@@ -161,7 +161,8 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            new SystemIndices(Map.of("system-plugin", List.of(new SystemIndexDescriptor(".system", "a system index"))))
+            new SystemIndices(Map.of("system-plugin", List.of(new SystemIndexDescriptor(".system", "a system index")))),
+            null
         );
     }
 

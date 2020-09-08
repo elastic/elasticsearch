@@ -20,65 +20,40 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
+public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "binary");
     }
 
     public void testDefaultMapping() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "binary")
-                .endObject()
-                .endObject()
-                .endObject().endObject();
-
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
 
         assertThat(mapper, instanceOf(BinaryFieldMapper.class));
         assertThat(mapper.fieldType.stored(), equalTo(false));
-
-        assertEquals(Strings.toString(mapping), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testStoredValue() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "binary")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", "true");
+        }));
 
         // case 1: a simple binary value
         final byte[] binaryValue1 = new byte[100];
@@ -93,9 +68,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
 
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
-            ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "id",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
-                    XContentType.JSON));
+            ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
 
@@ -103,17 +76,5 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
-    }
-
-    public void testEmptyName() throws IOException {
-        // after 5.x
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("").field("type", "binary").endObject().endObject()
-            .endObject().endObject());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 }

@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-inference]]
-= Create {infer} trained model API
+= Create trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Create {infer} trained model</titleabbrev>
+<titleabbrev>Create trained model</titleabbrev>
 ++++
 
-Creates an {infer} trained model.
+Creates an trained model.
 
 WARNING: Models created in version 7.8.0 are not backwards compatible
          with older node versions. If in a mixed cluster environment,
@@ -38,8 +38,8 @@ For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
 [[ml-put-inference-desc]]
 == {api-description-title}
 
-The create {infer} trained model API enables you to supply a trained model that
-is not created by {dfanalytics}.
+The create trained model API enables you to supply a trained model that is not 
+created by {dfanalytics}.
 
 
 [[ml-put-inference-path-params]]
@@ -61,7 +61,7 @@ If `compressed_definition` is specified, then `definition` cannot be specified.
 //Begin definition
 `definition`::
 (Required, object)
-The {infer} definition for the model. If `definition` is specified, then
+The {infer} definition for the model. If `definition` is specified, then 
 `compressed_definition` cannot be specified.
 +
 .Properties of `definition`
@@ -172,7 +172,7 @@ The definition for a binary decision tree.
 [%collapsible%open]
 ======
 `classification_labels`:::
-(Optional, string) An array of classification labels (used for
+(Optional, string) An array of classification labels (used for 
 `classification`).
 
 `feature_names`:::

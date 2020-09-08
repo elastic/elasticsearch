@@ -29,13 +29,13 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegExp87;
-import org.apache.lucene.search.RegExp87.Kind;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.RegExp.Kind;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -301,7 +301,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            RegExp87 ngramRegex = new RegExp87(addLineEndChars(toLowerCase(value)), syntaxFlags, matchFlags);
+            RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), syntaxFlags, matchFlags);
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
@@ -312,7 +312,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return existsQuery(context);
             }
             Supplier<Automaton> deferredAutomatonSupplier = ()-> {
-                RegExp87 regex = new RegExp87(value, syntaxFlags, matchFlags);
+                RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
                 return regex.toAutomaton(maxDeterminizedStates);
             };
 
@@ -341,7 +341,7 @@ public class WildcardFieldMapper extends FieldMapper {
         // * If an expression resolves to a RegExpQuery eg ?? then only the verification
         //   query is run.
         // * Anything else is a concrete query that should be run on the ngram index.
-        public static Query toApproximationQuery(RegExp87 r) throws IllegalArgumentException {
+        public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
                 case REGEXP_UNION:
@@ -402,7 +402,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
 
-        private static Query createConcatenationQuery(RegExp87 r) {
+        private static Query createConcatenationQuery(RegExp r) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
             findLeaves(r.exp1, Kind.REGEXP_CONCATENATION, queries);
@@ -433,7 +433,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
-        private static Query createUnionQuery(RegExp87 r) {
+        private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
             ArrayList<Query> queries = new ArrayList<>();
             findLeaves(r.exp1, Kind.REGEXP_UNION, queries);
@@ -460,7 +460,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return new MatchAllButRequireVerificationQuery();
         }
 
-        private static void findLeaves(RegExp87 exp, Kind kind, List<Query> queries) {
+        private static void findLeaves(RegExp exp, Kind kind, List<Query> queries) {
             if (exp.kind == kind) {
                 findLeaves(exp.exp1, kind, queries);
                 findLeaves( exp.exp2, kind, queries);

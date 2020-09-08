@@ -21,8 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
+
+import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
 import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
@@ -101,6 +106,29 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
+    public void testMaxBucket() throws IOException {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final int bucketOrd = randomIntBetween(2, 100);
+        final int numValues = randomIntBetween(1, 100000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 1000000);
+        for (int i = 0; i < numValues; ++i) {
+            final int n = randomInt(maxValue);
+            final long hash = BitMixer.mix64(n);
+            single.collect(bucketOrd, hash);
+            if (rarely()) {
+                single.collect(randomInt(bucketOrd -1), hash);
+            }
+        }
+        assertThat(bucketOrd, Matchers.lessThanOrEqualTo((int) single.maxBucket()));
+        BytesStreamOutput out = new BytesStreamOutput();
+        single.writeTo(bucketOrd, out);
+        StreamInput in = out.bytes().streamInput();
+        final HyperLogLogPlusPlus copy = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+        assertThat(0, Matchers.lessThanOrEqualTo((int) copy.maxBucket()));
+        assertThat(single.cardinality(bucketOrd), Matchers.equalTo(copy.cardinality(0)));
+    }
+
     public void testFakeHashes() {
         // hashes with lots of leading zeros trigger different paths in the code that we try to go through here
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
@@ -111,8 +139,15 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         if (randomBoolean()) {
             counts.collect(0, 1);
             assertEquals(2, counts.cardinality(0));
+
+            counts.upgradeToLinearCounting(0, 0);
+            assertEquals(2, counts.cardinality(0));
+        } else {
+            counts.upgradeToLinearCounting(0, 0);
+            assertEquals(1, counts.cardinality(0));
         }
-        counts.upgradeToHll(0);
+
+        counts.upgradeToHll(0, 0);
         // all hashes felt into the same bucket so hll would expect a count of 1
         assertEquals(1, counts.cardinality(0));
     }

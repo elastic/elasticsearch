@@ -181,9 +181,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     }
     
     
-    public void testTermQueryIgnoresWildcardSyntax() throws IOException {
-        // Test for bug https://github.com/elastic/elasticsearch/issues/62081
-        // where term queries honoured wildcard quwery syntax
+    public void testTermAndPrefixQueryIgnoreWildcardSyntax() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));

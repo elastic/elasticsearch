@@ -18,7 +18,7 @@ setup:
               node:
                 type: keyword
               voltage_percent:
-                type: runtime_script
+                type: runtime
                 runtime_type: double
                 script:
                   source: |
@@ -29,7 +29,7 @@ setup:
                     max: 5.8
               # Test fetching from _source
               voltage_percent_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: double
                 script:
                   source: |
@@ -38,7 +38,7 @@ setup:
                     max: 5.8
               # Test fetching many values
               voltage_sqrts:
-                type: runtime_script
+                type: runtime
                 runtime_type: double
                 script:
                   source: |
@@ -73,7 +73,7 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.voltage_percent.type: runtime_script }
+  - match: {sensor.mappings.properties.voltage_percent.type: runtime }
   - match: {sensor.mappings.properties.voltage_percent.runtime_type: double }
   - match:
       sensor.mappings.properties.voltage_percent.script.source: |

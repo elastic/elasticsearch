@@ -14,7 +14,7 @@ setup:
               message:
                 type: keyword
               ip:
-                type: runtime_script
+                type: runtime
                 runtime_type: ip
                 script:
                   source: |
@@ -23,7 +23,7 @@ setup:
                     emitValue(m.substring(0, end));
               # Test fetching from _source
               ip_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: ip
                 script:
                   source: |
@@ -32,7 +32,7 @@ setup:
                     emitValue(m.substring(0, end));
               # Test emitting many values
               ip_many:
-                type: runtime_script
+                type: runtime
                 runtime_type: ip
                 script:
                   source: |
@@ -67,7 +67,7 @@ setup:
   - do:
       indices.get_mapping:
         index: http_logs
-  - match: {http_logs.mappings.properties.ip.type: runtime_script }
+  - match: {http_logs.mappings.properties.ip.type: runtime }
   - match: {http_logs.mappings.properties.ip.runtime_type: ip }
   - match:
       http_logs.mappings.properties.ip.script.source: |

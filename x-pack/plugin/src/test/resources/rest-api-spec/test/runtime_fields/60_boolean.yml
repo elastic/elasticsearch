@@ -18,7 +18,7 @@ setup:
               node:
                 type: keyword
               over_v:
-                type: runtime_script
+                type: runtime
                 runtime_type: boolean
                 script:
                   source: |
@@ -29,14 +29,14 @@ setup:
                     min_v: 5.0
               # Test fetching from _source
               over_v_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: boolean
                 script:
                   source: |
                     emitValue(params._source.voltage >= 5.0);
               # Test many booleans
               big_vals:
-                type: runtime_script
+                type: runtime
                 runtime_type: boolean
                 script:
                   source: |
@@ -70,7 +70,7 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.over_v.type: runtime_script }
+  - match: {sensor.mappings.properties.over_v.type: runtime }
   - match: {sensor.mappings.properties.over_v.runtime_type: boolean }
   - match:
       sensor.mappings.properties.over_v.script.source: |

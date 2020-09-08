@@ -18,7 +18,7 @@ setup:
               node:
                 type: keyword
               tomorrow:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
@@ -29,7 +29,7 @@ setup:
                     days: 1
               # Test fetching from _source and parsing
               tomorrow_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
@@ -38,7 +38,7 @@ setup:
                     emitValue(toEpochMilli(dt.plus(1, ChronoUnit.DAYS)));
               # Test returning millis
               the_past:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
@@ -47,7 +47,7 @@ setup:
                     }
               # Test fetching many values
               all_week:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
@@ -58,7 +58,7 @@ setup:
                     }
               # Test format parameter
               formatted_tomorrow:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 format: yyyy-MM-dd
                 script: |
@@ -89,7 +89,7 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.tomorrow.type: runtime_script }
+  - match: {sensor.mappings.properties.tomorrow.type: runtime }
   - match: {sensor.mappings.properties.tomorrow.runtime_type: date }
   - match:
       sensor.mappings.properties.tomorrow.script.source: |
@@ -99,7 +99,7 @@ setup:
   - match: {sensor.mappings.properties.tomorrow.script.params: {days: 1} }
   - match: {sensor.mappings.properties.tomorrow.script.lang: painless }
 
-  - match: {sensor.mappings.properties.formatted_tomorrow.type: runtime_script }
+  - match: {sensor.mappings.properties.formatted_tomorrow.type: runtime }
   - match: {sensor.mappings.properties.formatted_tomorrow.runtime_type: date }
   - match:
       sensor.mappings.properties.formatted_tomorrow.script.source: |

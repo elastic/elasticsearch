@@ -35,11 +35,12 @@ import java.util.Set;
  */
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
+    private final SourceLookup lookup;
     private final @Nullable Object nullValue;
     private final boolean parsesArrayValue;
 
-    public SourceValueFetcher(String fieldName, MapperService mapperService, boolean parsesArrayValue) {
-        this(fieldName, mapperService, parsesArrayValue, null);
+    public SourceValueFetcher(String fieldName, MapperService mapperService, SourceLookup lookup, boolean parsesArrayValue) {
+        this(fieldName, mapperService, lookup, parsesArrayValue, null);
     }
 
     /**
@@ -47,14 +48,25 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param parsesArrayValue Whether the fetcher handles array values during document parsing.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, MapperService mapperService, boolean parsesArrayValue, Object nullValue) {
+    public SourceValueFetcher(
+        String fieldName,
+        MapperService mapperService,
+        SourceLookup lookup,
+        boolean parsesArrayValue,
+        Object nullValue
+    ) {
         this.sourcePaths = mapperService.sourcePath(fieldName);
+        this.lookup = lookup;
         this.nullValue = nullValue;
         this.parsesArrayValue = parsesArrayValue;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(int docId) {
+        /*
+         * Pulls the values from the source, parses them and then them
+         * using parseSourceValue.
+         */
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);

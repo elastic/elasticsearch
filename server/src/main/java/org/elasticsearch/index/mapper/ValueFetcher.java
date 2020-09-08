@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,19 +31,16 @@ import java.util.List;
  */
 public interface ValueFetcher {
     /**
-     * Given access to a document's _source, return this field's values.
-     *
-     * In addition to pulling out the values, they will be parsed into a standard form.
-     * For example numeric field mappers make sure to parse the source value into a number
-     * of the right type.
-     *
+     * Fetch this field's values, converting them into a "standard form" and applying
+     * any formats configured when the {@linkplain ValueFetcher} was built.
+     * <p>
      * Note that for array values, the order in which values are returned is undefined and
      * should not be relied on.
      *
-     * @param lookup a lookup structure over the document's source.
+     * @param docId the document's id.
      * @return a list a standardized field values.
      */
-    List<Object> fetchValues(SourceLookup lookup) throws IOException;
+    List<Object> fetchValues(int docId) throws IOException;
 
     /**
      * Update the leaf reader used to fetch values.

@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,7 +82,7 @@ public class FieldValueRetriever {
         this.fieldContexts = fieldContexts;
     }
 
-    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
+    public Map<String, DocumentField> retrieve(int docId, Set<String> ignoredFields) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts) {
             String field = context.fieldName;
@@ -92,7 +91,7 @@ public class FieldValueRetriever {
             }
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
+            List<Object> parsedValues = valueFetcher.fetchValues(docId);
 
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));

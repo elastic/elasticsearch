@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -265,10 +265,12 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        SearchLookup lookup = new SearchLookup(mapperService, (ft, l) -> {
+            throw new UnsupportedOperationException();
+        });
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, lookup, format);
+        lookup.source().setSource(Collections.singletonMap(field, sourceValue));
+        return fetcher.fetchValues(0);
     }
 
 }

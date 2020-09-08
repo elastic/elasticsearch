@@ -33,7 +33,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -142,10 +141,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        SearchLookup lookup = new SearchLookup(mapperService, (ft, l) -> {
+            throw new UnsupportedOperationException();
+        });
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, lookup, format);
+        lookup.source().setSource(Collections.singletonMap(field, sourceValue));
+        return fetcher.fetchValues(0);
     }
 
     /**
@@ -165,9 +166,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            result.set(valueFetcher.fetchValues(lookup.source()));
+            result.set(valueFetcher.fetchValues(0));
         });
         return result.get();
     }

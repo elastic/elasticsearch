@@ -371,7 +371,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+        return new SourceValueFetcher(name(), mapperService, searchLookup.source(), parsesArrayValue()) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value;

@@ -10,6 +10,9 @@
       },
       "hyperparameters": {
         "properties": {
+          "alpha": {
+            "type": "double"
+          },
           "class_assignment_objective": {
             "type": "keyword"
           },
@@ -23,6 +26,12 @@
             "type": "double"
           },
           "feature_bag_fraction": {
+            "type": "double"
+          },
+          "gamma": {
+            "type": "double"
+          },
+          "lambda": {
             "type": "double"
           },
           "max_attempts_to_add_tree": {
@@ -40,19 +49,10 @@
           "num_splits_per_feature": {
             "type": "integer"
           },
-          "regularization_depth_penalty_multiplier": {
+          "soft_tree_depth_limit": {
             "type": "double"
           },
-          "regularization_leaf_weight_penalty_multiplier": {
-            "type": "double"
-          },
-          "regularization_soft_tree_depth_limit": {
-            "type": "double"
-          },
-          "regularization_soft_tree_depth_tolerance": {
-            "type": "double"
-          },
-          "regularization_tree_size_penalty_multiplier": {
+          "soft_tree_depth_tolerance": {
             "type": "double"
           }
         }

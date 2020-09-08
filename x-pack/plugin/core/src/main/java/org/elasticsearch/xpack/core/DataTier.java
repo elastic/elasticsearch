@@ -29,6 +29,14 @@ import java.util.Set;
  */
 public class DataTier {
 
+    public static final String INDEX_BYPASS_AUTO_DATA_TIER_ROUTING = "index.bypass.auto.data_tier.routing";
+    /**
+     * Provides an opt-out of the automatically allocation of indices to hot nodes system and ILM auto migration of
+     * managed indices to the corresponding data tiers.
+     */
+    public static final Setting<Boolean> INDEX_BYPASS_AUTO_DATA_TIER_ROUTING_SETTING =
+        Setting.boolSetting(INDEX_BYPASS_AUTO_DATA_TIER_ROUTING, false, Setting.Property.Dynamic, Setting.Property.IndexScope);
+
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
@@ -156,6 +164,10 @@ public class DataTier {
         @Override
         public Settings getAdditionalIndexSettings(String indexName, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
+            if (INDEX_BYPASS_AUTO_DATA_TIER_ROUTING_SETTING.get(indexSettings)) {
+                return Settings.EMPTY;
+            }
+
             if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)) {
                 // It's okay to put it, it will be removed or overridden by the template/request settings
                 return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();

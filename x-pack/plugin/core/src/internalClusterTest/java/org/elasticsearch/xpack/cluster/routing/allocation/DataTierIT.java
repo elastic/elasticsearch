@@ -54,6 +54,26 @@ public class DataTierIT extends ESIntegTestCase {
         ensureYellow(index);
     }
 
+    public void testBypassAutoAllocationToHot() throws Exception {
+        startWarmOnlyNode();
+        startColdOnlyNode();
+        ensureGreen();
+
+        client().admin().indices().prepareCreate(index)
+            .setSettings(Settings.builder()
+                .put(DataTier.INDEX_BYPASS_AUTO_DATA_TIER_ROUTING, true))
+            .setWaitForActiveShards(0)
+            .get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(""));
+
+        assertBusy(() ->
+            assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
+                equalTo(ClusterHealthStatus.GREEN))
+        );
+    }
+
     public void testOverrideDefaultAllocation() {
         startWarmOnlyNode();
         startColdOnlyNode();

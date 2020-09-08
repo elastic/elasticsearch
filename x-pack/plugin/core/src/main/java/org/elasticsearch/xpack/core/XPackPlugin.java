@@ -373,6 +373,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
+        settings.add(DataTier.INDEX_BYPASS_AUTO_DATA_TIER_ROUTING_SETTING);
         return settings;
     }
 

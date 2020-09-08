@@ -22,14 +22,14 @@ PUT _template/template_1
 
 [source,console]
 --------------------------------------------------
-DELETE /_template/template_1
+DELETE /_index_template/template_1
 --------------------------------------------------
 
 
 [[delete-template-api-request]]
 ==== {api-request-title}
 
-`DELETE /_template/<index-template>`
+`DELETE /_index_template/<index-template>`
 
 
 [[delete-template-api-desc]]

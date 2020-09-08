@@ -11,13 +11,20 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
@@ -41,17 +48,9 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
         assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
     }
 
-    @Before
-    public void setup() throws Exception {
-        createIndex(defaultValidationIndexName, Settings.EMPTY);
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        deleteIndex(defaultValidationIndexName);
-    }
-
     public void testBadRequests() throws Exception {
+        createIndex(defaultValidationIndexName, Settings.EMPTY);
+        
         final String contentType = "application/json";
         for (String[] test : testBadRequests) {
             final String endpoint = "/" + defaultValidationIndexName + "/_eql/search";
@@ -65,5 +64,56 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
             assertThat(response.getStatusLine().getStatusCode(), is(400));
         }
+        
+        deleteIndex(defaultValidationIndexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexWildcardPatterns() throws Exception {
+        createIndex("test1", Settings.EMPTY, null, "\"my_alias\" : {}, \"test_alias\" : {}");
+        createIndex("test2", Settings.EMPTY, null, "\"my_alias\" : {}");
+
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\": {\"_index\": \"test1\", \"_id\": 1}}\n");
+        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-04T12:34:56Z\"}\n");
+        bulk.append("{\"index\": {\"_index\": \"test2\", \"_id\": 2}}\n");
+        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-05T12:34:56Z\"}\n");
+        bulkIndex(bulk.toString());
+
+        String[] wildcardRequests = {
+            "test1,test2","test1*,test2","test1,test2*","test1*,test2*","test*","test1,test2,inexistent","my_alias","my_alias,test*",
+            "test2,my_alias,test1","my_al*"
+        };
+
+        for (String indexPattern : wildcardRequests) {
+            String endpoint = "/" + indexPattern + "/_eql/search";
+            Request request = new Request("GET", endpoint);
+            request.setJsonEntity("{\"query\":\"process where true\"}");
+            Response response = client().performRequest(request);
+
+            Map<String, Object> responseMap;
+            try (InputStream content = response.getEntity().getContent()) {
+                responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+            }
+            Map<String, Object> hits = (Map<String, Object>) responseMap.get("hits");
+            List<Map<String, Object>> events = (List<Map<String, Object>>) hits.get("events");
+            assertEquals(2, events.size());
+            assertEquals("1", events.get(0).get("_id"));
+            assertEquals("2", events.get(1).get("_id"));
+        }
+
+        deleteIndex("test1");
+        deleteIndex("test2");
+    }
+
+    private void bulkIndex(String bulk) throws IOException {
+        Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.setJsonEntity(bulk);
+        bulkRequest.addParameter("refresh", "true");
+
+        Response response = client().performRequest(bulkRequest);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        String bulkResponse = EntityUtils.toString(response.getEntity());
+        assertThat(bulkResponse, not(containsString("\"errors\": true")));
     }
 }

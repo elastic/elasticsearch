@@ -23,23 +23,32 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -49,11 +58,14 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RepositoriesServiceTests extends ESTestCase {
 
@@ -67,8 +79,16 @@ public class RepositoriesServiceTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
+        final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
+        when(clusterApplierService.threadPool()).thenReturn(threadPool);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
+        Map<String, Repository.Factory> typesRegistry =
+            Map.of(TestRepository.TYPE, TestRepository::new,
+                MeteredRepositoryTypeA.TYPE, metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+                MeteredRepositoryTypeB.TYPE, metadata -> new MeteredRepositoryTypeB(metadata, clusterService));
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
-            transportService, Collections.emptyMap(), Collections.singletonMap(TestRepository.TYPE, TestRepository::new), threadPool);
+            transportService, typesRegistry, typesRegistry, threadPool);
         repositoriesService.start();
     }
 
@@ -112,6 +132,46 @@ public class RepositoriesServiceTests extends ESTestCase {
         for (char c : Strings.INVALID_FILENAME_CHARS) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
+    }
+
+    public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
+        String repoName = "name";
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
+
+        ClusterState clusterStateWithRepoTypeA = createClusterStateWithRepo(repoName, MeteredRepositoryTypeA.TYPE);
+
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepoTypeA, emptyState()));
+        assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
+
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", emptyState(), clusterStateWithRepoTypeA));
+        assertThat(repositoriesService.repositoriesStats().size(), equalTo(1));
+
+        ClusterState clusterStateWithRepoTypeB = createClusterStateWithRepo(repoName, MeteredRepositoryTypeB.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("new repo", clusterStateWithRepoTypeB, emptyState()));
+
+        List<RepositoryStatsSnapshot> repositoriesStats = repositoriesService.repositoriesStats();
+        assertThat(repositoriesStats.size(), equalTo(2));
+        RepositoryStatsSnapshot repositoryStatsTypeA = repositoriesStats.get(0);
+        assertThat(repositoryStatsTypeA.getRepositoryInfo().type, equalTo(MeteredRepositoryTypeA.TYPE));
+        assertThat(repositoryStatsTypeA.getRepositoryStats(), equalTo(MeteredRepositoryTypeA.STATS));
+
+        RepositoryStatsSnapshot repositoryStatsTypeB = repositoriesStats.get(1);
+        assertThat(repositoryStatsTypeB.getRepositoryInfo().type, equalTo(MeteredRepositoryTypeB.TYPE));
+        assertThat(repositoryStatsTypeB.getRepositoryStats(), equalTo(MeteredRepositoryTypeB.STATS));
+    }
+
+    private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.putCustom(RepositoriesMetadata.TYPE,
+            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY))));
+        state.metadata(mdBuilder);
+
+        return state.build();
+    }
+
+    private ClusterState emptyState() {
+        return ClusterState.builder(new ClusterName("test")).build();
     }
 
     private void assertThrowsOnRegister(String repoName) {
@@ -255,6 +315,54 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void close() {
             isClosed = true;
+        }
+    }
+
+    private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
+        private static final String TYPE = "type-a";
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", 10L));
+
+        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+            super(metadata,
+                mock(NamedXContentRegistry.class),
+                clusterService,
+                mock(RecoverySettings.class),
+                BlobPath.cleanPath(),
+                Map.of("bucket", "bucket-a"));
+        }
+
+        @Override
+        protected BlobStore createBlobStore() {
+            return mock(BlobStore.class);
+        }
+
+        @Override
+        public RepositoryStats stats() {
+            return STATS;
+        }
+    }
+
+    private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
+        private static final String TYPE = "type-b";
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", 20L));
+
+        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+            super(metadata,
+                mock(NamedXContentRegistry.class),
+                clusterService,
+                mock(RecoverySettings.class),
+                BlobPath.cleanPath(),
+                Map.of("bucket", "bucket-b"));
+        }
+
+        @Override
+        protected BlobStore createBlobStore() {
+            return mock(BlobStore.class);
+        }
+
+        @Override
+        public RepositoryStats stats() {
+            return STATS;
         }
     }
 }

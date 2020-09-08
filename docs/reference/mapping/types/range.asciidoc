@@ -106,7 +106,7 @@ The result produced by the above query.
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
-            "gte" : 10, "lte" : 20
+            "gte" : 10, "lt" : 20
           },
           "time_frame" : {
             "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
@@ -167,7 +167,7 @@ This query produces a similar result:
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
-            "gte" : 10, "lte" : 20
+            "gte" : 10, "lt" : 20
           },
           "time_frame" : {
             "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"

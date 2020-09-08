@@ -73,7 +73,6 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
         executor = EsExecutors.newFixed("test", 1, 10,
             EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), randomBoolean());
-
     }
 
     @After
@@ -116,9 +115,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
         assertEquals(10, searchProgressListener.onQueryResult.get());
         assertTrue(partialReduceLatch.await(10, TimeUnit.SECONDS));
-        if (onPartialMergeFailure.get() != null) {
-            throw onPartialMergeFailure.get();
-        }
+        assertNull(onPartialMergeFailure.get());
         assertEquals(8, searchProgressListener.onPartialReduce.get());
 
         queryPhaseResultConsumer.reduce();

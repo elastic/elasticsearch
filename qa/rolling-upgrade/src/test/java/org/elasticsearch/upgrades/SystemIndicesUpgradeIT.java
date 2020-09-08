@@ -119,7 +119,6 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                     // Verify that the alias survived the upgrade
                     Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
-                    getAliasRequest.addParameter("allow_system_index_access", "true");
                     Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
                     assertThat(aliasResponse, hasKey(".tasks"));
                     assertThat(aliasResponse, hasKey("test_index_reindex"));

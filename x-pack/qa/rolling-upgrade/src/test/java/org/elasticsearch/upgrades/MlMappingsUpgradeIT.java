@@ -179,10 +179,18 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         configIndexExceptions.add("properties.last_data_time.type");
         configIndexExceptions.add("properties.types.type");
 
+        // Excluding those from stats index as some have been renamed and other removed.
+        Set<String> statsIndexException = new HashSet<>();
+        statsIndexException.add("properties.hyperparameters.properties.regularization_depth_penalty_multiplier.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_leaf_weight_penalty_multiplier.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_limit.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_tolerance.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_tree_size_penalty_multiplier.type");
+
         assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config", false, configIndexExceptions);
         // the true parameter means the index may not have been created
         assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true, Collections.emptySet());
-        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, statsIndexException);
         assertLegacyTemplateMatchesIndexMappings(".ml-state", ".ml-state-000001");
         assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
         assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());

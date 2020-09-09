@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
@@ -64,6 +65,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     private static final boolean HYPERLOGLOG = true;
     public static final int DEFAULT_PRECISION = 14;
 
+    private final BitArray algorithm;
     private final HyperLogLog hll;
     private final LinearCounting lc;
 
@@ -89,6 +91,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     public HyperLogLogPlusPlus(int precision, BigArrays bigArrays, long initialBucketCount) {
         hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
         lc = new LinearCounting(bigArrays, initialBucketCount, precision, hll);
+        algorithm = new BitArray(1, bigArrays);
     }
 
     public int precision() {
@@ -107,13 +110,12 @@ public final class HyperLogLogPlusPlus implements Releasable {
         hll.bucket = thisBucket;
         lc.bucket = thisBucket;
         hll.ensureCapacity(thisBucket + 1);
-        other.lc.bucket = otherBucket;
-        if (other.lc.size() <= lc.threshold) {
+        if (other.algorithm.get(otherBucket) == LINEAR_COUNTING) {
             other.lc.bucket = otherBucket;
             final AbstractLinearCounting.HashesIterator values = other.lc.values();
             while (values.next()) {
                 final int encoded = values.value();
-                if (lc.size() <= lc.threshold) {
+                if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
                     final int newSize = lc.addEncoded(encoded);
                     if (newSize > lc.threshold) {
                         upgradeToHll(thisBucket);
@@ -123,7 +125,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
                 }
             }
         } else {
-            if (lc.size() <= lc.threshold) {
+            if (algorithm.get(thisBucket) != HYPERLOGLOG) {
                 upgradeToHll(thisBucket);
             }
             other.hll.bucket = otherBucket;
@@ -139,9 +141,9 @@ public final class HyperLogLogPlusPlus implements Releasable {
     public void collect(long bucket, long hash) {
         collectTimer.start();
         hll.ensureCapacity(bucket + 1);
-        lc.bucket = bucket;
-        if (lc.size() <= lc.threshold) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
             lcTimer.start();
+            lc.bucket = bucket;
             final int newSize = lc.collect(hash);
             if (newSize > lc.threshold) {
                 upgradeTimer.start();
@@ -159,8 +161,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public long cardinality(long bucket) {
-        lc.bucket = bucket;
-        if (lc.size() <= lc.threshold) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
+            lc.bucket = bucket;
             return lc.cardinality();
         } else {
             hll.bucket = bucket;
@@ -187,6 +189,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
                 final int encoded = values.get(j);
                 hll.collectEncoded(encoded);
             }
+            algorithm.set(bucket);
         } finally {
             Releasables.close(values);
         }
@@ -194,12 +197,12 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(hll, lc);
+        Releasables.close(algorithm, hll, lc);
     }
 
     private Object getComparableData(long bucket) {
-        lc.bucket = bucket;
-        if (lc.size() <= lc.threshold) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
+            lc.bucket = bucket;
             return lc.getComparableData();
         } else {
             hll.bucket = bucket;
@@ -208,19 +211,20 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public int hashCode(long bucket) {
-        return Objects.hash(precision(), getComparableData(bucket));
+        return Objects.hash(precision(), algorithm.get(bucket), getComparableData(bucket));
     }
 
     public boolean equals(long bucket, HyperLogLogPlusPlus other) {
         return Objects.equals(precision(), other.precision())
+            && Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket))
             && Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
     }
 
     public void writeTo(long bucket, StreamOutput out) throws IOException {
         out.writeVInt(precision());
-        lc.bucket = bucket;
-        if (lc.size() <= lc.threshold) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
             out.writeBoolean(LINEAR_COUNTING);
+            lc.bucket = bucket;
             AbstractLinearCounting.HashesIterator hashes = lc.values();
             out.writeVLong(hashes.size());
             while (hashes.next()) {
@@ -241,6 +245,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(precision, bigArrays, 1);
         final boolean algorithm = in.readBoolean();
         if (algorithm == LINEAR_COUNTING) {
+            counts.algorithm.clear(0);
             final long size = in.readVLong();
             counts.lc.bucket = 0;
             for (long i = 0; i < size; ++i) {
@@ -248,6 +253,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
                 counts.lc.addEncoded(encoded);
             }
         } else {
+            counts.algorithm.set(0);
             counts.hll.bucket = 0;
             for (int i = 0; i < counts.hll.m; ++i) {
                 counts.hll.addRunLen(i, in.readByte());
@@ -402,7 +408,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
                 return 0;
             }
             final int size = sizes.get(bucket);
-//            assert size == recomputedSize() : size + " != " + recomputedSize();
+            assert size == recomputedSize();
             return size;
         }
 

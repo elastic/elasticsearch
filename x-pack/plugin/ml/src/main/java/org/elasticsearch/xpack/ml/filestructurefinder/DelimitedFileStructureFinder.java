@@ -149,14 +149,15 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
-                    mappings, timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone))
+                    mappings, timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone,
+                    timeField.v2().needNanosecondPrecision()))
                 .setMultilineStartPattern(makeMultilineStartPattern(explanation, columnNamesList, maxLinesPerMessage, delimiterPattern,
                     quotePattern, mappings, timeField.v1(), timeField.v2()));
 
-            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
+            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         } else {
             structureBuilder.setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(),
-                csvProcessorSettings, mappings, null, null, false));
+                csvProcessorSettings, mappings, null, null, false, false));
             structureBuilder.setMultilineStartPattern(makeMultilineStartPattern(explanation, columnNamesList, maxLinesPerMessage,
                 delimiterPattern, quotePattern, mappings, null, null));
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.List;
@@ -18,7 +19,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 /**
  * Integration test to test authentication with the custom role-mapping realm
@@ -61,7 +61,7 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
 
         final Response response = client().performRequest(request);
         final Map<String, Object> authenticate = entityAsMap(response);
-        assertThat(authenticate.get("username"), is(CustomRoleMappingRealm.USERNAME));
+        assertThat(authenticate.get("username"), Matchers.is(CustomRoleMappingRealm.USERNAME));
         assertThat(authenticate.get("roles"), instanceOf(List.class));
         assertThat(authenticate.get("roles"), equalTo(List.of(expectedRole)));
     }

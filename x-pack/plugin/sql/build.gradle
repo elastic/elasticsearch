@@ -25,9 +25,6 @@ configurations {
 
 archivesBaseName = 'x-pack-sql'
 
-// All integration tests live in qa modules
-integTest.enabled = false
-
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compileOnly(project(':modules:lang-painless')) {

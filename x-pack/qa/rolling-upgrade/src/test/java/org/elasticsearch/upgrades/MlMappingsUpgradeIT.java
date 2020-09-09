@@ -174,7 +174,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
         configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
+
         // fields from previous versions that have been removed
+        // renamed to max_trees in 7.7
+        configIndexExceptions.add("properties.analysis.properties.classification.properties.maximum_number_trees.type");
+        configIndexExceptions.add("properties.analysis.properties.regression.properties.maximum_number_trees.type");
         configIndexExceptions.add("properties.established_model_memory.type");
         configIndexExceptions.add("properties.last_data_time.type");
         configIndexExceptions.add("properties.types.type");

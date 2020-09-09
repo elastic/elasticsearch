@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
 
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.distribution-download'
+apply plugin: 'elasticsearch.internal-distribution-download'
 
 task copyKeystore(type: Sync) {
   from project(':x-pack:plugin:core')
@@ -30,4 +30,8 @@ preProcessFixture {
     file.mkdirs()
     file.setWritable(true, false)
   }
+}
+
+tasks.named('composeUp').configure {
+  dependsOn "preProcessFixture"
 }

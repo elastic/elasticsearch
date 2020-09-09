@@ -632,7 +632,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             Map<String, Long> nodeSearchCounts = searchTransportService.getPendingSearchRequests();
             GroupShardsIterator<ShardIterator> localShardRoutings = clusterService.operationRouting().searchShards(clusterState,
-                concreteLocalIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
+                concreteLocalIndices, routingMap, searchRequest.preference(),
+                searchService.getResponseCollectorService(), nodeSearchCounts);
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
                 .map(it -> new SearchShardIterator(
                     searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), localIndices))

@@ -25,6 +25,6 @@ public interface MediaType {
     String format();
 
     default String typeSubtype(){
-        return type()+"/"+subtype();
+        return type() + "/" + subtype();
     }
 }

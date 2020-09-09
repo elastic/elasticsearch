@@ -59,7 +59,7 @@ public class RestTable {
     }
 
     private static XContentType getxContentType(RestRequest request) {
-        if(request.hasParam("format")) {
+        if (request.hasParam("format")) {
             return XContentType.fromFormat(request.param("format"));
         }
         return XContentType.fromMediaType(request.header("Accept"));

@@ -100,7 +100,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         if (responseContentType == null) {
             //TODO PG shoudld format vs acceptHeader be always the same, do we allow overriding?
             responseContentType = XContentType.fromFormat(format);
-            if(responseContentType == null) {
+            if (responseContentType == null) {
                 responseContentType = XContentType.fromMediaType(acceptHeader);
             }
         }

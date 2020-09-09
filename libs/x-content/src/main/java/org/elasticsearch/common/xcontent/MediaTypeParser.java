@@ -24,8 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MediaTypeParser<T extends MediaType> {
-    private Map<String, T> formatToMediaType = new HashMap<>();
-    private Map<String, T> typeSubtypeToMediaType = new HashMap<>();
+    private final Map<String, T> formatToMediaType = new HashMap<>();
+    private final Map<String, T> typeSubtypeToMediaType = new HashMap<>();
 
     public MediaTypeParser(T[] acceptedMediaTypes) {
         for (T mediaType : acceptedMediaTypes) {
@@ -40,7 +40,7 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     public T fromFormat(String format) {
-        if(format == null) {
+        if (format == null) {
             return null;
         }
         return formatToMediaType.get(format.toLowerCase(Locale.ROOT));

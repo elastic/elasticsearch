@@ -111,11 +111,9 @@ public enum XContentType implements MediaType {
         }
     };
 
-    public static MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values())
+    public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values())
         .withAdditionalMediaType("application/*", JSON)
         .withAdditionalMediaType("application/x-ndjson", JSON);
-
-
 
     /**
      * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has

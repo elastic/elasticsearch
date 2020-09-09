@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class UnsignedLongScriptDocValues extends ScriptDocValues<Number> {
     private final SortedNumericDocValues in;
-    private Number[] values = new Number[0];
+    private long[] values = new long[0];
     private int count;
 
     /**
@@ -30,7 +30,7 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Number> {
         if (in.advanceExact(docId)) {
             resize(in.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = (Number) DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.nextValue());
+                values[i] = in.nextValue();
             }
         } else {
             resize(0);
@@ -57,7 +57,7 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Number> {
                 "A document doesn't have a value for a field! Use doc[<field>].size()==0 to check if a document is missing a field!"
             );
         }
-        return values[index];
+        return (Number) DocValueFormat.UNSIGNED_LONG_SHIFTED.format(values[index]);
     }
 
     @Override

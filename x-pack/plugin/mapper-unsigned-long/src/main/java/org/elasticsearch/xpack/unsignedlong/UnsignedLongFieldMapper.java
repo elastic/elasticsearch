@@ -8,11 +8,8 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -23,23 +20,26 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -47,98 +47,84 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-public class UnsignedLongFieldMapper extends FieldMapper {
-    protected static long MASK_2_63 = 0x8000000000000000L;
-    private static BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
-    private static BigDecimal BIGDECIMAL_2_64_MINUS_ONE = new BigDecimal(BIGINTEGER_2_64_MINUS_ONE);
-
+public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "unsigned_long";
-    // use the same default as numbers
-    private static final FieldType FIELD_TYPE = new FieldType();
-    static {
-        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+
+    private static final long MASK_2_63 = 0x8000000000000000L;
+    static final BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
+    private static final BigDecimal BIGDECIMAL_2_64_MINUS_ONE = new BigDecimal(BIGINTEGER_2_64_MINUS_ONE);
+
+    private static UnsignedLongFieldMapper toType(FieldMapper in) {
+        return (UnsignedLongFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
+        private final Parameter<String> nullValue;
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private Boolean ignoreMalformed;
-        private String nullValue;
-
-        public Builder(String name) {
-            super(name, FIELD_TYPE);
-            builder = this;
+        public Builder(String name, Settings settings) {
+            this(name, IGNORE_MALFORMED_SETTING.get(settings));
         }
 
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
-            this.ignoreMalformed = ignoreMalformed;
-            return builder;
+        private Builder(String name, boolean ignoreMalformedByDefault) {
+            super(name);
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                ignoreMalformedByDefault
+            );
+            this.nullValue = new Parameter<>(
+                "null_value",
+                false,
+                () -> null,
+                (n, c, o) -> parseNullValueAsString(o),
+                m -> toType(m).nullValue
+            ).acceptsNull();
         }
 
-        @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            throw new MapperParsingException("index_options not allowed in field [" + name + "] of type [" + CONTENT_TYPE + "]");
-        }
-
-        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
-            if (ignoreMalformed != null) {
-                return new Explicit<>(ignoreMalformed, true);
+        private String parseNullValueAsString(Object o) {
+            if (o == null) return null;
+            try {
+                parseUnsignedLong(o); // confirm that null_value is a proper unsigned_long
+                return (o instanceof BytesRef) ? ((BytesRef) o).utf8ToString() : o.toString();
+            } catch (Exception e) {
+                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
             }
-            if (context.indexSettings() != null) {
-                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
-            }
-            return NumberFieldMapper.Defaults.IGNORE_MALFORMED;
         }
 
-        public Builder nullValue(String nullValue) {
-            this.nullValue = nullValue;
+        Builder nullValue(String nullValue) {
+            this.nullValue.setValue(nullValue);
             return this;
         }
 
         @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+        }
+
+        @Override
         public UnsignedLongFieldMapper build(BuilderContext context) {
-            UnsignedLongFieldType type = new UnsignedLongFieldType(buildFullName(context), indexed, hasDocValues, meta);
-            return new UnsignedLongFieldMapper(
-                name,
-                fieldType,
-                type,
-                ignoreMalformed(context),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
-                nullValue
+            UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
+                buildFullName(context),
+                indexed.getValue(),
+                hasDocValues.getValue(),
+                meta.getValue()
             );
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
-            TypeParsers.parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    parseUnsignedLong(propNode); // confirm that null_value is a proper unsigned_long
-                    String nullValue = (propNode instanceof BytesRef) ? ((BytesRef) propNode).utf8ToString() : propNode.toString();
-                    builder.nullValue(nullValue);
-                    iterator.remove();
-                } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
-                    iterator.remove();
-                }
-            }
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
@@ -235,7 +221,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return (cache, breakerService, mapperService) -> {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
@@ -376,22 +362,29 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
     }
 
-    private Explicit<Boolean> ignoreMalformed;
+    private final boolean indexed;
+    private final boolean hasDocValues;
+    private final boolean stored;
+    private final Explicit<Boolean> ignoreMalformed;
+    private final boolean ignoreMalformedByDefault;
     private final String nullValue;
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
     private final Number nullValueFormatted; // null value to use in place of a {@code null} value in the document source
 
     private UnsignedLongFieldMapper(
         String simpleName,
-        FieldType fieldType,
-        UnsignedLongFieldType mappedFieldType,
-        Explicit<Boolean> ignoreMalformed,
+        MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        String nullValue
+        Builder builder
     ) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        this.nullValue = nullValue;
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.indexed = builder.indexed.getValue();
+        this.hasDocValues = builder.hasDocValues.getValue();
+        this.stored = builder.stored.getValue();
+        this.ignoreMalformed = builder.ignoreMalformed.getValue();
+        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.nullValue = builder.nullValue.getValue();
         if (nullValue == null) {
             this.nullValueIndexed = null;
             this.nullValueFormatted = null;
@@ -400,8 +393,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this.nullValueIndexed = unsignedToSortableSignedLong(parsed);
             this.nullValueFormatted = parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
         }
-
-        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
@@ -417,11 +408,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     protected UnsignedLongFieldMapper clone() {
         return (UnsignedLongFieldMapper) super.clone();
-    }
-
-    @Override
-    protected Number nullValue() {
-        return nullValueFormatted;
     }
 
     @Override
@@ -457,52 +443,38 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = unsignedToSortableSignedLong(numericValue);
         }
 
-        boolean docValued = fieldType().hasDocValues();
-        boolean indexed = fieldType().isSearchable();
-        boolean stored = fieldType.stored();
-
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), numericValue, indexed, docValued, stored);
-        context.doc().addAll(fields);
-        if (docValued == false && (indexed || stored)) {
+        context.doc()
+            .addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored));
+        if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);
         }
     }
 
     @Override
-    protected Number parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value.equals("")) {
-            return nullValueFormatted;
-        }
-        long ulValue = parseUnsignedLong(value);
-        if (ulValue >= 0) {
-            return ulValue;
-        } else {
-            return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValueFormatted) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                if (value.equals("")) {
+                    return nullValueFormatted;
+                }
+                long ulValue = parseUnsignedLong(value);
+                if (ulValue >= 0) {
+                    return ulValue;
+                } else {
+                    return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
+                }
+            }
+        };
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        UnsignedLongFieldMapper mergeWith = (UnsignedLongFieldMapper) other;
-        if (mergeWith.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = mergeWith.ignoreMalformed;
-        }
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-
-        if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field("ignore_malformed", ignoreMalformed.value());
-        }
-        if (nullValue != null) {
-            builder.field("null_value", nullValue);
-        }
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
     }
 
     /**

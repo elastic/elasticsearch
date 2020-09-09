@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -17,11 +16,9 @@ import static java.util.Collections.singletonMap;
 
 public class UnsignedLongMapperPlugin extends Plugin implements MapperPlugin {
 
-    public UnsignedLongMapperPlugin(Settings settings) {}
-
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(UnsignedLongFieldMapper.CONTENT_TYPE, new UnsignedLongFieldMapper.TypeParser());
+        return singletonMap(UnsignedLongFieldMapper.CONTENT_TYPE, UnsignedLongFieldMapper.PARSER);
     }
 
 }

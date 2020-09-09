@@ -59,10 +59,12 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         int remoteNumDocs = randomIntBetween(10, 50);
         assertAcked(remoteClient.admin().indices().prepareCreate("remote_test"));
         indexDocs(remoteClient, "remote_test", remoteNumDocs);
-        List<String> indices = List.of(
-            randomFrom("*", "local_*", "local_test"),
-            randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test")
-        );
+        boolean includeLocalIndex = randomBoolean();
+        List<String> indices = new ArrayList<>();
+        if (includeLocalIndex) {
+            indices.add( randomFrom("*", "local_*", "local_test"));
+        }
+        indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
         String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
@@ -80,7 +82,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
                 .setSize(1000)
                 .get();
             assertNoFailures(resp);
-            assertHitCount(resp, localNumDocs + remoteNumDocs);
+            assertHitCount(resp, (includeLocalIndex ? localNumDocs : 0) + remoteNumDocs);
         } finally {
             closePointInTime(pitId);
         }

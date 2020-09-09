@@ -34,6 +34,10 @@ object DefaultTemplate : Template({
         checkoutDir = "/dev/shm/%system.teamcity.buildType.id%/%system.build.number%"
     }
 
+    requirements {
+        doesNotContain("teamcity.agent.jvm.os.name", "Windows")
+    }
+
     params {
         param("gradle.max.workers", "2")
         param("gradle.params", "--max-workers=%gradle.max.workers% --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/")
@@ -59,11 +63,7 @@ object DefaultTemplate : Template({
 
     steps {
         script {
-            name = "Setup Build Environment (Unix)"
-
-            conditions {
-                doesNotContain("teamcity.agent.jvm.os.name", "Windows")
-            }
+            name = "Setup Build Environment"
 
             scriptContent = """
                 #!/usr/bin/env bash
@@ -101,7 +101,6 @@ object DefaultTemplate : Template({
             executionMode = BuildStep.ExecutionMode.RUN_ON_FAILURE
 
             conditions {
-                doesNotContain("teamcity.agent.jvm.os.name", "Windows")
                 doesNotEqual("system.build.is.personal", "true")
             }
 

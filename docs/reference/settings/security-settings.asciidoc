@@ -1319,6 +1319,7 @@ content. Encryption can be configured using the following settings:
 
 // tag::saml-encryption-key-tag[]
 `encryption.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Specifies the path to the PEM encoded private key to use for SAML message
 decryption.
 `encryption.key` and `encryption.keystore.path` cannot be used at the same time.

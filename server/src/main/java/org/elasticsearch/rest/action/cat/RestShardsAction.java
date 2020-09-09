@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -60,6 +63,9 @@ import java.util.function.Function;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestShardsAction.class);
+    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
+        "locally, and should not be used. It will be unsupported in version 8.0.";
 
     @Override
     public List<Route> routes() {
@@ -82,6 +88,9 @@ public class RestShardsAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        if (request.hasParam("local")) {
+            DEPRECATION_LOGGER.deprecate("local", LOCAL_DEPRECATED_MESSAGE);
+        }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
@@ -203,7 +212,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
         table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
-      
+
         table.addCell("bulk.total_operations",
             "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
         table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
@@ -367,7 +376,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
             table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
-            
+
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalOperations));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));

@@ -476,7 +476,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
         } catch (Exception e) {
             // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
-            processFailure(readerContext, e);
+            freeReaderContext(readerContext.id());
             throw e;
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
@@ -548,7 +548,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
         } catch (Exception e) {
             // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
-            processFailure(readerContext, e);
+            freeReaderContext(readerContext.id());
             throw e;
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {

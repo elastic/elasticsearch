@@ -89,6 +89,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         indexRandom(true, true, reqs);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testMaxMinAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
@@ -133,6 +134,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
@@ -233,17 +235,19 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(initial.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testInvalidId() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getMessage(), containsString("invalid id"));
-        while (it.hasNext()) {
-            response = it.next();
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
+            assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(exc.getMessage(), containsString("invalid id"));
+            while (it.hasNext()) {
+                response = it.next();
+            }
+            assertFalse(response.isRunning());
         }
-        assertFalse(response.isRunning());
     }
 
     public void testNoIndex() throws Exception {

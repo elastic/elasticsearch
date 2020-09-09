@@ -472,6 +472,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 
@@ -494,6 +495,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 

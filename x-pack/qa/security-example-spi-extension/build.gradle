@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -10,15 +10,14 @@ esplugin {
 
 dependencies {
   compileOnly project(':x-pack:plugin:core')
-  testImplementation project(':client:rest-high-level')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':client:rest-high-level')
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
 
-integTest {
-  dependsOn buildZip
-}
-
-testClusters.integTest {
+testClusters.all {
   // This is important, so that all the modules are available too.
   // There are index templates that use token filters that are in analysis-module and
   // processors are being used that are in ingest-common module.

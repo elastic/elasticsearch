@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -64,6 +65,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
 
+    private static final BytesReference FAVICON_RESPONSE;
+
+    static {
+        try (InputStream stream = RestController.class.getResourceAsStream("/config/favicon.ico")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(stream, out);
+            FAVICON_RESPONSE = new BytesArray(out.toByteArray());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final UnaryOperator<RestHandler> handlerWrapper;
@@ -86,6 +99,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
     /**
@@ -147,7 +162,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
+        registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
+    }
+
+    private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
@@ -166,10 +184,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-        if (request.rawPath().equals("/favicon.ico")) {
-            handleFavicon(request.method(), request.uri(), channel);
-            return;
-        }
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -425,28 +439,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         return validMethods;
-    }
-
-    private void handleFavicon(RestRequest.Method method, String uri, final RestChannel channel) {
-        try {
-            if (method != RestRequest.Method.GET) {
-                handleUnsupportedHttpMethod(uri, method, channel, Set.of(RestRequest.Method.GET), null);
-            } else {
-                try {
-                    try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
-                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        Streams.copy(stream, out);
-                        BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", out.toByteArray());
-                        channel.sendResponse(restResponse);
-                    }
-                } catch (IOException e) {
-                    channel.sendResponse(
-                        new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                }
-            }
-        } catch (final IllegalArgumentException e) {
-            handleUnsupportedHttpMethod(uri, null, channel, Set.of(RestRequest.Method.GET), e);
-        }
     }
 
     private static final class ResourceHandlingHttpChannel implements RestChannel {

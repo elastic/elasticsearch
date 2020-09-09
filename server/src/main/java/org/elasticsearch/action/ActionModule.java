@@ -418,6 +418,7 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
+    private final ThreadPool threadPool;
 
     public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -429,6 +430,7 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
+        this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
@@ -695,7 +697,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());
-        registerHandler.accept(new RestGetMappingAction());
+        registerHandler.accept(new RestGetMappingAction(threadPool));
         registerHandler.accept(new RestGetFieldMappingAction());
 
         registerHandler.accept(new RestRefreshAction());

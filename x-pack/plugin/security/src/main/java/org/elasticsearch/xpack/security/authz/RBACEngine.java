@@ -20,6 +20,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -284,6 +285,8 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
+            } else if (action.equals(ClosePointInTimeAction.NAME)) {
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
                 assert false : "only scroll and async-search related requests are known indices api that don't " +
                     "support retrieving the indices they relate to";

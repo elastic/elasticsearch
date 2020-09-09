@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -124,17 +125,12 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(threadPool.executor(anyString())).thenReturn(direct);
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
-                null, null, mock(ActionFilters.class), null, null,
+                null, null, mock(ActionFilters.class), new IndexNameExpressionResolver(),
             new IndexingPressure(Settings.EMPTY)) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
                 assertEquals(expected, indicesThatCannotBeCreated.keySet());
-            }
-
-            @Override
-            boolean shouldAutoCreate(String index, ClusterState state) {
-                return shouldAutoCreate.apply(index);
             }
 
             @Override

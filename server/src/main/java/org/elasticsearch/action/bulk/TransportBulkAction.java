@@ -19,6 +19,24 @@
 
 package org.elasticsearch.action.bulk;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
@@ -38,7 +56,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -62,8 +79,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -72,25 +89,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicIntegerArray;
-import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
@@ -101,7 +99,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
     private final ThreadPool threadPool;
-    private final AutoCreateIndex autoCreateIndex;
     private final ClusterService clusterService;
     private final IngestService ingestService;
     private final LongSupplier relativeTimeProvider;
@@ -115,21 +112,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure) {
+                               IndexingPressure indexingPressure) {
         this(threadPool, transportService, clusterService, ingestService, client, actionFilters,
-            indexNameExpressionResolver, autoCreateIndex, indexingPressure, System::nanoTime);
+            indexNameExpressionResolver, indexingPressure, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, LongSupplier relativeTimeProvider) {
+                               IndexingPressure indexingPressure, LongSupplier relativeTimeProvider) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
-        this.autoCreateIndex = autoCreateIndex;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -225,20 +221,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 || request.versionType() == VersionType.EXTERNAL
                 || request.versionType() == VersionType.EXTERNAL_GTE)
             .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
-        /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
-         * that we'll use when we try to run the requests. */
+        /* Step 2: filter the list of indices to find those that don't currently exist. */
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
         Set<String> autoCreateIndices = new HashSet<>();
         ClusterState state = clusterService.state();
         for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
-            boolean shouldAutoCreate;
             final String index = indexAndFlag.getKey();
-            try {
-                shouldAutoCreate = shouldAutoCreate(index, state);
-            } catch (IndexNotFoundException e) {
-                shouldAutoCreate = false;
-                indicesThatCannotBeCreated.put(index, e);
-            }
+            boolean shouldAutoCreate = indexNameExpressionResolver.hasIndexAbstraction(index, state) == false;
             // We should only auto create if we are not requiring it to be an alias
             if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
                 autoCreateIndices.add(index);
@@ -262,7 +251,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof IndexNotFoundException) {
+                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) e);
+                        }
+                        else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                 DocWriteRequest<?> request = bulkRequest.requests.get(i);
@@ -331,10 +324,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
                 "routing. target the backing indices directly or remove the custom routing.");
         }
-    }
-
-    boolean shouldAutoCreate(String index, ClusterState state) {
-        return autoCreateIndex.shouldAutoCreate(index, state);
     }
 
     void createIndex(String index,

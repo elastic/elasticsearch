@@ -29,7 +29,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -124,7 +123,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     client,
                     actionFilters,
                     resolver,
-                    null,
                     expected::get) {
 
                 @Override
@@ -147,7 +145,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     client,
                     actionFilters,
                     resolver,
-                    null,
                     System::nanoTime) {
 
                 @Override
@@ -223,7 +220,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 NodeClient client,
                 ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                AutoCreateIndex autoCreateIndex,
                 LongSupplier relativeTimeProvider) {
             super(
                     threadPool,
@@ -233,15 +229,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     client,
                     actionFilters,
                     indexNameExpressionResolver,
-                    autoCreateIndex,
                     new IndexingPressure(Settings.EMPTY),
                     relativeTimeProvider);
         }
-
-        @Override
-        boolean shouldAutoCreate(String index, ClusterState state) {
-            return randomBoolean();
-        }
-
     }
 }

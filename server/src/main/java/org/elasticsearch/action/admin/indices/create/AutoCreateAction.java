@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -65,16 +66,19 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
+        private final AutoCreateIndex autoCreateIndex;
 
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                MetadataCreateIndexService createIndexService,
-                               MetadataCreateDataStreamService metadataCreateDataStreamService) {
+                               MetadataCreateDataStreamService metadataCreateDataStreamService,
+                               AutoCreateIndex autoCreateIndex) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver);
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
+            this.autoCreateIndex = autoCreateIndex;
         }
 
         @Override
@@ -132,6 +136,15 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         return clusterState;
                     } else {
                         String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+
+                        // This will throw an exception if creating this index is prohibited
+                        final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
+
+                        if (shouldAutoCreate == false) {
+                            // The index already exists.
+                            return currentState;
+                        }
+
                         indexNameRef.set(indexName);
                         CreateIndexClusterStateUpdateRequest updateRequest =
                             new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())

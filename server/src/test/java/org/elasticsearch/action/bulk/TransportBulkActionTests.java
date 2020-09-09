@@ -19,6 +19,15 @@
 
 package org.elasticsearch.action.bulk;
 
+import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -28,7 +37,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,15 +59,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-
 public class TransportBulkActionTests extends ESTestCase {
 
     /** Services needed by bulk action */
@@ -76,7 +75,6 @@ public class TransportBulkActionTests extends ESTestCase {
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
                     new IndexingPressure(Settings.EMPTY));
         }
 

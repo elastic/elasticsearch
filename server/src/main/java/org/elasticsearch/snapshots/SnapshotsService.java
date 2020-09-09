@@ -1602,6 +1602,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             boolean changed = false;
 
             final String repoName = deleteEntry.repository();
+            // Computing the new assignments can be quite costly, only do it once below if actually needed
+            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = null;
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.repository().equals(repoName)) {
                     if (entry.state().completed() == false) {
@@ -1617,15 +1619,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // No shards can be updated in this snapshot so we just add it as is again
                             snapshotEntries.add(entry);
                         } else {
-                            final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = shards(snapshotsInProgress,
-                                    updatedDeletions, currentState.metadata(), currentState.routingTable(), entry.indices(),
-                                    entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, repoName);
+                            if (shardAssignments == null) {
+                                shardAssignments = shards(snapshotsInProgress,
+                                        updatedDeletions, currentState.metadata(), currentState.routingTable(), entry.indices(),
+                                        entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, repoName);
+                            }
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder =
                                     ImmutableOpenMap.builder(entry.shards());
                             for (ShardId shardId : canBeUpdated) {
-                                final boolean added = reassignedShardIds.add(shardId);
-                                assert added;
-                                updatedAssignmentsBuilder.put(shardId, shardAssignments.get(shardId));
+                                final ShardSnapshotStatus updated = shardAssignments.get(shardId);
+                                if (updated == null) {
+                                    // We don't have a new assignment for this shard because its index was concurrently deleted
+                                    assert currentState.routingTable().hasIndex(shardId.getIndex()) == false :
+                                            "Missing assignment for [" + shardId + "]";
+                                    updatedAssignmentsBuilder.put(shardId, ShardSnapshotStatus.MISSING);
+                                } else {
+                                    final boolean added = reassignedShardIds.add(shardId);
+                                    assert added;
+                                    updatedAssignmentsBuilder.put(shardId, updated);
+                                }
                             }
                             snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
                             changed = true;
@@ -1715,13 +1727,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             IndexMetadata indexMetadata = metadata.index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
-                builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                    new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "missing index", null));
+                builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
             } else {
                 final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
                 assert indexRoutingTable != null;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                    final ShardId shardId = indexRoutingTable.shard(i).shardId();
                     final String shardRepoGeneration;
                     if (useShardGenerations) {
                         if (isNewIndex) {
@@ -1895,11 +1906,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else {
                         final String updatedRepository = updateSnapshotState.snapshot().getRepository();
                         final Set<ShardId> reusedShardIds = reusedShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
-                        if (entry.repository().equals(updatedRepository) &&
-                            entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
-                                && entry.shards().keys().contains(finishedShardId)) {
+                        if (entry.state().completed() == false && entry.repository().equals(updatedRepository)
+                                && reusedShardIds.contains(finishedShardId) == false) {
                             final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
-                            if (existingStatus.state() != ShardState.QUEUED) {
+                            if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                                 continue;
                             }
                             if (updated == false) {

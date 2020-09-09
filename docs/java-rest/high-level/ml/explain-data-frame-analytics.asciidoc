@@ -5,7 +5,7 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Explain {dfanalytics}} API
+=== Explain {dfanalytics} API
 
 Explains the following about a {dataframe-analytics-config}:
 

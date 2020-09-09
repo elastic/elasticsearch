@@ -42,7 +42,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
     public void testMappingsUpgrade() throws Exception {
 
         switch (CLUSTER_TYPE) {
@@ -174,7 +173,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
         configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
+
         // fields from previous versions that have been removed
+        // renamed to max_trees in 7.7
+        configIndexExceptions.add("properties.analysis.properties.classification.properties.maximum_number_trees.type");
+        configIndexExceptions.add("properties.analysis.properties.regression.properties.maximum_number_trees.type");
         configIndexExceptions.add("properties.established_model_memory.type");
         configIndexExceptions.add("properties.last_data_time.type");
         configIndexExceptions.add("properties.types.type");

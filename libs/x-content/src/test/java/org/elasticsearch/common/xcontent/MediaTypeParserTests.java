@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MediaTypeParserTests extends ESTestCase {
     MediaTypeParser<XContentType> mediaTypeParser = XContentType.mediaTypeParser;
@@ -39,5 +41,26 @@ public class MediaTypeParserTests extends ESTestCase {
             equalTo(Map.of("charset", "utf-8")));
         assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123;charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "custom", "123")));
+    }
+
+    public void testWhiteSpaceInTypeSubtype() {
+        String mediaType = " application/json ";
+        assertThat(mediaTypeParser.parseMediaType(mediaType).getMediaType(),
+            equalTo(XContentType.JSON));
+
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123; charset=UTF-8").getParameters(),
+            equalTo(Map.of("charset", "utf-8", "custom", "123")));
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123;\n charset=UTF-8").getParameters(),
+            equalTo(Map.of("charset", "utf-8", "custom", "123")));
+
+        mediaType = " application / json ";
+        assertThat(mediaTypeParser.parseMediaType(mediaType),
+            is(nullValue()));
+    }
+
+    public void testInvalidParameters() throws Exception {
+        String mediaType = "application/json";
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; keyvalueNoEqualsSign"),
+            is(nullValue()));
     }
 }

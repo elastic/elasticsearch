@@ -204,7 +204,6 @@ enum TextFormat implements MediaType {
         boolean hasHeader(RestRequest request) {
             String header = request.param(URL_PARAM_HEADER);
             if (header == null) {
-                //TODO PG in most places we only assume one accept header
                 List<String> values = request.getAllHeaderValues("Accept");
                 if (values != null) {
                     // header values are separated by `;` so try breaking it down
@@ -392,7 +391,7 @@ enum TextFormat implements MediaType {
     }
 
     @Override
-    public String typeSubtype() {
+    public String typeWithSubtype() {
         return contentType();
     }
 }

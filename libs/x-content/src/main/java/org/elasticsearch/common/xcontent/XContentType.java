@@ -24,6 +24,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.Map;
+
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
  */
@@ -111,10 +113,8 @@ public enum XContentType implements MediaType {
         }
     };
 
-    public static MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values())
-        .withAdditionalMediaType("application/*", JSON)
-        .withAdditionalMediaType("application/x-ndjson", JSON);
-
+    public static MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values(),
+        Map.of("application/*", JSON, "application/x-ndjson", JSON));
 
 
     /**

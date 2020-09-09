@@ -25,11 +25,22 @@ import java.util.Map;
 
 public class MediaTypeParser<T extends MediaType> {
     private Map<String, T> formatToMediaType = new HashMap<>();
-    private Map<String, T> typeSubtypeToMediaType = new HashMap<>();
+    private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
 
     public MediaTypeParser(T[] acceptedMediaTypes) {
         for (T mediaType : acceptedMediaTypes) {
-            typeSubtypeToMediaType.put(mediaType.typeSubtype(), mediaType);
+            typeWithSubtypeToMediaType.put(mediaType.typeWithSubtype(), mediaType);
+            formatToMediaType.put(mediaType.format(), mediaType);
+        }
+    }
+
+    public MediaTypeParser(T[] acceptedMediaTypes, Map<String, T> additionalMediaTypes) {
+        this(acceptedMediaTypes);
+        for (Map.Entry<String, T> entry : additionalMediaTypes.entrySet()) {
+            String typeWithSubtype = entry.getKey();
+            T mediaType = entry.getValue();
+
+            typeWithSubtypeToMediaType.put(typeWithSubtype.toLowerCase(Locale.ROOT), mediaType);
             formatToMediaType.put(mediaType.format(), mediaType);
         }
     }
@@ -40,40 +51,38 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     public T fromFormat(String format) {
-        if(format == null) {
+        if (format == null) {
             return null;
         }
         return formatToMediaType.get(format.toLowerCase(Locale.ROOT));
     }
 
-    public MediaTypeParser<T> withAdditionalMediaType(String typeSubtype, T xContentType) {
-        typeSubtypeToMediaType.put(typeSubtype.toLowerCase(Locale.ROOT), xContentType);
-        formatToMediaType.put(xContentType.format(), xContentType);
-        return this;
-    }
+    /**
+     * parsing media type that follows https://tools.ietf.org/html/rfc2616#section-3.7
+     * @param headerValue a header value from Accept or Content-Type
+     * @return a parsed media-type
+     */
+    public ParsedMediaType parseMediaType(String headerValue) {
+        if (headerValue != null) {
+            String[] split = headerValue.toLowerCase(Locale.ROOT).split(";");
 
-    public ParsedMediaType parseMediaType(String mediaType) {
-        if (mediaType != null) {
-            String headerValue = mediaType.toLowerCase(Locale.ROOT);
-            // split string on semicolon
-            // validate media type is accepted (IIRC whitespace is ok so trim it) //TODO PG whitespace only ok in params
-            // rest of strings are params. validate per RFC 7230 and use ones that we care about
-            // or use a regex and we can change if necessary
-            String[] split = headerValue.split(";");
-
-            String[] typeSubtype =  split[0].toLowerCase(Locale.ROOT)
-                                .split("/");
+            String[] typeSubtype = split[0].trim().toLowerCase(Locale.ROOT)
+                .split("/");
             if (typeSubtype.length == 2) {
                 String type = typeSubtype[0];
                 String subtype = typeSubtype[1];
-                T xContentType = typeSubtypeToMediaType.get(type + "/" + subtype);
+                T xContentType = typeWithSubtypeToMediaType.get(type + "/" + subtype);
                 if (xContentType != null) {
                     Map<String, String> parameters = new HashMap<>();
                     for (int i = 1; i < split.length; i++) {
                         String[] keyValueParam = split[i].trim().split("=");
+                        // should we validate that there are no spaces between key = value?
+                        if (keyValueParam.length != 2) {
+                            return null;
+                        }
                         parameters.put(keyValueParam[0].toLowerCase(Locale.ROOT), keyValueParam[1].toLowerCase(Locale.ROOT));
                     }
-                    return new ParsedMediaType(type, subtype, parameters, xContentType);
+                    return new ParsedMediaType(xContentType, parameters);
                 }
             }
 
@@ -86,14 +95,10 @@ public class MediaTypeParser<T extends MediaType> {
      * // TODO PG to be extended with getCompatibleAPIVersion and more
      */
     public class ParsedMediaType {
-        private final String type;
-        private final String subtype;
         private final Map<String, String> parameters;
         private final T mediaType;
 
-        public ParsedMediaType(String type, String subtype, Map<String, String> parameters, T mediaType) {
-            this.type = type;
-            this.subtype = subtype;
+        public ParsedMediaType(T mediaType, Map<String, String> parameters) {
             this.parameters = parameters;
             this.mediaType = mediaType;
         }

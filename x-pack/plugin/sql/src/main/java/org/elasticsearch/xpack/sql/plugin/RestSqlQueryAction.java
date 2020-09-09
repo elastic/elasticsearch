@@ -64,9 +64,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
-        String accept = null;
-        XContentType acceptHeader = null;
-        XContentType contentTypeHeader = null;
+        String accept;
 
         if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
                 && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
@@ -80,13 +78,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
             if ("*/*".equals(accept)) {
                 // */* means "I don't care" which we should treat like not specifying the header
                 accept = null;
-            } else {
-                acceptHeader = XContentType.fromMediaType(accept);
             }
         }
         if (accept == null) {
             accept = request.header("Content-Type");
-            contentTypeHeader = XContentType.fromMediaType(accept);
         }
         assert accept != null : "The Content-Type header is required";
 
@@ -97,8 +92,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * that doesn't parse it'll throw an {@link IllegalArgumentException}
          * which we turn into a 400 error.
          */
-        //TODO PG this all logic needs a review from SQL team
-        XContentType xContentType = getXContentType(accept, acceptHeader, contentTypeHeader);
+        XContentType xContentType = getXContentType(accept);
         textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {
@@ -136,7 +130,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         });
     }
 
-    private XContentType getXContentType(String accept, XContentType acceptHeader, XContentType contentTypeHeader) {
+    private XContentType getXContentType(String accept) {
         if (accept == null) {
             return XContentType.JSON;
         }
@@ -144,7 +138,11 @@ public class RestSqlQueryAction extends BaseRestHandler {
         if (xContentType != null) {
             return xContentType;
         }
-        return acceptHeader != null ? acceptHeader : contentTypeHeader;
+        xContentType = XContentType.fromMediaType(accept);
+        if (xContentType != null) {
+            return xContentType;
+        }
+        return xContentType;
     }
 
     @Override

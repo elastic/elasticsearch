@@ -56,7 +56,7 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
         return count;
     }
 
-    public boolean isLegalSemver() {
+    public boolean isValid() {
         return VersionEncoder.legalVersionString(VersionParts.ofVersion(getValue()));
     }
 

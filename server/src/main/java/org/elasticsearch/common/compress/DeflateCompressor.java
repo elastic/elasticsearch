@@ -22,10 +22,6 @@ package org.elasticsearch.common.compress;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.BufferedInputStream;
@@ -128,8 +124,8 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public StreamInput threadLocalStreamInput(StreamInput in) throws IOException {
-        return new InputStreamStreamInput(inputStream(in, true));
+    public InputStream threadLocalInputStream(InputStream in) throws IOException {
+        return inputStream(in, true);
     }
 
     /**
@@ -187,7 +183,7 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public StreamOutput threadLocalStreamOutput(OutputStream out) throws IOException {
+    public OutputStream threadLocalOutputStream(OutputStream out) throws IOException {
         out.write(HEADER);
         final ReleasableReference<Deflater> current = deflaterForStreamRef.get();
         final Releasable releasable;
@@ -202,8 +198,7 @@ public class DeflateCompressor implements Compressor {
         }
         final boolean syncFlush = true;
         DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
-        OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
-        return new OutputStreamStreamOutput(compressedOut) {
+        return new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE) {
 
             // Due to https://bugs.openjdk.java.net/browse/JDK-8054565 we can't rely on the buffered output stream to only close once
             // in code that has to support Java 8 so we manually manage a close flag for this stream.

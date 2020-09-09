@@ -363,17 +363,21 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().addShardFailure(shardIndex,
+            searchResponse.get().addQueryFailure(shardIndex,
                 // the nodeId is null if all replicas of this shard failed
                 new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
         protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+            // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().addShardFailure(shardIndex,
-                // the nodeId is null if all replicas of this shard failed
-                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
+            //ignore fetch failures: they make the shards count confusing if we count them as shard failures because the query
+            // phase ran fine and we don't want to end up with e.g. total: 5 successful: 5 failed: 5.
+            //Given that partial results include only aggs they are not affected by fetch failures. Async search receives the fetch
+            //failures either as an exception (when all shards failed during fetch, in which case async search will return the error
+            //as well as the response obtained after the final reduction) or as part of the final response (if only some shards failed,
+            //in which case the final response already includes results as well as shard fetch failures)
         }
 
         @Override

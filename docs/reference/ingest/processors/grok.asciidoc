@@ -305,18 +305,19 @@ The above request will return a response body containing a key-value representat
 --------------------------------------------------
 // NOTCONSOLE
 
-The request has an optional boolean parameter for returning the patterns sorted
-by name. By default, the patterns are returned in the order they are read from
-disk which preserves groupings of related patterns (e.g., all patterns
-related to parsing Linux syslog lines).
+By default, the API returns patterns in the order they are read from disk. This
+sort order preserves groupings of related patterns. For example, all patterns
+related to parsing Linux syslog lines stay grouped together.
+
+You can use the optional boolean `s` query parameter to sort returned patterns
+by key name instead.
 
 [source,console]
 --------------------------------------------------
 GET _ingest/processor/grok?s
 --------------------------------------------------
 
-The above request will return a response body containing a key-value
-representation of the built-in patterns dictionary sorted by key name.
+The API returns the following response.
 
 [source,js]
 --------------------------------------------------

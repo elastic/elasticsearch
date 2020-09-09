@@ -12,8 +12,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-autoscaling'
 
-integTest.enabled = false
-
 tasks.named('internalClusterTest').configure {
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.autoscaling_feature_flag_registered', 'true'

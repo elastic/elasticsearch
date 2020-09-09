@@ -91,7 +91,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory =
-                    ctx -> new DateScriptFieldScript(Collections.emptyMap(), new SearchLookup(null, null, null), null, ctx) {
+                    ctx -> new DateScriptFieldScript("test", Collections.emptyMap(), new SearchLookup(null, null, null), null, ctx) {
                         @Override
                         public void execute() {
                             for (Object timestamp : (List<?>) getSource().get("timestamp")) {

@@ -31,15 +31,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
@@ -49,6 +52,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DocumentParserTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return singletonList(new MockMetadataMapperPlugin());
+    }
 
     public void testFieldDisabled() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
@@ -938,27 +946,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDocumentContainsAllowedMetadataField() throws Exception {
-        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        DocumentMapper mapper = mapperParser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
 
         // A metadata field that is allowed in source must always be a value. Objects/arrays are not allowed
-        BytesReference metadataAsObject = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE)
-                .startObject().field("sub-field", "true").endObject()
-            .endObject());
-
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "1", metadataAsObject, XContentType.JSON)));
-        assertTrue(e.getMessage(),
-            e.getMessage().contains("Field [_mock_metadata] is a metadata field and must have a concrete value."));
+            mapper.parse(source(b -> b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE)
+                .startObject().field("sub-field", "true").endObject())));
+        assertTrue(e.getMessage(), e.getMessage().contains("Field [_mock_metadata] is a metadata field and must have a concrete value."));
 
-        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")
-            .endObject());
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON));  // parses without error
+        ParsedDocument doc = mapper.parse(source(b ->
+            b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")
+        ));
         IndexableField field = doc.rootDoc().getField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE);
         assertEquals("mock-metadata-field-value", field.stringValue());
     }

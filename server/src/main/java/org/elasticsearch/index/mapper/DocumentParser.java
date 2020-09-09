@@ -392,8 +392,8 @@ final class DocumentParser {
                 currentFieldName = parser.currentName();
                 paths = splitAndValidatePath(currentFieldName);
 
-                if (context.mapperService().isMetadataField(currentFieldName)) {
-                    if (context.mapperService().isFieldAllowedInSource(currentFieldName)) {
+                if (context.mapperService().isMetadataField(context.path().pathAsText(currentFieldName))) {
+                    if (context.mapperService().isFieldAllowedInSource(context.path().pathAsText(currentFieldName))) {
                         // If token is a metadata field and is allowed in source, parse its value
                         token = parser.nextToken();
                         if (token != null && token.isValue()) {

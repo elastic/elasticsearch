@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -67,9 +67,9 @@ public class DieWithDignityIT extends ESRestTestCase {
         try {
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final String line = it.next();
-                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*integTest-0.*fatal error.*")) {
+                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*javaRestTest-0.*fatal error.*")) {
                     fatalError = true;
-                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*integTest-0.*"
+                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*javaRestTest-0.*"
                     + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());
@@ -85,6 +85,15 @@ public class DieWithDignityIT extends ESRestTestCase {
             debugLogs(path);
             throw ae;
         }
+    }
+
+    private boolean containsAll(String line, String... subStrings) {
+        for (String subString : subStrings) {
+            if (line.matches(subString) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void debugLogs(Path path) throws IOException {

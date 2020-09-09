@@ -93,7 +93,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 );
             },
             ActionListener.map(listener, r -> {
-                assert r.getScrollId() != null : r;
+                assert r.pointInTimeId() != null : r;
                 return new OpenPointInTimeResponse(r.pointInTimeId());
             })
         );

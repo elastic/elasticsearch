@@ -35,11 +35,11 @@ setup:
   - match: { joda_timestamp_formats.0: UNIX }
   - match: { java_timestamp_formats.0: UNIX }
   - match: { need_client_timezone: false }
-  - match: { mappings.airline.type: keyword }
-  - match: { mappings.responsetime.type: double }
-  - match: { mappings.sourcetype.type: keyword }
-  - match: { mappings.time.type: date }
-  - match: { mappings.time.format: epoch_second }
+  - match: { mappings.properties.airline.type: keyword }
+  - match: { mappings.properties.responsetime.type: double }
+  - match: { mappings.properties.sourcetype.type: keyword }
+  - match: { mappings.properties.time.type: date }
+  - match: { mappings.properties.time.format: epoch_second }
   - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
   - match: { ingest_pipeline.processors.0.date.field: time }
   - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
@@ -96,11 +96,11 @@ setup:
   - match: { joda_timestamp_formats.0: UNIX }
   - match: { java_timestamp_formats.0: UNIX }
   - match: { need_client_timezone: false }
-  - match: { mappings.airline.type: keyword }
-  - match: { mappings.responsetime.type: double }
-  - match: { mappings.sourcetype.type: keyword }
-  - match: { mappings.time.type: date }
-  - match: { mappings.time.format: epoch_second }
+  - match: { mappings.properties.airline.type: keyword }
+  - match: { mappings.properties.responsetime.type: double }
+  - match: { mappings.properties.sourcetype.type: keyword }
+  - match: { mappings.properties.time.type: date }
+  - match: { mappings.properties.time.format: epoch_second }
   - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
   - match: { ingest_pipeline.processors.0.date.field: time }
   - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }

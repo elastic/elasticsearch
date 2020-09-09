@@ -20,38 +20,39 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public final class FetchVersionPhase implements FetchSubPhase {
+
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
         if (context.version() == false ||
             (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
-            return;
+            return null;
         }
+        return new FetchSubPhaseProcessor() {
 
-        int lastReaderId = -1;
-        NumericDocValues versions = null;
-        for (SearchHit hit : hits) {
-            int readerId = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
-            LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerId);
-            if (lastReaderId != readerId) {
-                versions = subReaderContext.reader().getNumericDocValues(VersionFieldMapper.NAME);
-                lastReaderId = readerId;
+            NumericDocValues versions = null;
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                versions = readerContext.reader().getNumericDocValues(VersionFieldMapper.NAME);
             }
-            int docId = hit.docId() - subReaderContext.docBase;
-            long version = Versions.NOT_FOUND;
-            if (versions != null && versions.advanceExact(docId)) {
-                version = versions.longValue();
+
+            @Override
+            public void process(HitContext hitContext) throws IOException {
+                long version = Versions.NOT_FOUND;
+                if (versions != null && versions.advanceExact(hitContext.docId())) {
+                    version = versions.longValue();
+                }
+                hitContext.hit().version(version < 0 ? -1 : version);
             }
-            hit.version(version < 0 ? -1 : version);
-        }
+        };
     }
 }

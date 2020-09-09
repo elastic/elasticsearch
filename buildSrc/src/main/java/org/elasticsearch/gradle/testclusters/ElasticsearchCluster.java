@@ -26,7 +26,6 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -36,7 +35,6 @@ import org.gradle.api.tasks.Nested;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
@@ -135,33 +133,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void plugin(URI plugin) {
+    public void plugin(Provider<RegularFile> plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
-    public void plugin(File plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(Provider<URI> plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(RegularFileProperty plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void module(File module) {
-        nodes.all(each -> each.module(module));
+    public void plugin(String pluginProjectPath) {
+        nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
         nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(String moduleProjectPath) {
+        nodes.all(each -> each.module(moduleProjectPath));
     }
 
     @Override

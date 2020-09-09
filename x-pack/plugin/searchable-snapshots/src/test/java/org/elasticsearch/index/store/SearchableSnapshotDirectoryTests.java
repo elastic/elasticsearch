@@ -41,6 +41,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -84,6 +85,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -124,9 +126,11 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -317,7 +321,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     IndexInput::getFilePointer
                 );
 
-                int available = Math.toIntExact(indexInput.length() - indexInput.getFilePointer());
+                int available = toIntBytes(indexInput.length() - indexInput.getFilePointer());
                 if (available == 0) {
                     expectThrows(EOFException.class, () -> snapshotIndexInput.readBytes(snapshotBuffer, 0, snapshotBuffer.length));
                     return;
@@ -596,6 +600,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
                         () -> snapshot,
+                        new TestUtils.NoopBlobStoreCacheService(),
+                        "_repo",
                         snapshotId,
                         indexId,
                         shardId,
@@ -691,6 +697,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
                     () -> snapshot,
+                    new TestUtils.NoopBlobStoreCacheService(),
+                    "_repo",
                     snapshotId,
                     indexId,
                     shardId,
@@ -716,7 +724,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final byte[] buffer = new byte[1024];
                 for (int i = 0; i < randomIntBetween(10, 50); i++) {
                     final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
-                    final int fileLength = Math.toIntExact(fileInfo.length());
+                    final int fileLength = toIntBytes(fileInfo.length());
 
                     try (IndexInput input = directory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
                         assertThat(input.length(), equalTo((long) fileLength));
@@ -725,7 +733,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                         input.seek(start);
                         while (input.getFilePointer() < end) {
-                            input.readBytes(buffer, 0, Math.toIntExact(Math.min(buffer.length, end - input.getFilePointer())));
+                            input.readBytes(buffer, 0, toIntBytes(Math.min(buffer.length, end - input.getFilePointer())));
                         }
                     }
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
@@ -743,6 +751,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     public void testRequiresAdditionalSettings() {
         final List<Setting<String>> requiredSettings = List.of(
             SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_INDEX_NAME_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_ID_SETTING
@@ -761,7 +770,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null)
             );
         }
     }
@@ -906,11 +915,16 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     private SearchableSnapshotRecoveryState createRecoveryState() {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            randomAlphaOfLength(10),
-            0,
+            new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING
+            ShardRoutingState.INITIALIZING,
+            new RecoverySource.SnapshotRecoverySource(
+                UUIDs.randomBase64UUID(),
+                new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
+                Version.CURRENT,
+                new IndexId("some_index", UUIDs.randomBase64UUID(random()))
+            )
         );
         DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);

@@ -142,14 +142,30 @@ public class RestClient implements Closeable {
         }
 
         String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
-        // once decoded the parts are separated by a $ character
+        // once decoded the parts are separated by a $ character.
+        // they are respectively domain name and optional port, elasticsearch id, kibana id
         String[] decodedParts = decoded.split("\\$");
         if (decodedParts.length != 3) {
             throw new IllegalStateException("cloudId " + cloudId + " did not decode to a cluster identifier correctly");
         }
 
-        String url = decodedParts[1]  + "." + decodedParts[0];
-        return builder(new HttpHost(url, 443, "https"));
+        // domain name and optional port
+        String[] domainAndMaybePort = decodedParts[0].split(":", 2);
+        String domain = domainAndMaybePort[0];
+        int port;
+
+        if (domainAndMaybePort.length == 2) {
+            try {
+                port = Integer.parseInt(domainAndMaybePort[1]);
+            } catch (NumberFormatException nfe) {
+                throw new IllegalStateException("cloudId " + cloudId + " does not contain a valid port number");
+            }
+        } else {
+            port = 443;
+        }
+
+        String url = decodedParts[1]  + "." + domain;
+        return builder(new HttpHost(url, port, "https"));
     }
 
     /**

@@ -31,8 +31,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Fetch sub phase which pulls data from doc values.
@@ -58,37 +57,52 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             return null;
         }
 
-        Map<String, ValueFetcher> fields = new LinkedHashMap<>(context.docValuesContext().fields().size());
+        /*
+         * Its tempting to swap this to a `Map` but that'd break backwards
+         * compatibility because we support fetching the same field multiple
+         * times with different configuration. That isn't possible with a `Map`.
+         */
+        List<DocValueField> fields = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
             MappedFieldType ft = context.mapperService().fieldType(fieldAndFormat.field);
             if (ft == null) {
                 continue;
             }
             ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), lookup.doc().getForField(ft));
-            fields.put(fieldAndFormat.field, fetcher);
+            fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                for (ValueFetcher f : fields.values()) {
-                    f.setNextReader(readerContext);
+                for (DocValueField f : fields) {
+                    f.fetcher.setNextReader(readerContext);
                 }
             }
 
             @Override
             public void process(HitContext hit) throws IOException {
-                for (Map.Entry<String, ValueFetcher> f : fields.entrySet()) {
-                    DocumentField hitField = hit.hit().field(f.getKey());
+                for (DocValueField f : fields) {
+                    DocumentField hitField = hit.hit().field(f.field);
                     if (hitField == null) {
-                        hitField = new DocumentField(f.getKey(), new ArrayList<>(2));
+                        hitField = new DocumentField(f.field, new ArrayList<>(2));
                         // even if we request a doc values of a meta-field (e.g. _routing),
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
-                        hit.hit().setDocumentField(f.getKey(), hitField);
+                        hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.getValue().fetchValues(hit.docId()));
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.docId()));
                 }
             }
         };
+    }
+
+    private class DocValueField {
+        private final String field;
+        private final ValueFetcher fetcher;
+
+        DocValueField(String field, ValueFetcher fetcher) {
+            this.field = field;
+            this.fetcher = fetcher;
+        }
     }
 }

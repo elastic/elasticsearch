@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -84,6 +85,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
@@ -195,6 +197,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public boolean loadSnapshot(RecoveryState recoveryState) {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            || recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER : recoveryState.getRecoverySource().getType();
         assert assertCurrentThreadMayLoadSnapshot();
         // noinspection ConstantConditions in case assertions are disabled
         if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
@@ -506,6 +510,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
+            || SNAPSHOT_INDEX_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_INDEX_ID_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_ID_SETTING.exists(indexSettings.getSettings()) == false) {
@@ -537,7 +542,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
-        final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
+        final IndexId indexId = new IndexId(
+            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+            SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings())
+        );
         final SnapshotId snapshotId = new SnapshotId(
             SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())

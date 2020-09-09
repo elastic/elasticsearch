@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -9,8 +8,22 @@ if (BuildParams.inFipsJvm) {
   allprojects {
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     boolean java8 = BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8
-    File fipsSecurity = new File(fipsResourcesDir, "fips_java${java8 ? '8' : ''}.security")
-    File fipsPolicy = new File(fipsResourcesDir, "fips_java${java8 ? '8' : ''}.policy")
+    boolean zulu8 = java8 && BuildParams.runtimeJavaDetails.contains("Zulu")
+    File fipsSecurity;
+    File fipsPolicy;
+    if (java8) {
+      if (zulu8) {
+        //Azul brings many changes from JDK 11 to their Zulu8 so we can only use BCJSSE
+        fipsSecurity = new File(fipsResourcesDir, "fips_java_bcjsse_8.security")
+        fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_8.policy")
+      } else {
+        fipsSecurity = new File(fipsResourcesDir, "fips_java_sunjsse.security")
+        fipsPolicy = new File(fipsResourcesDir, "fips_java_sunjsse.policy")
+      }
+    } else {
+      fipsSecurity = new File(fipsResourcesDir, "fips_java_bcjsse_11.security")
+      fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
+    }
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.1')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')

@@ -45,6 +45,8 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -92,6 +94,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createDocumentMapper(String type, String mappings) throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        merge(type, mapperService, mappings);
+        return mapperService.documentMapper();
+    }
+
     protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(getIndexSettings(), mappings);
     }
@@ -105,11 +113,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
+        IndexSettings indexSettings = new IndexSettings(meta, Settings.EMPTY);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
-        ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(settings, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
         MapperService mapperService = new MapperService(
             indexSettings,
@@ -118,7 +130,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            () -> true
+            () -> true,
+            scriptService
         );
         merge(mapperService, mapping);
         return mapperService;
@@ -151,13 +164,41 @@ public abstract class MapperServiceTestCase extends ESTestCase {
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
     protected final void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
+    }
+
+    /**
+     * Merge a new mapping into the one in the provided {@link MapperService}.
+     */
+    protected final void merge(String type, MapperService mapperService, String mapping) throws IOException {
+        mapperService.merge(type, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
+    /**
+     * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
+     */
+    protected final void merge(MapperService mapperService,
+                               MapperService.MergeReason reason,
+                               XContentBuilder mapping) throws IOException {
+        mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), reason);
+    }
+
+    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        buildFields.accept(builder);
+        return builder.endObject().endObject();
     }
 
     protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();
+    }
+
+    protected final XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder.endObject();
     }
 
     protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {

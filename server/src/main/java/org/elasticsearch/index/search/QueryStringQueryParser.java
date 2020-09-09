@@ -37,13 +37,13 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -675,13 +675,13 @@ public class QueryStringQueryParser extends XQueryParser {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
-            }            
-            if (forceAnalyzer != null && 
+            }
+            if (forceAnalyzer != null &&
                 (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
                 setAnalyzer(forceAnalyzer);
                 return super.getWildcardQuery(currentFieldType.name(), termStr);
             }
-            
+
             return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
@@ -730,8 +730,8 @@ public class QueryStringQueryParser extends XQueryParser {
             if (forceAnalyzer != null) {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
-            }            
-            return currentFieldType.regexpQuery(termStr, RegExp87.ALL, 0, getMaxDeterminizedStates(), 
+            }
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getMaxDeterminizedStates(),
                 getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {

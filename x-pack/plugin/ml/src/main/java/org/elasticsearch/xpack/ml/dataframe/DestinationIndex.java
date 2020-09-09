@@ -24,9 +24,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -47,7 +45,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
  */
 public final class DestinationIndex {
 
-    public static final String ID_COPY = "ml__id_copy";
+    public static final String INCREMENTAL_ID = "ml__incremental_id";
 
     /**
      * The field that indicates whether a doc was used for training or not
@@ -141,8 +139,6 @@ public final class DestinationIndex {
         Integer maxNumberOfReplicas = findMaxSettingValue(settingsResponse, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
 
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), ID_COPY);
-        settingsBuilder.put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), SortOrder.ASC);
         if (maxNumberOfShards != null) {
             settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, maxNumberOfShards);
         }
@@ -168,9 +164,11 @@ public final class DestinationIndex {
 
     private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
         Map<String, Object> properties = new HashMap<>();
-        Map<String, String> idCopyMapping = new HashMap<>();
-        idCopyMapping.put("type", KeywordFieldMapper.CONTENT_TYPE);
-        properties.put(ID_COPY, idCopyMapping);
+
+        Map<String, String> incrementalIdMapping = new HashMap<>();
+        incrementalIdMapping.put("type", NumberFieldMapper.NumberType.LONG.typeName());
+        properties.put(INCREMENTAL_ID, incrementalIdMapping);
+
         properties.putAll(config.getAnalysis().getExplicitlyMappedFields(mappingsProperties, config.getDest().getResultsField()));
         return properties;
     }

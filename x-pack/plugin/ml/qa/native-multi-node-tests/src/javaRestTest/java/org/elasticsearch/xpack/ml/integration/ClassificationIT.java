@@ -459,6 +459,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), startsWith("field [text-field] of type [text] is non-aggregatable"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60759" )
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
@@ -780,6 +781,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-2")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61913")
     public void testTooLowConfiguredMemoryStillStarts() throws Exception {
         initialize("low_memory_analysis");
         indexData(sourceIndex, 10_000, 0, NESTED_FIELD);

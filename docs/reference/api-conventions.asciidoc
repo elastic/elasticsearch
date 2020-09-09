@@ -678,4 +678,4 @@ URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.y
 
 
 This causes  {es} to
-reject requests that explicitly specfiy a data stream or index in the request body.
+reject requests that explicitly specify a data stream or index in the request body.

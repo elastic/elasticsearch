@@ -338,9 +338,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         switch (name) {
-            case FILTER_PIPE:
-                return new Filter(source(ctx), plan, onlyOnePipeArgument(source(ctx), name, ctx.booleanExpression()));
-
             case HEAD_PIPE:
                 Expression headLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 return new Head(source(ctx), headLimit, plan);

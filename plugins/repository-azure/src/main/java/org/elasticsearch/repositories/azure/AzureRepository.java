@@ -33,9 +33,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.repositories.azure.AzureStorageService.MAX_CHUNK_SIZE;
@@ -52,7 +53,7 @@ import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class AzureRepository extends BlobStoreRepository {
+public class AzureRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(AzureRepository.class);
 
     public static final String TYPE = "azure";
@@ -85,7 +86,7 @@ public class AzureRepository extends BlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings) {
         super(metadata, Repository.COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService,
-            recoverySettings);
+            recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -109,6 +110,11 @@ public class AzureRepository extends BlobStoreRepository {
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
         }
+    }
+
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return org.elasticsearch.common.collect.Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
+            "container", Repository.CONTAINER_SETTING.get(metadata.settings()));
     }
 
     @Override

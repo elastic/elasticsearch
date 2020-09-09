@@ -62,7 +62,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -118,11 +117,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
-    }
-
-    @Override
-    protected List<String> requestTypesTracked() {
-        return org.elasticsearch.common.collect.List.of("GET", "LIST", "POST", "PUT");
     }
 
     @Override
@@ -325,15 +319,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
-                trackRequest("GET");
+                trackRequest("GetObject");
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("LIST");
+                trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
-                trackRequest("GET");
-            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*", request) && isLastPart(requestHeaders)) {
-                trackRequest("PUT");
+                trackRequest("GetObject");
+            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
+                // Resumable uploads are billed as a single operation, that's the reason we're tracking
+                // the request only when it's the last part.
+                // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
+                trackRequest("InsertObject");
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
-                trackRequest("POST");
+                trackRequest("InsertObject");
             }
         }
 

@@ -39,7 +39,6 @@ import static org.mockito.Mockito.when;
  * Base class for testing {@link Mapper}s.
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
-
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     public final void testEmptyName() {

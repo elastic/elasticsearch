@@ -834,7 +834,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, Version.CURRENT, null, null);
+            super(null, null, null, Version.CURRENT, null, null, null);
         }
 
         @Override

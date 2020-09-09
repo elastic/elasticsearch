@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -19,6 +21,9 @@ dependencies {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
   // Data streams is basic, but a few tests test data streams in combination with paid features
   setting 'xpack.license.self_generated.type', 'trial'
   // disable ILM history, since it disturbs tests using _all

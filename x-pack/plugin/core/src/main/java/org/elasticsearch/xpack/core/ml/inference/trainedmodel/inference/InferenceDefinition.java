@@ -102,6 +102,15 @@ public class InferenceDefinition {
         }
     }
 
+    @Override
+    public String toString() {
+        return "InferenceDefinition{" +
+            "trainedModel=" + trainedModel +
+            ", preProcessors=" + preProcessors +
+            ", decoderMap=" + decoderMap +
+            '}';
+    }
+
     public static Builder builder() {
         return new Builder();
     }

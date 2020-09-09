@@ -33,7 +33,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
@@ -118,21 +117,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
         testImplementationConfig.extendsFrom(compileOnlyConfig);
 
-        // fail on using deprecated testCompile
-        project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).withDependencies(new Action<DependencySet>() {
-            @Override
-            public void execute(DependencySet dependencies) {
-                if (dependencies.size() > 0) {
-                    throw new GradleException(
-                        "Usage of configuration "
-                            + JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME
-                            + " is no longer supported. Use "
-                            + JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME
-                            + " instead."
-                    );
-                }
-            }
-        });
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
             return;

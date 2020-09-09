@@ -30,14 +30,8 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
-  mapping from: /sql-proto.*/, to: 'elasticsearch'
-  mapping from: /sql-client.*/, to: 'elasticsearch'
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-  ignoreSha 'sql-proto'
-  ignoreSha 'sql-client'
-  ignoreSha 'elasticsearch'
 }
 
 shadowJar {

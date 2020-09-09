@@ -51,7 +51,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.fasterxml.jackson.databind.cfg.MapperBuilder'
 )
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 

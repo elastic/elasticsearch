@@ -10,10 +10,10 @@ project.forbiddenPatterns {
   exclude '**/*.key'
 }
 
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 
 task buildZip(type: Zip, dependsOn: jar) {
-  String parentDir = "license-tools-${version}"
+  String parentDir = "license-tools-${archiveVersion}"
   into(parentDir + '/lib') {
     from jar
     from configurations.runtime

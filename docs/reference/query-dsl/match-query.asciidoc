@@ -78,7 +78,7 @@ expand. Defaults to `50`.
 (Optional, integer) Number of beginning characters left unchanged for fuzzy
 matching. Defaults to `0`.
 
-`transpositions`::
+`fuzzy_transpositions`::
 (Optional, boolean) If `true`, edits for fuzzy matching include
 transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 

@@ -15,7 +15,7 @@ dependencies {
  * other qa projects. */
 test.enabled = false
 
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

@@ -42,7 +42,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'

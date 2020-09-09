@@ -147,9 +147,7 @@ level settings.
 (Optional, boolean) Indicates whether hits.total should be rendered as an
 integer or an object in the rest search response. Defaults to `false`.
 
-`routing`::
-(Optional, <<time-units, time units>>) Specifies how long a consistent view of
-the index should be maintained for scrolled search.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[search-api-scroll-query-param]]
 `scroll`::
@@ -157,7 +155,7 @@ the index should be maintained for scrolled search.
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
 <<request-body-search-scroll>>.
 +
-By default, this value cannot must be less than `1d` (one day). You can change
+By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]

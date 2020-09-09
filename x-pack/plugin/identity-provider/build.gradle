@@ -57,7 +57,7 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
 }

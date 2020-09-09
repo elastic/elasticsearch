@@ -18,7 +18,7 @@ esplugin {
   requiresKeystore false
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }

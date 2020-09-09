@@ -53,7 +53,7 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'

@@ -15,6 +15,8 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
+
+
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
   project.subprojects
@@ -38,8 +40,9 @@ artifacts {
   testArtifacts testJar
 }
 
-testClusters.all {
+internalClusterTest {
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
   }
 }
+

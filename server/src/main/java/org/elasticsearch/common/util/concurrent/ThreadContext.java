@@ -209,8 +209,9 @@ public final class ThreadContext implements Writeable {
             }
         }
         if (newTransientHeaders != null) {
-            ThreadContextStruct threadContextStruct = new ThreadContextStruct(originalContext.requestHeaders, originalContext.responseHeaders,
-                    newTransientHeaders, originalContext.isSystemContext, originalContext.warningHeadersSize);
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(originalContext.requestHeaders,
+                    originalContext.responseHeaders, newTransientHeaders, originalContext.isSystemContext,
+                    originalContext.warningHeadersSize);
             threadLocal.set(threadContextStruct);
         }
         // this is the context when this method returns

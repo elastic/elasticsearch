@@ -44,7 +44,8 @@ import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
-    private static final Map<String, String> TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+    private static final Map<String, String> TEST_PATTERNS =
+        org.elasticsearch.common.collect.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
 
     public void testRequest() throws Exception {
         GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);
@@ -71,7 +72,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         GrokProcessorGetAction.TransportAction transportAction =
             new GrokProcessorGetAction.TransportAction(mock(TransportService.class), mock(ActionFilters.class), TEST_PATTERNS);
         GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
-        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<>() {
+        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<GrokProcessorGetAction.Response>() {
             @Override
             public void onResponse(GrokProcessorGetAction.Response response) {
                 receivedResponse[0] = response;
@@ -86,7 +87,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         assertThat(receivedResponse[0].getGrokPatterns().keySet().toArray(), equalTo(sortedKeys.toArray()));
 
         GrokProcessorGetAction.Response firstResponse = receivedResponse[0];
-        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<>() {
+        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<GrokProcessorGetAction.Response>() {
             @Override
             public void onResponse(GrokProcessorGetAction.Response response) {
                 receivedResponse[0] = response;

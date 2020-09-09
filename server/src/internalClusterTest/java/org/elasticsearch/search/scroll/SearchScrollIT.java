@@ -610,16 +610,19 @@ public class SearchScrollIT extends ESIntegTestCase {
             .setScroll(TimeValue.timeValueMinutes(5))
             .get();
         assertNotNull(searchResponse.getScrollId());
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
-        exc = expectThrows(Exception.class,
-            () -> client().prepareSearchScroll(searchResponse.getScrollId())
-                    .setScroll(TimeValue.timeValueHours(3)).get());
-        illegalArgumentException =
-            (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
-        assertNotNull(illegalArgumentException);
-        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for request (3h) is too large"));
+            exc = expectThrows(Exception.class,
+                () -> client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueHours(3)).get());
+            illegalArgumentException =
+                (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
+            assertNotNull(illegalArgumentException);
+            assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for request (3h) is too large"));
+        } finally {
+            client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+        }
     }
 
     /**

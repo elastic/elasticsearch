@@ -54,6 +54,8 @@ import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORM
  */
 public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
+    public static final String DEFAULT_CONFIGURATION_NAME = "default";
+    public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
     private NamedDomainObjectContainer<DistributionArchive> container;
 
     @Override
@@ -81,11 +83,12 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         container.whenObjectAdded(distributionArchive -> {
             var subProjectName = archiveToSubprojectName(distributionArchive.getName());
             project.project(subProjectName, sub -> {
-                sub.getPlugins().apply("base");
-                sub.getArtifacts().add("default", distributionArchive.getArchiveTask());
+                sub.getPlugins().apply(BasePlugin.class);
+                sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 var extractedConfiguration = sub.getConfigurations().create("extracted");
+                extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-                sub.getArtifacts().add("extracted", distributionArchive.getExplodedArchiveTask());
+                sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExplodedArchiveTask());
 
             });
         });

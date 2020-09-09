@@ -52,7 +52,7 @@ public class DataLoader {
 
     private static Map<String, String[]> getReplacementPatterns() {
         final Map<String, String[]> map = new HashMap<>(1);
-        map.put("[keyword_like_type]", new String[] {"keyword", "wildcard"});
+        map.put("[runtime_random_keyword_type]", new String[] {"keyword", "wildcard"});
         return map;
     }
 

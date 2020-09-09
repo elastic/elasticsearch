@@ -53,6 +53,8 @@ public final class TimestampFormatFinder {
     private static final Logger logger = LogManager.getLogger(TimestampFormatFinder.class);
     private static final String PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX = "\\|()[]{}^$.*?";
     private static final String FRACTIONAL_SECOND_SEPARATORS = ":.,";
+    private static final Pattern FRACTIONAL_SECOND_INTERPRETER =
+        Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "])(\\d{3,9})($|[Z+-])");
     private static final char INDETERMINATE_FIELD_PLACEHOLDER = '?';
     // The ? characters in this must match INDETERMINATE_FIELD_PLACEHOLDER
     // above, but they're literals in this regex to aid readability
@@ -703,6 +705,20 @@ public final class TimestampFormatFinder {
     }
 
     /**
+     * This is needed to decide between "date" and "date_nanos" as the index mapping type.
+     * @return Do the observed timestamps require nanosecond precision to store accurately?
+     */
+    public boolean needNanosecondPrecision() {
+        if (matchedFormats.isEmpty()) {
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return false;
+        }
+        return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
+            .anyMatch(match -> match.hasNanosecondPrecision);
+    }
+
+    /**
      * Given a list of timestamp formats that might contain indeterminate day/month parts,
      * return the corresponding pattern with the placeholders replaced with concrete
      * day/month formats.
@@ -948,6 +964,14 @@ public final class TimestampFormatFinder {
     }
 
     /**
+     * The @timestamp field will always have been parsed into epoch format,
+     * so we just need to know if it has nanosecond resolution or not.
+     */
+    public Map<String, String> getEsDateMappingTypeWithoutFormat() {
+        return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
+    }
+
+    /**
      * Sometimes Elasticsearch mappings for dates need to include the format.
      * This method returns appropriate mappings settings: at minimum "type" : "date",
      * and possibly also a "format" setting.
@@ -959,7 +983,7 @@ public final class TimestampFormatFinder {
             return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
         }
         Map<String, String> mapping = new LinkedHashMap<>();
-        mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
         String formats = javaTimestampFormats.stream().map(format -> {
             switch (format) {
                 case "ISO8601":
@@ -1233,6 +1257,7 @@ public final class TimestampFormatFinder {
         final int secondIndeterminateDateNumber;
 
         final boolean hasTimezoneDependentParsing;
+        final boolean hasNanosecondPrecision;
 
         /**
          * Text that came after the timestamp in the matched field/message.
@@ -1250,6 +1275,8 @@ public final class TimestampFormatFinder {
             this.secondIndeterminateDateNumber = indeterminateDateNumbers[1];
             this.hasTimezoneDependentParsing = requiresTimezoneDependentParsing(timestampFormat.rawJavaTimestampFormats.get(0),
                 matchedDate);
+            this.hasNanosecondPrecision = matchHasNanosecondPrecision(timestampFormat.rawJavaTimestampFormats.get(0),
+                matchedDate);
             this.epilogue = Objects.requireNonNull(epilogue);
         }
 
@@ -1259,6 +1286,7 @@ public final class TimestampFormatFinder {
             this.firstIndeterminateDateNumber = toCopyExceptFormat.firstIndeterminateDateNumber;
             this.secondIndeterminateDateNumber = toCopyExceptFormat.secondIndeterminateDateNumber;
             this.hasTimezoneDependentParsing = toCopyExceptFormat.hasTimezoneDependentParsing;
+            this.hasNanosecondPrecision = toCopyExceptFormat.hasNanosecondPrecision;
             this.epilogue = toCopyExceptFormat.epilogue;
         }
 
@@ -1282,6 +1310,43 @@ public final class TimestampFormatFinder {
                         }
                     }
                     return true;
+            }
+        }
+
+        static boolean matchHasNanosecondPrecision(String format, String matchedDate) {
+            switch (format) {
+                case "ISO8601":
+                    Matcher matcher = FRACTIONAL_SECOND_INTERPRETER.matcher(matchedDate);
+                    return matcher.find() && matcher.group(2).length() > 3;
+                case "UNIX_MS":
+                case "UNIX":
+                    return false;
+                case "TAI64N":
+                    return true;
+                default:
+                    boolean notQuoted = true;
+                    int consecutiveSs = 0;
+                    for (int pos = 0; pos < format.length(); ++pos) {
+                        char curChar = format.charAt(pos);
+                        if (curChar == '\'') {
+                            // Literal single quotes are escaped by using two consecutive single quotes.
+                            // Technically this code does the wrong thing in this case, as it flips quoting
+                            // from off to on or on to off and then back.  However, since by definition there
+                            // is nothing in between the consecutive single quotes in this case, the net
+                            // effect is correct and good enough for what this method is doing.
+                            notQuoted = !notQuoted;
+                            consecutiveSs = 0;
+                        } else if (notQuoted) {
+                            if (curChar == 'S') {
+                                if (++consecutiveSs > 3) {
+                                    return true;
+                                }
+                            } else {
+                                consecutiveSs = 0;
+                            }
+                        }
+                    }
+                    return false;
             }
         }
 
@@ -1368,7 +1433,6 @@ public final class TimestampFormatFinder {
      */
     static final class CandidateTimestampFormat {
 
-        private static final Pattern FRACTIONAL_SECOND_INTERPRETER = Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "])(\\d{3,9})$");
         // This means that in the case of a literal Z, XXX is preferred
         private static final Pattern TRAILING_OFFSET_WITHOUT_COLON_FINDER = Pattern.compile("[+-]\\d{4}$");
 

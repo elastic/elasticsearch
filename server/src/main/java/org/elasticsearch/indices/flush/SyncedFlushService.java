@@ -79,7 +79,7 @@ public class SyncedFlushService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SyncedFlushService.class);
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(logger.getName());
 
     public static final String SYNCED_FLUSH_DEPRECATION_MESSAGE =
         "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.";
@@ -160,7 +160,7 @@ public class SyncedFlushService implements IndexEventListener {
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
         if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.deprecate("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
         }
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,6 +68,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return isKnownRole;
     }
 
+    public boolean isEnabledByDefault(final Settings settings) {
+        return legacySetting() != null && legacySetting().get(settings);
+    }
+
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
         this(true, roleName, roleNameAbbreviation);
     }
@@ -75,7 +82,14 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
     }
 
-    protected abstract Setting<Boolean> roleSetting();
+    public abstract Setting<Boolean> legacySetting();
+
+    /**
+     * Indicates whether a node with the given role can contain data. Defaults to false and can be overridden
+     */
+    public boolean canContainData() {
+        return false;
+    }
 
     @Override
     public final boolean equals(Object o) {
@@ -112,10 +126,15 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_DATA_SETTING;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
+        @Override
+        public boolean canContainData() {
+            return true;
+        }
     };
 
     /**
@@ -124,8 +143,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole INGEST_ROLE = new DiscoveryNodeRole("ingest", "i") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_INGEST_SETTING;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -136,8 +156,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_MASTER_SETTING;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -145,8 +166,14 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_REMOTE_CLUSTER_CLIENT;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting(
+                "node.remote_cluster_client",
+                RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
+                Property.Deprecated,
+                Property.NodeScope
+            );
         }
 
     };
@@ -156,6 +183,12 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
         new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE)));
+
+    /**
+     * The version that {@link #REMOTE_CLUSTER_CLIENT_ROLE} is introduced. Nodes before this version do not have that role even
+     * they can connect to remote clusters.
+     */
+    public static final Version REMOTE_CLUSTER_CLIENT_ROLE_VERSION = Version.V_7_8_0;
 
     static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
         Collections.unmodifiableSortedSet(new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));
@@ -177,7 +210,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         }
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             // since this setting is not registered, it will always return false when testing if the local node has the role
             assert false;
             return Setting.boolSetting("node. " + roleName(), false, Setting.Property.NodeScope);

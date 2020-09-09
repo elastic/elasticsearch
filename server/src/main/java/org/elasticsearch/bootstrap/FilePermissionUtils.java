@@ -32,8 +32,6 @@ public class FilePermissionUtils {
     /** no instantiation */
     private FilePermissionUtils() {}
 
-    private static final boolean VERSION_IS_AT_LEAST_JAVA_9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
-
     /**
      * Add access to single file path
      * @param policy current policy to add permissions to
@@ -43,10 +41,12 @@ public class FilePermissionUtils {
     @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
     public static void addSingleFilePath(Permissions policy, Path path, String permissions) throws IOException {
         policy.add(new FilePermission(path.toString(), permissions));
-        if (VERSION_IS_AT_LEAST_JAVA_9 && Files.exists(path)) {
-            // Java 9 FilePermission model requires this due to the removal of pathname canonicalization,
-            // see also https://github.com/elastic/elasticsearch/issues/21534
-            Path realPath = path.toRealPath();
+        if (Files.exists(path)) {
+            /*
+             * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
+             * https://github.com/elastic/elasticsearch/issues/21534.
+             */
+            final Path realPath = path.toRealPath();
             if (path.toString().equals(realPath.toString()) == false) {
                 policy.add(new FilePermission(realPath.toString(), permissions));
             }
@@ -54,15 +54,17 @@ public class FilePermissionUtils {
     }
 
     /**
-     * Add access to path (and all files underneath it); this also creates the directory if it does not exist.
+     * Add access to path with direct and/or recursive access. This also creates the directory if it does not exist.
      *
      * @param policy            current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path              the path itself
      * @param permissions       set of file permissions to grant to the path
+     * @param recursiveAccessOnly   indicates if the permission should provide recursive access to files underneath
      */
     @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
-    public static void addDirectoryPath(Permissions policy, String configurationName, Path path, String permissions) throws IOException {
+    public static void addDirectoryPath(Permissions policy, String configurationName, Path path, String permissions,
+                                        boolean recursiveAccessOnly) throws IOException {
         // paths may not exist yet, this also checks accessibility
         try {
             Security.ensureDirectoryExists(path);
@@ -70,17 +72,25 @@ public class FilePermissionUtils {
             throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
         }
 
-        // add each path twice: once for itself, again for files underneath it
-        policy.add(new FilePermission(path.toString(), permissions));
+        // For some file permissions (data.path) we create a Permissions object that only checks the concrete
+        // path. Adding the directory would only create more overhead for this fast path.
+        if (recursiveAccessOnly == false) {
+            // add access for path itself
+            policy.add(new FilePermission(path.toString(), permissions));
+        }
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
-        if (VERSION_IS_AT_LEAST_JAVA_9) {
-            // Java 9 FilePermission model requires this due to the removal of pathname canonicalization,
-            // see also https://github.com/elastic/elasticsearch/issues/21534
-            Path realPath = path.toRealPath();
-            if (path.toString().equals(realPath.toString()) == false) {
+        /*
+         * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
+         * https://github.com/elastic/elasticsearch/issues/21534.
+         */
+        final Path realPath = path.toRealPath();
+        if (path.toString().equals(realPath.toString()) == false) {
+            if (recursiveAccessOnly == false) {
+                // add access for path itself
                 policy.add(new FilePermission(realPath.toString(), permissions));
-                policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
             }
+            // add access for files underneath
+            policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
         }
     }
 }

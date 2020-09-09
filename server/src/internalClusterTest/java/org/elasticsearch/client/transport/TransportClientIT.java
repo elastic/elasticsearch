@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -49,7 +50,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class TransportClientIT extends ESIntegTestCase {
 
     public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
+        String nodeName = internalCluster().startNode(nonDataNode());
 
         TransportClient client = (TransportClient) internalCluster().client(nodeName);
         assertThat(client.connectedNodes().get(0).isDataNode(), equalTo(false));
@@ -63,7 +64,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("transport.type", getTestTransportType())
-                .put(Node.NODE_DATA_SETTING.getKey(), false)
+                .put(nonDataNode())
                 .put("cluster.name", "foobar")
                 .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), "testNodeVersionIsUpdated")
                 .build(), Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class)).start()) {

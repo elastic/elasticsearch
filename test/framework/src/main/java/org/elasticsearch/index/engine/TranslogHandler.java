@@ -68,7 +68,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                () -> null, () -> false);
+                () -> null, () -> false, null);
     }
 
     private DocumentMapperForType docMapper(String type) {
@@ -83,7 +83,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 Engine.Index engineIndex = (Engine.Index) operation;
                 Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
                 if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                    recoveredTypes.compute(engineIndex.type(), (k, mapping) -> mapping == null ? update : mapping.merge(update));
+                    recoveredTypes.compute(engineIndex.type(), (k, mapping) ->
+                        mapping == null ? update : mapping.merge(update, MapperService.MergeReason.MAPPING_RECOVERY));
                 }
                 engine.index(engineIndex);
                 break;

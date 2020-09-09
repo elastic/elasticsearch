@@ -39,6 +39,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 public class PasswordToolsTests extends PackagingTestCase {
@@ -49,7 +50,7 @@ public class PasswordToolsTests extends PackagingTestCase {
     @Before
     public void filterDistros() {
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
-        assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
+        assumeFalse("no docker", distribution.isDocker());
     }
 
     public void test010Install() throws Exception {

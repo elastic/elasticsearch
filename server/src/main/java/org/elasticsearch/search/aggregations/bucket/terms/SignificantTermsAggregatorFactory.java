@@ -19,23 +19,21 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -48,17 +46,16 @@ import java.util.Arrays;
 import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(SignificantTermsAggregatorFactory.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            SignificantTermsAggregatorFactory.bytesSupplier());
+            SignificantTermsAggregatorFactory.bytesSupplier(), true);
 
-        builder.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
-            SignificantTermsAggregatorFactory.numericSupplier());
+            SignificantTermsAggregatorFactory.numericSupplier(), true);
     }
 
     /**
@@ -79,7 +76,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
 
                 ExecutionMode execution = null;
@@ -100,7 +97,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
 
                 return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
-                    significanceHeuristic, lookup, collectsFromSingleBucket, metadata);
+                    significanceHeuristic, lookup, cardinality, metadata);
             }
         };
     }
@@ -123,7 +120,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -143,9 +140,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
 
                 return new NumericTermsAggregator(name, factories,
-                    agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+                    agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, cardinality),
                     numericValuesSource, format, null, bucketCountThresholds, context, parent, SubAggCollectionMode.BREADTH_FIRST,
-                    longFilter, collectsFromSingleBucket, metadata);
+                    longFilter, cardinality, metadata);
             }
         };
     }
@@ -198,17 +195,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            SignificantTermsAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected SignificantTermsAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        SignificantTermsAggregatorSupplier sigTermsAggregatorSupplier = (SignificantTermsAggregatorSupplier) aggregatorSupplier;
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        SignificantTermsAggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(SignificantTermsAggregationBuilder.REGISTRY_KEY, config);
 
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -227,10 +221,28 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-        SignificanceLookup lookup = new SignificanceLookup(queryShardContext, config, backgroundFilter);
-        return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
-            bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
-            significanceHeuristic, lookup, collectsFromSingleBucket, metadata);
+        SignificanceLookup lookup = new SignificanceLookup(
+            queryShardContext,
+            config.fieldContext().fieldType(),
+            config.format(),
+            backgroundFilter
+        );
+
+        return aggregatorSupplier.build(
+            name,
+            factories,
+            config.getValuesSource(),
+            config.format(),
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            searchContext,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata
+        );
     }
 
     public enum ExecutionMode {
@@ -248,15 +260,15 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
-                              boolean collectsFromSingleBucket,
+                              CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
-                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
-                    valuesSource,
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
+                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
                     null,
                     format,
                     bucketCountThresholds,
@@ -265,7 +277,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     parent,
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
-                    collectsFromSingleBucket,
+                    cardinality,
                     metadata
                 );
 
@@ -285,27 +297,25 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
-                              boolean collectsFromSingleBucket,
+                              CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
-                if (Aggregator.descendsFromBucketAggregator(parent) == false &&
-                        factories == AggregatorFactories.EMPTY &&
-                        includeExclude == null) {
-                    /**
+                if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
+                    /*
                      * We don't need to remap global ords iff this aggregator:
-                     *    - is not a child of a bucket aggregator AND
+                     *    - collects from a single bucket AND
                      *    - has no include/exclude rules AND
                      *    - has no sub-aggregator
-                     **/
+                     */
                     remapGlobalOrd = false;
                 }
 
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
-                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
                     (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource,
                     null,
                     format,
@@ -316,7 +326,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     remapGlobalOrd,
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
-                    collectsFromSingleBucket,
+                    cardinality,
                     metadata
                 );
             }
@@ -326,7 +336,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if ("global_ordinals".equals(value)) {
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
-                deprecationLogger.deprecatedAndMaybeLog("global_ordinals_hash",
+                deprecationLogger.deprecate("global_ordinals_hash",
                     "global_ordinals_hash is deprecated. Please use [global_ordinals] instead.");
                 return GLOBAL_ORDINALS;
             } else if ("map".equals(value)) {
@@ -351,7 +361,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                    Aggregator parent,
                                    SignificanceHeuristic significanceHeuristic,
                                    SignificanceLookup lookup,
-                                   boolean collectsFromSingleBucket,
+                                   CardinalityUpperBound cardinality,
                                    Map<String, Object> metadata) throws IOException;
 
         @Override

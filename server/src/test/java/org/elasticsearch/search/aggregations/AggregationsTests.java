@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNestedTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNestedTests;
@@ -102,7 +103,6 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
  *
  */
 public class AggregationsTests extends ESTestCase {
-
     private static final List<InternalAggregationTestCase<?>> aggsTests = getAggsTests();
 
     private static List<InternalAggregationTestCase<?>> getAggsTests() {
@@ -131,6 +131,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
         aggsTests.add(new InternalAutoDateHistogramTests());
+        aggsTests.add(new InternalVariableWidthHistogramTests());
         aggsTests.add(new LongTermsTests());
         aggsTests.add(new DoubleTermsTests());
         aggsTests.add(new StringTermsTests());
@@ -302,6 +303,6 @@ public class AggregationsTests extends ESTestCase {
             }
             aggs.add(testCase.createTestInstance());
         }
-        return new InternalAggregations(aggs);
+        return InternalAggregations.from(aggs);
     }
 }

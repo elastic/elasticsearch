@@ -16,14 +16,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-class PostStartTrialResponse extends ActionResponse {
+public class PostStartTrialResponse extends ActionResponse {
 
     // Nodes Prior to 6.3 did not have NEED_ACKNOWLEDGEMENT as part of status
     enum Pre63Status {
         UPGRADED_TO_TRIAL,
         TRIAL_ALREADY_ACTIVATED;
     }
-    enum Status {
+    public enum Status {
         UPGRADED_TO_TRIAL(true, null, RestStatus.OK),
         TRIAL_ALREADY_ACTIVATED(false, "Operation failed: Trial was already activated.", RestStatus.FORBIDDEN),
         NEED_ACKNOWLEDGEMENT(false,"Operation failed: Needs acknowledgement.", RestStatus.OK);

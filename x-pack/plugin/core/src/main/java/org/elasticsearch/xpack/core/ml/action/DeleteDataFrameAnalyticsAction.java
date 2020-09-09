@@ -27,6 +27,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
 
     public static final DeleteDataFrameAnalyticsAction INSTANCE = new DeleteDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/delete";
+    public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-analytics-";
 
     private DeleteDataFrameAnalyticsAction() {
         super(NAME, AcknowledgedResponse::new);
@@ -77,6 +78,11 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public String getDescription() {
+            return DELETION_TASK_DESCRIPTION_PREFIX + id;
         }
 
         @Override

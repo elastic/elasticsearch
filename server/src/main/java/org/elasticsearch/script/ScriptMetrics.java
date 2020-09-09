@@ -26,10 +26,6 @@ public class ScriptMetrics {
     final CounterMetric cacheEvictionsMetric = new CounterMetric();
     final CounterMetric compilationLimitTriggered = new CounterMetric();
 
-    public ScriptStats stats() {
-        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
-    }
-
     public void onCompilation() {
         compilationsMetric.inc();
     }
@@ -40,5 +36,18 @@ public class ScriptMetrics {
 
     public void onCompilationLimit() {
         compilationLimitTriggered.inc();
+    }
+
+    public ScriptStats stats() {
+        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
+    }
+
+    public ScriptContextStats stats(String context) {
+        return new ScriptContextStats(
+            context,
+            compilationsMetric.count(),
+            cacheEvictionsMetric.count(),
+            compilationLimitTriggered.count()
+        );
     }
 }

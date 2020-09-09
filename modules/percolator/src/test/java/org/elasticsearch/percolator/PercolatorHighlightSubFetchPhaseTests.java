@@ -28,33 +28,33 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
-    public void testHitsExecutionNeeded() {
+    public void testHitsExecutionNeeded() throws IOException {
         PercolateQuery percolateQuery = new PercolateQuery("_name", ctx -> null, Collections.singletonList(new BytesArray("{}")),
             new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), null, new MatchAllDocsQuery());
         PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(emptyMap());
         SearchContext searchContext = Mockito.mock(SearchContext.class);
-        Mockito.when(searchContext.highlight()).thenReturn(new SearchContextHighlight(Collections.emptyList()));
+        Mockito.when(searchContext.highlight()).thenReturn(new SearchHighlightContext(Collections.emptyList()));
         Mockito.when(searchContext.query()).thenReturn(new MatchAllDocsQuery());
 
-        assertThat(subFetchPhase.hitsExecutionNeeded(searchContext), is(false));
+        assertNull(subFetchPhase.getProcessor(searchContext));
         Mockito.when(searchContext.query()).thenReturn(percolateQuery);
-        assertThat(subFetchPhase.hitsExecutionNeeded(searchContext), is(true));
+        assertNotNull(subFetchPhase.getProcessor(searchContext));
     }
 
     public void testLocatePercolatorQuery() {

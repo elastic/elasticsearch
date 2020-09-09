@@ -31,14 +31,12 @@ import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -129,7 +127,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
         ServiceDisruptionScheme isolateAllNodes =
-                new NetworkDisruption(new NetworkDisruption.IsolateAllNodes(nodes), new NetworkDisconnect());
+                new NetworkDisruption(new NetworkDisruption.IsolateAllNodes(nodes), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(isolateAllNodes);
 
         logger.info("--> forcing a complete election to make sure \"preferred\" master is elected");
@@ -153,11 +151,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("--> preferred master is {}", preferredMaster);
         final Set<String> nonPreferredNodes = new HashSet<>(nodes);
         nonPreferredNodes.remove(preferredMasterName);
-        final ServiceDisruptionScheme isolatePreferredMaster =
-                new NetworkDisruption(
-                        new NetworkDisruption.TwoPartitions(
-                                Collections.singleton(preferredMasterName), nonPreferredNodes),
-                        new NetworkDisconnect());
+        final ServiceDisruptionScheme isolatePreferredMaster = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(isolatePreferredMaster);
         isolatePreferredMaster.startDisrupting();
 

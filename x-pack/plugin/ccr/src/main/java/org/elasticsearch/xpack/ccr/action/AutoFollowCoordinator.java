@@ -560,6 +560,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
+            request.setSettings(pattern.getSettings());
             request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
             request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
             request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
@@ -570,6 +571,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
             request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
             request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

@@ -29,9 +29,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property;
@@ -39,12 +41,17 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 
-class GoogleCloudStorageRepository extends BlobStoreRepository {
+class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
+    /**
+     * Maximum allowed object size in GCS.
+     * @see <a href="https://cloud.google.com/storage/quotas#objects">GCS documentation</a> for details.
+     */
+    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     static final String TYPE = "gcs";
 
@@ -68,8 +75,9 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
-        final ClusterService clusterService) {
-        super(metadata, getSetting(COMPRESS, metadata), namedXContentRegistry, clusterService);
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
+        super(metadata, getSetting(COMPRESS, metadata), namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());
@@ -89,9 +97,14 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, isCompress());
     }
 
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return org.elasticsearch.common.collect.Map.of("base_path", BASE_PATH.get(metadata.settings()),
+            "bucket", getSetting(BUCKET, metadata));
+    }
+
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService);
+        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService, bufferSize);
     }
 
     @Override

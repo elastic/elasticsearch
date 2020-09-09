@@ -41,8 +41,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
+import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSet;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
@@ -138,6 +140,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -158,6 +161,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierD
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
@@ -188,9 +192,9 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
@@ -385,6 +389,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PutDataFrameAnalyticsAction.INSTANCE,
                 GetDataFrameAnalyticsAction.INSTANCE,
                 GetDataFrameAnalyticsStatsAction.INSTANCE,
+                UpdateDataFrameAnalyticsAction.INSTANCE,
                 DeleteDataFrameAnalyticsAction.INSTANCE,
                 StartDataFrameAnalyticsAction.INSTANCE,
                 StopDataFrameAnalyticsAction.INSTANCE,
@@ -480,8 +485,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Async Search
                 SubmitAsyncSearchAction.INSTANCE,
                 GetAsyncSearchAction.INSTANCE,
-                DeleteAsyncSearchAction.INSTANCE
-            );
+               DeleteAsyncResultAction.INSTANCE
+        );
     }
 
     @Override
@@ -521,6 +526,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(PreProcessor.class, OneHotEncoding.NAME.getPreferredName(), OneHotEncoding::new),
                 new NamedWriteableRegistry.Entry(PreProcessor.class, TargetMeanEncoding.NAME.getPreferredName(), TargetMeanEncoding::new),
                 new NamedWriteableRegistry.Entry(PreProcessor.class, CustomWordEmbedding.NAME.getPreferredName(), CustomWordEmbedding::new),
+                new NamedWriteableRegistry.Entry(PreProcessor.class, NGram.NAME.getPreferredName(), NGram::new),
                 // ML - Inference models
                 new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new),
                 new NamedWriteableRegistry.Entry(TrainedModel.class, Ensemble.NAME.getPreferredName(), Ensemble::new),
@@ -629,7 +635,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // analytics
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
                 // Enrich
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSet.Usage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSet.Usage::new),
+                // Searchable snapshots
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SEARCHABLE_SNAPSHOTS,
+                    SearchableSnapshotFeatureSetUsage::new),
+                // Data Streams
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new)
             ).stream(),
             MlEvaluationNamedXContentProvider.getNamedWriteables().stream()
         ).collect(toList());

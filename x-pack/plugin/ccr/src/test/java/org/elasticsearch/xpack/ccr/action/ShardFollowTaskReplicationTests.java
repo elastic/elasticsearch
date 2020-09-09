@@ -473,6 +473,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                         leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
                             }
+                            recoveryState.getIndex().setFileDetailsComplete();
                             return null;
                         });
                     }

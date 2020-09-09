@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -48,6 +50,8 @@ import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -61,6 +65,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -80,6 +85,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isAcknowledged(), is(true));
 
         PutFollowRequest putFollowRequest = new PutFollowRequest("local_cluster", "leader", "follower", ActiveShardCount.ONE);
+        putFollowRequest.setSettings(Settings.builder().put("index.number_of_replicas", 0L).build());
         PutFollowResponse putFollowResponse = execute(putFollowRequest, ccrClient::putFollow, ccrClient::putFollowAsync);
         assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
         assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -118,6 +124,13 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
                 SearchRequest followerSearchRequest = new SearchRequest("follower");
                 SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
                 assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+                GetSettingsRequest followerSettingsRequest = new GetSettingsRequest().indices("follower");
+                GetSettingsResponse followerSettingsResponse =
+                    highLevelClient().indices().getSettings(followerSettingsRequest, RequestOptions.DEFAULT);
+                assertThat(
+                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(followerSettingsResponse.getIndexToSettings().get("follower")),
+                    equalTo(0));
             });
         } catch (Exception e) {
             IndicesFollowStats followStats = ccrClient.getCcrStats(new CcrStatsRequest(), RequestOptions.DEFAULT).getIndicesFollowStats();
@@ -245,6 +258,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         PutAutoFollowPatternRequest putAutoFollowPatternRequest =
             new PutAutoFollowPatternRequest("pattern1", "local_cluster", Collections.singletonList("logs-*"));
         putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
+        final int followerNumberOfReplicas = randomIntBetween(0, 4);
+        final Settings autoFollowerPatternSettings =
+            Settings.builder().put("index.number_of_replicas", followerNumberOfReplicas).build();
+        putAutoFollowPatternRequest.setSettings(autoFollowerPatternSettings);
         AcknowledgedResponse putAutoFollowPatternResponse =
             execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
         assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
@@ -260,6 +277,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
         });
         assertThat(indexExists("copy-logs-20200101"), is(true));
+        assertThat(
+            getIndexSettingsAsMap("copy-logs-20200101"),
+            hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
@@ -271,6 +291,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
         assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));
         assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.getFollowIndexNamePattern()));
+        assertThat(pattern.getSettings(), equalTo(autoFollowerPatternSettings));
 
         // Cleanup:
         final DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest = new DeleteAutoFollowPatternRequest("pattern1");

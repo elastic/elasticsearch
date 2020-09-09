@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -94,18 +93,16 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata metadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<RepositoryData> listener) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
         try {
-            super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
-                stateTransformer, listener);
+            super.finalizeSnapshot(shardGenerations, repositoryStateId, metadataToSnapshot(shardGenerations.indices(), metadata),
+                    snapshotInfo, repositoryMetaVersion, stateTransformer, listener);
         } catch (IOException ex) {
             listener.onFailure(ex);
         }

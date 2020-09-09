@@ -15,11 +15,13 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +51,9 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
-            ClassificationConfigUpdateTests.randomClassificationConfigUpdate());
+            ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
+            ResultsFieldUpdateTests.randomUpdate(),
+            EmptyConfigUpdateTests.testInstance());
     }
 
     private static Map<String, Object> randomMap() {
@@ -68,6 +72,16 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    @Override
+    protected boolean isCompatible(Request instance, Version version) {
+        if (version.before(Version.V_7_8_0)) {
+            boolean isSupportedType = instance.getUpdate() instanceof RegressionConfigUpdate ||
+                instance.getUpdate() instanceof ClassificationConfigUpdate;
+            return isSupportedType;
+        }
+        return true;
     }
 
     @Override
@@ -90,5 +104,4 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
         }
         return instance;
     }
-
 }

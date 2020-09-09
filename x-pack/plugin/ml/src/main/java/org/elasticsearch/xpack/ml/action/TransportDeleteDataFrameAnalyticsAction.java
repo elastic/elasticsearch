@@ -39,6 +39,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -190,7 +191,10 @@ public class TransportDeleteDataFrameAnalyticsAction
                 }
                 deleteConfig(parentTaskClient, id, listener);
             },
-            listener::onFailure
+            failure -> {
+                logger.warn(new ParameterizedMessage("[{}] failed to remove stats", id), ExceptionsHelper.unwrapCause(failure));
+                deleteConfig(parentTaskClient, id, listener);
+            }
         );
 
         // Step 3. Delete job docs from stats index
@@ -222,7 +226,7 @@ public class TransportDeleteDataFrameAnalyticsAction
     }
 
     private void deleteConfig(ParentTaskAssigningClient parentTaskClient, String id, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(AnomalyDetectorsIndex.configIndexName());
+        DeleteRequest deleteRequest = new DeleteRequest(MlConfigIndex.indexName());
         deleteRequest.id(DataFrameAnalyticsConfig.documentId(id));
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, ActionListener.wrap(

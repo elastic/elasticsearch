@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -71,8 +70,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestNodesAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesAction.class);
     static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
             "locally, and should not be used. It will be unsupported in version 8.0.";
 
@@ -96,7 +94,7 @@ public class RestNodesAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         if (request.hasParam("local")) {
-            deprecationLogger.deprecatedAndMaybeLog("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
+            deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
@@ -181,6 +179,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.miss_count",
+            "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
         table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("request_cache.evictions",
@@ -362,6 +363,8 @@ public class RestNodesAction extends AbstractCatAction {
             QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getQueryCache();
             table.addCell(fcStats == null ? null : fcStats.getMemorySize());
             table.addCell(fcStats == null ? null : fcStats.getEvictions());
+            table.addCell(fcStats == null ? null : fcStats.getHitCount());
+            table.addCell(fcStats == null ? null : fcStats.getMissCount());
 
             RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getRequestCache();
             table.addCell(qcStats == null ? null : qcStats.getMemorySize());

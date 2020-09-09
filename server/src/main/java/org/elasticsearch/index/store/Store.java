@@ -355,9 +355,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public StoreStats stats() throws IOException {
+    /**
+     * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     */
+    public StoreStats stats(long reservedBytes) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize());
+        return new StoreStats(directory.estimateSize(), reservedBytes);
     }
 
     /**
@@ -681,6 +684,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public int refCount() {
         return refCounter.refCount();
+    }
+
+    public void beforeClose() {
+        shardLock.setDetails("closing shard");
     }
 
     static final class StoreDirectory extends FilterDirectory {

@@ -6,7 +6,7 @@ Individual fields can be _boosted_ automatically -- count more towards the relev
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -33,13 +33,13 @@ You can achieve the same effect by using the boost parameter directly in the que
 --------------------------------------------------
 POST _search
 {
-    "query": {
-        "match" : {
-            "title": {
-                "query": "quick brown fox"
-            }
-        }
+  "query": {
+    "match": {
+      "title": {
+        "query": "quick brown fox"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -49,14 +49,14 @@ is equivalent to:
 --------------------------------------------------
 POST _search
 {
-    "query": {
-        "match" : {
-            "title": {
-                "query": "quick brown fox",
-                "boost": 2
-            }
-        }
+  "query": {
+    "match": {
+      "title": {
+        "query": "quick brown fox",
+        "boost": 2
+      }
     }
+  }
 }
 --------------------------------------------------
 

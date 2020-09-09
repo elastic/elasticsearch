@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,13 +14,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -31,40 +35,51 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public static final ParseField NAME = new ParseField("one_hot_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField HOT_MAP = new ParseField("hot_map");
+    public static final ParseField CUSTOM = new ParseField("custom");
 
-    public static final ConstructingObjectParser<OneHotEncoding, Void> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<OneHotEncoding, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<OneHotEncoding, PreProcessorParseContext> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<OneHotEncoding, PreProcessorParseContext> LENIENT_PARSER = createParser(true);
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<OneHotEncoding, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<OneHotEncoding, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<OneHotEncoding, PreProcessorParseContext> createParser(boolean lenient) {
+        ConstructingObjectParser<OneHotEncoding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new OneHotEncoding((String)a[0], (Map<String, String>)a[1]));
+            (a, c) -> new OneHotEncoding((String)a[0],
+                (Map<String, String>)a[1],
+                a[2] == null ? c.isCustomByDefault() : (Boolean)a[2]));
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
         return parser;
     }
 
-    public static OneHotEncoding fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null);
+    public static OneHotEncoding fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
+        return STRICT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
     }
 
-    public static OneHotEncoding fromXContentLenient(XContentParser parser) {
-        return LENIENT_PARSER.apply(parser, null);
+    public static OneHotEncoding fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
+        return LENIENT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
     }
 
     private final String field;
     private final Map<String, String> hotMap;
+    private final boolean custom;
 
-    public OneHotEncoding(String field, Map<String, String> hotMap) {
+    public OneHotEncoding(String field, Map<String, String> hotMap, Boolean custom) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.hotMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP));
+        this.custom = custom == null ? false : custom;
     }
 
     public OneHotEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.hotMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            this.custom = in.readBoolean();
+        } else {
+            this.custom = false;
+        }
     }
 
     /**
@@ -83,7 +98,17 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     @Override
     public Map<String, String> reverseLookup() {
-        return hotMap.entrySet().stream().collect(Collectors.toMap(HashMap.Entry::getValue, (entry) -> field));
+        return hotMap.values().stream().collect(Collectors.toMap(Function.identity(), (value) -> field));
+    }
+
+    @Override
+    public boolean isCustom() {
+        return custom;
+    }
+
+    @Override
+    public String getOutputFieldType(String outputField) {
+        return NumberFieldMapper.NumberType.INTEGER.typeName();
     }
 
     @Override
@@ -92,13 +117,24 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     }
 
     @Override
+    public List<String> inputFields() {
+        return Collections.singletonList(field);
+    }
+
+    @Override
+    public List<String> outputFields() {
+        return new ArrayList<>(hotMap.values());
+    }
+
+    @Override
     public void process(Map<String, Object> fields) {
         Object value = fields.get(field);
         if (value == null) {
             return;
         }
+        final String stringValue = value.toString();
         hotMap.forEach((val, col) -> {
-            int encoding = value.toString().equals(val) ? 1 : 0;
+            int encoding = stringValue.equals(val) ? 1 : 0;
             fields.put(col, encoding);
         });
     }
@@ -112,6 +148,9 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeMap(hotMap, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(custom);
+        }
     }
 
     @Override
@@ -119,6 +158,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
         builder.field(HOT_MAP.getPreferredName(), hotMap);
+        builder.field(CUSTOM.getPreferredName(), custom);
         builder.endObject();
         return builder;
     }
@@ -129,12 +169,13 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         if (o == null || getClass() != o.getClass()) return false;
         OneHotEncoding that = (OneHotEncoding) o;
         return Objects.equals(field, that.field)
-            && Objects.equals(hotMap, that.hotMap);
+            && Objects.equals(hotMap, that.hotMap)
+            && Objects.equals(custom, that.custom);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, hotMap);
+        return Objects.hash(field, hotMap, custom);
     }
 
     @Override

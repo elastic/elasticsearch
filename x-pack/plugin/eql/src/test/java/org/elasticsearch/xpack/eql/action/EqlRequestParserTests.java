@@ -37,11 +37,6 @@ public class EqlRequestParserTests extends ESTestCase {
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"event_category_field\" : 123}", "event_category_field doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"implicit_join_key_field\" : 123}",
-            "implicit_join_key_field doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"search_after\" : 123}", "search_after doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
@@ -55,8 +50,6 @@ public class EqlRequestParserTests extends ESTestCase {
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_category_field\" : \"etf\","
-            + "\"implicit_join_key_field\" : \"imjf\","
-            + "\"search_after\" : [ 12345678, \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
             + "\"size\" : \"101\","
             + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
             + (setIsCaseSensitive ? (",\"case_sensitive\" : " + isCaseSensitive) : "")
@@ -69,9 +62,8 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals("bar", filter.value());
         assertEquals("tsf", request.timestampField());
         assertEquals("etf", request.eventCategoryField());
-        assertEquals("imjf", request.implicitJoinKeyField());
-        assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
-        assertEquals(101, request.fetchSize());
+        assertEquals(101, request.size());
+        assertEquals(1000, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
         assertEquals(setIsCaseSensitive && isCaseSensitive, request.isCaseSensitive());
     }

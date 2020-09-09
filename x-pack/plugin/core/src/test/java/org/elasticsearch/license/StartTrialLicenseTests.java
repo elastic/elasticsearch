@@ -9,6 +9,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -21,8 +22,10 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
@@ -36,9 +39,9 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("node.data", true)
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
+            .put(addRoles(super.nodeSettings(nodeOrdinal), Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
+            .build();
     }
 
     @Override

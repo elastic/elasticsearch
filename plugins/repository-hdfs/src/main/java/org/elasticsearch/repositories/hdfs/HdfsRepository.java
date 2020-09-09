@@ -36,10 +36,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -63,16 +63,14 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final URI uri;
     private final String pathSetting;
 
-    // buffer size passed to HDFS read/write methods
-    // TODO: why 100KB?
-    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
-
     public HdfsRepository(
         final RepositoryMetadata metadata,
         final Environment environment,
         final NamedXContentRegistry namedXContentRegistry,
-        final ClusterService clusterService) {
-        super(metadata, metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, clusterService);
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
+        super(metadata, metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, clusterService,
+            recoverySettings);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
@@ -124,8 +122,6 @@ public final class HdfsRepository extends BlobStoreRepository {
         String configKey = HdfsClientConfigKeys.Failover.PROXY_PROVIDER_KEY_PREFIX + "." + host;
         Class<?> ret = hadoopConfiguration.getClass(configKey, null, FailoverProxyProvider.class);
         boolean haEnabled = ret != null;
-
-        int bufferSize = repositorySettings.getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
 
         // Create the filecontext with our user information
         // This will correctly configure the filecontext to have our UGI as its internal user.

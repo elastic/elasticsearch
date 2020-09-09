@@ -24,11 +24,13 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
@@ -96,39 +98,41 @@ public class TransportUpdateDatafeedAction extends
 
         String datafeedId = request.getUpdate().getId();
 
+        Runnable doUpdate = () ->
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+                datafeedConfigProvider.updateDatefeedConfig(
+                    request.getUpdate().getId(),
+                    request.getUpdate(),
+                    headers,
+                    jobConfigProvider::validateDatafeedJob,
+                    ActionListener.wrap(
+                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                        listener::onFailure));
+            });
+
+        // Obviously if we're updating a datafeed it's impossible that the config index has no mappings at
+        // all, but if we rewrite the datafeed config we may add new fields that require the latest mappings
         CheckedConsumer<BulkByScrollResponse, Exception> updateConsumer =
-            unused -> {
-                useSecondaryAuthIfAvailable(securityContext, () -> {
-                    final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-                    datafeedConfigProvider.updateDatefeedConfig(
-                        request.getUpdate().getId(),
-                        request.getUpdate(),
-                        headers,
-                        jobConfigProvider::validateDatafeedJob,
-                        ActionListener.wrap(
-                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                            listener::onFailure));
-                });
-            };
+            unused -> ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
+                ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
 
         CheckedConsumer<Boolean, Exception> deleteTimingStatsAndUpdateConsumer =
-            unused -> {
-                datafeedConfigProvider.getDatafeedConfig(
-                    datafeedId,
-                    ActionListener.wrap(
-                        datafeedConfigBuilder -> {
-                            String jobId = datafeedConfigBuilder.build().getJobId();
-                            if (jobId.equals(request.getUpdate().getJobId())) {
-                                // Datafeed's jobId didn't change, no point in deleting datafeed timing stats.
-                                updateConsumer.accept(null);
-                            } else {
-                                JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
-                                jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(updateConsumer, listener::onFailure));
-                            }
-                        },
-                        listener::onFailure));
-            };
-
+            unused -> datafeedConfigProvider.getDatafeedConfig(
+                datafeedId,
+                ActionListener.wrap(
+                    datafeedConfigBuilder -> {
+                        String jobId = datafeedConfigBuilder.build().getJobId();
+                        if (jobId.equals(request.getUpdate().getJobId())) {
+                            // Datafeed's jobId didn't change, no point in deleting datafeed timing stats.
+                            updateConsumer.accept(null);
+                        } else {
+                            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                            jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(updateConsumer, listener::onFailure));
+                        }
+                    },
+                    listener::onFailure));
 
         if (request.getUpdate().getJobId() != null) {
             checkJobDoesNotHaveADifferentDatafeed(

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -229,7 +231,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         unavailableShards.forEach(shardRoutingTableBuilder::removeShard);
         shardRoutingTable = shardRoutingTableBuilder.build();
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+        final ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
         assertThat(replicationGroup.getUnavailableInSyncShards().size(), greaterThan(0));
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
@@ -239,7 +241,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy();
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
             TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation = new ReplicationOperation<>(
-                request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, "test", primaryTerm);
+                request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, threadPool, "test", primaryTerm,
+                TimeValue.timeValueMillis(20), TimeValue.timeValueSeconds(60));
         operation.execute();
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -276,11 +279,21 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         TransportVerifyShardBeforeCloseAction.ShardRequest,
         PrimaryResult>
             createPrimary(final ShardRouting primary, final ReplicationGroup replicationGroup) {
-                return new ReplicationOperation.Primary<TransportVerifyShardBeforeCloseAction.ShardRequest,
-                    TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult>() {
+                final PendingReplicationActions replicationActions = new PendingReplicationActions(primary.shardId(), threadPool);
+                replicationActions.accept(replicationGroup);
+                return new ReplicationOperation.Primary<
+                    TransportVerifyShardBeforeCloseAction.ShardRequest,
+                    TransportVerifyShardBeforeCloseAction.ShardRequest,
+                    PrimaryResult>() {
+
                     @Override
                     public ShardRouting routingEntry() {
                         return primary;
+                    }
+
+                    @Override
+                    public PendingReplicationActions getPendingReplicationActions() {
+                        return replicationActions;
                     }
 
                     @Override

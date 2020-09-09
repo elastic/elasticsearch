@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -258,6 +257,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
+     * Sets the require_alias request flag on the destination index
+     */
+    public ReindexRequest setRequireAlias(boolean requireAlias) {
+        this.getDestination().setRequireAlias(requireAlias);
+        return this;
+    }
+
+    /**
      * Gets the target for this reindex request in the for of an {@link IndexRequest}
      */
     public IndexRequest getDestination() {
@@ -354,7 +361,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in reindex requests is deprecated.";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ReindexRequest.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexRequest.class);
 
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
@@ -366,7 +373,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             String[] types = extractStringArray(source, "type");
             if (types != null) {
-                deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
                 request.getSearchRequest().types(types);
             }
             request.setRemoteInfo(buildRemoteInfo(source));
@@ -382,7 +389,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString((request, type) -> {
-            deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
             request.type(type);
         }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));

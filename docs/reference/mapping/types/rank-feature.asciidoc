@@ -1,5 +1,5 @@
 [[rank-feature]]
-=== Rank feature datatype
+=== Rank feature field type
 ++++
 <titleabbrev>Rank feature</titleabbrev>
 ++++
@@ -9,7 +9,7 @@ documents in queries with a <<query-dsl-rank-feature-query,`rank_feature`>> quer
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -24,13 +24,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "pagerank": 8,
   "url_length": 22
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "rank_feature": {

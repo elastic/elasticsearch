@@ -24,9 +24,20 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class StringsTests extends ESTestCase {
+
+    public void testIsAllOrWildCardString() {
+        assertThat(Strings.isAllOrWildcard("_all"), is(true));
+        assertThat(Strings.isAllOrWildcard("*"), is(true));
+        assertThat(Strings.isAllOrWildcard("foo"), is(false));
+        assertThat(Strings.isAllOrWildcard(""), is(false));
+        assertThat(Strings.isAllOrWildcard((String)null), is(false));
+    }
 
     public void testSubstring() {
         assertEquals(null, Strings.substring(null, 0, 1000));
@@ -87,6 +98,16 @@ public class StringsTests extends ESTestCase {
             assertThat(toString, containsString("\"ok\":\"here\""));
             assertThat(toString, containsString("\"catastrophe\":\"\""));
         }
+    }
+
+    public void testToStringToXContentWithOrWithoutParams() {
+        ToXContent toXContent = (builder, params) -> builder.field("color_from_param", params.param("color", "red"));
+        // Rely on the default value of "color" param when params are not passed
+        assertThat(Strings.toString(toXContent), containsString("\"color_from_param\":\"red\""));
+        // Pass "color" param explicitly
+        assertThat(
+            Strings.toString(toXContent, new ToXContent.MapParams(Collections.singletonMap("color", "blue"))),
+            containsString("\"color_from_param\":\"blue\""));
     }
 
     public void testSplitStringToSet() {

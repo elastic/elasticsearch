@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
@@ -48,7 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndicesAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndicesAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
             + " is deprecated. The parameter will be removed in the next major version.";
 
@@ -73,7 +72,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         // starting with 7.0 we don't include types by default in the response to GET requests
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) && request.method().equals(GET)) {
-            deprecationLogger.deprecatedAndMaybeLog("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);

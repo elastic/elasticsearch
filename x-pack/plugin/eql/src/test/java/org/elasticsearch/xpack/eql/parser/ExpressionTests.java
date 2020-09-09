@@ -45,7 +45,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private List<Expression> exprs(String... sources) {
-        List<Expression> results = new ArrayList<Expression>(sources.length);
+        List<Expression> results = new ArrayList<>(sources.length);
         for (String s : sources) {
             results.add(expr(s));
         }

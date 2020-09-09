@@ -19,14 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
@@ -41,98 +43,22 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertFalse(itr.hasNext());
     }
 
-    public void testDefaultMapping() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        try {
-            lookup.copyAndAddAll(MapperService.DEFAULT_MAPPING, emptyList(), emptyList());
-            fail();
-        } catch (IllegalArgumentException expected) {
-            assertEquals("Default mappings should not be added to the lookup", expected.getMessage());
-        }
-    }
-
     public void testAddNewField() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
         MockFieldMapper f = new MockFieldMapper("foo");
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type", newList(f), emptyList());
-        assertNull(lookup.get("foo"));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList());
         assertNull(lookup.get("bar"));
-        assertEquals(f.fieldType(), lookup2.get("foo"));
-        assertNull(lookup.get("bar"));
-        assertEquals(1, size(lookup2.iterator()));
-    }
-
-    public void testAddExistingField() {
-        MockFieldMapper f = new MockFieldMapper("foo");
-        MockFieldMapper f2 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f), emptyList());
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), emptyList());
-
-        assertEquals(1, size(lookup2.iterator()));
-        assertSame(f.fieldType(), lookup2.get("foo"));
-        assertEquals(f2.fieldType(), lookup2.get("foo"));
+        assertEquals(f.fieldType(), lookup.get("foo"));
+        assertEquals(1, size(lookup.iterator()));
     }
 
     public void testAddFieldAlias() {
         MockFieldMapper field = new MockFieldMapper("foo");
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "foo");
 
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(field), newList(alias));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(field), Collections.singletonList(alias));
 
         MappedFieldType aliasType = lookup.get("alias");
         assertEquals(field.fieldType(), aliasType);
-    }
-
-    public void testUpdateFieldAlias() {
-        // Add an alias 'alias' to the concrete field 'foo'.
-        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType("foo");
-        MockFieldMapper field1 = new MockFieldMapper(fieldType1);
-        FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
-
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(field1), newList(alias1));
-
-        // Check that the alias refers to 'foo'.
-        MappedFieldType aliasType1 = lookup.get("alias");
-        assertEquals(fieldType1, aliasType1);
-
-        // Update the alias to refer to a new concrete field 'bar'.
-        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType("bar");
-        MockFieldMapper field2 = new MockFieldMapper(fieldType2);
-
-        FieldAliasMapper alias2 = new FieldAliasMapper("alias", "alias", "bar");
-        lookup = lookup.copyAndAddAll("type", newList(field2), newList(alias2));
-
-        // Check that the alias now refers to 'bar'.
-        MappedFieldType aliasType2 = lookup.get("alias");
-        assertEquals(fieldType2, aliasType2);
-    }
-
-    public void testUpdateConcreteFieldWithAlias() {
-        // Add an alias 'alias' to the concrete field 'foo'.
-        FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
-        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType("foo");
-        fieldType1.setBoost(1.0f);
-        MockFieldMapper field1 = new MockFieldMapper(fieldType1);
-
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(field1), newList(alias1));
-
-        // Check that the alias maps to this field type.
-        MappedFieldType aliasType1 = lookup.get("alias");
-        assertEquals(fieldType1, aliasType1);
-
-        // Update the boost for field 'foo'.
-        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType("foo");
-        fieldType2.setBoost(2.0f);
-        MockFieldMapper field2 = new MockFieldMapper(fieldType2);
-        lookup = lookup.copyAndAddAll("type", newList(field2), emptyList());
-
-        // Check that the alias maps to the new field type.
-        MappedFieldType aliasType2 = lookup.get("alias");
-        assertEquals(fieldType2, aliasType2);
     }
 
     public void testSimpleMatchToFullName() {
@@ -142,10 +68,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias1 = new FieldAliasMapper("food", "food", "foo");
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type",
-            newList(field1, field2),
-            newList(alias1, alias2));
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field1, field2), Arrays.asList(alias1, alias2));
 
         Collection<String> names = lookup.simpleMatchToFullName("b*");
 
@@ -156,10 +79,45 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertTrue(names.contains("barometer"));
     }
 
+    public void testSourcePathWithMultiFields() {
+        Mapper.BuilderContext context = new Mapper.BuilderContext(
+            MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
+
+        MockFieldMapper field = new MockFieldMapper.Builder("field")
+            .addMultiField(new MockFieldMapper.Builder("field.subfield1"))
+            .addMultiField(new MockFieldMapper.Builder("field.subfield2"))
+            .build(context);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(field), emptyList());
+
+        assertEquals(Set.of("field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield2"));
+    }
+
+    public void testSourcePathsWithCopyTo() {
+        Mapper.BuilderContext context = new Mapper.BuilderContext(
+            MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
+
+        MockFieldMapper field = new MockFieldMapper.Builder("field")
+            .addMultiField(new MockFieldMapper.Builder("field.subfield1"))
+            .build(context);
+
+        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field")
+            .copyTo(new FieldMapper.CopyTo.Builder()
+                .add("field")
+                .build())
+            .build(context);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList());
+
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
+    }
+
     public void testIteratorImmutable() {
         MockFieldMapper f1 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f1), emptyList());
 
         try {
             Iterator<MappedFieldType> itr = lookup.iterator();
@@ -170,14 +128,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         } catch (UnsupportedOperationException e) {
             // expected
         }
-    }
-
-    private static List<FieldMapper> newList(FieldMapper... mapper) {
-        return Arrays.asList(mapper);
-    }
-
-    private static List<FieldAliasMapper> newList(FieldAliasMapper... mapper) {
-        return Arrays.asList(mapper);
     }
 
     private int size(Iterator<MappedFieldType> iterator) {

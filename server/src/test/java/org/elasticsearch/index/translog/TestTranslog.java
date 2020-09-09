@@ -23,10 +23,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -43,6 +45,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
+import static org.elasticsearch.index.translog.Translog.TRANSLOG_FILE_SUFFIX;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -157,26 +160,29 @@ public class TestTranslog {
             final long corruptPosition = RandomNumbers.randomLongBetween(random, 0, fileSize - 1);
 
             if (random.nextBoolean()) {
-                // read
-                fileChannel.position(corruptPosition);
-                assertThat(fileChannel.position(), equalTo(corruptPosition));
-                ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
-                fileChannel.read(bb);
-                bb.flip();
-
-                // corrupt
-                byte oldValue = bb.get(0);
-                byte newValue;
                 do {
-                    newValue = (byte) random.nextInt(0x100);
-                } while (newValue == oldValue);
-                bb.put(0, newValue);
+                    // read
+                    fileChannel.position(corruptPosition);
+                    assertThat(fileChannel.position(), equalTo(corruptPosition));
+                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                    fileChannel.read(bb);
+                    bb.flip();
 
-                // rewrite
-                fileChannel.position(corruptPosition);
-                fileChannel.write(bb);
-                logger.info("corruptFile: corrupting file {} at position {} turning 0x{} into 0x{}", fileToCorrupt, corruptPosition,
-                    Integer.toHexString(oldValue & 0xff), Integer.toHexString(newValue & 0xff));
+                    // corrupt
+                    byte oldValue = bb.get(0);
+                    byte newValue;
+                    do {
+                        newValue = (byte) random.nextInt(0x100);
+                    } while (newValue == oldValue);
+                    bb.put(0, newValue);
+
+                    // rewrite
+                    fileChannel.position(corruptPosition);
+                    fileChannel.write(bb);
+                    logger.info("corruptFile: corrupting file {} at position {} turning 0x{} into 0x{}", fileToCorrupt, corruptPosition,
+                        Integer.toHexString(oldValue & 0xff), Integer.toHexString(newValue & 0xff));
+                } while (isTranslogHeaderVersionFlipped(fileToCorrupt, fileChannel));
+
             } else {
                 logger.info("corruptFile: truncating file {} from length {} to length {}", fileToCorrupt, fileSize, corruptPosition);
                 fileChannel.truncate(corruptPosition);
@@ -225,5 +231,23 @@ public class TestTranslog {
 
             }
         };
+    }
+
+    /**
+     * An old translog header does not have a checksum. If we flip the header version of an empty translog from 3 to 2,
+     * then we won't detect that corruption, and the translog will be considered clean as before.
+     */
+    static boolean isTranslogHeaderVersionFlipped(Path corruptedFile, FileChannel channel) throws IOException {
+        if (corruptedFile.toString().endsWith(TRANSLOG_FILE_SUFFIX) == false) {
+            return false;
+        }
+        channel.position(0);
+        final InputStreamStreamInput in = new InputStreamStreamInput(Channels.newInputStream(channel), channel.size());
+        try {
+            final int version = TranslogHeader.readHeaderVersion(corruptedFile, channel, in);
+            return version == TranslogHeader.VERSION_CHECKPOINTS;
+        } catch (IllegalStateException | TranslogCorruptedException | IOException e) {
+            return false;
+        }
     }
 }

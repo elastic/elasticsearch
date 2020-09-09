@@ -1,0 +1,245 @@
+---
+"Test apis that do not supported data streams":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [logs-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:  logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+  - match: {_index: .ds-logs-foobar-000001}
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: .ds-logs-foobar-000001 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      catch: missing
+      indices.delete:
+        index: logs-foobar
+
+  # close request will not fail but will not match any data streams
+  - do:
+      indices.close:
+        index: logs-*
+  - is_true: acknowledged
+  - length: { indices: 0 }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+---
+"Prohibit clone on data stream's write index":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.clone:
+        index: ".ds-simple-data-stream1-000001"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 2
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Prohibit shrink on data stream's write index":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.shrink:
+        index: ".ds-simple-data-stream1-000001"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Close write index for data stream fails":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.close:
+        index: ".ds-simple-data-stream1-000001"
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Prohibit split on data stream's write index":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.split:
+        index: ".ds-simple-data-stream1-000001"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Non append-only writes into a data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [logs-*]
+          data_stream: {}
+
+  - do:
+      catch: bad_request
+      index:
+        index:  logs-foobar
+        id: "1"
+        body:
+          '@timestamp': '2020-12-12'
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: logs-foobar
+              _id: "1"
+          - '@timestamp': '2020-12-12'
+          - create:
+              _index: logs-foobar
+              _id: "1"
+          - '@timestamp': '2020-12-12'
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: illegal_argument_exception }
+  - match: { items.0.index.error.reason: "only write ops with an op_type of create are allowed in data streams" }
+  - match: { items.1.create.result: created }
+  - match: { items.1.create._index: .ds-logs-foobar-000001 }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

@@ -7,12 +7,11 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,7 +25,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 
 public class CacheFile {
 
@@ -48,8 +49,8 @@ public class CacheFile {
         }
     };
 
-    private final ReleasableLock evictionLock;
-    private final ReleasableLock readLock;
+    private final ReentrantReadWriteLock.WriteLock evictionLock;
+    private final ReentrantReadWriteLock.ReadLock readLock;
 
     private final SparseFileTracker tracker;
     private final String description;
@@ -69,8 +70,8 @@ public class CacheFile {
         this.evicted = false;
 
         final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
-        this.evictionLock = new ReleasableLock(cacheLock.writeLock());
-        this.readLock = new ReleasableLock(cacheLock.readLock());
+        this.evictionLock = cacheLock.writeLock();
+        this.readLock = cacheLock.readLock();
 
         assert invariant();
     }
@@ -83,9 +84,9 @@ public class CacheFile {
         return file;
     }
 
-    ReleasableLock fileLock() {
+    Releasable fileLock() {
         boolean success = false;
-        final ReleasableLock fileLock = readLock.acquire();
+        readLock.lock();
         try {
             ensureOpen();
             // check if we have a channel while holding the read lock
@@ -93,10 +94,10 @@ public class CacheFile {
                 throw new AlreadyClosedException("Cache file channel has been released and closed");
             }
             success = true;
-            return fileLock;
+            return readLock::unlock;
         } finally {
             if (success == false) {
-                fileLock.close();
+                readLock.unlock();
             }
         }
     }
@@ -112,19 +113,22 @@ public class CacheFile {
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
-            try (ReleasableLock ignored = evictionLock.acquire()) {
+            evictionLock.lock();
+            try {
+                ensureOpen();
+                final Set<EvictionListener> newListeners = new HashSet<>(listeners);
+                final boolean added = newListeners.add(listener);
+                assert added : "listener already exists " + listener;
+                maybeOpenFileChannel(newListeners);
+                listeners = Collections.unmodifiableSet(newListeners);
+                success = true;
+            } finally {
                 try {
-                    ensureOpen();
-                    final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                    final boolean added = newListeners.add(listener);
-                    assert added : "listener already exists " + listener;
-                    maybeOpenFileChannel(newListeners);
-                    listeners = Collections.unmodifiableSet(newListeners);
-                    success = true;
-                } finally {
                     if (success == false) {
                         refCounter.decRef();
                     }
+                } finally {
+                    evictionLock.unlock();
                 }
             }
         }
@@ -136,7 +140,8 @@ public class CacheFile {
         assert listener != null;
 
         boolean success = false;
-        try (ReleasableLock ignored = evictionLock.acquire()) {
+        evictionLock.lock();
+        try {
             try {
                 final Set<EvictionListener> newListeners = new HashSet<>(listeners);
                 final boolean removed = newListeners.remove(Objects.requireNonNull(listener));
@@ -152,6 +157,8 @@ public class CacheFile {
                     refCounter.decRef();
                 }
             }
+        } finally {
+            evictionLock.unlock();
         }
         assert invariant();
         return success;
@@ -171,12 +178,15 @@ public class CacheFile {
     public void startEviction() {
         if (evicted == false) {
             final Set<EvictionListener> evictionListeners = new HashSet<>();
-            try (ReleasableLock ignored = evictionLock.acquire()) {
+            evictionLock.lock();
+            try {
                 if (evicted == false) {
                     evicted = true;
                     evictionListeners.addAll(listeners);
                     refCounter.decRef();
                 }
+            } finally {
+                evictionLock.unlock();
             }
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
@@ -206,7 +216,8 @@ public class CacheFile {
     }
 
     private boolean invariant() {
-        try (ReleasableLock ignored = readLock.acquire()) {
+        readLock.lock();
+        try {
             assert listeners != null;
             if (listeners.isEmpty()) {
                 assert channel == null;
@@ -217,6 +228,8 @@ public class CacheFile {
                 assert channel.isOpen();
                 assert Files.exists(file);
             }
+        } finally {
+            readLock.unlock();
         }
         return true;
     }
@@ -247,42 +260,118 @@ public class CacheFile {
         }
     }
 
-    CompletableFuture<Integer> fetchRange(
-        long start,
-        long end,
-        CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
-        CheckedBiConsumer<Long, Long, IOException> onRangeMissing
+    @FunctionalInterface
+    interface RangeAvailableHandler {
+        int onRangeAvailable(FileChannel channel) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface RangeMissingHandler {
+        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+    }
+
+    /**
+     * Populates any missing ranges within {@code rangeToWrite} using the {@link RangeMissingHandler}, and notifies the
+     * {@link RangeAvailableHandler} when {@code rangeToRead} is available to read from the file. If {@code rangeToRead} is already
+     * available then the {@link RangeAvailableHandler} is called synchronously by this method; if not then the given {@link Executor}
+     * processes the missing ranges and notifies the {@link RangeAvailableHandler}.
+     *
+     * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
+     */
+    CompletableFuture<Integer> populateAndRead(
+        final Tuple<Long, Long> rangeToWrite,
+        final Tuple<Long, Long> rangeToRead,
+        final RangeAvailableHandler reader,
+        final RangeMissingHandler writer,
+        final Executor executor
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            if (start < 0 || start > tracker.getLength() || start > end || end > tracker.getLength()) {
-                throw new IllegalArgumentException(
-                    "Invalid range [start=" + start + ", end=" + end + "] for length [" + tracker.getLength() + ']'
-                );
-            }
             ensureOpen();
-            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                start,
-                end,
-                ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
-                    rangeFailure -> future.completeExceptionally(rangeFailure)
-                )
-            );
+            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, ActionListener.wrap(success -> {
+                final int read = reader.onRangeAvailable(channel);
+                assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
+                    + read
+                    + "] does not match the range to read ["
+                    + rangeToRead.v2()
+                    + '-'
+                    + rangeToRead.v1()
+                    + ']';
+                future.complete(read);
+            }, future::completeExceptionally));
 
-            for (SparseFileTracker.Gap gap : gaps) {
-                try {
-                    ensureOpen();
-                    onRangeMissing.accept(gap.start, gap.end);
-                    gap.onResponse(null);
-                } catch (Exception e) {
-                    gap.onFailure(e);
-                }
+            if (gaps.isEmpty() == false) {
+                executor.execute(new AbstractRunnable() {
+
+                    @Override
+                    protected void doRun() {
+                        for (SparseFileTracker.Gap gap : gaps) {
+                            try {
+                                ensureOpen();
+                                if (readLock.tryLock() == false) {
+                                    throw new AlreadyClosedException("Cache file channel is being evicted, writing attempt cancelled");
+                                }
+                                try {
+                                    ensureOpen();
+                                    if (channel == null) {
+                                        throw new AlreadyClosedException("Cache file channel has been released and closed");
+                                    }
+                                    writer.fillCacheRange(channel, gap.start(), gap.end(), gap::onProgress);
+                                    gap.onCompletion();
+                                } finally {
+                                    readLock.unlock();
+                                }
+                            } catch (Exception e) {
+                                gap.onFailure(e);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        gaps.forEach(gap -> gap.onFailure(e));
+                    }
+                });
             }
         } catch (Exception e) {
             future.completeExceptionally(e);
         }
         return future;
+    }
+
+    /**
+     * Notifies the {@link RangeAvailableHandler} when {@code rangeToRead} is available to read from the file. If {@code rangeToRead} is
+     * already available then the {@link RangeAvailableHandler} is called synchronously by this method; if not, but it is pending, then the
+     * {@link RangeAvailableHandler} is notified when the pending ranges have completed. If it contains gaps that are not currently pending
+     * then no listeners are registered and this method returns {@code null}.
+     *
+     * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed, or {@code null} if the
+     *         target range is neither available nor pending.
+     */
+    @Nullable
+    CompletableFuture<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
+        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        try {
+            ensureOpen();
+            if (tracker.waitForRangeIfPending(rangeToRead, ActionListener.wrap(success -> {
+                final int read = reader.onRangeAvailable(channel);
+                assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
+                    + read
+                    + "] does not match the range to read ["
+                    + rangeToRead.v2()
+                    + '-'
+                    + rangeToRead.v1()
+                    + ']';
+                future.complete(read);
+            }, future::completeExceptionally))) {
+                return future;
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+            return future;
+        }
     }
 
     public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {

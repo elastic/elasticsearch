@@ -139,7 +139,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
-    private Settings settings;
+    private final Settings settings;
     private boolean transportClientMode;
 
     public IndexLifecycle(Settings settings) {
@@ -210,9 +210,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             clusterService));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
+        snapshotLifecycleService.get().init();
         snapshotRetentionService.set(new SnapshotRetentionService(settings,
             () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
-            clusterService, getClock()));
+            getClock()));
+        snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
 
         return components;

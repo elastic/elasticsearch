@@ -24,10 +24,10 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 group = "${group}.client.test"
 
 dependencies {
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -48,7 +48,7 @@ tasks.named('forbiddenApisTest').configure {
 jarHell.enabled = false
 
 // TODO: should we have licenses for our test deps?
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
 //we aren't releasing this jar

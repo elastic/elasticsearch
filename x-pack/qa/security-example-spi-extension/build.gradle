@@ -10,11 +10,11 @@ esplugin {
 
 dependencies {
   compileOnly project(':x-pack:plugin:core')
-  testImplementation project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testImplementation project(xpackProject('transport-client').path)
 }
 
 
-integTest.runner {
+integTest {
   dependsOn buildZip
   systemProperty 'tests.security.manager', 'false'
 }

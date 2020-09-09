@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -89,6 +90,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -105,6 +107,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -188,7 +191,14 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings,
             Collections.emptySet());
-        MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(SETTINGS, xContentRegistry, null, null) {
+        MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(
+            SETTINGS,
+            xContentRegistry,
+            null,
+            null,
+            null,
+            null
+        ) {
             // metadata upgrader should do nothing
             @Override
             public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
@@ -198,15 +208,18 @@ public class ClusterStateChanges {
 
         TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction = new TransportVerifyShardBeforeCloseAction(SETTINGS,
             transportService, clusterService, indicesService, threadPool, null, actionFilters);
+        TransportVerifyShardIndexBlockAction transportVerifyShardIndexBlockAction = new TransportVerifyShardIndexBlockAction(SETTINGS,
+            transportService, clusterService, indicesService, threadPool, null, actionFilters);
         ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(clusterService, allocationService,
-            metadataIndexUpgradeService, indicesService, shardLimitValidator, threadPool, transportVerifyShardBeforeCloseAction);
+            metadataIndexUpgradeService, indicesService, shardLimitValidator, threadPool, transportVerifyShardBeforeCloseAction,
+            transportVerifyShardIndexBlockAction);
         MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, shardLimitValidator, threadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(SETTINGS, clusterService, indicesService,
             allocationService, new AliasValidator(), shardLimitValidator, environment,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, Collections.emptyList(), true);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, new SystemIndices(emptyMap()), true);
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

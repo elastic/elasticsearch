@@ -24,6 +24,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -163,10 +164,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void storeInitialResponse(String docId,
-                              Map<String, String> headers,
-                              R response,
-                              ActionListener<IndexResponse> listener) throws IOException {
+    public void createResponse(String docId,
+                               Map<String, String> headers,
+                               R response,
+                               ActionListener<IndexResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(HEADERS_FIELD, headers);
         source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
@@ -181,18 +182,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
-    public void storeFinalResponse(String docId,
+    public void updateResponse(String docId,
                             Map<String, List<String>> responseHeaders,
                             R response,
-                            ActionListener<UpdateResponse> listener) throws IOException {
-        Map<String, Object> source = new HashMap<>();
-        source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-        source.put(RESULT_FIELD, encodeResponse(response));
-        UpdateRequest request = new UpdateRequest()
-            .index(index)
-            .id(docId)
-            .doc(source, XContentType.JSON);
-        client.update(request, listener);
+                            ActionListener<UpdateResponse> listener) {
+        try {
+            Map<String, Object> source = new HashMap<>();
+            source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
+            source.put(RESULT_FIELD, encodeResponse(response));
+            UpdateRequest request = new UpdateRequest()
+                .index(index)
+                .id(docId)
+                .doc(source, XContentType.JSON);
+            client.update(request, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -214,8 +219,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public void deleteResponse(AsyncExecutionId asyncExecutionId,
                                ActionListener<DeleteResponse> listener) {
-        DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-        client.delete(request, listener);
+        try {
+            DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
+            client.delete(request, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -243,15 +252,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return asyncTask;
     }
 
-    /**
-     * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
-     * failure to the provided listener if not.
-     * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
-     * response headers of the original request in the current thread context.
-     */
-    public void getResponse(AsyncExecutionId asyncExecutionId,
-                            boolean restoreResponseHeaders,
-                            ActionListener<R> listener) {
+    private void getEncodedResponse(AsyncExecutionId asyncExecutionId,
+                                      boolean restoreResponseHeaders,
+                                      ActionListener<Tuple<String, Long>> listener) {
         final Authentication current = securityContext.getAuthentication();
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
@@ -280,7 +283,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 if (encoded != null) {
-                    listener.onResponse(decodeResponse(encoded).withExpirationTime(expirationTime));
+                    listener.onResponse(new Tuple<>(encoded, expirationTime));
                 } else {
                     listener.onResponse(null);
                 }
@@ -288,6 +291,34 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             listener::onFailure
         ));
     }
+
+    /**
+     * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
+     * failure to the provided listener if not.
+     * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
+     * response headers of the original request in the current thread context.
+     */
+    public void getResponse(AsyncExecutionId asyncExecutionId,
+                            boolean restoreResponseHeaders,
+                            ActionListener<R> listener) {
+        getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
+            (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
+            listener::onFailure
+        ));
+    }
+
+    /**
+     * Ensures that the current user can read the specified response without actually reading it
+     */
+    public void authorizeResponse(AsyncExecutionId asyncExecutionId,
+                                  boolean restoreResponseHeaders,
+                                  ActionListener<R> listener) {
+        getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
+            (t) -> listener.onResponse(null),
+            listener::onFailure
+        ));
+    }
+
 
     /**
      * Extracts the authentication from the original headers and checks that it matches

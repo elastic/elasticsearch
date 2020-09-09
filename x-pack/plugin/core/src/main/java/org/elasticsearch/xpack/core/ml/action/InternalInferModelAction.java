@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -80,7 +79,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
                 if (oldConfig instanceof RegressionConfig) {
                     this.update = RegressionConfigUpdate.fromConfig((RegressionConfig)oldConfig);
                 } else if (oldConfig instanceof ClassificationConfig) {
-                    this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) oldConfig);
+                    this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig)oldConfig);
                 } else {
                     throw new IOException("Unexpected configuration type [" + oldConfig.getName() + "]");
                 }
@@ -117,7 +116,15 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeNamedWriteable(update);
             } else {
-                out.writeNamedWriteable(update.toConfig());
+                if (update instanceof RegressionConfigUpdate || update instanceof ClassificationConfigUpdate) {
+                    out.writeNamedWriteable(update.toConfig());
+                } else {
+                    // This should never happen there are checks higher up against
+                    // sending config update types added after 7.8 to older nodes
+                    throw new UnsupportedOperationException(
+                        "inference config of type [" + update.getName() +
+                            "] cannot be serialized to node of version [" + out.getVersion() + "]");
+                }
             }
             out.writeBoolean(previouslyLicensed);
         }
@@ -143,7 +150,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             return "Request{" +
                 "modelId='" + modelId + '\'' +
                 ", objectsToInfer=" + objectsToInfer +
-                ", update=" + Strings.toString(update) +
+                ", update=" + update +
                 ", previouslyLicensed=" + previouslyLicensed +
                 '}';
         }

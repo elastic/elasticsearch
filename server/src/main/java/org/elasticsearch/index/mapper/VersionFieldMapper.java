@@ -20,21 +20,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 /** Mapper for the _version field. */
 public class VersionFieldMapper extends MetadataFieldMapper {
@@ -42,48 +36,14 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";
 
-    public static class Defaults {
-
-        public static final String NAME = VersionFieldMapper.NAME;
-        public static final FieldType FIELD_TYPE = new FieldType();
-        public static final MappedFieldType MAPPED_FIELD_TYPE = new VersionFieldType();
-
-        static {
-            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new VersionFieldMapper(indexSettings);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
 
     static final class VersionFieldType extends MappedFieldType {
 
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 
         private VersionFieldType() {
-            super(NAME, false, true, Collections.emptyMap());
-        }
-
-        protected VersionFieldType(VersionFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new VersionFieldType(this);
+            super(NAME, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -102,8 +62,8 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private VersionFieldMapper(Settings indexSettings) {
-        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE, indexSettings);
+    private VersionFieldMapper() {
+        super(VersionFieldType.INSTANCE);
     }
 
     @Override
@@ -138,11 +98,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 
 }

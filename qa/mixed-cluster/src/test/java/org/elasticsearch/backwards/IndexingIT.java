@@ -339,6 +339,7 @@ public class IndexingIT extends ESRestTestCase {
             seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
             shards.add(new Shard(node, primary, seqNoStats));
         }
+        logger.info("shards {}", shards);
         return shards;
     }
 

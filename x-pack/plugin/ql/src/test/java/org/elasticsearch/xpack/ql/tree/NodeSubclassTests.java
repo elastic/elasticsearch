@@ -200,7 +200,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
                     List<B> newCollection = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
 
-                    // Now merge that list of thildren into the original list of children
+                    // Now merge that list of children into the original list of children
                     List<B> originalChildren = node.children();
                     List<B> newChildren = new ArrayList<>(originalChildren.size());
                     int originalOffset = 0;
@@ -672,7 +672,8 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
         // filter the class that are not interested
         // (and IDE folders like eclipse)
-        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false) {
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false
+            && className.startsWith("org.elasticsearch.xpack.eql") == false) {
             return;
         }
 

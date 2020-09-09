@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregatio
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +66,7 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
         InternalFilter dummy = createTestInstance();
         InternalFilter inner = createTestInstance();
 
-        InternalAggregations sub = new InternalAggregations(singletonList(inner));
+        InternalAggregations sub = InternalAggregations.from(Collections.singletonList(inner));
         InternalFilter test = createTestInstance("test", randomNonNegativeLong(), sub, emptyMap());
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override

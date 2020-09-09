@@ -446,14 +446,14 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
             assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2").getId(),
-                shard.routingEntry().currentNodeId());
+                replica.routingEntry().currentNodeId());
             executedOnReplica.set(true);
             // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
             // that the permit has been acquired on the replica shard
-            assertSame(replica, shard);
-            return new ReplicaResult();
+            assertSame(replica, replica);
+            listener.onResponse(new ReplicaResult());
         }
     }
 
@@ -505,10 +505,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
             assertNoBlocks("block must not exist when executing the operation on replica shard: it should have been blocked before");
-            assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            return super.shardOperationOnReplica(shardRequest, shard);
+            assertThat(replica.getActiveOperationsCount(), greaterThan(0));
+            super.shardOperationOnReplica(shardRequest, replica, listener);
         }
 
         private void assertNoBlocks(final String error) {
@@ -551,9 +551,9 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
-            assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
-            return super.shardOperationOnReplica(shardRequest, shard);
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+            assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, replica.getActiveOperationsCount());
+            super.shardOperationOnReplica(shardRequest, replica, listener);
         }
     }
 

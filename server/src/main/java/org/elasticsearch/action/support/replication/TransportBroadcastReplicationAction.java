@@ -123,7 +123,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
      */
     protected List<ShardId> shards(Request request, ClusterState clusterState) {
         List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, shouldIncludeDataStreams());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
             if (indexMetadata != null) {
@@ -134,10 +134,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
             }
         }
         return shardIds;
-    }
-
-    protected boolean shouldIncludeDataStreams() {
-        return true;
     }
 
     protected abstract ShardResponse newShardResponse();

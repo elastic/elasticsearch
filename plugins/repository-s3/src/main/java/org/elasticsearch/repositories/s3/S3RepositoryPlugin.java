@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -79,14 +80,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     protected S3Repository createRepository(
         final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
-        final ClusterService clusterService) {
-        return new S3Repository(metadata, registry, service, clusterService);
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
+        return new S3Repository(metadata, registry, service, clusterService, recoverySettings);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
-                                                           final ClusterService clusterService) {
-        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, clusterService));
+                                                           final ClusterService clusterService, final RecoverySettings recoverySettings) {
+        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, clusterService,
+            recoverySettings));
     }
 
     @Override

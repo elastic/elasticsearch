@@ -32,7 +32,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -112,9 +114,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
-        if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
-            throw new IllegalArgumentException("Not all copies of follow shard are started");
+        final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
+        final ShardRouting primaryShard = routingTable.shard(params.getFollowShardId().id()).primaryShard();
+        if (primaryShard.active() == false) {
+            throw new IllegalArgumentException("The primary shard of a follower index " + primaryShard + " is not active");
         }
     }
 
@@ -122,14 +125,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
-        final DiscoveryNode node = selectLeastLoadedNode(
-            clusterState,
+        DiscoveryNode selectedNode = selectLeastLoadedNode(clusterState,
             ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
         );
-        if (node == null) {
+        if (selectedNode == null) {
+            // best effort as nodes before 7.8 might not be able to connect to remote clusters
+            selectedNode = selectLeastLoadedNode(clusterState,
+                node -> node.isDataNode() && node.getVersion().before(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
+        }
+        if (selectedNode == null) {
             return NO_ASSIGNMENT;
         } else {
-            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
+            return new Assignment(selectedNode.getId(), "node is the least loaded data node and remote cluster client");
         }
     }
 
@@ -208,8 +215,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         // if so just update the follower index's settings:
                         if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
                             // If only dynamic settings have been updated then just update these settings in follower index:
-                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName());
-                            updateSettingsRequest.settings(updatedSettings);
+                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName())
+                                .masterNodeTimeout(TimeValue.MAX_VALUE)
+                                .settings(updatedSettings);
                             followerClient.admin().indices().updateSettings(updateSettingsRequest,
                                 ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler));
                         } else {
@@ -330,7 +338,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     if (aliasActions.isEmpty()) {
                         handler.accept(leaderIndexMetadata.getAliasesVersion());
                     } else {
-                        final IndicesAliasesRequest request = new IndicesAliasesRequest();
+                        final IndicesAliasesRequest request = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
                         request.origin("ccr");
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
@@ -350,7 +358,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                               Settings updatedSettings,
                                                               Runnable handler,
                                                               Consumer<Exception> onFailure) {
-                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
+                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<CloseIndexResponse, Exception> onResponse = response -> {
                     updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
                 };
@@ -361,7 +369,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                     Settings updatedSettings,
                                                     Runnable handler,
                                                     Consumer<Exception> onFailure) {
-                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
+                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex)
+                    .masterNodeTimeout(TimeValue.MAX_VALUE);
                 updateSettingsRequest.settings(updatedSettings);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
                 followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
@@ -370,7 +379,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             private void openIndex(String followIndex,
                                    Runnable handler,
                                    Consumer<Exception> onFailure) {
-                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
+                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
                 followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));
             }

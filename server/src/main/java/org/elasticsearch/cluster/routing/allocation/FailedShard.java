@@ -32,7 +32,7 @@ public class FailedShard {
     private final Exception failure;
     private final boolean markAsStale;
 
-    public FailedShard(ShardRouting routingEntry, String message, Exception failure, boolean markAsStale) {
+    public FailedShard(ShardRouting routingEntry, String message, @Nullable Exception failure, boolean markAsStale) {
         assert routingEntry.assignedToNode() : "only assigned shards can be failed " + routingEntry;
         this.routingEntry = routingEntry;
         this.message = message;
@@ -43,7 +43,7 @@ public class FailedShard {
     @Override
     public String toString() {
         return "failed shard, shard " + routingEntry + ", message [" + message + "], failure [" +
-                   ExceptionsHelper.detailedMessage(failure) + "], markAsStale [" + markAsStale + "]";
+            failure == null ? "null" : ExceptionsHelper.detailedMessage(failure) + "], markAsStale [" + markAsStale + "]";
     }
 
     /**

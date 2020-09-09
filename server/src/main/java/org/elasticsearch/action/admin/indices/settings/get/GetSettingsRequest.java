@@ -61,7 +61,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-
     public GetSettingsRequest() {
     }
 
@@ -96,6 +95,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public String[] names() {

@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
+import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -76,6 +78,7 @@ import org.junit.BeforeClass;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -688,7 +691,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testStartsWithUsesPrefixQuery() {
         LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') OR STARTS_WITH(keyword, 'y')");
-        
+
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -697,7 +700,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof BoolQuery);
         BoolQuery bq = (BoolQuery) translation.query;
-        
+
         assertFalse(bq.isAnd());
         assertTrue(bq.left() instanceof PrefixQuery);
         assertTrue(bq.right() instanceof PrefixQuery);
@@ -705,7 +708,7 @@ public class QueryTranslatorTests extends ESTestCase {
         PrefixQuery pqr = (PrefixQuery) bq.right();
         assertEquals("keyword", pqr.field());
         assertEquals("y", pqr.query());
-        
+
         PrefixQuery pql = (PrefixQuery) bq.left();
         assertEquals("keyword", pql.field());
         assertEquals("x", pql.query());
@@ -714,7 +717,7 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testStartsWithUsesPrefixQueryAndScript() {
         LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') AND STARTS_WITH(keyword, 'xy') "
             + "AND STARTS_WITH(LCASE(keyword), 'xyz')");
-        
+
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -723,7 +726,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translate(condition);
         assertTrue(translation.query instanceof BoolQuery);
         BoolQuery bq = (BoolQuery) translation.query;
-        
+
         assertTrue(bq.isAnd());
         assertTrue(bq.left() instanceof BoolQuery);
         assertTrue(bq.right() instanceof ScriptQuery);
@@ -733,7 +736,7 @@ public class QueryTranslatorTests extends ESTestCase {
         PrefixQuery pqr = (PrefixQuery) bbq.right();
         assertEquals("keyword", pqr.field());
         assertEquals("xy", pqr.query());
-        
+
         PrefixQuery pql = (PrefixQuery) bbq.left();
         assertEquals("keyword", pql.field());
         assertEquals("x", pql.query());
@@ -1303,7 +1306,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
         assertEquals(INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
@@ -1318,7 +1321,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(1).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(1).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\"," +
+                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true," +
                         "\"order\":\"asc\",\"fixed_interval\":\"139968000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
@@ -1330,7 +1333,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("YEAR(date)", eqe.output().get(0).qualifiedName());
         assertEquals(INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1342,7 +1345,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"calendar_interval\":\"1M\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1354,7 +1357,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"fixed_interval\":\"12960000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1366,7 +1369,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1378,7 +1381,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("h", eqe.output().get(0).qualifiedName());
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"order\":\"asc\","
                     + "\"fixed_interval\":\"104400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
@@ -1894,6 +1897,33 @@ public class QueryTranslatorTests extends ESTestCase {
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
                     "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
+    }
+
+    public void testExtendedStatsAggsStddevAndVar() {
+        final Map<String, String> metricToAgg =  new HashMap<String, String>() {{
+            put("STDDEV_POP", "std_deviation");
+            put("STDDEV_SAMP", "std_deviation_sampling");
+            put("VAR_POP", "variance");
+            put("VAR_SAMP", "variance_sampling");
+        }};
+        for (String funcName: metricToAgg.keySet()) {
+            PhysicalPlan p = optimizeAndPlan("SELECT " + funcName + "(int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+
+            assertEquals(funcName + "(int)", eqe.output().get(0).qualifiedName());
+            assertEquals(DOUBLE, eqe.output().get(0).dataType());
+
+            FieldExtraction fe = eqe.queryContainer().fields().get(0).v1();
+            assertEquals(MetricAggRef.class, fe.getClass());
+            assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
+
+            String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"aggregations\":{\"" + aggName + "\":{\"extended_stats\":{\"field\":\"int\",\"sigma\":2.0}}}}}"));
+        }
+
     }
 
     public void testGlobalCountInImplicitGroupByForcesTrackHits() {

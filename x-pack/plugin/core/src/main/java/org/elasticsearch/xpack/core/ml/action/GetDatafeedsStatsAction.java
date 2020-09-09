@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -51,10 +50,12 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        @Deprecated
+        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -66,7 +67,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             super(in);
             datafeedId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
+                allowNoMatch = in.readBoolean();
             }
         }
 
@@ -75,7 +76,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             super.writeTo(out);
             out.writeString(datafeedId);
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
+                out.writeBoolean(allowNoMatch);
             }
         }
 
@@ -83,12 +84,12 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             return datafeedId;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -98,7 +99,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, allowNoDatafeeds);
+            return Objects.hash(datafeedId, allowNoMatch);
         }
 
         @Override
@@ -110,7 +111,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 

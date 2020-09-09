@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -74,7 +73,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A geo distance based sorting on a geo point like field.
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoDistanceSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoDistanceSortBuilder.class);
 
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
@@ -491,7 +490,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecatedAndMaybeLog("geo_distance_nested_filter",
+                    deprecationLogger.deprecate("geo_distance_nested_filter",
                         "[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
@@ -522,7 +521,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecatedAndMaybeLog("geo_distance_nested_path",
+                    deprecationLogger.deprecate("geo_distance_nested_path",
                         "[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {

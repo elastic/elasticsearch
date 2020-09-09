@@ -8,8 +8,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -23,7 +23,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -40,8 +41,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         String fieldName = "object1.object2.field";
         FlatObjectFieldMapper mapper = createFlatObjectMapper(fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", singletonList(mapper), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList());
         assertEquals(mapper.fieldType(), lookup.get(fieldName));
 
         String objectKey = "key1.key2";
@@ -62,8 +62,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         String aliasName = "alias";
         FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", singletonList(mapper), singletonList(alias));
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias));
         assertEquals(mapper.fieldType(), lookup.get(aliasName));
 
         String objectKey = "key1.key2";
@@ -86,12 +85,11 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         FlatObjectFieldMapper mapper2 = createFlatObjectMapper(field2);
         FlatObjectFieldMapper mapper3 = createFlatObjectMapper(field3);
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", Arrays.asList(mapper1, mapper2), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2), emptyList());
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
 
-        lookup = lookup.copyAndAddAll("type", singletonList(mapper3), emptyList());
+        lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2, mapper3), emptyList());
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
         assertNotNull(lookup.get(field3 + ".some.key"));
@@ -128,8 +126,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         MockFieldMapper mapper = new MockFieldMapper("foo");
         FlatObjectFieldMapper flatObjectMapper = createFlatObjectMapper("object1.object2.field");
 
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", Arrays.asList(mapper, flatObjectMapper), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flatObjectMapper), emptyList());
 
         Set<String> fieldNames = new HashSet<>();
         for (MappedFieldType fieldType : lookup) {
@@ -165,7 +162,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
             = new KeyedFlatObjectFieldType( "field", true, true, "key2", false, Collections.emptyMap());
         when(mapperService.fieldType("json.key2")).thenReturn(fieldType2);
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataSupplier = (fieldType, searchLookup) -> {
             KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) fieldType;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };

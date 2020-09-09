@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -36,7 +35,7 @@ import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DynamicTemplate.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicTemplate.class);
 
     public enum MatchType {
         SIMPLE {
@@ -208,7 +207,7 @@ public class DynamicTemplate implements ToXContentObject {
                 if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
                     throw e;
                 } else {
-                    deprecationLogger.deprecatedAndMaybeLog("invalid_mapping_type",
+                    deprecationLogger.deprecate("invalid_mapping_type",
                         "match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
                         + e.getMessage());
                     // this template is on an unknown type so it will never match anything
@@ -268,6 +267,10 @@ public class DynamicTemplate implements ToXContentObject {
 
     public String name() {
         return this.name;
+    }
+
+    public String pathMatch() {
+        return pathMatch;
     }
 
     public boolean match(String path, String name, XContentFieldType xcontentFieldType) {

@@ -290,4 +290,9 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         super.writeTo(out);
         flags.writeTo(out);
     }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
 }

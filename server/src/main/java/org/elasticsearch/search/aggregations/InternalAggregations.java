@@ -69,7 +69,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     /**
      * Constructs a new aggregation.
      */
-    public InternalAggregations(List<InternalAggregation> aggregations) {
+    private InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
         this.pipelineTreeForBwcSerialization = null;
     }
@@ -85,19 +85,26 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         this.pipelineTreeForBwcSerialization = pipelineTreeSource;
     }
 
-    public InternalAggregations(StreamInput in) throws IOException {
-        super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        if (in.getVersion().before(Version.V_7_8_0) && in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            in.readNamedWriteableList(PipelineAggregator.class); 
+    public static InternalAggregations from(List<InternalAggregation> aggregations) {
+        if (aggregations.isEmpty()) {
+            return EMPTY;
         }
-        /*
-         * Setting the pipeline tree source to null is here is correct but
-         * only because we don't immediately pass the InternalAggregations
-         * off to another node. Instead, we always reduce together with
-         * many aggregations and that always adds the tree read from the
-         * current request.
-         */
-        pipelineTreeForBwcSerialization = null;
+        return new InternalAggregations(aggregations);
+    }
+
+    public static InternalAggregations readFrom(StreamInput in) throws IOException {
+        final InternalAggregations res = from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+        if (in.getVersion().before(Version.V_7_8_0) && in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            /*
+             * Setting the pipeline tree source to null is here is correct but
+             * only because we don't immediately pass the InternalAggregations
+             * off to another node. Instead, we always reduce together with
+             * many aggregations and that always adds the tree read from the
+             * current request.
+             */
+            in.readNamedWriteableList(PipelineAggregator.class);
+        }
+        return res;
     }
 
     @Override
@@ -206,10 +213,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
             for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
-                InternalAggregation newAgg = sib.doReduce(new InternalAggregations(reducedInternalAggs), context);
+                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
-            return new InternalAggregations(reducedInternalAggs);
+            return from(reducedInternalAggs);
         }
         return reduced;
     }
@@ -258,7 +265,6 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Version of {@link #reduce(List, ReduceContext, Function)} for nodes inside the aggregation tree.
      */
     public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
-        return reduce(aggregationsList, context, InternalAggregations::new);
+        return reduce(aggregationsList, context, InternalAggregations::from);
     }
-
 }

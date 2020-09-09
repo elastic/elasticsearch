@@ -223,8 +223,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }, MAPPING, ObjectParser.ValueType.OBJECT);
         }
 
-        private String fullName;
-        private BytesReference source;
+        private final String fullName;
+        private final BytesReference source;
 
         public FieldMappingMetadata(String fullName, BytesReference source) {
             this.fullName = fullName;

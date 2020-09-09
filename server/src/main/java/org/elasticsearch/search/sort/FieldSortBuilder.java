@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
@@ -70,7 +69,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldSortBuilder.class);
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -318,7 +317,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Specifying a numeric type tells Elasticsearch what type the sort values should
      * have, which is important for cross-index search, if a field does not have
      * the same type on all indices.
-     * Allowed values are <code>long</code> and <code>double</code>.
+     * Allowed values are <code>long</code>, <code>double</code>, <code>date</code> and <code>date_nanos</code>.
      */
     public FieldSortBuilder setNumericType(String numericType) {
         String lowerCase = numericType.toLowerCase(Locale.ENGLISH);
@@ -404,6 +403,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         final SortField field;
+        boolean isNanosecond = false;
         if (numericType != null) {
             if (fieldData instanceof IndexNumericFieldData == false) {
                 throw new QueryShardException(context,
@@ -414,8 +414,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+            if (fieldData instanceof IndexNumericFieldData) {
+                isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+            }
         }
-        return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        if (isNanosecond) {
+            format = DocValueFormat.withNanosecondResolution(format);
+        }
+        return new SortFieldAndFormat(field, format);
     }
 
     public boolean canRewriteToMatchNone() {
@@ -695,7 +702,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     static {
         PARSER.declareField(FieldSortBuilder::missing, XContentParser::objectText,  MISSING, ValueType.VALUE);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecatedAndMaybeLog("field_sort_nested_path",
+            deprecationLogger.deprecate("field_sort_nested_path",
                 "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
@@ -703,7 +710,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecatedAndMaybeLog("field_sort_nested_filter",
+            deprecationLogger.deprecate("field_sort_nested_filter",
                 "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);

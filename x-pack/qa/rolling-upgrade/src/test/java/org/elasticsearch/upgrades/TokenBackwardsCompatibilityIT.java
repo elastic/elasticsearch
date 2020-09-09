@@ -89,6 +89,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
 
         storeTokens(client(), 1, accessToken, refreshToken);
+        allowedWarnings("index [token_backwards_compatibility_it] matches multiple legacy templates " +
+            "[gen-tokens-old-cluster-template, global], composable templates will only match a single template");
 
         responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         accessToken = (String) responseMap.get("access_token");
@@ -175,6 +177,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
 
         storeTokens(client(), 5, accessToken, refreshToken);
+        allowedWarnings("index [token_backwards_compatibility_it] matches multiple legacy templates " +
+            "[global, invalid-tokens-old-cluster-template], composable templates will only match a single template");
 
         // invalidate access token
         invalidateAccessToken(client(), accessToken);
@@ -401,6 +405,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "    \"token\": \"" + accessToken + "\",\n" +
                 "    \"refresh_token\": \"" + refreshToken + "\"\n" +
                 "}");
+        useIgnoreMultipleMatchingTemplatesWarningsHandler(indexRequest);
         Response indexResponse1 = client.performRequest(indexRequest);
         assertOK(indexResponse1);
     }

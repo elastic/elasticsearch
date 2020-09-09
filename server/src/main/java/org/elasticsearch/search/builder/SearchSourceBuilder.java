@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -48,8 +47,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -80,8 +79,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(SearchSourceBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -96,6 +94,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
     public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
     public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields");
+    public static final ParseField FETCH_FIELDS_FIELD = new ParseField("fields");
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
@@ -172,6 +171,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<FieldAndFormat> docValueFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private List<FieldAndFormat> fetchFields;
 
     private AggregatorFactories.Builder aggregations;
 
@@ -264,6 +264,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else {
             trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
+        }
     }
 
     @Override
@@ -329,6 +334,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalInt(trackTotalHitsUpTo);
         } else {
             out.writeBoolean(trackTotalHitsUpTo == null ? true : trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -857,6 +868,33 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Gets the fields to load and return as part of the search request.
+     */
+    public List<FieldAndFormat> fetchFields() {
+        return fetchFields;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public SearchSourceBuilder fetchField(String name) {
+        return fetchField(name, null);
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     * @param name the field name.
+     * @param format an optional format string used when formatting values, for example a date format.
+     */
+    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
+        if (fetchFields == null) {
+            fetchFields = new ArrayList<>();
+        }
+        fetchFields.add(new FieldAndFormat(name, format));
+        return this;
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name
@@ -1005,6 +1043,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.explain = explain;
         rewrittenBuilder.extBuilders = extBuilders;
         rewrittenBuilder.fetchSourceContext = fetchSourceContext;
+        rewrittenBuilder.fetchFields = fetchFields;
         rewrittenBuilder.docValueFields = docValueFields;
         rewrittenBuilder.storedFieldsContext = storedFieldsContext;
         rewrittenBuilder.from = from;
@@ -1106,7 +1145,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecatedAndMaybeLog("indices_boost_object_format",
+                    deprecationLogger.deprecate("indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -1161,6 +1200,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     docValueFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         docValueFields.add(FieldAndFormat.fromXContent(parser));
+                    }
+                } else if (FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    fetchFields = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        fetchFields.add(FieldAndFormat.fromXContent(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -1259,12 +1303,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (docValueFields != null) {
             builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
             for (FieldAndFormat docValueField : docValueFields) {
-                builder.startObject()
-                    .field("field", docValueField.field);
-                if (docValueField.format != null) {
-                    builder.field("format", docValueField.format);
-                }
-                builder.endObject();
+               docValueField.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        if (fetchFields != null) {
+            builder.startArray(FETCH_FIELDS_FIELD.getPreferredName());
+            for (FieldAndFormat docValueField : fetchFields) {
+                docValueField.toXContent(builder, params);
             }
             builder.endArray();
         }
@@ -1555,10 +1602,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-                indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
-                sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
+        return Objects.hash(aggregations, explain, fetchSourceContext, fetchFields, docValueFields, storedFieldsContext, from,
+            highlightBuilder, indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
+            sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
+            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
     }
 
     @Override
@@ -1573,6 +1620,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.equals(aggregations, other.aggregations)
                 && Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
+                && Objects.equals(fetchFields, other.fetchFields)
                 && Objects.equals(docValueFields, other.docValueFields)
                 && Objects.equals(storedFieldsContext, other.storedFieldsContext)
                 && Objects.equals(from, other.from)

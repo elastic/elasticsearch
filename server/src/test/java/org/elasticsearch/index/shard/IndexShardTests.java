@@ -1187,13 +1187,13 @@ public class IndexShardTests extends IndexShardTestCase {
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
-        final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
+        final long maxSeqNoOfUpdatesOrDeletesBeforeRollback = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
         randomReplicaOperationPermitAcquisition(indexShard,
                 indexShard.getPendingPrimaryTerm() + 1,
                 globalCheckpoint,
-                maxSeqNoOfUpdatesOrDeletes,
+                randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo),
                 new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(Releasable releasable) {
@@ -1208,7 +1208,11 @@ public class IndexShardTests extends IndexShardTestCase {
                 }, "");
 
         latch.await();
-        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
+        if (globalCheckpoint < maxSeqNo) {
+            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
+        } else {
+            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
+        }
         final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
         final CountDownLatch resyncLatch = new CountDownLatch(1);
         indexShard.updateShardState(
@@ -1222,7 +1226,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
+        if (globalCheckpoint < maxSeqNo) {
+            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
+        } else {
+            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
+        }
         closeShard(indexShard, false);
     }
 
@@ -2365,6 +2373,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
+                    recoveryState.getIndex().setFileDetailsComplete();
                     return null;
                 });
             }
@@ -2458,7 +2467,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
             new NoneCircuitBreakerService(), shard.mapperService());
-        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo);
+        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        });
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -2659,6 +2670,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
+        shard.recoveryState().getIndex().setFileDetailsComplete();
         shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
@@ -2836,7 +2848,7 @@ public class IndexShardTests extends IndexShardTestCase {
             RecoveryState recoveryState = targetShard.recoveryState();
             assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
             assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
-            for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
+            for (RecoveryState.FileDetail file : recoveryState.getIndex().fileDetails()) {
                 if (file.reused()) {
                     assertEquals(file.recovered(), 0);
                 } else {

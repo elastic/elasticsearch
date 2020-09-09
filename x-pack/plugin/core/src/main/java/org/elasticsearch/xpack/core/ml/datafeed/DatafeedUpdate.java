@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -38,7 +36,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 
 /**
@@ -48,7 +47,7 @@ import java.util.stream.Collectors;
  */
 public class DatafeedUpdate implements Writeable, ToXContentObject {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DatafeedUpdate.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DatafeedUpdate.class);
     private static final String DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE = "The ability to update a datafeed's job_id is deprecated.";
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
@@ -348,7 +347,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
             if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
-                deprecationLogger.deprecatedAndMaybeLog("update_datafeed_job_id", DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
+                deprecationLogger.deprecate("update_datafeed_job_id", DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
             }
             builder.setJobId(jobId);
         }
@@ -386,15 +385,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (indicesOptions != null) {
             builder.setIndicesOptions(indicesOptions);
         }
-
         if (headers.isEmpty() == false) {
-            // Adjust the request, adding security headers from the current thread context
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(securityHeaders);
+            builder.setHeaders(filterSecurityHeaders(headers));
         }
-
         return builder.build();
     }
 

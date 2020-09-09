@@ -21,6 +21,7 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -121,11 +122,27 @@ public class DocumentFieldTests extends ESTestCase {
             }
             return Tuple.tuple(documentField, documentField);
         } else {
-            String fieldName = randomAlphaOfLengthBetween(3, 10);
-            Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
-            DocumentField input = new DocumentField(fieldName, tuple.v1());
-            DocumentField expected = new DocumentField(fieldName, tuple.v2());
-            return Tuple.tuple(input, expected);
+            switch (randomIntBetween(0, 2)) {
+                case 0:
+                    String fieldName = randomAlphaOfLengthBetween(3, 10);
+                    Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
+                    DocumentField input = new DocumentField(fieldName, tuple.v1());
+                    DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                    return Tuple.tuple(input, expected);
+                case 1:
+                    List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                    DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                    return Tuple.tuple(listField, listField);
+                case 2:
+                    List<Object> objectValues = randomList(1, 5, () ->
+                        Map.of(randomAlphaOfLength(5), randomInt(),
+                            randomAlphaOfLength(5), randomBoolean(),
+                            randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                    DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                    return Tuple.tuple(objectField, objectField);
+                default:
+                    throw new IllegalStateException();
+            }
         }
     }
 }

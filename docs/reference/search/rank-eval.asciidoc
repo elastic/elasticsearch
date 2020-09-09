@@ -1,5 +1,8 @@
 [[search-rank-eval]]
-=== Ranking Evaluation API
+=== Ranking evaluation API
+++++
+<titleabbrev>Ranking evaluation</titleabbrev>
+++++
 
 Allows you to evaluate the quality of ranked search results over a set of 
 typical search queries.
@@ -7,9 +10,9 @@ typical search queries.
 [[search-rank-eval-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_rank_eval`
+`GET /<target>/_rank_eval`
 
-`POST /<index>/_rank_eval`
+`POST /<target>/_rank_eval`
 
 
 [[search-rank-eval-api-desc]]
@@ -42,7 +45,7 @@ In order to get started with search quality evaluation, you need three basic
 things:
 
 . A collection of documents you want to evaluate your query performance against, 
-  usually one or more indices.
+  usually one or more data streams or indices.
 . A collection of typical search requests that users enter into your system.
 . A set of document ratings that represent the documents' relevance with respect
   to a search request.
@@ -61,9 +64,13 @@ generation in your application.
 [[search-rank-eval-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
- (Required, string) Comma-separated list or wildcard expression of index names
- used to limit the request.
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard (`*`) expressions are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[search-rank-eval-api-query-params]]
 ==== {api-query-parms-title}
@@ -88,12 +95,12 @@ In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
 [source,js]
 -----------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [ ... ], <1>  
-    "metric": { <2>
-      "mean_reciprocal_rank": { ... } <3>
-   }
+  "requests": [ ... ],                            <1>  
+  "metric": {                                     <2>
+    "mean_reciprocal_rank": { ... }               <3>
+  }
 }
 -----------------------------
 // NOTCONSOLE
@@ -107,39 +114,41 @@ application, along with the document ratings for each particular search request.
 
 [source,js]
 -----------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [
-        {
-            "id": "amsterdam_query", <1>
-            "request": { <2>
-                "query": { "match": { "text": "amsterdam" }}
-            },
-            "ratings": [ <3> 
-                 { "_index": "my_index", "_id": "doc1", "rating": 0 },
-                 { "_index": "my_index", "_id": "doc2", "rating": 3},
-                 { "_index": "my_index", "_id": "doc3", "rating": 1 }
-            ]
-        },
-        {
-            "id": "berlin_query",
-            "request": {
-                "query": { "match": { "text": "berlin" }}
-            },
-            "ratings": [
-                { "_index": "my_index", "_id": "doc1", "rating": 1 }
-            ]
-        }
-    ]
-  }
+  "requests": [
+    {
+      "id": "amsterdam_query",                                  <1>
+      "request": {                                              <2>
+          "query": { "match": { "text": "amsterdam" } }
+      },
+      "ratings": [                                              <3> 
+        { "_index": "my-index-000001", "_id": "doc1", "rating": 0 },
+        { "_index": "my-index-000001", "_id": "doc2", "rating": 3 },
+        { "_index": "my-index-000001", "_id": "doc3", "rating": 1 }
+      ]
+    },
+    {
+      "id": "berlin_query",
+      "request": {
+        "query": { "match": { "text": "berlin" } }
+      },
+      "ratings": [
+        { "_index": "my-index-000001", "_id": "doc1", "rating": 1 }
+      ]
+    }
+  ]
+}
 -----------------------------
 // NOTCONSOLE
 
-<1> the search request's id, used to group result details later 
-<2> the query that is being evaluated
-<3> a list of document ratings, each entry containing the document's `_index` and 
-`_id` together with the rating of the document's relevance with regard to this 
-search request
+<1> The search request's ID, used to group result details later.
+<2> The query being evaluated.
+<3> A list of document ratings. Each entry contains the following arguments:
+- `_index`: The document's index. For data streams, this should be the
+   document's backing index.
+- `_id`: The document ID.
+- `rating`: The document's relevance with regard to this search request.
 
 A document `rating` can be any integer value that expresses the relevance of the 
 document on a user-defined scale. For some of the metrics, just giving a binary 
@@ -158,7 +167,7 @@ set of query templates, this helps make the evaluation request more succinct.
 
 [source,js]
 --------------------------------
-GET /my_index/_rank_eval
+GET /my-index-000001/_rank_eval
 { 
    [...]
   "templates": [
@@ -199,13 +208,13 @@ GET /my_index/_rank_eval
 The `metric` section determines which of the available evaluation metrics 
 will be used. The following metrics are supported:
 
-[float]
+[discrete]
 [[k-precision]]
 ===== Precision at K (P@k)
 
 This metric measures the proportion of relevant results in the top k search results.
 It's a form of the well-known
-https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Precision[Precision]
+{wikipedia}/Evaluation_measures_(information_retrieval)#Precision[Precision]
 metric that only looks at the top k documents. It is the fraction of relevant
 documents in those first k results. A precision at 10 (P@10) value of 0.6 then
 means 6 out of the 10 top hits are relevant with respect to the user's
@@ -221,24 +230,24 @@ that contains one relevant result in position 1.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-      "precision": {
-        "k" : 20,
-        "relevant_rating_threshold": 1,
-        "ignore_unlabeled": false
-      }
-   }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "precision": {
+      "k": 20,
+      "relevant_rating_threshold": 1,
+      "ignore_unlabeled": false
+    }
+  }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `precision` metric takes the following optional parameters
 
@@ -254,13 +263,13 @@ If set to 'true', unlabeled documents are ignored and neither count as relevant 
 |=======================================================================
 
 
-[float]
+[discrete]
 [[k-recall]]
 ===== Recall at K (R@k)
 
 This metric measures the total number of relevant results in the top k search
 results. It's a form of the well-known
-https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Recall[Recall]
+{wikipedia}/Evaluation_measures_(information_retrieval)#Recall[Recall]
 metric. It is the fraction of relevant documents in those first k results
 relative to all possible relevant results. A recall at 10 (R@10) value of 0.5 then
 means 4 out of 8 relevant documents, with respect to the user's information
@@ -276,23 +285,23 @@ that contains one relevant result in position 1.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query",
-        "request": { "query": { "match_all": {}}},
-        "ratings": []
-    }],
-    "metric": {
-      "recall": {
-        "k" : 20,
-        "relevant_rating_threshold": 1
-      }
-   }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "recall": {
+      "k": 20,
+      "relevant_rating_threshold": 1
+    }
+  }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `recall` metric takes the following optional parameters
 
@@ -306,34 +315,34 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Mean reciprocal rank
 
 For every query in the test suite, this metric calculates the reciprocal of the 
 rank of the first relevant document. For example, finding the first relevant 
 result in position 3 means the reciprocal rank is 1/3. The reciprocal rank for 
 each query is averaged across all queries in the test suite to give the 
-https://en.wikipedia.org/wiki/Mean_reciprocal_rank[mean reciprocal rank].
+{wikipedia}/Mean_reciprocal_rank[mean reciprocal rank].
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-        "mean_reciprocal_rank": {
-            "k" : 20,
-            "relevant_rating_threshold" : 1
-        }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "mean_reciprocal_rank": {
+      "k": 20,
+      "relevant_rating_threshold": 1
     }
+  }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `mean_reciprocal_rank` metric takes the following optional parameters
 
@@ -347,11 +356,11 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Discounted cumulative gain (DCG)
 
 In contrast to the two metrics above, 
-https://en.wikipedia.org/wiki/Discounted_cumulative_gain[discounted cumulative gain] 
+{wikipedia}/Discounted_cumulative_gain[discounted cumulative gain] 
 takes both the rank and the rating of the search results into account.
 
 The assumption is that highly relevant documents are more useful for the user 
@@ -361,23 +370,23 @@ the overall DCG metric.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-       "dcg": {
-            "k" : 20,
-            "normalize": false
-       }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "dcg": {
+      "k": 20,
+      "normalize": false
     }
+  }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `dcg` metric takes the following optional parameters:
 
@@ -386,17 +395,17 @@ The `dcg` metric takes the following optional parameters:
 |Parameter |Description
 |`k` |sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter 
 in the query. Defaults to 10.
-|`normalize` | If set to `true`, this metric will calculate the https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
+|`normalize` | If set to `true`, this metric will calculate the {wikipedia}/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Expected Reciprocal Rank (ERR)
 
 Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank 
 for the graded relevance case (Olivier Chapelle, Donald Metzler, Ya Zhang, and 
 Pierre Grinspan. 2009. 
-http://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
+https://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
 
 It is based on the assumption of a cascade model of search, in which a user 
 scans through ranked search results in order and stops at the first document 
@@ -417,23 +426,23 @@ for.
 
 [source,console]
 --------------------------------
-GET /twitter/_rank_eval
+GET /my-index-000001/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-       "expected_reciprocal_rank": {
-            "maximum_relevance" : 3,
-            "k" : 20
-       }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "expected_reciprocal_rank": {
+      "maximum_relevance": 3,
+      "k": 20
     }
+  }
 }
 --------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The `expected_reciprocal_rank` metric takes the following parameters:
 
@@ -457,39 +466,39 @@ potential errors of individual queries. The response has the following format:
 [source,js]
 --------------------------------
 {
-    "rank_eval": {
-        "metric_score": 0.4, <1>
-        "details": {  
-            "my_query_id1": { <2>
-                "metric_score": 0.6, <3>
-                "unrated_docs": [ <4>
-                    {
-                        "_index": "my_index",
-                        "_id": "1960795"
-                    }, [...]
-                ],
-                "hits": [
-                    {
-                        "hit": { <5>
-                            "_index": "my_index",
-                            "_type": "page",
-                            "_id": "1528558",
-                            "_score": 7.0556192
-                        },
-                        "rating": 1
-                    }, [...]
-                ],
-                "metric_details": { <6>
-                    "precision" : {
-                        "relevant_docs_retrieved": 6,
-                        "docs_retrieved": 10
-                    }
-                }
+  "rank_eval": {
+    "metric_score": 0.4,                          <1>
+      "details": {
+      "my_query_id1": {                           <2>
+        "metric_score": 0.6,                      <3>
+        "unrated_docs": [                         <4>
+          {
+            "_index": "my-index-000001",
+            "_id": "1960795"
+          }, ...
+        ],
+        "hits": [
+          {
+            "hit": {                              <5>
+              "_index": "my-index-000001",
+              "_type": "page",
+              "_id": "1528558",
+              "_score": 7.0556192
             },
-            "my_query_id2" : { [...] }
-        },
-        "failures": { [...] }
-    }
+            "rating": 1
+          }, ...
+        ],
+        "metric_details": {                       <6>
+          "precision": {
+            "relevant_docs_retrieved": 6,
+            "docs_retrieved": 10
+          }
+        }
+      },
+      "my_query_id2": { [... ] }
+    },
+    "failures": { [... ] }
+  }
 }
 --------------------------------
 // NOTCONSOLE

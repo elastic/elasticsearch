@@ -23,11 +23,11 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-  testImplementation project(path: ':modules:transport-netty4', configuration: 'runtime') // for http
-  testImplementation project(path: ':plugins:transport-nio', configuration: 'runtime') // for http
+  testImplementation project(path: ':modules:transport-netty4') // for http
+  testImplementation project(path: ':plugins:transport-nio') // for http
 }
 
-integTest.runner {
+integTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.

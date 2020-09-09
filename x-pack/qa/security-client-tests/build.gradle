@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testImplementation project(xpackProject('transport-client').path)
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -14,7 +14,7 @@ task copyXPackPluginProps(type: Copy) {
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-integTest.runner {
+integTest {
   systemProperty 'tests.security.manager', 'false'
 }
 

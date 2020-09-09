@@ -53,9 +53,9 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -66,16 +66,19 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -181,6 +184,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
     public static void resetPortCounter() {
@@ -337,23 +341,33 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     @Before
+    public void setHeaderWarningAppender() {
+        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
+        this.headerWarningAppender.start();
+        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+    }
+
+    @After
+    public void removeHeaderWarningAppender() {
+        if (this.headerWarningAppender != null) {
+            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+            this.headerWarningAppender = null;
+        }
+    }
+
+    @Before
     public final void before()  {
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(threadContext);
+            HeaderWarning.setThreadContext(threadContext);
         }
     }
 
-    @BeforeClass
-    public static void setPossibleRoles() {
-        DiscoveryNode.setPossibleRoles(DiscoveryNodeRole.BUILT_IN_ROLES);
-    }
-
     @AfterClass
-    public static void clearPossibleRoles() {
-        DiscoveryNode.setPossibleRoles(Collections.emptySet());
+    public static void clearAdditionalRoles() {
+        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
     }
 
     /**
@@ -377,7 +391,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            DeprecationLogger.removeThreadContext(threadContext);
+            HeaderWarning.removeThreadContext(threadContext);
             threadContext = null;
         }
         ensureAllSearchContextsReleased();
@@ -436,6 +450,33 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(true, expectedWarnings);
     }
 
+    /**
+     * Allow the given warnings, but don't require their presence.
+     */
+    protected final void allowedWarnings(String... allowedWarnings) {
+        if (enableWarningsCheck() == false) {
+            throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
+        }
+        try {
+            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            if (actualWarnings == null) {
+                return;
+            }
+            final Set<String> actualWarningValues =
+                actualWarnings.stream()
+                    .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+                    .map(HeaderWarning::escapeAndEncode)
+                    .collect(Collectors.toSet());
+            Set<String> expectedWarnings = new HashSet<>(Arrays.asList(allowedWarnings));
+            final Set<String> warningsNotExpected = Sets.difference(actualWarningValues, expectedWarnings);
+            assertThat("Found " + warningsNotExpected.size() + " unexpected warnings\nExpected: "
+                    + expectedWarnings + "\nActual: " + actualWarningValues,
+                warningsNotExpected.size(), equalTo(0));
+        } finally {
+            resetDeprecationLogger();
+        }
+    }
+
     protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
@@ -462,10 +503,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     private void assertWarnings(boolean stripXContentPosition, List<String> actualWarnings, String[] expectedWarnings) {
         assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
         final Set<String> actualWarningValues =
-                actualWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                    actualWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
                     .collect(Collectors.toSet());
         for (String msg : expectedWarnings) {
-            assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
+                assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
         }
         assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                 + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
@@ -837,7 +878,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
-        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
+        return TimeZone.getTimeZone(randomJodaAndJavaSupportedTimezone(JAVA_TIMEZONE_IDS));
     }
 
     /**
@@ -849,12 +890,30 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (JavaVersion.current().getVersion().get(0) == 8) {
             ZoneId timeZone;
             do {
-                timeZone = ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+                timeZone = ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
             } while (timeZone.equals(ZoneId.of("GMT0")));
             return timeZone;
         } else {
-            return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+            return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
         }
+    }
+
+    /**
+     * We need to exclude time zones not supported by joda (like SystemV* timezones)
+     * because they cannot be converted back to DateTimeZone which we currently
+     * still need to do internally e.g. in bwc serialization and in the extract() method
+     * //TODO remove once joda is not supported
+     */
+    private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
+        return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,
+            () -> randomFrom(zoneIds));
+    }
+
+    /**
+     * Generate a random valid date formatter pattern.
+     */
+    public static String randomDateFormatterPattern() {
+        return randomFrom(FormatNames.values()).getSnakeCaseName();
     }
 
     /**
@@ -1242,8 +1301,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return builder.generator().contentType().xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+        return createParser(builder.contentType().xContent(), BytesReference.bytes(builder));
     }
 
     /**
@@ -1271,7 +1329,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data.streamInput());
+        return createParser(xContentRegistry(), xContent, data);
     }
 
     /**
@@ -1279,14 +1337,22 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent,
                                                 BytesReference data) throws IOException {
+        if (data instanceof BytesArray) {
+            final BytesArray array = (BytesArray) data;
+            return xContent.createParser(
+                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, array.array(), array.offset(), array.length());
+        }
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }
+
+    private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY =
+            new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
 
     /**
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
      */
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+        return DEFAULT_NAMED_X_CONTENT_REGISTRY;
     }
 
     /**
@@ -1430,8 +1496,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
         // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
-        final int startAt = workerId == null ? 0 : (int) Math.floorMod(Long.valueOf(workerId), 223);
+        final String workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt;
+        if (workerIdStr == null) {
+            startAt = 0; // IDE
+        } else {
+            // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
+            // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
+            final long workerId = Long.valueOf(workerIdStr);
+            assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
+            startAt = (int) Math.floorMod(workerId - 1, 223L) + 1;
+        }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
     }

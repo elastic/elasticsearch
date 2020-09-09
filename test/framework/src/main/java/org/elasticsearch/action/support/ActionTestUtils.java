@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.tasks.Task;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
@@ -35,6 +36,16 @@ public class ActionTestUtils {
         PlainActionFuture<Response> future = newFuture();
         action.execute(request, future);
         return future.actionGet();
+    }
+
+    /**
+     * Executes the given action.
+     *
+     * This is a shim method to make execution publicly available in tests.
+     */
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    void execute(TransportAction<Request, Response> action, Task task, Request request, ActionListener<Response> listener) {
+        action.execute(task, request, listener);
     }
 
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {

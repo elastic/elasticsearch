@@ -52,6 +52,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -396,6 +397,11 @@ public class SearchModuleTests extends ESTestCase {
         @Override
         public String getType() {
             return "test";
+        }
+
+        @Override
+        protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+            return ValuesSourceRegistry.UNREGISTERED_KEY;
         }
 
         @Override

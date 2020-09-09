@@ -24,13 +24,14 @@ import org.apache.lucene.store.RateLimiter;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 /**
  * Rate limiting wrapper for InputStream
  */
 public class RateLimitingInputStream extends FilterInputStream {
 
-    private final RateLimiter rateLimiter;
+    private final Supplier<RateLimiter> rateLimiterSupplier;
 
     private final Listener listener;
 
@@ -40,19 +41,22 @@ public class RateLimitingInputStream extends FilterInputStream {
         void onPause(long nanos);
     }
 
-    public RateLimitingInputStream(InputStream delegate, RateLimiter rateLimiter, Listener listener) {
+    public RateLimitingInputStream(InputStream delegate, Supplier<RateLimiter> rateLimiterSupplier, Listener listener) {
         super(delegate);
-        this.rateLimiter = rateLimiter;
+        this.rateLimiterSupplier = rateLimiterSupplier;
         this.listener = listener;
     }
 
     private void maybePause(int bytes) throws IOException {
         bytesSinceLastRateLimit += bytes;
-        if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
-            long pause = rateLimiter.pause(bytesSinceLastRateLimit);
-            bytesSinceLastRateLimit = 0;
-            if (pause > 0) {
-                listener.onPause(pause);
+        final RateLimiter rateLimiter = rateLimiterSupplier.get();
+        if (rateLimiter != null) {
+            if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
+                long pause = rateLimiter.pause(bytesSinceLastRateLimit);
+                bytesSinceLastRateLimit = 0;
+                if (pause > 0) {
+                    listener.onPause(pause);
+                }
             }
         }
     }

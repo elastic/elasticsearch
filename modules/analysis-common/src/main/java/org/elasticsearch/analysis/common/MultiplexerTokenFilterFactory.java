@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
@@ -44,8 +43,7 @@ import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(MultiplexerTokenFilterFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MultiplexerTokenFilterFactory.class);
 
     private List<String> filterNames;
     private final boolean preserveOriginal;
@@ -68,7 +66,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         else {
             if (preserveOriginal) {
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
                     + "] will not be usable to parse synonyms after v7.0");
                 return IDENTITY_FILTER;
             }
@@ -131,7 +129,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 }
                 else {
                     if (preserveOriginal) {
-                        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                        DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
                             + "] will not be usable to parse synonyms after v7.0");
                         return IDENTITY_FILTER;
                     }

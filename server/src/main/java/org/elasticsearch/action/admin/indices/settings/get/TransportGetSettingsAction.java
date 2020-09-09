@@ -68,7 +68,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     @Override
     protected ClusterBlockException checkBlock(GetSettingsRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request, true));
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 
@@ -83,7 +83,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request, true);
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> indexToDefaultSettingsBuilder = ImmutableOpenMap.builder();
         for (Index concreteIndex : concreteIndices) {

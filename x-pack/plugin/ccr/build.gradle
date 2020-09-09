@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -44,10 +42,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
-}
-
-dependencyLicenses {
-  ignoreSha 'x-pack-core'
 }
 
 testingConventions.naming {

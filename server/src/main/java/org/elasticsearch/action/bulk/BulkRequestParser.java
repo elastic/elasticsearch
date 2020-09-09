@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -39,7 +40,6 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -52,7 +52,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(BulkRequestParser.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -66,6 +66,7 @@ public final class BulkRequestParser {
     private static final ParseField SOURCE = new ParseField("_source");
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
+    private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
 
     private final boolean warnOnTypeUsage;
 
@@ -94,7 +95,7 @@ public final class BulkRequestParser {
      * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
      */
     private static BytesReference sliceTrimmingCarriageReturn(BytesReference bytesReference, int from, int nextMarker,
-            XContentType xContentType) {
+                                                              XContentType xContentType) {
         final int length;
         if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
             length = nextMarker - from - 1;
@@ -112,27 +113,27 @@ public final class BulkRequestParser {
     public void parse(
             BytesReference data, @Nullable String defaultIndex,
             @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-            @Nullable String defaultPipeline, boolean allowExplicitIndex,
+            @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
             XContentType xContentType,
             Consumer<IndexRequest> indexRequestConsumer,
             Consumer<UpdateRequest> updateRequestConsumer,
             Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
-        parse(data, defaultIndex, null, defaultRouting, defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, xContentType,
-                indexRequestConsumer, updateRequestConsumer, deleteRequestConsumer);
+        parse(data, defaultIndex, null, defaultRouting, defaultFetchSourceContext, defaultPipeline,
+            defaultRequireAlias, allowExplicitIndex, xContentType, indexRequestConsumer, updateRequestConsumer, deleteRequestConsumer);
     }
 
     /**
      * Parse the provided {@code data} assuming the provided default values. Index requests
      * will be passed to the {@code indexRequestConsumer}, update requests to the
      * {@code updateRequestConsumer} and delete requests to the {@code deleteRequestConsumer}.
-     * @deprecated Use {@link #parse(BytesReference, String, String, FetchSourceContext, String, boolean, XContentType,
+     * @deprecated Use {@link #parse(BytesReference, String, String, FetchSourceContext, String, Boolean, boolean, XContentType,
      * Consumer, Consumer, Consumer)} instead.
      */
     @Deprecated
     public void parse(
             BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
             @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-            @Nullable String defaultPipeline, boolean allowExplicitIndex,
+            @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
             XContentType xContentType,
             Consumer<IndexRequest> indexRequestConsumer,
             Consumer<UpdateRequest> updateRequestConsumer,
@@ -154,10 +155,7 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            // EMPTY is safe here because we never call namedObject
-            try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                    XContentParser parser = xContent
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (XContentParser parser = createParser(data, xContent, from, nextMarker)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -190,6 +188,7 @@ public final class BulkRequestParser {
                 long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
+                boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -201,14 +200,14 @@ public final class BulkRequestParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (INDEX.match(currentFieldName, parser.getDeprecationHandler())){
+                            if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (!allowExplicitIndex) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {   
+                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (warnOnTypeUsage && typesDeprecationLogged == false) {
-                                    deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                    deprecationLogger.deprecate("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
                                     typesDeprecationLogged = true;
                                 }
                                 type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
@@ -232,6 +231,8 @@ public final class BulkRequestParser {
                                 pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                            } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
+                                requireAlias = parser.booleanValue();
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
                                         + currentFieldName + "]");
@@ -269,19 +270,22 @@ public final class BulkRequestParser {
                             indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType));
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType)
+                                    .setRequireAlias(requireAlias));
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
                                     .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType));
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setRequireAlias(requireAlias));
                         }
                     } else if ("create".equals(action)) {
                         indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType));
+                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                .setRequireAlias(requireAlias));
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
@@ -289,11 +293,10 @@ public final class BulkRequestParser {
                         }
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
+                                .setRequireAlias(requireAlias)
                                 .routing(routing);
-                        // EMPTY is safe here because we never call namedObject
-                        try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();
-                                XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                        LoggingDeprecationHandler.INSTANCE, dataStream)) {
+                        try (XContentParser sliceParser = createParser(
+                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContent)) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {
@@ -313,4 +316,35 @@ public final class BulkRequestParser {
         }
     }
 
+    private static XContentParser createParser(BytesReference data, XContent xContent) throws IOException {
+        if (data instanceof BytesArray) {
+            return parseBytesArray(xContent, (BytesArray) data, 0, data.length());
+        } else {
+            return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+        }
+    }
+
+    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
+    // otherwise.
+    private static XContentParser createParser(BytesReference data, XContent xContent, int from, int nextMarker) throws IOException {
+        if (data instanceof BytesArray) {
+            return parseBytesArray(xContent, (BytesArray) data, from, nextMarker);
+        } else {
+            final int length = nextMarker - from;
+            final BytesReference slice = data.slice(from, length);
+            if (slice instanceof BytesArray) {
+                return parseBytesArray(xContent, (BytesArray) slice, 0, length);
+            } else {
+                // EMPTY is safe here because we never call namedObject
+                return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, slice.streamInput());
+            }
+        }
+    }
+
+    private static XContentParser parseBytesArray(XContent xContent, BytesArray array, int from, int nextMarker) throws IOException {
+        final int offset = array.offset();
+        // EMPTY is safe here because we never call namedObject
+        return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
+                offset + from, nextMarker - from);
+    }
 }

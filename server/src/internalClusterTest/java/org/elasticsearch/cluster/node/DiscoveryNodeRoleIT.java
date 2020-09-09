@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,6 +32,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -44,12 +47,12 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         }
 
         static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
-                Setting.boolSetting("node.additional", true, Setting.Property.NodeScope);
+                Setting.boolSetting("node.additional", true, Property.Deprecated, Property.NodeScope);
 
         static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
 
             @Override
-            protected Setting<Boolean> roleSetting() {
+            public Setting<Boolean> legacySetting() {
                 return NODE_ADDITIONAL_SETTING;
             }
 
@@ -81,12 +84,20 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         runTestNodeHasAdditionalRole(Settings.EMPTY);
     }
 
-    public void testExplicitlyHasAdditionalRole() {
+    public void testExplicitlyHasAdditionalRoleUsingLegacySetting() {
         runTestNodeHasAdditionalRole(Settings.builder().put(AdditionalRolePlugin.NODE_ADDITIONAL_SETTING.getKey(), true).build());
     }
 
-    public void testDoesNotHaveAdditionalRole() {
+    public void testExplicitlyHasAdditionalRoles() {
+        runTestNodeHasAdditionalRole(addRoles(Collections.singleton(AdditionalRolePlugin.ADDITIONAL_ROLE)));
+    }
+
+    public void testDoesNotHaveAdditionalRoleUsingLegacySetting() {
         runTestNodeHasAdditionalRole(Settings.builder().put(AdditionalRolePlugin.NODE_ADDITIONAL_SETTING.getKey(), false).build());
+    }
+
+    public void testExplicitlyDoesNotHaveAdditionalRole() {
+        runTestNodeHasAdditionalRole(removeRoles(Collections.singleton(AdditionalRolePlugin.ADDITIONAL_ROLE)));
     }
 
     private void runTestNodeHasAdditionalRole(final Settings settings) {
@@ -94,7 +105,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo(name).get();
         assertThat(response.getNodes(), hasSize(1));
         final Matcher<Iterable<? super DiscoveryNodeRole>> matcher;
-        if (AdditionalRolePlugin.NODE_ADDITIONAL_SETTING.get(settings)) {
+        if (DiscoveryNode.hasRole(settings, AdditionalRolePlugin.ADDITIONAL_ROLE)) {
             matcher = hasItem(AdditionalRolePlugin.ADDITIONAL_ROLE);
         } else {
             matcher = not(hasItem(AdditionalRolePlugin.ADDITIONAL_ROLE));

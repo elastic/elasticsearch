@@ -65,7 +65,7 @@ public final class StatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.CCR_ENABLED_SETTING.get(settings)
-                && licenseState.isAllowed(XPackLicenseState.Feature.CCR);
+                && licenseState.checkFeature(XPackLicenseState.Feature.CCR);
     }
 
 

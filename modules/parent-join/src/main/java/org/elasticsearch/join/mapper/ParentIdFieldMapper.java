@@ -32,21 +32,25 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * A field mapper used internally by the {@link ParentJoinFieldMapper} to index
@@ -89,24 +93,15 @@ public final class ParentIdFieldMapper extends FieldMapper {
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
             return new ParentIdFieldMapper(name, parent, children, fieldType,
-                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta), context.indexSettings());
+                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta));
         }
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
         ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Map<String, String> meta) {
-            super(name, true, true, meta);
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
-        }
-
-        protected ParentIdFieldType(ParentIdFieldType ref) {
-            super(ref);
-        }
-
-        public ParentIdFieldType clone() {
-            return new ParentIdFieldType(this);
         }
 
         @Override
@@ -115,9 +110,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -142,9 +137,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
                                   String parentName,
                                   Set<String> children,
                                   FieldType fieldType,
-                                  MappedFieldType mappedFieldType,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+                                  MappedFieldType mappedFieldType) {
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentName = parentName;
         this.children = children;
     }
@@ -193,6 +187,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
     }
 
     @Override

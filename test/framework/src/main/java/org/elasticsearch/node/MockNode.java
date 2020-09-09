@@ -174,7 +174,9 @@ public class MockNode extends Node {
         if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
             return super.newClusterInfoService(settings, clusterService, threadPool, client);
         } else {
-            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
+            final MockInternalClusterInfoService service = new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
+            clusterService.addListener(service);
+            return service;
         }
     }
 

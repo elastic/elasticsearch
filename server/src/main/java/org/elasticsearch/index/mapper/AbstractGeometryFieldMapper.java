@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -26,24 +27,30 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
@@ -62,6 +69,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         static {
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
     }
@@ -76,10 +84,45 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     /**
-     * interface representing parser in geometry indexing pipeline
+     * Interface representing parser in geometry indexing pipeline.
      */
-    public interface Parser<Parsed> {
-        Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+    public abstract static class Parser<Parsed> {
+        /**
+         * Parse the given xContent value to an object of type {@link Parsed}. The value can be
+         * in any supported format.
+         */
+        public abstract Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+
+        /**
+         * Given a parsed value and a format string, formats the value into a plain Java object.
+         *
+         * Supported formats include 'geojson' and 'wkt'. The different formats are defined
+         * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
+         */
+        public abstract Object format(Parsed value, String format);
+
+        /**
+         * Parses the given value, then formats it according to the 'format' string.
+         *
+         * By default, this method simply parses the value using {@link Parser#parse}, then formats
+         * it with {@link Parser#format}. However some {@link Parser} implementations override this
+         * as they can avoid parsing the value if it is already in the right format.
+         */
+        public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
+            Parsed geometry;
+            try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
+                geometry = parse(parser, mapper);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
+            }
+            return format(geometry, format);
+        }
     }
 
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
@@ -141,6 +184,22 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
+        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
+        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return valueParser.apply(value);
+            }
+        };
+    }
+
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 
@@ -174,7 +233,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        @SuppressWarnings("rawtypes")
         public T parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Map<String, Object> params = new HashMap<>();
@@ -188,11 +246,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected QueryProcessor geometryQueryBuilder;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
-        }
-
-        protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {
-            super(ref);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
@@ -253,9 +307,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected Explicit<Boolean> ignoreZValue;
 
     protected AbstractGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                          Settings indexSettings, Explicit<Boolean> ignoreMalformed,
+                                          Explicit<Boolean> ignoreMalformed,
                                           Explicit<Boolean> ignoreZValue, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
     }
@@ -273,8 +327,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    public AbstractGeometryFieldType fieldType() {
-        return (AbstractGeometryFieldType)mappedFieldType;
+    @SuppressWarnings("unchecked")
+    public AbstractGeometryFieldType<Parsed, Processed> fieldType() {
+        return (AbstractGeometryFieldType<Parsed, Processed>) mappedFieldType;
     }
 
     @Override
@@ -286,18 +341,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
     protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
 
-    @Override
-    public final boolean parsesArrayValue() {
-        return true;
-    }
-
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
-        AbstractGeometryFieldMapper.AbstractGeometryFieldType mappedFieldType = fieldType();
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
 
-        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
-        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
+        Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
+        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
         try {
             Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
             if (shape == null) {

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_search_changes]]
 === Search and Query DSL changes
 
@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 ==== Off-heap terms index
 
 The terms dictionary is the part of the inverted index that records all terms
@@ -34,7 +34,7 @@ requests if both below conditions are met:
 This change affects both existing indices created with Elasticsearch 6.x and new
 indices created with Elasticsearch 7.x.
 
-[float]
+[discrete]
 ==== Changes to queries
 *   The default value for `transpositions` parameter of `fuzzy` query
     has been changed to `true`.
@@ -52,13 +52,13 @@ indices created with Elasticsearch 7.x.
 *   Attempts to generate multi-term phrase queries against non-text fields
     with a custom analyzer will now throw an exception.
 
-*   An `envelope` crossing the dateline in a `geo_shape `query is now processed
+*   An `envelope` crossing the dateline in a `geo_shape` query is now processed
     correctly when specified using REST API instead of having its left and
     right corners flipped.
 
 *   Attempts to set `boost` on inner span queries will now throw a parsing exception.
 
-[float]
+[discrete]
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to
@@ -69,14 +69,14 @@ the older round robin of search requests, you can use the
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "transient": {
-        "cluster.routing.use_adaptive_replica_selection": false
-    }
+  "transient": {
+    "cluster.routing.use_adaptive_replica_selection": false
+  }
 }
 --------------------------------------------------
 
 
-[float]
+[discrete]
 [[search-api-returns-400-invalid-requests]]
 ==== Search API returns `400` for invalid requests
 
@@ -91,7 +91,7 @@ The Search API returns `400 - Bad request` while it would previously return
 *   number of filters in the adjacency matrix aggregation is too large
 *   script compilation errors
 
-[float]
+[discrete]
 [[scroll-queries-cannot-use-request-cache]]
 ==== Scroll queries cannot use the `request_cache` anymore
 
@@ -99,7 +99,7 @@ Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
 has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
 
-[float]
+[discrete]
 [[scroll-queries-cannot-use-rescore]]
 ==== Scroll queries cannot use `rescore`  anymore
 
@@ -109,7 +109,7 @@ rescore on scroll queries would break the scroll sort.  In the 6.x line, the
 rescore clause was silently ignored (for scroll queries), and it was allowed in
 the 5.x line.
 
-[float]
+[discrete]
 ==== Term Suggesters supported distance algorithms
 
 The following string distance algorithms were given additional names in 6.2 and
@@ -119,7 +119,7 @@ removed.
 * 	`levenstein` - replaced by `levenshtein`
 * 	`jarowinkler` - replaced by `jaro_winkler`
 
-[float]
+[discrete]
 [[popular-mode-suggesters]]
 ==== `popular` mode for Suggesters
 
@@ -127,7 +127,7 @@ The `popular` mode for Suggesters (`term` and `phrase`) now uses the doc frequen
 (instead of the sum of the doc frequency) of the input terms to compute the frequency
 threshold for candidate suggestions.
 
-[float]
+[discrete]
 ==== Limiting the number of terms that can be used in a Terms Query request
 
 Executing a Terms Query with a lot of terms may degrade the cluster performance,
@@ -136,7 +136,7 @@ To safeguard against this, the maximum number of terms that can be used in a
 Terms Query request has been limited to 65536. This default maximum can be changed
 for a particular index with the index setting `index.max_terms_count`.
 
-[float]
+[discrete]
 ==== Limiting the length of regex that can be used in a Regexp Query request
 
 Executing a Regexp Query with a long regex string may degrade search performance.
@@ -144,22 +144,25 @@ To safeguard against this, the maximum length of regex that can be used in a
 Regexp Query request has been limited to 1000. This default maximum can be changed
 for a particular index with the index setting `index.max_regex_length`.
 
-[float]
+[discrete]
 ==== Limiting the number of auto-expanded fields
 
 Executing queries that use automatic expansion of fields (e.g. `query_string`, `simple_query_string`
 or `multi_match`) can have performance issues for indices with a large numbers of fields.
-To safeguard against this, a hard limit of 1024 fields has been introduced for queries
-using the "all fields" mode ("default_field": "*") or other fieldname expansions (e.g. "foo*").
+To safeguard against this, a default limit of 1024 fields has been introduced for
+queries using the "all fields" mode (`"default_field": "*"`) or other fieldname
+expansions (e.g. `"foo*"`). If needed, you can change this limit using the
+<<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
+dynamic cluster setting.
 
-[float]
+[discrete]
 [[invalid-search-request-body]]
 ==== Invalid `_search` request body
 
 Search requests with extra content after the main object will no longer be accepted
 by the `_search` endpoint. A parsing exception will be thrown instead.
 
-[float]
+[discrete]
 ==== Doc-value fields default format
 
 The format of doc-value fields is changing to be the same as what could be
@@ -169,7 +172,7 @@ configured in the mappings by default. This behavior can be changed by
 specifying a <<request-body-search-docvalue-fields,`format`>> within the doc-value
 field.
 
-[float]
+[discrete]
 ==== Context Completion Suggester
 
 The ability to query and index context enabled suggestions without context,
@@ -180,7 +183,7 @@ considerably.
 For geo context the value of the `path` parameter is now validated against the mapping,
 and the context is only accepted if `path` points to a field with `geo_point` type.
 
-[float]
+[discrete]
 [[semantics-changed-max-concurrent-shared-requests]]
 ==== Semantics changed for `max_concurrent_shard_requests`
 
@@ -188,20 +191,20 @@ and the context is only accepted if `path` points to a field with `geo_point` ty
 requests a single high level search request can execute. In 7.0 this changed to be the
 max number of concurrent shard requests per node. The default is now `5`.
 
-[float]
+[discrete]
 [[max-score-set-to-null-when-untracked]]
 ==== `max_score` set to `null` when scores are not tracked
 
 `max_score` used to be set to `0` whenever scores are not tracked. `null` is now used
 instead which is a more appropriate value for a scenario where scores are not available.
 
-[float]
+[discrete]
 ==== Negative boosts are not allowed
 
 Setting a negative `boost` for a query or a field, deprecated in 6x, is not allowed in this version.
 To deboost a specific query or field you can use a `boost` comprise between 0 and 1.
 
-[float]
+[discrete]
 ==== Negative scores are not allowed in Function Score Query
 
 Negative scores in the Function Score Query are deprecated in 6.x, and are
@@ -209,7 +212,7 @@ not allowed in this version. If a negative score is produced as a result
 of computation (e.g. in `script_score` or `field_value_factor` functions),
 an error will be thrown.
 
-[float]
+[discrete]
 ==== The filter context has been removed
 
 The `filter` context has been removed from Elasticsearch's query builders,
@@ -220,7 +223,7 @@ on whether queries need to access score or not. As a result `bool` queries with
 major version.
 
 //tag::notable-breaking-changes[]
-[float]
+[discrete]
 [[hits-total-now-object-search-response]]
 ==== `hits.total` is now an object in the search response
 
@@ -232,13 +235,13 @@ match and `relation` indicates whether the value is accurate (`eq`) or a lower b
 [source,js]
 --------------------------------------------------
 {
-    "hits": {
-        "total": {  
-            "value": 1000,
-            "relation": "eq"
-        },
-        ...
-    }
+  "hits": {
+    "total": {
+      "value": 1000,
+      "relation": "eq"
+    },
+    ...
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -252,7 +255,7 @@ This parameter has been added to ease the transition to the new format and
 will be removed in the next major version (8.0).
 //end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[hits-total-omitted-if-disabled]]
 ==== `hits.total` is omitted in the response if `track_total_hits` is disabled (false)
 
@@ -262,7 +265,7 @@ layer. You can add `rest_total_hits_as_int=true` in the search request parameter
 to get the old format back (`"total": -1`).
 
 //tag::notable-breaking-changes[]
-[float]
+[discrete]
 [[track-total-hits-10000-default]]
 ==== `track_total_hits` defaults to 10,000
 
@@ -273,17 +276,17 @@ documents. If the total number of hits that match the query is greater than this
 [source,js]
 --------------------------------------------------
 {
-     "_shards": ...
-     "timed_out": false,
-     "took": 100,
-     "hits": {
-         "max_score": 1.0,
-         "total" : {
-             "value": 10000,    <1>
-             "relation": "gte"  <2>
-         },
-         "hits": ...
-     }
+  "_shards": ...
+  "timed_out": false,
+  "took": 100,
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 10000,    <1>
+      "relation": "gte"  <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -295,7 +298,7 @@ You can force the count to always be accurate by setting `track_total_hits`
 to true explicitly in the search request.
 //end::notable-breaking-changes[]
 
-[float]
+[discrete]
 ==== Limitations on Similarities
 Lucene 8 introduced more constraints on similarities, in particular:
 
@@ -303,12 +306,12 @@ Lucene 8 introduced more constraints on similarities, in particular:
 - scores must not decrease when term freq increases,
 - scores must not increase when norm (interpreted as an unsigned long) increases.
 
-[float]
+[discrete]
 ==== Weights in Function Score must be positive
 Negative `weight` parameters in the `function_score` are no longer allowed.
 
-[float]
+[discrete]
 ==== Query string and Simple query string limit expansion of fields to 1024
 The number of automatically expanded fields for the "all fields"
-mode (`"default_field": "*"`) for the query_string and simple_query_string
+mode (`"default_field": "*"`) for the `query_string` and `simple_query_string`
 queries is now 1024 fields.

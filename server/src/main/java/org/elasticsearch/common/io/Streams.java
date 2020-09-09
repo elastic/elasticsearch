@@ -65,45 +65,6 @@ public abstract class Streams {
         }
     };
 
-    //---------------------------------------------------------------------
-    // Copy methods for java.io.InputStream / java.io.OutputStream
-    //---------------------------------------------------------------------
-
-
-    public static long copy(InputStream in, OutputStream out) throws IOException {
-        return copy(in, out, new byte[BUFFER_SIZE]);
-    }
-
-    /**
-     * Copy the contents of the given InputStream to the given OutputStream.
-     * Closes both streams when done.
-     *
-     * @param in  the stream to copy from
-     * @param out the stream to copy to
-     * @return the number of bytes copied
-     * @throws IOException in case of I/O errors
-     */
-    public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
-        Objects.requireNonNull(in, "No InputStream specified");
-        Objects.requireNonNull(out, "No OutputStream specified");
-        // Leverage try-with-resources to close in and out so that exceptions in close() are either propagated or added as suppressed
-        // exceptions to the main exception
-        try (InputStream in2 = in; OutputStream out2 = out) {
-            return doCopy(in2, out2, buffer);
-        }
-    }
-
-    private static long doCopy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
-        long byteCount = 0;
-        int bytesRead;
-        while ((bytesRead = in.read(buffer)) != -1) {
-            out.write(buffer, 0, bytesRead);
-            byteCount += bytesRead;
-        }
-        out.flush();
-        return byteCount;
-    }
-
     /**
      * Copy the contents of the given byte array to the given OutputStream.
      * Closes the stream when done.
@@ -222,7 +183,7 @@ public abstract class Streams {
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return copy(inputStream, NULL_OUTPUT_STREAM);
+        return org.elasticsearch.core.internal.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -267,11 +228,9 @@ public abstract class Streams {
      * Reads all bytes from the given {@link InputStream} and closes it afterwards.
      */
     public static BytesReference readFully(InputStream in) throws IOException {
-        try (InputStream inputStream = in) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            copy(inputStream, out);
-            return out.bytes();
-        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        org.elasticsearch.core.internal.io.Streams.copy(in, out);
+        return out.bytes();
     }
 
     /**

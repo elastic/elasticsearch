@@ -22,8 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -34,7 +32,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -47,7 +45,15 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+/**
+ * Base class for testing {@link FieldMapper}s.
+ * @param <T> builder for the mapper to test
+ * @deprecated prefer {@link FieldMapperTestCase2}
+ */
+@Deprecated
 public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends ESSingleNodeTestCase {
 
     protected final Settings SETTINGS = Settings.builder()
@@ -95,6 +101,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             b.docValues(false);
         }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
+        booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
         new Modifier("search_analyzer", true, (a, b) -> {
             a.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
@@ -103,10 +110,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         new Modifier("search_quote_analyzer", true, (a, b) -> {
             a.searchQuoteAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             a.searchQuoteAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
-        }),
-        new Modifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
         }),
         new Modifier("store", false, (a, b) -> {
             a.store(true);
@@ -228,22 +231,43 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
         Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
 
-        XContentBuilder x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        builder.build(context).toXContent(x, ToXContent.EMPTY_PARAMS);
-        x.endObject().endObject();
-        String mappings = Strings.toString(x);
+        String mappings = mappingsToString(builder.build(context), false);
+        String mappingsWithDefault = mappingsToString(builder.build(context), true);
 
         mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
 
         Mapper rebuilt = mapperService.documentMapper().mappers().getMapper(builder.name);
-        x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        rebuilt.toXContent(x, ToXContent.EMPTY_PARAMS);
-        x.endObject().endObject();
-        String reparsed = Strings.toString(x);
+        String reparsed = mappingsToString(rebuilt, false);
+        String reparsedWithDefault = mappingsToString(rebuilt, true);
 
         assertThat(reparsed, equalTo(mappings));
+        assertThat(reparsedWithDefault, equalTo(mappingsWithDefault));
+    }
+
+    private String mappingsToString(ToXContent builder, boolean includeDefaults) throws IOException {
+        ToXContent.Params params = includeDefaults ?
+            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
+        XContentBuilder x = JsonXContent.contentBuilder();
+        x.startObject().startObject("properties");
+        builder.toXContent(x, params);
+        x.endObject().endObject();
+        return Strings.toString(x);
+    }
+
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+        return fetchSourceValue(mapper, sourceValue, null);
+    }
+
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+        String field = mapper.name();
+
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
+
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap(field, sourceValue));
+        return fetcher.fetchValues(lookup);
     }
 
 }

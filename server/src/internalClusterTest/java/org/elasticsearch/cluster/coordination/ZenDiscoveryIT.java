@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -48,6 +47,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
+import static org.elasticsearch.test.NodeRoles.dataNode;
+import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -64,15 +65,9 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1")
                 .build();
 
-        Settings masterNodeSettings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), false)
-                .put(defaultSettings)
-                .build();
+        Settings masterNodeSettings = masterOnlyNode();
         internalCluster().startNodes(2, masterNodeSettings);
-        Settings dateNodeSettings = Settings.builder()
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .put(defaultSettings)
-                .build();
+        Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)

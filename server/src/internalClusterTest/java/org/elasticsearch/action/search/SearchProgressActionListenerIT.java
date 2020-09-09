@@ -131,8 +131,8 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         testCase((NodeClient) client(), request, sortShards, false);
     }
 
-    private static void testCase(NodeClient client, SearchRequest request,
-                                 List<SearchShard> expectedShards, boolean hasFetchPhase) throws InterruptedException {
+    private void testCase(NodeClient client, SearchRequest request,
+                          List<SearchShard> expectedShards, boolean hasFetchPhase) throws InterruptedException {
         AtomicInteger numQueryResults = new AtomicInteger();
         AtomicInteger numQueryFailures = new AtomicInteger();
         AtomicInteger numFetchResults = new AtomicInteger();
@@ -204,7 +204,6 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
         }, listener);
         latch.await();
-
         assertThat(shardsListener.get(), equalTo(expectedShards));
         assertThat(numQueryResults.get(), equalTo(searchResponse.get().getSuccessfulShards()));
         assertThat(numQueryFailures.get(), equalTo(searchResponse.get().getFailedShards()));

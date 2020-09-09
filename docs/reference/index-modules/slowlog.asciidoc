@@ -1,7 +1,7 @@
 [[index-modules-slowlog]]
 == Slow Log
 
-[float]
+[discrete]
 [[search-slow-log]]
 === Search Slow Log
 
@@ -31,20 +31,20 @@ All of the above settings are _dynamic_ and can be set for each index using the
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
-    "index.search.slowlog.threshold.query.warn": "10s",
-    "index.search.slowlog.threshold.query.info": "5s",
-    "index.search.slowlog.threshold.query.debug": "2s",
-    "index.search.slowlog.threshold.query.trace": "500ms",
-    "index.search.slowlog.threshold.fetch.warn": "1s",
-    "index.search.slowlog.threshold.fetch.info": "800ms",
-    "index.search.slowlog.threshold.fetch.debug": "500ms",
-    "index.search.slowlog.threshold.fetch.trace": "200ms",
-    "index.search.slowlog.level": "info"
+  "index.search.slowlog.threshold.query.warn": "10s",
+  "index.search.slowlog.threshold.query.info": "5s",
+  "index.search.slowlog.threshold.query.debug": "2s",
+  "index.search.slowlog.threshold.query.trace": "500ms",
+  "index.search.slowlog.threshold.fetch.warn": "1s",
+  "index.search.slowlog.threshold.fetch.info": "800ms",
+  "index.search.slowlog.threshold.fetch.debug": "500ms",
+  "index.search.slowlog.threshold.fetch.trace": "200ms",
+  "index.search.slowlog.level": "info"
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default, none are enabled (set to `-1`). Levels (`warn`, `info`,
 `debug`, `trace`) allow to control under which logging level the log
@@ -82,7 +82,7 @@ logger.index_search_slowlog_rolling.appenderRef.index_search_slowlog_rolling.ref
 logger.index_search_slowlog_rolling.additivity = false
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Identifying search slow log origin
 
 It is often useful to identify what triggered a slow running query. If a call was initiated with an `X-Opaque-ID` header, then the user ID
@@ -117,7 +117,7 @@ The user ID is also included in JSON logs.
 ---------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[index-slow-log]]
 === Index Slow log
 
@@ -141,17 +141,17 @@ All of the above settings are _dynamic_ and can be set for each index using the
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
-    "index.indexing.slowlog.threshold.index.warn": "10s",
-    "index.indexing.slowlog.threshold.index.info": "5s",
-    "index.indexing.slowlog.threshold.index.debug": "2s",
-    "index.indexing.slowlog.threshold.index.trace": "500ms",
-    "index.indexing.slowlog.level": "info",
-    "index.indexing.slowlog.source": "1000"
+  "index.indexing.slowlog.threshold.index.warn": "10s",
+  "index.indexing.slowlog.threshold.index.info": "5s",
+  "index.indexing.slowlog.threshold.index.debug": "2s",
+  "index.indexing.slowlog.threshold.index.trace": "500ms",
+  "index.indexing.slowlog.level": "info",
+  "index.indexing.slowlog.source": "1000"
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default Elasticsearch will log the first 1000 characters of the _source in
 the slowlog. You can change that with `index.indexing.slowlog.source`. Setting

@@ -24,7 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -61,10 +61,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
 
-        final String testHeader = DeprecationLogger.formatWarning("test");
-        final String anotherHeader = DeprecationLogger.formatWarning("another");
-        final String someMoreHeader = DeprecationLogger.formatWarning("some more");
-        final String catHeader = DeprecationLogger.formatWarning("cat");
+        final String testHeader = HeaderWarning.formatWarning("test");
+        final String anotherHeader = HeaderWarning.formatWarning("another");
+        final String someMoreHeader = HeaderWarning.formatWarning("some more");
+        final String catHeader = HeaderWarning.formatWarning("cat");
         // Any warning headers fail
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
@@ -138,8 +138,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testIgnoreTypesWarnings() {
-        String legitimateWarning = DeprecationLogger.formatWarning("warning");
-        String typesWarning = DeprecationLogger.formatWarning("[types removal] " +
+        String legitimateWarning = HeaderWarning.formatWarning("warning");
+        String typesWarning = HeaderWarning.formatWarning("[types removal] " +
             "The endpoint /{index}/{type}/_count is deprecated, use /{index}/_count instead.");
 
         DoSection section = new DoSection(new XContentLocation(1, 1));

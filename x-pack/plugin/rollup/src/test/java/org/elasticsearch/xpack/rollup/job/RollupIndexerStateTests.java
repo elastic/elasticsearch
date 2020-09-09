@@ -634,7 +634,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                         @Override
                         public Aggregations getAggregations() {
-                            return new InternalAggregations(Collections.emptyList());
+                            return InternalAggregations.EMPTY;
                         }
 
                         @Override
@@ -747,7 +747,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                         @Override
                         public Aggregations getAggregations() {
-                            return new InternalAggregations(Collections.emptyList());
+                            return InternalAggregations.EMPTY;
                         }
 
                         @Override
@@ -904,7 +904,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                         @Override
                         public Aggregations getAggregations() {
-                            return new InternalAggregations(Collections.emptyList());
+                            return InternalAggregations.EMPTY;
                         }
 
                         @Override

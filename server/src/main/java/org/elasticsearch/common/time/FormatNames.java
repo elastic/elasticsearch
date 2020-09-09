@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public enum FormatNames {
-    ISO8601("iso8601", "iso8601"),
+    ISO8601(null, "iso8601"),
     BASIC_DATE("basicDate", "basic_date"),
     BASIC_DATE_TIME("basicDateTime", "basic_date_time"),
     BASIC_DATE_TIME_NO_MILLIS("basicDateTimeNoMillis", "basic_date_time_no_millis"),
@@ -39,7 +39,7 @@ public enum FormatNames {
     BASIC_WEEK_DATE("basicWeekDate", "basic_week_date"),
     BASIC_WEEK_DATE_TIME("basicWeekDateTime", "basic_week_date_time"),
     BASIC_WEEK_DATE_TIME_NO_MILLIS("basicWeekDateTimeNoMillis", "basic_week_date_time_no_millis"),
-    DATE("date", "date"),
+    DATE(null, "date"),
     DATE_HOUR("dateHour", "date_hour"),
     DATE_HOUR_MINUTE("dateHourMinute", "date_hour_minute"),
     DATE_HOUR_MINUTE_SECOND("dateHourMinuteSecond", "date_hour_minute_second"),
@@ -48,7 +48,7 @@ public enum FormatNames {
     DATE_OPTIONAL_TIME("dateOptionalTime", "date_optional_time"),
     DATE_TIME("dateTime", "date_time"),
     DATE_TIME_NO_MILLIS("dateTimeNoMillis", "date_time_no_millis"),
-    HOUR("hour", "hour"),
+    HOUR(null, "hour"),
     HOUR_MINUTE("hourMinute", "hour_minute"),
     HOUR_MINUTE_SECOND("hourMinuteSecond", "hour_minute_second"),
     HOUR_MINUTE_SECOND_FRACTION("hourMinuteSecondFraction", "hour_minute_second_fraction"),
@@ -56,7 +56,7 @@ public enum FormatNames {
     ORDINAL_DATE("ordinalDate", "ordinal_date"),
     ORDINAL_DATE_TIME("ordinalDateTime", "ordinal_date_time"),
     ORDINAL_DATE_TIME_NO_MILLIS("ordinalDateTimeNoMillis", "ordinal_date_time_no_millis"),
-    TIME("time", "time"),
+    TIME(null, "time"),
     TIME_NO_MILLIS("timeNoMillis", "time_no_millis"),
     T_TIME("tTime", "t_time"),
     T_TIME_NO_MILLIS("tTimeNoMillis", "t_time_no_millis"),
@@ -66,11 +66,11 @@ public enum FormatNames {
     WEEK_YEAR("weekyear", "week_year"),
     WEEK_YEAR_WEEK("weekyearWeek", "weekyear_week"),
     WEEKYEAR_WEEK_DAY("weekyearWeekDay", "weekyear_week_day"),
-    YEAR("year", "year"),
+    YEAR(null, "year"),
     YEAR_MONTH("yearMonth", "year_month"),
     YEAR_MONTH_DAY("yearMonthDay", "year_month_day"),
-    EPOCH_SECOND("epoch_second", "epoch_second"),
-    EPOCH_MILLIS("epoch_millis", "epoch_millis"),
+    EPOCH_SECOND(null, "epoch_second"),
+    EPOCH_MILLIS(null, "epoch_millis"),
     // strict date formats here, must be at least 4 digits for year and two for months and two for day"
     STRICT_BASIC_WEEK_DATE("strictBasicWeekDate", "strict_basic_week_date"),
     STRICT_BASIC_WEEK_DATE_TIME("strictBasicWeekDateTime", "strict_basic_week_date_time"),
@@ -122,7 +122,28 @@ public enum FormatNames {
         return ALL_NAMES.contains(format);
     }
 
+    public static FormatNames forName(String format) {
+        for (FormatNames name : values()) {
+            if (name.matches(format)) {
+                return name;
+            }
+        }
+        return null;
+    }
+
     public boolean matches(String format) {
         return format.equals(camelCaseName) || format.equals(snakeCaseName);
+    }
+
+    public  boolean isCamelCase(String format) {
+        return format.equals(camelCaseName);
+    }
+
+    public String getSnakeCaseName() {
+        return snakeCaseName;
+    }
+
+    public String getCamelCaseName() {
+        return camelCaseName;
     }
 }

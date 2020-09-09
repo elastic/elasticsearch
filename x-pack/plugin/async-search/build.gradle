@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -28,10 +26,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackModule('ilm'))
-}
-
-dependencyLicenses {
-  ignoreSha 'x-pack-core'
+  testImplementation project(path: xpackModule('async'))
 }
 
 integTest.enabled = false

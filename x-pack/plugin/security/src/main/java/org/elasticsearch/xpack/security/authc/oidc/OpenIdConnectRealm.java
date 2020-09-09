@@ -55,7 +55,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -211,19 +210,13 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> userMetadata = new HashMap<>();
+        final Map<String, Object> userMetadata;
         if (populateUserMetadata) {
-            Map<String, Object> claimsMap = claims.getClaims();
-            /*
-             * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
-             */
-            Set<Map.Entry> allowedEntries = claimsMap.entrySet().stream().filter(entry -> {
-                Object v = entry.getValue();
-                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collection);
-            }).collect(Collectors.toSet());
-            for (Map.Entry entry : allowedEntries) {
-                userMetadata.put("oidc(" + entry.getKey() + ")", entry.getValue());
-            }
+            userMetadata = claims.getClaims().entrySet().stream()
+                .filter(entry -> isAllowedTypeForClaim(entry.getValue()))
+                .collect(Collectors.toMap(entry -> "oidc(" + entry.getKey() + ")", Map.Entry::getValue));
+        } else {
+            userMetadata = Collections.emptyMap();
         }
         final List<String> groups = groupsAttribute.getClaimValues(claims);
         final String dn = dnAttribute.getClaimValue(claims);
@@ -390,6 +383,15 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         openIdConnectAuthenticator.close();
     }
 
+    /*
+     * We only map claims that are of Type String, Boolean, or Number, or arrays that contain only these types
+     */
+    private static boolean isAllowedTypeForClaim(Object o) {
+        return (o instanceof String || o instanceof Boolean || o instanceof Number
+            || (o instanceof Collection && ((Collection) o).stream()
+            .allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
+    }
+
     static final class ClaimParser {
         private final String name;
         private final Function<JWTClaimsSet, List<String>> parser;
@@ -417,6 +419,22 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
+        private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
+            Collection<String> values;
+            final Object claimValueObject = claimsSet.getClaim(claimName);
+            if (claimValueObject == null) {
+                values = Collections.emptyList();
+            } else if (claimValueObject instanceof String) {
+                values = Collections.singletonList((String) claimValueObject);
+            } else if (claimValueObject instanceof Collection &&
+                ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+                values = (Collection<String>) claimValueObject;
+            } else {
+                throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");
+            }
+            return values;
+        }
+
         static ClaimParser forSetting(Logger logger, OpenIdConnectRealmSettings.ClaimSetting setting, RealmConfig realmConfig,
                                       boolean required) {
 
@@ -428,19 +446,8 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         "OpenID Connect Claim [" + claimName + "] with pattern [" + regex.pattern() + "] for ["
                             + setting.name(realmConfig) + "]",
                         claims -> {
-                            Object claimValueObject = claims.getClaim(claimName);
-                            List<String> values;
-                            if (claimValueObject == null) {
-                                values = Collections.emptyList();
-                            } else if (claimValueObject instanceof String) {
-                                values = Collections.singletonList((String) claimValueObject);
-                            } else if (claimValueObject instanceof List) {
-                                values = (List<String>) claimValueObject;
-                            } else {
-                                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a "
-                                    + claimValueObject.getClass().getName());
-                            }
+                            Collection<String> values =
+                                parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             return values.stream().map(s -> {
                                 if (s == null) {
                                     logger.debug("OpenID Connect Claim [{}] is null", claimName);
@@ -464,21 +471,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 } else {
                     return new ClaimParser(
                         "OpenID Connect Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
-                        claims -> {
-                            Object claimValueObject = claims.getClaim(claimName);
-                            if (claimValueObject == null) {
-                                return Collections.emptyList();
-                            } else if (claimValueObject instanceof String) {
-                                return Collections.singletonList((String) claimValueObject);
-                            } else if (claimValueObject instanceof List == false) {
-                                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a "
-                                    + claimValueObject.getClass().getName());
-                            }
-                            return ((List<String>) claimValueObject).stream()
-                                        .filter(Objects::nonNull)
-                                        .collect(Collectors.toList());
-                        });
+                        claims -> parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList()));
                 }
             } else if (required) {
                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())

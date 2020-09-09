@@ -19,7 +19,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
@@ -718,15 +717,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndices(indices);
     }
 
-    static ClusterHealthRequestBuilder health(String... indices) {
-        return client().admin().cluster().prepareHealth(indices);
-    }
-
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verify(requestBuilder, fail, 0);
     }
 
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();

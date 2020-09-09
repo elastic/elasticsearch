@@ -25,6 +25,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -72,7 +72,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
-        Boolean master = Node.NODE_MASTER_SETTING.get(settings);
+        Boolean master = DiscoveryNode.isMasterNode(settings);
         if (master == false) {
             throw new ElasticsearchException(NOT_MASTER_NODE_MSG);
         }

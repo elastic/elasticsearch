@@ -38,6 +38,8 @@ import java.util.Map;
 
 public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentileRanksAggregationBuilder> {
     public static final String NAME = PercentileRanks.TYPE_NAME;
+    public static final ValuesSourceRegistry.RegistryKey<PercentilesAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, PercentilesAggregatorSupplier.class);
 
     private static final ParseField VALUES_FIELD = new ParseField("values");
     private static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER;
@@ -104,5 +106,10 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

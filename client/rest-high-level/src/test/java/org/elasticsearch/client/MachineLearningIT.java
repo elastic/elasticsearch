@@ -115,6 +115,7 @@ import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -129,27 +130,30 @@ import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
-import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
@@ -385,9 +389,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.jobStats().size() >= 2L);
         assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
-        // Test when allow_no_jobs is false
+        // Test when allow_no_match is false
         final GetJobStatsRequest erroredRequest = new GetJobStatsRequest("jobs-that-do-not-exist*");
-        erroredRequest.setAllowNoJobs(false);
+        erroredRequest.setAllowNoMatch(false);
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
@@ -589,7 +593,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     hasItems(datafeedId1, datafeedId2));
         }
 
-        // Test get missing pattern with allow_no_datafeeds set to true
+        // Test get missing pattern with allow_no_match set to true
         {
             GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
 
@@ -598,10 +602,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(response.count(), equalTo(0L));
         }
 
-        // Test get missing pattern with allow_no_datafeeds set to false
+        // Test get missing pattern with allow_no_match set to false
         {
             GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
 
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                     () -> execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync));
@@ -729,7 +733,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         {
             StopDatafeedRequest request = new StopDatafeedRequest(datafeedId1);
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             StopDatafeedResponse stopDatafeedResponse = execute(request,
                 machineLearningClient::stopDatafeed,
                 machineLearningClient::stopDatafeedAsync);
@@ -737,7 +741,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         {
             StopDatafeedRequest request = new StopDatafeedRequest(datafeedId2, datafeedId3);
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             StopDatafeedResponse stopDatafeedResponse = execute(request,
                 machineLearningClient::stopDatafeed,
                 machineLearningClient::stopDatafeedAsync);
@@ -751,7 +755,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         {
             StopDatafeedRequest request = new StopDatafeedRequest("datafeed_that_doesnot_exist*");
-            request.setAllowNoDatafeeds(false);
+            request.setAllowNoMatch(false);
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
                 () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
             assertThat(exception.status().getStatus(), equalTo(404));
@@ -818,9 +822,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
             hasItems(datafeedId1, datafeedId2));
 
-        // Test when allow_no_jobs is false
+        // Test when allow_no_match is false
         final GetDatafeedStatsRequest erroredRequest = new GetDatafeedStatsRequest("datafeeds-that-do-not-exist*");
-        erroredRequest.setAllowNoDatafeeds(false);
+        erroredRequest.setAllowNoMatch(false);
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
@@ -1311,7 +1315,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .setDescription("some description")
             .build();
 
@@ -1326,13 +1330,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
         assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
         assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
-        assertThat(createdConfig.getAnalysis(), equalTo(OutlierDetection.builder()
+        assertThat(createdConfig.getAnalysis(), equalTo(org.elasticsearch.client.ml.dataframe.OutlierDetection.builder()
             .setComputeFeatureInfluence(true)
             .setOutlierFraction(0.05)
             .setStandardizationEnabled(true).build()));
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
+        assertThat(createdConfig.getMaxNumThreads(), equalTo(1));
     }
 
     public void testPutDataFrameAnalyticsConfig_GivenRegression() throws Exception {
@@ -1424,6 +1429,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getDescription(), equalTo("this is a classification"));
     }
 
+    public void testUpdateDataFrameAnalytics() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-update-df-analytics-classification";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder().setIndex("update-test-source-index").build())
+            .setDest(DataFrameAnalyticsDest.builder().setIndex("update-test-dest-index").build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable").build())
+            .setDescription("this is a classification")
+            .build();
+
+        createIndex("update-test-source-index", defaultMappingForTest());
+
+        machineLearningClient.putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(config), RequestOptions.DEFAULT);
+
+        UpdateDataFrameAnalyticsRequest request =
+            new UpdateDataFrameAnalyticsRequest(
+                DataFrameAnalyticsConfigUpdate.builder().setId(config.getId()).setDescription("Updated description").build());
+        PutDataFrameAnalyticsResponse response =
+            execute(request, machineLearningClient::updateDataFrameAnalytics, machineLearningClient::updateDataFrameAnalyticsAsync);
+        assertThat(response.getConfig().getDescription(), equalTo("Updated description"));
+
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(config.getId());
+        GetDataFrameAnalyticsResponse getResponse = machineLearningClient.getDataFrameAnalytics(getRequest, RequestOptions.DEFAULT);
+        assertThat(getResponse.getAnalytics().get(0).getDescription(), equalTo("Updated description"));
+    }
+
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "get-test-config";
@@ -1435,7 +1467,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("get-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .build();
 
         createIndex("get-test-source-index", defaultMappingForTest());
@@ -1469,7 +1501,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setDest(DataFrameAnalyticsDest.builder()
                     .setIndex("get-test-dest-index")
                     .build())
-                .setAnalysis(OutlierDetection.createDefault())
+                .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
                 .build();
 
             PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
@@ -1539,7 +1571,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex(destIndex)
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .build();
 
         execute(
@@ -1567,6 +1599,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.get(2), equalTo(new PhaseProgress("computing_outliers", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
         assertThat(stats.getMemoryUsage().getPeakUsageBytes(), equalTo(0L));
+        assertThat(stats.getMemoryUsage().getStatus(), equalTo(MemoryUsage.Status.OK));
+        assertThat(stats.getMemoryUsage().getMemoryReestimateBytes(), is(nullValue()));
         assertThat(stats.getDataCounts(), equalTo(new DataCounts(0, 0, 0)));
     }
 
@@ -1590,7 +1624,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex(destIndex)
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .build();
 
         execute(
@@ -1631,7 +1665,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex(destIndex)
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .build();
 
         execute(
@@ -1673,7 +1707,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("delete-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .build();
 
         createIndex("delete-test-source-index", defaultMappingForTest());
@@ -1715,21 +1749,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
-    public void testEvaluateDataFrame_BinarySoftClassification() throws IOException {
+    public void testEvaluateDataFrame_OutlierDetection() throws IOException {
         String indexName = "evaluate-test-index";
-        createIndex(indexName, mappingForSoftClassification());
+        createIndex(indexName, mappingForOutlierDetection());
         BulkRequest bulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForSoftClassification(indexName, "blue", false, 0.1))  // #0
-            .add(docForSoftClassification(indexName, "blue", false, 0.2))  // #1
-            .add(docForSoftClassification(indexName, "blue", false, 0.3))  // #2
-            .add(docForSoftClassification(indexName, "blue", false, 0.4))  // #3
-            .add(docForSoftClassification(indexName, "blue", false, 0.7))  // #4
-            .add(docForSoftClassification(indexName, "blue", true, 0.2))  // #5
-            .add(docForSoftClassification(indexName, "green", true, 0.3))  // #6
-            .add(docForSoftClassification(indexName, "green", true, 0.4))  // #7
-            .add(docForSoftClassification(indexName, "green", true, 0.8))  // #8
-            .add(docForSoftClassification(indexName, "green", true, 0.9));  // #9
+            .add(docForOutlierDetection(indexName, "blue", false, 0.1))  // #0
+            .add(docForOutlierDetection(indexName, "blue", false, 0.2))  // #1
+            .add(docForOutlierDetection(indexName, "blue", false, 0.3))  // #2
+            .add(docForOutlierDetection(indexName, "blue", false, 0.4))  // #3
+            .add(docForOutlierDetection(indexName, "blue", false, 0.7))  // #4
+            .add(docForOutlierDetection(indexName, "blue", true, 0.2))  // #5
+            .add(docForOutlierDetection(indexName, "green", true, 0.3))  // #6
+            .add(docForOutlierDetection(indexName, "green", true, 0.4))  // #7
+            .add(docForOutlierDetection(indexName, "green", true, 0.8))  // #8
+            .add(docForOutlierDetection(indexName, "green", true, 0.9));  // #9
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1737,14 +1771,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new EvaluateDataFrameRequest(
                 indexName,
                 null,
-                new BinarySoftClassification(
+                new OutlierDetection(
                     actualField,
                     probabilityField,
                     PrecisionMetric.at(0.4, 0.5, 0.6), RecallMetric.at(0.5, 0.7), ConfusionMatrixMetric.at(0.5), AucRocMetric.withCurve()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
-        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(BinarySoftClassification.NAME));
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
 
         PrecisionMetric.Result precisionResult = evaluateDataFrameResponse.getMetricByName(PrecisionMetric.NAME);
@@ -1789,21 +1823,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
     }
 
-    public void testEvaluateDataFrame_BinarySoftClassification_WithQuery() throws IOException {
+    public void testEvaluateDataFrame_OutlierDetection_WithQuery() throws IOException {
         String indexName = "evaluate-with-query-test-index";
-        createIndex(indexName, mappingForSoftClassification());
+        createIndex(indexName, mappingForOutlierDetection());
         BulkRequest bulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #0
-            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #1
-            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #2
-            .add(docForSoftClassification(indexName, "blue", true, 1.0))  // #3
-            .add(docForSoftClassification(indexName, "blue", true, 0.0))  // #4
-            .add(docForSoftClassification(indexName, "blue", true, 0.0))  // #5
-            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #6
-            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #7
-            .add(docForSoftClassification(indexName, "green", true, 0.0))  // #8
-            .add(docForSoftClassification(indexName, "green", true, 1.0));  // #9
+            .add(docForOutlierDetection(indexName, "blue", true, 1.0))  // #0
+            .add(docForOutlierDetection(indexName, "blue", true, 1.0))  // #1
+            .add(docForOutlierDetection(indexName, "blue", true, 1.0))  // #2
+            .add(docForOutlierDetection(indexName, "blue", true, 1.0))  // #3
+            .add(docForOutlierDetection(indexName, "blue", true, 0.0))  // #4
+            .add(docForOutlierDetection(indexName, "blue", true, 0.0))  // #5
+            .add(docForOutlierDetection(indexName, "green", true, 0.0))  // #6
+            .add(docForOutlierDetection(indexName, "green", true, 0.0))  // #7
+            .add(docForOutlierDetection(indexName, "green", true, 0.0))  // #8
+            .add(docForOutlierDetection(indexName, "green", true, 1.0));  // #9
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1812,11 +1846,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 indexName,
                 // Request only "blue" subset to be evaluated
                 new QueryConfig(QueryBuilders.termQuery(datasetField, "blue")),
-                new BinarySoftClassification(actualField, probabilityField, ConfusionMatrixMetric.at(0.5)));
+                new OutlierDetection(actualField, probabilityField, ConfusionMatrixMetric.at(0.5)));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
-        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(BinarySoftClassification.NAME));
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
 
         ConfusionMatrixMetric.Result confusionMatrixResult = evaluateDataFrameResponse.getMetricByName(ConfusionMatrixMetric.NAME);
@@ -1850,16 +1884,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new EvaluateDataFrameRequest(
                 regressionIndex,
                 null,
-                new Regression(actualRegression, predictedRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
+                new Regression(
+                    actualRegression,
+                    predictedRegression,
+                    new MeanSquaredErrorMetric(),
+                    new MeanSquaredLogarithmicErrorMetric(1.0),
+                    new HuberMetric(1.0),
+                    new RSquaredMetric()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
-        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(2));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
 
         MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
-        assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+        assertThat(mseResult.getValue(), closeTo(0.061000000, 1e-9));
+
+        MeanSquaredLogarithmicErrorMetric.Result msleResult =
+            evaluateDataFrameResponse.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME);
+        assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicErrorMetric.NAME));
+        assertThat(msleResult.getValue(), closeTo(0.02759231770210426, 1e-9));
+
+        HuberMetric.Result huberResult = evaluateDataFrameResponse.getMetricByName(HuberMetric.NAME);
+        assertThat(huberResult.getMetricName(), equalTo(HuberMetric.NAME));
+        assertThat(huberResult.getValue(), closeTo(0.029669771640929276, 1e-9));
 
         RSquaredMetric.Result rSquaredResult = evaluateDataFrameResponse.getMetricByName(RSquaredMetric.NAME);
         assertThat(rSquaredResult.getMetricName(), equalTo(RSquaredMetric.NAME));
@@ -2073,7 +2122,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     private static final String actualField = "label";
     private static final String probabilityField = "p";
 
-    private static XContentBuilder mappingForSoftClassification() throws IOException {
+    private static XContentBuilder mappingForOutlierDetection() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject(datasetField)
@@ -2089,7 +2138,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         .endObject();
     }
 
-    private static IndexRequest docForSoftClassification(String indexName, String dataset, boolean isTrue, double p) {
+    private static IndexRequest docForOutlierDetection(String indexName, String dataset, boolean isTrue, double p) {
         return new IndexRequest()
             .index(indexName)
             .source(XContentType.JSON, datasetField, dataset, actualField, Boolean.toString(isTrue), probabilityField, p);
@@ -2145,11 +2194,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainDataFrameAnalytics() throws IOException {
         String indexName = "explain-df-test-index";
-        createIndex(indexName, mappingForSoftClassification());
+        createIndex(indexName, mappingForOutlierDetection());
         BulkRequest bulk1 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; ++i) {
-            bulk1.add(docForSoftClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+            bulk1.add(docForOutlierDetection(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
         }
         highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
 
@@ -2158,7 +2207,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new ExplainDataFrameAnalyticsRequest(
                 DataFrameAnalyticsConfig.builder()
                     .setSource(DataFrameAnalyticsSource.builder().setIndex(indexName).build())
-                    .setAnalysis(OutlierDetection.createDefault())
+                    .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
                     .build());
 
         // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
@@ -2180,7 +2229,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulk2 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 10; i < 100; ++i) {
-            bulk2.add(docForSoftClassification(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+            bulk2.add(docForOutlierDetection(indexName, randomAlphaOfLength(10), randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
         }
         highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
 

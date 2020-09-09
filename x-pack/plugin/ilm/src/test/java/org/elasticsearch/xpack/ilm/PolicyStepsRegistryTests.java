@@ -22,13 +22,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
@@ -217,9 +217,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -292,9 +293,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -366,9 +368,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

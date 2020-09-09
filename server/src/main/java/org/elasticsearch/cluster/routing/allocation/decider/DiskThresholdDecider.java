@@ -44,6 +44,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -98,9 +99,16 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public static long sizeOfRelocatingShards(RoutingNode node, boolean subtractShardsMovingAway, String dataPath, ClusterInfo clusterInfo,
                                               Metadata metadata, RoutingTable routingTable) {
-        long totalSize = 0L;
+        // Account for reserved space wherever it is available
+        final ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), dataPath);
+        long totalSize = reservedSpace.getTotal();
+        // NB this counts all shards on the node when the ClusterInfoService retrieved the node stats, which may include shards that are
+        // no longer initializing because their recovery failed or was cancelled.
 
-        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+        // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
+        final List<ShardRouting> initializingShards = node.shardsWithState(ShardRoutingState.INITIALIZING);
+        initializingShards.removeIf(shardRouting -> reservedSpace.containsShardId(shardRouting.shardId()));
+        for (ShardRouting routing : initializingShards) {
             if (routing.relocatingNodeId() == null) {
                 // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
@@ -267,8 +275,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
-            logger.warn("after allocating, node [{}] would have less than the required threshold of " +
-                    "{} free (currently {} free, estimated shard size is {}), preventing allocation",
+            logger.warn("after allocating [{}] node [{}] would have less than the required threshold of " +
+                    "{} free (currently {} free, estimated shard size is {}), preventing allocation", shardRouting,
                     node.nodeId(), diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytesValue, new ByteSizeValue(shardSize));
             return allocation.decision(Decision.NO, NAME,
                 "allocating the shard to this node will bring the node above the high watermark cluster setting [%s=%s] " +
@@ -279,8 +287,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                 freeBytesValue, new ByteSizeValue(shardSize));
         }
         if (freeSpaceAfterShard < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-            logger.warn("after allocating, node [{}] would have more than the allowed " +
-                            "{} free disk threshold ({} free), preventing allocation",
+            logger.warn("after allocating [{}] node [{}] would have more than the allowed " +
+                            "{} free disk threshold ({} free), preventing allocation", shardRouting,
                     node.nodeId(), Strings.format1Decimals(diskThresholdSettings.getFreeDiskThresholdHigh(), "%"),
                                                            Strings.format1Decimals(freeSpaceAfterShard, "%"));
             return allocation.decision(Decision.NO, NAME,

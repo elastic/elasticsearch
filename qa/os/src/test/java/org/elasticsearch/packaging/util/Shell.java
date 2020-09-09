@@ -29,8 +29,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +48,7 @@ public class Shell {
     protected final Logger logger = LogManager.getLogger(getClass());
 
     final Map<String, String> env = new HashMap<>();
+    String umask;
     Path workingDirectory;
 
     public Shell() {
@@ -58,6 +61,7 @@ public class Shell {
     public void reset() {
         env.clear();
         workingDirectory = null;
+        umask = null;
     }
 
     public Map<String, String> getEnv() {
@@ -66,6 +70,10 @@ public class Shell {
 
     public void setWorkingDirectory(Path workingDirectory) {
         this.workingDirectory = workingDirectory;
+    }
+
+    public void setUmask(String umask) {
+        this.umask = umask;
     }
 
     /**
@@ -127,8 +135,16 @@ public class Shell {
         }
     }
 
-    private static String[] bashCommand(String script) {
-        return new String[] { "bash", "-c", script };
+    private String[] bashCommand(String script) {
+        List<String> command = new ArrayList<>();
+        command.add("bash");
+        command.add("-c");
+        if (umask == null) {
+            command.add(script);
+        } else {
+            command.add(String.format(Locale.ROOT, "umask %s && %s", umask, script));
+        }
+        return command.toArray(new String[0]);
     }
 
     private static String[] powershellCommand(String script) {

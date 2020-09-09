@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -619,7 +620,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             aliasFilter = searchContext.aliasFilter();
             indexRoutings = Map.of();
             concreteLocalIndices = localIndices == null ? new String[0] : localIndices.indices();
-            localShardIterators = getLocalLocalShardsIteratorFromPointInTime(localIndices,
+            localShardIterators = getLocalLocalShardsIteratorFromPointInTime(clusterState, localIndices,
                 searchRequest.getLocalClusterAlias(), searchContext, searchRequest.pointInTimeBuilder().getKeepAlive());
         } else {
             final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
@@ -915,16 +916,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new OriginalIndices(e.getValue().toArray(String[]::new), indicesOptions)));
     }
 
-    static List<SearchShardIterator> getLocalLocalShardsIteratorFromPointInTime(OriginalIndices originalIndices, String localClusterAlias,
-                                                                                SearchContextId searchContext, TimeValue keepAlive) {
+    static List<SearchShardIterator> getLocalLocalShardsIteratorFromPointInTime(ClusterState clusterState,
+                                                                                OriginalIndices originalIndices,
+                                                                                String localClusterAlias,
+                                                                                SearchContextId searchContext,
+                                                                                TimeValue keepAlive) {
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             final SearchContextIdForNode perNode = entry.getValue();
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
+                OperationRouting.getShards(clusterState, shardId);
                 final List<String> targetNodes = List.of(perNode.getNode());
-                iterators.add(new SearchShardIterator(
-                    localClusterAlias, shardId, targetNodes, originalIndices, perNode.getSearchContextId(), keepAlive));
+                iterators.add(new SearchShardIterator(localClusterAlias, shardId, targetNodes, originalIndices,
+                    perNode.getSearchContextId(), keepAlive));
             }
         }
         return iterators;

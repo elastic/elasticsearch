@@ -114,6 +114,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("data_stream.datatype", "deprecation"),
                             hasEntry("data_stream.namespace", "elasticsearch"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("key", "a key"),
                             hasEntry("x-opaque-id", "someId")
                         )
                     )
@@ -206,6 +207,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("data_stream.datatype", "deprecation"),
                     hasEntry("data_stream.namespace", "elasticsearch"),
                     hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                    hasEntry("key", "a key"),
                     not(hasKey("x-opaque-id"))
                 )
                 )

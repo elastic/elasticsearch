@@ -49,7 +49,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
@@ -111,6 +110,10 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("data_stream.datatype", "deprecation"),
+                            hasEntry("data_stream.namespace", "elasticsearch"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
                             hasEntry("x-opaque-id", "someId")
                         )
                     )
@@ -184,10 +187,6 @@ public class JsonLoggerTests extends ESTestCase {
 
         testLogger.deprecate("a key", "deprecated message1");
 
-        // Also test that a message sent directly to the logger comes through
-        final Logger rawLogger = LogManager.getLogger("deprecation.test");
-        rawLogger.log(DEPRECATION, "deprecated message2");
-
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
 
@@ -203,22 +202,17 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
-                    not(hasKey("x-opaque-id"))
-                ),
-                allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "DEPRECATION"),
-                    hasEntry("log.logger", "deprecation.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message2"),
+                    hasEntry("data_stream.type", "logs"),
+                    hasEntry("data_stream.datatype", "deprecation"),
+                    hasEntry("data_stream.namespace", "elasticsearch"),
+                    hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
                     not(hasKey("x-opaque-id"))
                 )
                 )
             );
         }
 
-        assertWarnings("deprecated message1", "deprecated message2");
+        assertWarnings("deprecated message1");
     }
 
     public void testJsonLayout() throws IOException {

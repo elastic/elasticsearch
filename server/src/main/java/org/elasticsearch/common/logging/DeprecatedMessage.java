@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
@@ -29,7 +28,7 @@ import org.elasticsearch.common.SuppressLoggerChecks;
  */
 public class DeprecatedMessage  {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
-    private static final String ECS_VERSION = "1.6";
+    public static final String ECS_VERSION = "1.6";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(String key, String xOpaqueId, String messagePattern, Object... args) {

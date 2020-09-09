@@ -301,7 +301,6 @@ public class FetchPhase {
     }
 
     /**
-     /**
      * Resets the provided {@link HitContext} with information on the current
      * nested document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.

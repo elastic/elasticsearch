@@ -90,7 +90,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP).build(context);
+        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true).build(context);
         Map<String, Object> range = Map.of("gte", "2001:db8:0:0:0:0:2:1");
         assertEquals(List.of(Map.of("gte", "2001:db8::2:1")), fetchSourceValue(mapper, range));
         assertEquals(List.of("2001:db8::2:1/32"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1/32"));

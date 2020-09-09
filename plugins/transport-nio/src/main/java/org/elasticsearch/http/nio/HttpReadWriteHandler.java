@@ -27,12 +27,10 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
-import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
@@ -60,7 +58,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                CorsHandler.Config corsConfig, TaskScheduler taskScheduler, LongSupplier nanoClock) {
+                                TaskScheduler taskScheduler, LongSupplier nanoClock) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
         this.taskScheduler = taskScheduler;
@@ -79,9 +77,6 @@ public class HttpReadWriteHandler implements NioChannelHandler {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
         }
         handlers.add(new NioHttpRequestCreator());
-        if (settings.isCorsEnabled()) {
-            handlers.add(new NioCorsHandler(corsConfig));
-        }
         handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 
         adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
@@ -150,7 +145,6 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
         final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
         boolean success = false;

@@ -19,38 +19,30 @@
 
 package org.elasticsearch.gradle;
 
-import org.gradle.api.Project;
-
-public class DistributionResolution {
-    private Resolver resolver;
-    private String name;
-    private int priority;
-
-    public DistributionResolution(String name) {
-        this.name = name;
+public interface DistributionDependency {
+    static DistributionDependency of(String dependencyNotation) {
+        return new StringBasedDistributionDependency(dependencyNotation);
     }
 
-    public String getName() {
-        return name;
-    }
+    Object getDefaultNotation();
 
-    public Resolver getResolver() {
-        return resolver;
-    }
+    Object getExtractedNotation();
 
-    public void setResolver(Resolver resolver) {
-        this.resolver = resolver;
-    }
+    class StringBasedDistributionDependency implements DistributionDependency {
+        private final String notation;
 
-    public void setPriority(int priority) {
-        this.priority = priority;
-    }
+        public StringBasedDistributionDependency(String notation) {
+            this.notation = notation;
+        }
 
-    public int getPriority() {
-        return priority;
-    }
+        @Override
+        public Object getDefaultNotation() {
+            return notation;
+        }
 
-    public interface Resolver {
-        DistributionDependency resolve(Project project, ElasticsearchDistribution distribution);
+        @Override
+        public Object getExtractedNotation() {
+            return notation;
+        }
     }
 }

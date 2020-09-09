@@ -207,6 +207,9 @@
         index: new_index_not_created
 ---
 "Return item-level error when no write index defined for an alias":
+  - skip:
+      version: " - 7.8.99"
+      reason: "supporting code added in 7.9.0"
 
   - do:
       indices.create:

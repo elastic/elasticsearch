@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-overview]]
-=== {transform-cap} overview
+= {transform-cap} overview
 ++++
 <titleabbrev>Overview</titleabbrev>
 ++++
@@ -60,9 +60,9 @@ image::images/pivot-preview.jpg["Example of a {transform} pivot in {kib}"]
 IMPORTANT: The {transform} leaves your source index intact. It
 creates a new index that is dedicated to the transformed data.
 
-
+[discrete]
 [[transform-performance]]
-==== Performance considerations
+== Performance considerations
 
 {transforms-cap} perform search aggregations on the source indices then index
 the results into the destination index. Therefore, a {transform} never takes

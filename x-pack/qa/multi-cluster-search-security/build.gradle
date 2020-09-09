@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:qa')
@@ -9,7 +10,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security'
+    includeXpack 'security', 'async_search'
   }
 }
 

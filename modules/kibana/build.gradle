@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile project(path: ':modules:reindex', configuration: 'runtime')
+  api project(path: ':modules:reindex')
 }
 
 testClusters.integTest {

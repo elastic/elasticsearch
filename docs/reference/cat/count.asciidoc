@@ -45,14 +45,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-count-api-example-ind]]
 ===== Example with an individual index
 
-The following `count` API request retrieves the document count of a single
-index, `twitter`.
+The following `count` API request retrieves the document count for the 
+`my-index-000001` data stream or index.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/count/twitter?v
+GET /_cat/count/my-index-000001?v
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 
 The API returns the following response:
@@ -74,8 +74,8 @@ the cluster.
 --------------------------------------------------
 GET /_cat/count?v
 --------------------------------------------------
-// TEST[setup:big_twitter]
-// TEST[s/^/POST test\/test\?refresh\n{"test": "test"}\n/]
+// TEST[setup:my_index_big]
+// TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:
 

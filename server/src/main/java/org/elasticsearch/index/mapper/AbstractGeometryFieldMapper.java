@@ -245,11 +245,6 @@ public abstract class AbstractGeometryFieldMapper extends FieldMapper {
     }
 
     @Override
-    public final boolean parsesArrayValue() {
-        return true;
-    }
-
-    @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || ignoreMalformed.explicit()) {

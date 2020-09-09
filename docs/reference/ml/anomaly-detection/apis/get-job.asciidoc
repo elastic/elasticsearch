@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-job]]
-=== Get {anomaly-jobs} API
+= Get {anomaly-jobs} API
 ++++
 <titleabbrev>Get jobs</titleabbrev>
 ++++
@@ -9,7 +9,7 @@
 Retrieves configuration information for {anomaly-jobs}.
 
 [[ml-get-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>` +
 
@@ -20,14 +20,14 @@ Retrieves configuration information for {anomaly-jobs}.
 `GET _ml/anomaly_detectors/_all`
 
 [[ml-get-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
 <<security-privileges>>.
 
 [[ml-get-job-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get information for multiple {anomaly-jobs} in a single API request by
 using a group name, a comma-separated list of jobs, or a wildcard expression.
@@ -37,21 +37,21 @@ You can get information for all {anomaly-jobs} by using `_all`, by specifying
 IMPORTANT: This API returns a maximum of 10,000 jobs. 
 
 [[ml-get-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-default]
 
 [[ml-get-job-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_jobs`::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 [[ml-get-job-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of {anomaly-job} resources. For the full list of
 properties, see <<ml-put-job-request-body,create {anomaly-jobs} API>>.
@@ -76,14 +76,14 @@ value.
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-get-job-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_jobs` is `false`, this code indicates that there are no 
   resources that match the request or only partial matches for the request.
 
 [[ml-get-job-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -631,7 +631,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return new WildcardQuery(new Term(fieldName, "*"));
         }
 
-        return ExistsQueryBuilder.newFilter(context, fieldName);
+        return ExistsQueryBuilder.newFilter(context, fieldName, false);
     }
 
     @Override

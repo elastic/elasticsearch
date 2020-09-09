@@ -49,8 +49,18 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             License license = licenseService.getLicense();
             if (license != null) {
-                licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().description(),
-                        license.status(), license.expiryDate());
+                String type = license.type();
+                License.OperationMode mode = license.operationMode();
+                if (request.getLicenseVersion() < License.VERSION_ENTERPRISE) {
+                    if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
+                        type = License.LicenseType.PLATINUM.getTypeName();
+                    }
+                    if (mode == License.OperationMode.ENTERPRISE) {
+                        mode = License.OperationMode.PLATINUM;
+                    }
+                }
+                licenseInfo = new LicenseInfo(license.uid(), type, mode.description(), license.status(),
+                    license.expiryDate());
             }
         }
 

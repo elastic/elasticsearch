@@ -73,7 +73,7 @@ Source string. Empty strings return an empty string (`""`), regardless of the
 `<left>` or `<right>` parameters. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -91,7 +91,7 @@ Text to the left of the substring to extract. This text should include
 whitespace.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -109,7 +109,7 @@ Text to the right of the substring to extract. This text should include
 whitespace.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -172,7 +172,7 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
 returns `null`.
 +
 If using a field as the argument, this parameter supports only the <<ip,`ip`>>
-field datatype.
+field data type.
 
 `<cidr_block>`::
 (Required{multi-arg}, string or `null`)
@@ -227,7 +227,7 @@ concat(<value>[, <value>])
 Value to concatenate. If any of the arguments are `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter does not support the
-<<text,`text`>> field datatype.
+<<text,`text`>> field data type.
 
 *Returns:* string or `null`
 ====
@@ -281,7 +281,7 @@ endsWith(<source>, <substring>)
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -298,7 +298,7 @@ Fields containing <<array,array values>> use the first array item only.
 Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -364,7 +364,7 @@ indexOf(<source>, <substring>[, <start_pos>])
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -385,7 +385,7 @@ If the `<start_pos>` is positive, empty strings (`""`) return the `<start_pos>`.
 Otherwise, empty strings return `0`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -406,7 +406,7 @@ If this argument is `null` or higher than the length of the `<source>` string,
 the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-<<number,numeric>> field datatypes:
+<<number,numeric>> field data types:
 
 * `long`
 * `integer`
@@ -454,7 +454,7 @@ String for which to return the character length. If `null`, the function returns
 `null`. Empty strings return `0`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -509,7 +509,7 @@ match(<source>, <reg_exp>[, ...])
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -581,7 +581,7 @@ startsWith(<source>, <substring>)
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -598,7 +598,7 @@ Fields containing <<array,array values>> use the first array item only.
 Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -642,7 +642,7 @@ string(<value>)
 Value to convert to a string. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter does not support the
-<<text,`text`>> field datatype.
+<<text,`text`>> field data type.
 
 *Returns:* string or `null`
 ====
@@ -688,7 +688,7 @@ stringContains(<source>, <substring>)
 Source string to search. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -700,7 +700,7 @@ field datatypes:
 Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>
@@ -810,7 +810,7 @@ wildcard(<source>, <wildcard_exp>[, ...])
 Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter supports only the following
-field datatypes:
+field data types:
 
 * <<keyword,`keyword`>>
 * <<constant-keyword,`constant_keyword`>>

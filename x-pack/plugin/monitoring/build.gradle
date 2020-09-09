@@ -15,8 +15,8 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 
   // monitoring deps
-  compile project(':client:rest')
-  compile project(':client:sniffer')
+  api project(':client:rest')
+  api project(':client:sniffer')
 
   // baz - this goes away after we separate out the actions #27759
   testImplementation project(xpackModule('watcher'))
@@ -38,7 +38,7 @@ artifacts {
   testArtifacts testJar
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
@@ -139,15 +140,19 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return newFilter(context, fieldName);
+        return newFilter(context, fieldName, true);
     }
 
-    public static Query newFilter(QueryShardContext context, String fieldPattern) {
+    public static Query newFilter(QueryShardContext context, String fieldPattern, boolean checkRewrite) {
 
        Collection<String> fields = getMappedField(context, fieldPattern);
 
         if (fields.isEmpty()) {
-            throw new IllegalStateException("Rewrite first");
+            if (checkRewrite) {
+                throw new IllegalStateException("Rewrite first");
+            } else {
+                return new MatchNoDocsQuery("unmapped field:" + fieldPattern);
+            }
         }
 
         if (context.indexVersionCreated().before(Version.V_6_1_0)) {

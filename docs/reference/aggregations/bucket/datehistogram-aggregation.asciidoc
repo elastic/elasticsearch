@@ -109,14 +109,14 @@ As an example, here is an aggregation requesting bucket intervals of a month in 
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -128,14 +128,14 @@ singular calendar units are supported:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "2d"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "2d"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -203,14 +203,14 @@ If we try to recreate the "month" `calendar_interval` from earlier, we can appro
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "fixed_interval" : "30d"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "fixed_interval": "30d"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -221,14 +221,14 @@ But if we try to use a calendar unit that is not supported, such as weeks, we'll
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "fixed_interval" : "2w"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "fixed_interval": "2w"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -252,6 +252,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // NOTCONSOLE
 
+[[datehistogram-aggregation-notes]]
 ===== Notes
 
 In all cases, when the specified end time does not exist, the actual end time is
@@ -292,15 +293,15 @@ TIP: If you don't specify `format`, the first date
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "1M",
-                "format" : "yyyy-MM-dd" <1>
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M",
+        "format": "yyyy-MM-dd" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -312,28 +313,28 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": [
-                {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -352,17 +353,17 @@ Consider the following example:
 
 [source,console]
 ---------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
@@ -403,7 +404,7 @@ before midnight UTC:
 
 [source,console]
 ---------------------------------
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
@@ -474,17 +475,17 @@ to run from 6am to 6am:
 
 [source,console]
 -----------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
@@ -541,16 +542,16 @@ bucket and returns the ranges as a hash rather than an array:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "1M",
-                "format" : "yyyy-MM-dd",
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M",
+        "format": "yyyy-MM-dd",
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -560,28 +561,28 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": {
-                "2015-01-01": {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                "2015-02-01": {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                "2015-03-01": {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            }
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": {
+        "2015-01-01": {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        "2015-02-01": {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        "2015-03-01": {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -610,15 +611,15 @@ have a value.
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sale_date" : {
-             "date_histogram" : {
-                 "field" : "date",
-                 "calendar_interval": "year",
-                 "missing": "2000/01/01" <1>
-             }
-         }
+  "aggs": {
+    "sale_date": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "year",
+        "missing": "2000/01/01" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -643,16 +644,16 @@ returns the day of the week:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "dayOfWeek": {
-            "terms": {
-                "script": {
-                    "lang": "painless",
-                    "source": "doc['date'].value.dayOfWeekEnum.value"
-                }
-            }
+  "aggs": {
+    "dayOfWeek": {
+      "terms": {
+        "script": {
+          "lang": "painless",
+          "source": "doc['date'].value.dayOfWeekEnum.value"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

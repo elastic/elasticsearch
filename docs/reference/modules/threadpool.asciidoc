@@ -15,7 +15,7 @@ There are several thread pools, but the important ones include:
 `search`::
     For count/search/suggest operations. Thread pool type is
     `fixed_auto_queue_size` with a size of `int((`<<node.processors,
-    `# of available_processors`>>`pass:[ * ]3) / 2) + 1`, and initial queue_size of
+    `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and initial queue_size of
     `1000`.
 
 [[search-throttled]]`search_throttled`::
@@ -72,7 +72,7 @@ There are several thread pools, but the important ones include:
     For <<indices-flush,flush>>, <<indices-synced-flush-api,synced flush>>, and
     <<index-modules-translog, translog>> `fsync` operations. Thread pool type is
     `scaling` with a keep-alive of `5m` and a default maximum size of `min(5, (`
-    <<node.processors, `# of available processors`>>`) / 2)`.
+    <<node.processors, `# of allocated processors`>>`) / 2)`.
 
 `force_merge`::
     For <<indices-forcemerge,force merge>> operations.

@@ -9,12 +9,14 @@ Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer is used
 exclusively for communication between nodes; the HTTP layer is used by REST
 clients.
-
+[[modules-node-description]]
+// tag::modules-node-description-tag[]
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
 
 By default, a node is all of the following types: master-eligible, data, ingest,
-and (if available) machine learning and transform.
+and (if available) machine learning. All data nodes are also transform nodes.
+// end::modules-node-description-tag[]
 
 TIP: As the cluster grows and in particular if you have large {ml} jobs or
 {ctransforms}, consider separating dedicated master-eligible nodes from
@@ -31,7 +33,7 @@ cluster.
 A node that has `node.data` set to `true` (default). Data nodes hold data and
 perform data related operations such as CRUD, search, and aggregations.
 
-<<ingest,Ingest node>>::
+<<node-ingest-node,Ingest node>>::
 
 A node that has `node.ingest` set to `true` (default). Ingest nodes are able
 to apply an <<pipeline,ingest pipeline>> to a document in order to transform
@@ -299,6 +301,12 @@ node.remote_cluster_client: false <4>
 <3> The `node.ingest` role is enabled by default.
 <4> Disable remote cluster connections (enabled by default).
 
+[[node-ingest-node-setting]]
+// tag::node-ingest-tag[]
+`node.ingest` {ess-icon}::
+Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply an ingest pipeline to transform and enrich a document before indexing. Default: `true`.
+// end::node-ingest-tag[]
+
 [[coordinating-only-node]]
 ==== Coordinating only node
 
@@ -394,12 +402,9 @@ node.remote_cluster_client: false <8>
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
-{transform-cap} nodes run {transforms} and handle {transform} API requests.
-
-If you want to use {transforms} in your cluster, you must have `node.transform`
-set to `true` on at least one node. This is the default behavior. If you have
-the {oss-dist}, do not use these settings. For more information, see
-<<transform-settings>>.
+{transform-cap} nodes run {transforms} and handle {transform} API requests. By
+default, data nodes are also transform nodes. If you have the {oss-dist}, do not
+use these settings. For more information, see <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 

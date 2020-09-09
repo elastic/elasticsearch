@@ -13,9 +13,9 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "extended_stats_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "extended_stats_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -39,27 +39,27 @@ The following snippet calculates the extended stats for monthly `sales` bucket:
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "stats_monthly_sales": {
-            "extended_stats_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "stats_monthly_sales": {
+      "extended_stats_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

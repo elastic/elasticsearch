@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testImplementation project(xpackProject('transport-client').path)
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"

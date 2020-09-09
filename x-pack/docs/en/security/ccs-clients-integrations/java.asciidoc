@@ -11,7 +11,7 @@ and unmarshall JSON requests like a typical REST client.
 NOTE: Using the Java Node Client with secured clusters is not recommended or
       supported.
 
-[float]
+[discrete]
 [[transport-client]]
 ==== Configuring the Transport Client to work with a Secured Cluster
 
@@ -138,7 +138,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
 --------------------------------------------------------------------------------------------------
 --
 
-[float]
+[discrete]
 [[disabling-client-auth]]
 ===== Disabling client authentication
 
@@ -168,7 +168,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
 NOTE: If you are using a public CA that is already trusted by the Java runtime,
       you do not need to set the `xpack.security.transport.ssl.certificate_authorities`.
 
-[float]
+[discrete]
 [[connecting-anonymously]]
 ===== Connecting anonymously
 
@@ -177,7 +177,7 @@ anonymous user the privileges defined in the <<java-transport-client-role,transp
 role. Anonymous access must also be enabled, of course. For more information,
 see <<anonymous-access,Enabling Anonymous Access>>.
 
-[float]
+[discrete]
 [[security-client]]
 ==== Security client
 

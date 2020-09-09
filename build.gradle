@@ -259,7 +259,8 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          String externalLinkName = upstreamProject.archivesBaseName
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
@@ -439,7 +440,9 @@ allprojects {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
-      configurations.findAll { it.isCanBeResolved() && !it.name.equals("testCompile") }.each { it.resolve() }
+      configurations.findAll { it.isCanBeResolved() &&
+        ((it instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) && it.canSafelyBeResolved())
+      }.each { it.resolve() }
     }
   }
 

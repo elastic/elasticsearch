@@ -179,7 +179,8 @@ public class MetadataIndexTemplateService {
     // Package visible for testing
     ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
                                       final String name, final ComponentTemplate template) throws Exception {
-        if (create && currentState.metadata().componentTemplates().containsKey(name)) {
+        final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
+        if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
 
@@ -193,8 +194,6 @@ public class MetadataIndexTemplateService {
                 .put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
                 .build();
         }
-
-        validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
 
         // Collect all the composable (index) templates that use this component template, we'll use
         // this for validating that they're still going to be valid after this component template
@@ -239,8 +238,15 @@ public class MetadataIndexTemplateService {
         final Template finalTemplate = new Template(finalSettings,
             stringMappings == null ? null : new CompressedXContent(stringMappings), template.template().aliases());
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
+
+        if (finalComponentTemplate.equals(existing)) {
+            return currentState;
+        }
+
+        validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
         validate(name, finalComponentTemplate);
 
+        // Validate all composable index templates that use this component template
         if (templatesUsingComponent.size() > 0) {
             ClusterState tempStateWithComponentTemplateAdded = ClusterState.builder(currentState)
                 .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
@@ -266,7 +272,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        logger.info("adding component template [{}]", name);
+        logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
             .build();
@@ -367,7 +373,8 @@ public class MetadataIndexTemplateService {
 
     public ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
                                            final String name, final ComposableIndexTemplate template) throws Exception {
-        if (create && currentState.metadata().templatesV2().containsKey(name)) {
+        final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
+        if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
@@ -434,6 +441,10 @@ public class MetadataIndexTemplateService {
                 template.priority(), template.version(), template.metadata());
         }
 
+        if (finalIndexTemplate.equals(existing)) {
+            return currentState;
+        }
+
         validate(name, finalIndexTemplate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
@@ -446,7 +457,7 @@ public class MetadataIndexTemplateService {
                 (finalIndexTemplate.composedOf().size() > 0 ? "with component templates " + finalIndexTemplate.composedOf() + " " : "") +
                 "is invalid", e);
         }
-        logger.info("adding index template [{}]", name);
+        logger.info("{} index template [{}]", existing == null ? "adding" : "updating", name);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();

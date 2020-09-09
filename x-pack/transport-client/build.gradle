@@ -7,8 +7,8 @@ archivesBaseName = 'x-pack-transport'
 dependencies {
   // this "api" dependency looks weird, but it is correct, as it contains
   // all of x-pack for now, and transport client will be going away in the future.
-  compile project(xpackModule('core'))
-  compile project(':client:transport')
+  api project(xpackModule('core'))
+  api project(':client:transport')
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"

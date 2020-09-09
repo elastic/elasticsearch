@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-influencer]]
-=== Get influencers API
+= Get influencers API
 ++++
 <titleabbrev>Get influencers</titleabbrev>
 ++++
@@ -9,12 +9,12 @@
 Retrieves {anomaly-job} results for one or more influencers.
 
 [[ml-get-influencer-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/influencers`
 
 [[ml-get-influencer-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
@@ -24,21 +24,21 @@ privileges. See <<security-privileges>> and
 <<built-in-roles>>.
 
 [[ml-get-influencer-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 Influencers are the entities that have contributed to, or are to blame for,
 the anomalies. Influencer results are available only if an
 `influencer_field_name` is specified in the job configuration.
 
 [[ml-get-influencer-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-get-influencer-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `desc`::
 (Optional, boolean)
@@ -69,7 +69,7 @@ default, the influencers are sorted by the `influencer_score` value.
 (Optional, string) Returns influencers with timestamps after this time.
 
 [[ml-get-influencer-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of influencer objects, which have the following
 properties:
@@ -123,7 +123,7 @@ field `user_name` is added to the result document. This information enables you 
 filter the anomaly results more easily.
 
 [[ml-get-influencer-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

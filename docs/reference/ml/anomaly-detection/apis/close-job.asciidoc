@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-close-job]]
-=== Close {anomaly-jobs} API
+= Close {anomaly-jobs} API
 ++++
 <titleabbrev>Close jobs</titleabbrev>
 ++++
@@ -13,7 +13,7 @@ A closed job cannot receive data or perform analysis
 operations, but you can still explore and navigate results.
 
 [[ml-close-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_close` +
 
@@ -22,7 +22,7 @@ operations, but you can still explore and navigate results.
 `POST _ml/anomaly_detectors/_all/_close` +
 
 [[ml-close-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
@@ -31,7 +31,7 @@ operations, but you can still explore and navigate results.
 <<ml-stop-datafeed>>.
 
 [[ml-close-job-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can close multiple {anomaly-jobs} in a single API request by using a group
 name, a comma-separated list of jobs, or a wildcard expression. You can close
@@ -57,14 +57,14 @@ situations where the job has already failed, or where you are not interested in
 results the job might have recently produced or might produce in the future.
 
 [[ml-close-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 
 [[ml-close-job-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_jobs`::
 (Optional, boolean)
@@ -79,14 +79,14 @@ which has not responded to its initial close request.
 has closed. The default value is 30 minutes.
 
 [[ml-close-job-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_jobs` is `false`, this code indicates that there are no 
   resources that match the request or only partial matches for the request.
 
 [[ml-close-job-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

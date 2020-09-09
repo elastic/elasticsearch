@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
-        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
@@ -157,7 +157,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(

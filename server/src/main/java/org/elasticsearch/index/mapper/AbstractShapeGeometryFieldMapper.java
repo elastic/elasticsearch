@@ -250,6 +250,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
+    public final boolean parsesArrayValue() {
+        return false;
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)mergeWith;

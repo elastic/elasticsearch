@@ -2,7 +2,7 @@
 [[docs-replication]]
 === Reading and Writing documents
 
-[float]
+[discrete]
 ==== Introduction
 
 Each index in Elasticsearch is <<scalability,divided into shards>>
@@ -20,7 +20,7 @@ responsible for replicating the operation to the other copies.
 This purpose of this section is to give a high level overview of the Elasticsearch replication model and discuss the implications
 it has for various interactions between write and read operations.
 
-[float]
+[discrete]
 ==== Basic write model
 
 Every indexing operation in Elasticsearch is first resolved to a replication group using <<index-routing,routing>>,
@@ -42,7 +42,7 @@ The primary shard follows this basic flow:
 . Once all replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful
    completion of the request to the client.
 
-[float]
+[discrete]
 ===== Failure handling
 
 Many things can go wrong during indexing -- disks can get corrupted, nodes can be disconnected from each other, or some
@@ -83,7 +83,7 @@ into the primary will not be lost. Of course, since at that point we are running
 issues can cause data loss. See <<index-wait-for-active-shards>> for some mitigation options.
 ************
 
-[float]
+[discrete]
 ==== Basic read model
 
 Reads in Elasticsearch can be very lightweight lookups by ID or a heavy search request with complex aggregations that
@@ -101,7 +101,7 @@ is as follows:
 . Send shard level read requests to the selected copies.
 . Combine the results and respond. Note that in the case of get by ID look up, only one shard is relevant and this step can be skipped.
 
-[float]
+[discrete]
 [[shard-failures]]
 ===== Shard failures
 
@@ -121,7 +121,7 @@ Responses containing partial results still provide a `200 OK` HTTP status code.
 Shard failures are indicated by the `timed_out` and `_shards` fields of
 the response header.
 
-[float]
+[discrete]
 ==== A few simple implications
 
 Each of these basic flows determines how Elasticsearch behaves as a system for both reads and writes. Furthermore, since read
@@ -136,7 +136,7 @@ Read unacknowledged:: Since the primary first indexes locally and then replicate
 Two copies by default:: This model can be fault tolerant while maintaining only two copies of the data. This is in contrast to
   quorum-based system where the minimum number of copies for fault tolerance is 3.
 
-[float]
+[discrete]
 ==== Failures
 
 Under failures, the following is possible:
@@ -150,7 +150,7 @@ Dirty reads:: An isolated primary can expose writes that will not be acknowledge
   At that point the operation is already indexed into the primary and can be read by a concurrent read. Elasticsearch mitigates
   this risk by pinging the master every second (by default) and rejecting indexing operations if no master is known.
 
-[float]
+[discrete]
 ==== The Tip of the Iceberg
 
 This document provides a high level overview of how Elasticsearch deals with data. Of course, there is much much more

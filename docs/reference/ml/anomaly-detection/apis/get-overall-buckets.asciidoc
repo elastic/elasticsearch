@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-overall-buckets]]
-=== Get overall buckets API
+= Get overall buckets API
 ++++
 <titleabbrev>Get overall buckets</titleabbrev>
 ++++
@@ -10,7 +10,7 @@ Retrieves overall bucket results that summarize the bucket results of multiple
 {anomaly-jobs}.
 
 [[ml-get-overall-buckets-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/overall_buckets` +
 
@@ -19,7 +19,7 @@ Retrieves overall bucket results that summarize the bucket results of multiple
 `GET _ml/anomaly_detectors/_all/results/overall_buckets`
 
 [[ml-get-overall-buckets-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
@@ -28,7 +28,7 @@ need `read` index privilege on the index that stores the results. The
 privileges. See <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-overall-buckets-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can summarize the bucket results for all {anomaly-jobs} by using `_all` or
 by specifying `*` as the `<job_id>`.
@@ -52,14 +52,14 @@ the `bucket_span` parameter (to a value greater than its default), the
 a span equal to the jobs' largest bucket span.
 
 [[ml-get-overall-buckets-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
 
 [[ml-get-overall-buckets-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `allow_no_jobs`::
 (Optional, boolean)
@@ -95,7 +95,7 @@ equal to this value.
 the `overall_score` calculation. The default value is `1`.
 
 [[ml-get-overall-buckets-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of overall bucket objects, which have the following
 properties:
@@ -121,7 +121,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timestamp-results]
 
 [[ml-get-overall-buckets-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-revert-snapshot]]
-=== Revert model snapshots API
+= Revert model snapshots API
 ++++
 <titleabbrev>Revert model snapshots</titleabbrev>
 ++++
@@ -9,12 +9,12 @@
 Reverts to a specific snapshot.
 
 [[ml-revert-snapshot-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
 
 [[ml-revert-snapshot-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * Before you revert to a saved snapshot, you must close the job.
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
@@ -22,7 +22,7 @@ Reverts to a specific snapshot.
 <<security-privileges>>.
 
 [[ml-revert-snapshot-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The {ml-features} reacts quickly to anomalous input, learning new
 behaviors in data. Highly anomalous input increases the variance in the models
@@ -33,7 +33,7 @@ event. For example, you might consider reverting to a saved snapshot after Black
 Friday or a critical system failure.
 
 [[ml-revert-snapshot-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
@@ -44,7 +44,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-revert-snapshot-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `delete_intervening_results`::
   (Optional, boolean) If true, deletes the results in the time period between
@@ -56,7 +56,7 @@ the job will not accept input data that is older than the current time.
 If you want to resend data, then delete the intervening results.
 
 [[ml-revert-snapshot-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -796,7 +796,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public MappedFieldType smartNameFieldType(String name) {
+    public MappedFieldType fieldType(String name) {
         return mapperService().fieldType(name);
     }
 

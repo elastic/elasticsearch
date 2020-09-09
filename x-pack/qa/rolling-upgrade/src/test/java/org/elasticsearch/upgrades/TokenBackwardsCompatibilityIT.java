@@ -7,6 +7,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -30,6 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58807")
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Collection<RestClient> twoClients = null;
@@ -89,6 +91,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
 
         storeTokens(client(), 1, accessToken, refreshToken);
+        allowedWarnings("index [token_backwards_compatibility_it] matches multiple legacy templates " +
+            "[gen-tokens-old-cluster-template, global], composable templates will only match a single template");
 
         responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         accessToken = (String) responseMap.get("access_token");
@@ -175,6 +179,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
 
         storeTokens(client(), 5, accessToken, refreshToken);
+        allowedWarnings("index [token_backwards_compatibility_it] matches multiple legacy templates " +
+            "[global, invalid-tokens-old-cluster-template], composable templates will only match a single template");
 
         // invalidate access token
         invalidateAccessToken(client(), accessToken);

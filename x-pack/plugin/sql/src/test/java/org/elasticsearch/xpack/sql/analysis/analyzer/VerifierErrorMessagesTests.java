@@ -1022,6 +1022,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
     }
 
+    public void testProjectUnresolvedAliasWithSameNameInFilter() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInOrderBy() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test ORDER BY i"));
+    }
+
     public void testGeoShapeInWhereClause() {
         assertEquals("1:49: geo shapes cannot be used for filtering",
             error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));

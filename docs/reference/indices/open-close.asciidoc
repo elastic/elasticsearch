@@ -8,10 +8,10 @@ Opens a closed index.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/POST \/twitter\/_close\n/]
+// TEST[setup:my_index]
+// TEST[s/^/POST \/my-index-000001\/_close\n/]
 
 
 [[open-index-api-request]]
@@ -101,16 +101,16 @@ A closed index can be re-opened like this:
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close\n/]
 
 The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true,
-    "shards_acknowledged" : true
+  "acknowledged" : true,
+  "shards_acknowledged" : true
 }
 --------------------------------------------------

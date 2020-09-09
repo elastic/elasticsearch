@@ -28,11 +28,9 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -202,10 +200,5 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
         assertThat(restoreInfo.totalShards(), is(1));
         assertThat(restoreInfo.failedShards(), is(0));
-    }
-
-    private long getCountForIndex(String indexName) throws ExecutionException, InterruptedException {
-        return client().search(new SearchRequest(new SearchRequest(indexName).source(
-            new SearchSourceBuilder().size(0).trackTotalHits(true)))).get().getHits().getTotalHits().value;
     }
 }

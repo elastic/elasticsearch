@@ -16,7 +16,7 @@ Term-level queries still normalize search terms for `keyword` fields with the
 `normalizer` property. For more details, see <<normalizer, `normalizer`>>.
 ====
 
-[float]
+[discrete]
 [[term-level-query-types]]
 === Types of term-level queries
 
@@ -26,7 +26,7 @@ Returns documents that contain any indexed value for a field.
 <<query-dsl-fuzzy-query,`fuzzy` query>>::
 Returns documents that contain terms similar to the search term. {es} measures
 similarity, or fuzziness, using a
-http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].
+{wikipedia}/Levenshtein_distance[Levenshtein edit distance].
 
 <<query-dsl-ids-query,`ids` query>>::
 Returns documents based on their <<mapping-id-field, document IDs>>. 

@@ -106,7 +106,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -2126,7 +2125,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> done");
     }
 
-    public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException {
+    public void testSnapshotMoreThanOnce() throws InterruptedException {
         Client client = client();
 
         logger.info("-->  creating repository");

@@ -79,6 +79,7 @@ import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
@@ -758,7 +759,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(64, namedXContents.size());
+        assertEquals(65, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -839,9 +840,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
         assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
-        assertEquals(Integer.valueOf(3),
+        assertEquals(Integer.valueOf(4),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
-        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
+        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME, Exponent.NAME));
         assertEquals(Integer.valueOf(2),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
         assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));

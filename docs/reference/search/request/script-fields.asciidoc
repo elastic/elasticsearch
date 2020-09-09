@@ -1,33 +1,34 @@
-[[request-body-search-script-fields]]
-==== Script Fields
+[discrete]
+[[script-fields]]
+=== Script fields
 
-Allows to return a <<modules-scripting,script
-evaluation>> (based on different fields) for each hit, for example:
+You can use the `script_fields` parameter to retrieve a <<modules-scripting,script
+evaluation>> (based on different fields) for each hit. For example:
 
 [source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match_all": {}
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "test1": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['price'].value * 2"
+      }
     },
-    "script_fields" : {
-        "test1" : {
-            "script" : {
-                "lang": "painless",
-                "source": "doc['price'].value * 2"
-            }
-        },
-        "test2" : {
-            "script" : {
-                "lang": "painless",
-                "source": "doc['price'].value * params.factor",
-                "params" : {
-                    "factor"  : 2.0
-                }
-            }
+    "test2": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['price'].value * params.factor",
+        "params": {
+          "factor": 2.0
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -54,7 +55,7 @@ GET /_search
         }
     }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note the `_source` keyword here to navigate the json-like model.
 

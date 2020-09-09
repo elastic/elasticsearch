@@ -6,7 +6,7 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile project(":plugins:repository-s3")
+  api project(":plugins:repository-s3")
   testImplementation project(":test:framework")
   testImplementation project(':x-pack:snapshot-tool')
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)

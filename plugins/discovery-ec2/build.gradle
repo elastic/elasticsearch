@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
@@ -29,15 +30,15 @@ versions << [
 ]
 
 dependencies {
-  compile "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 }
 
 restResources {
@@ -46,7 +47,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
 }

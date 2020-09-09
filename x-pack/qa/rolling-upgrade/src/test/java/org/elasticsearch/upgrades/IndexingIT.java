@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
  * oss rolling restart tests. We should work on a way to remove this
  * duplication but for now we have no real way to share code.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58807")
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
@@ -75,6 +77,8 @@ public class IndexingIT extends AbstractUpgradeTestCase {
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);
+            allowedWarnings("index [test_index] matches multiple legacy templates [global, xpack-prevent-bwc-deprecation-template], " +
+                "composable templates will only match a single template");
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");

@@ -131,6 +131,11 @@ public class PointFieldMapper extends AbstractGeometryFieldMapper {
     }
 
     @Override
+    public final boolean parsesArrayValue() {
+        return true;
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
     }

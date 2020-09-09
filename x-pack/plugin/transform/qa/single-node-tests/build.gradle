@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('transform'), configuration: 'runtime')
+  testImplementation project(xpackModule('transform'))
   testImplementation project(':client:rest-high-level')
 }
 

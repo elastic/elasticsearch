@@ -123,7 +123,6 @@ setup:
   - match: { trained_model_stats: [] }
 ---
 "Test get stats given trained models":
-
   - do:
       ml.get_trained_models_stats:
         model_id: "a-unused-regression-model"

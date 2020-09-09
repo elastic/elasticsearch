@@ -146,27 +146,27 @@ specified, the default behaviour is to disallow.
 --------------------------------------------------
 PUT _cluster/settings
 {
-    "persistent": {
-        "action.auto_create_index": "twitter,index10,-index1*,+ind*" <1>
-    }
+  "persistent": {
+    "action.auto_create_index": "my-index-000001,index10,-index1*,+ind*" <1>
+  }
 }
 
 PUT _cluster/settings
 {
-    "persistent": {
-        "action.auto_create_index": "false" <2>
-    }
+  "persistent": {
+    "action.auto_create_index": "false" <2>
+  }
 }
 
 PUT _cluster/settings
 {
-    "persistent": {
-        "action.auto_create_index": "true" <3>
-    }
+  "persistent": {
+    "action.auto_create_index": "true" <3>
+  }
 }
 --------------------------------------------------
 
-<1> Allow auto-creation of indices called `twitter` or `index10`, block the
+<1> Allow auto-creation of indices called `my-index-000001` or `index10`, block the
 creation of indices that match the pattern `index1*`, and allow creation of
 any other indices that match the `ind*` pattern. Patterns are matched in
 the order specified.
@@ -175,7 +175,7 @@ the order specified.
 
 <3> Allow automatic creation of any index. This is the default.
 
-[float]
+[discrete]
 [[operation-type]]
 ===== Put if absent
 
@@ -184,7 +184,8 @@ setting the `op_type` parameter to _create_. In this case,
 the index operation fails if a document with the specified ID
 already exists in the index.
 
-[float]
+[discrete]
+[[create-document-ids-automatically]]
 ===== Create document IDs automatically
 
 If you don't specify a document ID when using POST, the `op_type` is
@@ -193,11 +194,13 @@ for the document.
 
 [source,console]
 --------------------------------------------------
-POST twitter/_doc/
+POST my-index-000001/_doc/
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -206,23 +209,23 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_type" : "_doc",
-    "_id" : "W0tpsmIBdwcYyG50zbta",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "result": "created"
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  },
+  "_index": "my-index-000001",
+   "_type": "_doc",
+  "_id": "W0tpsmIBdwcYyG50zbta",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful": 2/"successful": 1/]
 
-[float]
+[discrete]
 [[optimistic-concurrency-control-index]]
 ===== Optimistic concurrency control
 
@@ -232,7 +235,7 @@ term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
 and a status code of 409. See <<optimistic-concurrency-control>> for more details.
 
-[float]
+[discrete]
 [[index-routing]]
 ===== Routing
 
@@ -243,11 +246,13 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_doc?routing=kimchy
+POST my-index-000001/_doc?routing=kimchy
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -261,7 +266,7 @@ additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
 
-[float]
+[discrete]
 [[index-distributed]]
 ===== Distributed
 
@@ -270,7 +275,7 @@ The index operation is directed to the primary shard based on its route
 containing this shard. After the primary shard completes the operation,
 if needed, the update is distributed to applicable replicas.
 
-[float]
+[discrete]
 [[index-wait-for-active-shards]]
 ===== Active shards
 
@@ -319,23 +324,23 @@ replication succeeded/failed.
 [source,js]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    }
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[index-refresh]]
 ===== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
 
-[float]
+[discrete]
 [[index-noop]]
 ===== Noop updates
 
@@ -350,7 +355,7 @@ It's a combination of lots of factors like how frequently your data source
 sends updates that are actually noops and how many queries per second
 Elasticsearch runs on the shard receiving the updates.
 
-[float]
+[discrete]
 [[timeout]]
 ===== Timeout
 
@@ -365,15 +370,17 @@ to 5 minutes:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1?timeout=5m
+PUT my-index-000001/_doc/1?timeout=5m
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[index-versioning]]
 ===== Versioning
 
@@ -394,9 +401,11 @@ conflict will occur and the index operation will fail. For example:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1?version=2&version_type=external
+PUT my-index-000001/_doc/1?version=2&version_type=external
 {
-    "message" : "elasticsearch now has versioning support, double cool!"
+  "user": {
+    "id": "elkbee"
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -419,7 +428,7 @@ a database is simplified if external versioning is used, as only the
 latest version will be used if the index operations arrive out of order for
 whatever reason.
 
-[float]
+[discrete]
 [[index-version-types]]
 ===== Version types
 
@@ -448,15 +457,17 @@ primary and replica shards to diverge.
 [[docs-index-api-example]]
 ==== {api-examples-title}
 
-Insert a JSON document into the `twitter` index with an `_id` of 1:
+Insert a JSON document into the `my-index-000001` index with an `_id` of 1:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1
+PUT my-index-000001/_doc/1
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
@@ -465,44 +476,48 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_type" : "_doc",
-    "_id" : "1",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "result" : "created"
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  },
+  "_index": "my-index-000001",
+   "_type": "_doc",
+  "_id": "1",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/"successful": 2/"successful": 1/]
 
-Use the `_create` resource to index a document into the `twitter` index if
+Use the `_create` resource to index a document into the `my-index-000001` index if
 no document with that ID exists:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_create/1
+PUT my-index-000001/_create/1
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------
 
-Set the `op_type` parameter to _create_ to index a document into the `twitter`
+Set the `op_type` parameter to _create_ to index a document into the `my-index-000001`
 index if no document with that ID exists:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1?op_type=create
+PUT my-index-000001/_doc/1?op_type=create
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }
 --------------------------------------------------

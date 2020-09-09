@@ -62,7 +62,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return Collections.singletonList(new QuerySpec<>(BlockingQueryBuilder.NAME, in -> new BlockingQueryBuilder(in),
+            return Arrays.asList(
+                new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new,
+                    p -> {
+                    throw new IllegalStateException("not implemented");
+                }),
+                new QuerySpec<>(ThrowingQueryBuilder.NAME, ThrowingQueryBuilder::new,
                 p -> {
                     throw new IllegalStateException("not implemented");
                 }));

@@ -18,13 +18,16 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -37,6 +40,7 @@ import java.util.Collections;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
@@ -285,6 +289,43 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
                 AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         }
+    }
+
+    public void testGeoShapeArrayParsing() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject());
+
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("shape")
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(176.0).value(15.0).endArray()
+            .endObject()
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(76.0).value(-15.0).endArray()
+            .endObject()
+            .endArray()
+            .endObject()
+        );
+
+        SourceToParse sourceToParse = new SourceToParse("test", "_doc", "1", arrayedDoc, XContentType.JSON);
+        ParsedDocument document = mapper.parse(sourceToParse);
+        assertThat(document.docs(), hasSize(1));
+        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
+        assertThat(fields.length, equalTo(2));
     }
 
     public String toXContentString(GeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {

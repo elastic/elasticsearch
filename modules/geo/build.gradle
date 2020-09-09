@@ -16,12 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'
   classname 'org.elasticsearch.geo.GeoPlugin'
 }
 
-artifacts {
-  restTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search'
+  }
 }
+artifacts {
+  restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
+}
+
+integTest.enabled = false
+test.enabled = false

@@ -76,6 +76,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -434,6 +435,33 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(true, expectedWarnings);
+    }
+
+    /**
+     * Allow the given warnings, but don't require their presence.
+     */
+    protected final void allowedWarnings(String... allowedWarnings) {
+        if (enableWarningsCheck() == false) {
+            throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
+        }
+        try {
+            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            if (actualWarnings == null) {
+                return;
+            }
+            final Set<String> actualWarningValues =
+                actualWarnings.stream()
+                    .map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                    .map(DeprecationLogger::escapeAndEncode)
+                    .collect(Collectors.toSet());
+            Set<String> expectedWarnings = new HashSet<>(Arrays.asList(allowedWarnings));
+            final Set<String> warningsNotExpected = Sets.difference(actualWarningValues, expectedWarnings);
+            assertThat("Found " + warningsNotExpected.size() + " unexpected warnings\nExpected: "
+                    + expectedWarnings + "\nActual: " + actualWarningValues,
+                warningsNotExpected.size(), equalTo(0));
+        } finally {
+            resetDeprecationLogger();
+        }
     }
 
     protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
@@ -837,7 +865,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
-        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
+        return TimeZone.getTimeZone(randomJodaAndJavaSupportedTimezone(JAVA_TIMEZONE_IDS));
     }
 
     /**
@@ -849,12 +877,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (JavaVersion.current().getVersion().get(0) == 8) {
             ZoneId timeZone;
             do {
-                timeZone = ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+                timeZone = ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
             } while (timeZone.equals(ZoneId.of("GMT0")));
             return timeZone;
         } else {
-            return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+            return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
         }
+    }
+
+    /**
+     * We need to exclude time zones not supported by joda (like SystemV* timezones)
+     * because they cannot be converted back to DateTimeZone which we currently
+     * still need to do internally e.g. in bwc serialization and in the extract() method
+     * //TODO remove once joda is not supported
+     */
+    private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
+        return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,
+            () -> randomFrom(zoneIds));
     }
 
     /**
@@ -1430,8 +1469,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
         // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
-        final int startAt = workerId == null ? 0 : (int) Math.floorMod(Long.valueOf(workerId), 223);
+        final String workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt;
+        if (workerIdStr == null) {
+            startAt = 0; // IDE
+        } else {
+            // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
+            // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
+            final long workerId = Long.valueOf(workerIdStr);
+            assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
+            startAt = (int) Math.floorMod(workerId - 1, 223L) + 1;
+        }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
     }

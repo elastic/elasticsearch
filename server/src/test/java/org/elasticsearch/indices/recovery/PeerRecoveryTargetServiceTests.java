@@ -216,9 +216,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         // copy with truncated translog
         shard = newStartedShard(false);
         SeqNoStats seqNoStats = populateRandomData(shard);
-        globalCheckpoint =  randomFrom(UNASSIGNED_SEQ_NO, seqNoStats.getMaxSeqNo());
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
             RecoverySource.PeerRecoverySource.INSTANCE));
+        globalCheckpoint =  randomFrom(UNASSIGNED_SEQ_NO, seqNoStats.getMaxSeqNo());
         String translogUUID = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), globalCheckpoint,
             replica.shardId(), replica.getPendingPrimaryTerm());
         replica.store().associateIndexWithNewTranslog(translogUUID);
@@ -232,6 +232,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         }
+        assertThat(replica.recoveryState().getStage(), equalTo(RecoveryState.Stage.TRANSLOG));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(replica.recoveryState().getStage(), equalTo(RecoveryState.Stage.TRANSLOG));

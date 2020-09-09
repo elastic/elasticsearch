@@ -10,9 +10,9 @@ your index contains a large number of fields.
 
 [source,console]
 ----
-GET /twitter/_mapping/field/user
+GET /my-index-000001/_mapping/field/user
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[get-field-mapping-api-request]]
@@ -71,19 +71,19 @@ index with several field mappings.
 --------------------------------------------------
 PUT /publications
 {
-    "mappings": {
+  "mappings": {
+    "properties": {
+      "id": { "type": "text" },
+      "title": { "type": "text" },
+      "abstract": { "type": "text" },
+      "author": {
         "properties": {
-            "id": { "type": "text" },
-            "title":  { "type": "text"},
-            "abstract": { "type": "text"},
-            "author": {
-                "properties": {
-                    "id": { "type": "text" },
-                    "name": { "type": "text" }
-                }
-            }
+          "id": { "type": "text" },
+          "name": { "type": "text" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -212,11 +212,10 @@ following are some examples:
 
 [source,console]
 --------------------------------------------------
-GET /twitter,kimchy/_mapping/field/message
+GET /my-index-000001,my-index-000002/_mapping/field/message
 
 GET /_all/_mapping/field/message,user.id
 
 GET /_all/_mapping/field/*.id
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/PUT kimchy\nPUT book\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]

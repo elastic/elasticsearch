@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.protocol.xpack;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.License;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -40,8 +42,10 @@ public class XPackInfoRequest extends ActionRequest {
 
     private boolean verbose;
     private EnumSet<Category> categories = EnumSet.noneOf(Category.class);
+    private int licenseVersion = License.VERSION_CURRENT;
 
-    public XPackInfoRequest() {}
+    public XPackInfoRequest() {
+    }
 
     public XPackInfoRequest(StreamInput in) throws IOException {
         // NOTE: this does *not* call super, THIS IS A BUG
@@ -52,6 +56,9 @@ public class XPackInfoRequest extends ActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
+        if (in.getVersion().onOrAfter(Version.V_7_8_1)) {
+            this.licenseVersion = in.readVInt();
+        }
     }
 
     public void setVerbose(boolean verbose) {
@@ -70,6 +77,14 @@ public class XPackInfoRequest extends ActionRequest {
         return categories;
     }
 
+    public int getLicenseVersion() {
+        return licenseVersion;
+    }
+
+    public void setLicenseVersion(int licenseVersion) {
+        this.licenseVersion = licenseVersion;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -81,6 +96,9 @@ public class XPackInfoRequest extends ActionRequest {
         out.writeVInt(categories.size());
         for (Category category : categories) {
             out.writeString(category.name());
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_8_1)) {
+            out.writeVInt(this.licenseVersion);
         }
     }
 }

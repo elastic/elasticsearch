@@ -16,11 +16,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.nio.channels.FileChannel;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -130,6 +132,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     @Override
     protected void readInternal(final byte[] buffer, final int offset, final int length) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
+        assert assertCurrentThreadIsNotCacheFetchAsync();
         final long position = getFilePointer() + this.offset;
 
         int totalBytesRead = 0;
@@ -141,13 +144,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             int bytesRead = 0;
             try {
                 final CacheFile cacheFile = getCacheFileSafe();
-                try (ReleasableLock ignored = cacheFile.fileLock()) {
-                    final Tuple<Long, Long> range = computeRange(pos);
-                    bytesRead = cacheFile.fetchRange(
-                        range.v1(),
-                        range.v2(),
-                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, buffer, off, len),
-                        (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)
+                try (Releasable ignored = cacheFile.fileLock()) {
+
+                    final Tuple<Long, Long> rangeToWrite = computeRange(pos);
+                    final Tuple<Long, Long> rangeToRead = Tuple.tuple(pos, Math.min(pos + len, rangeToWrite.v2()));
+
+                    bytesRead = cacheFile.fetchAsync(
+                        rangeToWrite,
+                        rangeToRead,
+                        (channel) -> readCacheFile(channel, rangeToRead.v2(), pos, buffer, off, len),
+                        (channel, start, end, progressUpdater) -> writeCacheFile(channel, start, end, progressUpdater),
+                        directory.cacheFetchAsyncExecutor()
                     ).get();
                 }
             } catch (final Exception e) {
@@ -185,7 +192,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         try {
             final CacheFile cacheFile = getCacheFileSafe();
-            try (ReleasableLock ignored = cacheFile.fileLock()) {
+            try (Releasable ignored = cacheFile.fileLock()) {
 
                 final Tuple<Long, Long> range = cacheFile.getAbsentRangeWithin(partRange.v1(), partRange.v2());
                 if (range == null) {
@@ -225,22 +232,18 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     while (remainingBytes > 0L) {
                         assert totalBytesRead + remainingBytes == rangeLength;
                         final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
+
+                        // The range to prewarm in cache
                         final long readStart = rangeStart + totalBytesRead;
-                        cacheFile.fetchRange(readStart, readStart + bytesRead, (start, end) -> {
-                            logger.trace(
-                                "prefetchPart: range [{}-{}] of file [{}] is available in cache",
-                                start,
-                                end,
-                                fileInfo.physicalName()
-                            );
-                            return Math.toIntExact(end - start);
-                        }, (start, end) -> {
+                        final Tuple<Long, Long> rangeToWrite = Tuple.tuple(readStart, readStart + bytesRead);
+
+                        cacheFile.fetchAsync(rangeToWrite, rangeToWrite, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
                             final ByteBuffer byteBuffer = ByteBuffer.wrap(
                                 copyBuffer,
                                 Math.toIntExact(start - readStart),
                                 Math.toIntExact(end - start)
                             );
-                            final int writtenBytes = positionalWrite(fc, start, byteBuffer);
+                            final int writtenBytes = positionalWrite(channel, start, byteBuffer);
                             logger.trace(
                                 "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
                                 start,
@@ -249,7 +252,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                                 writtenBytes
                             );
                             totalBytesWritten.addAndGet(writtenBytes);
-                        });
+                            progressUpdater.accept(start + writtenBytes);
+                        }, directory.cacheFetchAsyncExecutor()).get();
                         totalBytesRead += bytesRead;
                         remainingBytes -= bytesRead;
                     }
@@ -266,6 +270,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
     private static int positionalWrite(FileChannel fc, long start, ByteBuffer byteBuffer) throws IOException {
+        assert assertCurrentThreadMayWriteCacheFile();
         return fc.write(byteBuffer, start);
     }
 
@@ -331,8 +336,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return bytesRead;
     }
 
-    private void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
+    private void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
+        throws IOException {
         assert assertFileChannelOpen(fc);
+        assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
@@ -346,6 +353,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 positionalWrite(fc, start + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
+                progressUpdater.accept(start + bytesCopied);
             }
             final long endTimeNanos = stats.currentTimeNanos();
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
@@ -520,6 +528,26 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static boolean assertFileChannelOpen(FileChannel fileChannel) {
         assert fileChannel != null;
         assert fileChannel.isOpen();
+        return true;
+    }
+
+    private static boolean isCacheFetchAsyncThread(final String threadName) {
+        return threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
+    }
+
+    private static boolean assertCurrentThreadMayWriteCacheFile() {
+        final String threadName = Thread.currentThread().getName();
+        assert isCacheFetchAsyncThread(threadName) : "expected the current thread ["
+            + threadName
+            + "] to belong to the cache fetch async thread pool";
+        return true;
+    }
+
+    private static boolean assertCurrentThreadIsNotCacheFetchAsync() {
+        final String threadName = Thread.currentThread().getName();
+        assert false == isCacheFetchAsyncThread(threadName) : "expected the current thread ["
+            + threadName
+            + "] to belong to the cache fetch async thread pool";
         return true;
     }
 }

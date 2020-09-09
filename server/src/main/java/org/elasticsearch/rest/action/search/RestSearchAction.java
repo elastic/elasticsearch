@@ -309,7 +309,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.preference() != null) {
             validationException = addValidationError("[preference] cannot be used with point in time", validationException);
         }
-        if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", request.isCcsMinimizeRoundtrips())) {
+        if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
             validationException =
                 addValidationError("[ccs_minimize_roundtrips] cannot be used with point in time", validationException);
             request.setCcsMinimizeRoundtrips(false);

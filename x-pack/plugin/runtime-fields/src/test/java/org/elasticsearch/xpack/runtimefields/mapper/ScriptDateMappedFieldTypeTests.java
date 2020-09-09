@@ -504,7 +504,13 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     private DateScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_timestamp":
-                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
@@ -514,7 +520,13 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     }
                                 };
                             case "add_days":
-                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {

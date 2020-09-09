@@ -31,7 +31,7 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
     }
 
     public interface LeafFactory {
@@ -40,8 +40,14 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
 
     private final DateFormatter formatter;
 
-    public DateScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public DateScriptFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        DateFormatter formatter,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx);
         this.formatter = formatter;
     }
 

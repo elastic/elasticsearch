@@ -32,25 +32,18 @@ public class DeprecatedMessage  {
     private static final String ECS_VERSION = "1.6";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public static ESLogMessage of(String key, String xOpaqueId, String messagePattern, Object... args){
-        if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return new ESLogMessage(messagePattern, args).field("key", key);
-        }
-
-        Object value = new Object() {
-            @Override
-            public String toString() {
-                return ParameterizedMessage.format(messagePattern, args);
-            }
-        };
-
-        return new ESLogMessage(messagePattern, args)
+    public static ESLogMessage of(String key, String xOpaqueId, String messagePattern, Object... args) {
+        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args)
             .field("data_stream.type", "logs")
             .field("data_stream.datatype", "deprecation")
             .field("data_stream.namespace", "elasticsearch")
             .field("ecs.version", ECS_VERSION)
-            .field("key", key)
-            .field("message", value)
-            .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+            .field("key", key);
+
+        if (Strings.isNullOrEmpty(xOpaqueId)) {
+            return esLogMessage;
+        }
+
+        return esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }
 }

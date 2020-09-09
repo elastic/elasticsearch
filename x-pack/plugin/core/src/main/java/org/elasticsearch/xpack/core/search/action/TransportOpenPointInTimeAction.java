@@ -92,7 +92,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     new ActionListenerResponseHandler<SearchPhaseResult>(phaseListener, ShardOpenReaderResponse::new)
                 );
             },
-            ActionListener.map(listener, r -> new OpenPointInTimeResponse(r.pointInTimeId()))
+            ActionListener.map(listener, r -> {
+                assert r.getScrollId() != null : r;
+                return new OpenPointInTimeResponse(r.pointInTimeId());
+            })
         );
     }
 

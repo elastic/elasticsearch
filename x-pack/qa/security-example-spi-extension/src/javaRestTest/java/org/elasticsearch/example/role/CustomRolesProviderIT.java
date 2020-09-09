@@ -27,7 +27,6 @@ import java.util.List;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.INDEX;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_A;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -41,7 +40,7 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     static {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
+                UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
         AUTH_OPTIONS = options.build();
     }
 

@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -299,11 +298,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     // original markup form in order to inject annotations.
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
         private final Analyzer delegate;
-        private final HitContext hitContext;
-        public AnnotatedHighlighterAnalyzer(Analyzer delegate, HitContext hitContext){
+        private AnnotatedText[] annotations;
+
+        public AnnotatedHighlighterAnalyzer(Analyzer delegate){
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
-            this.hitContext = hitContext;
         }
 
         @Override
@@ -311,10 +310,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           return delegate;
         }
 
+        public void setAnnotations(AnnotatedText[] annotations) {
+            this.annotations = annotations;
+        }
+
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
             AtomicInteger readerNum = new AtomicInteger(0);
             return new TokenStreamComponents(r -> {
                 String plainText = readToString(r);

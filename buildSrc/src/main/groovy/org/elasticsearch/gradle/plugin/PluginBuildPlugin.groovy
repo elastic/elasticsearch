@@ -25,7 +25,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.util.Util
@@ -60,16 +59,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
         boolean isModule = project.path.startsWith(':modules:') || isXPackModule
 
-        createIntegTestTask(project)
         createBundleTasks(project, extension)
-        project.tasks.named("integTest").configure {
-            it.dependsOn(project.tasks.named("bundlePlugin"))
-        }
-        if (isModule) {
-            project.testClusters.integTest.module(project.tasks.bundlePlugin.archiveFile)
-        } else {
-            project.testClusters.integTest.plugin(project.tasks.bundlePlugin.archiveFile)
-        }
 
         project.afterEvaluate {
             project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
@@ -116,14 +106,6 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
 
-        //disable integTest task if project has been converted to use yaml or java rest test plugin
-        project.pluginManager.withPlugin("elasticsearch.yaml-rest-test") {
-            project.tasks.integTest.enabled = false
-        }
-        project.pluginManager.withPlugin("elasticsearch.java-rest-test") {
-            project.tasks.integTest.enabled = false
-        }
-
         project.tasks.named('testingConventions').configure {
             naming.clear()
             naming {
@@ -142,7 +124,6 @@ class PluginBuildPlugin implements Plugin<Project> {
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
             dependsOn(project.tasks.bundlePlugin)
-            useCluster project.testClusters.integTest
         }
     }
 
@@ -170,13 +151,6 @@ class PluginBuildPlugin implements Plugin<Project> {
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             compileOnly "org.elasticsearch:jna:${project.versions.jna}"
         }
-    }
-
-    /** Adds an integTest task which runs rest tests */
-    private static void createIntegTestTask(Project project) {
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter('precommit', 'test')
-        project.check.dependsOn(integTest)
     }
 
     /**

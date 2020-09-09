@@ -139,6 +139,6 @@ setup:
             term:
               ip: 252.0.0.0
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.timestamp: 1998-04-30T14:31:27-05:00}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:27-05:00"}
 
 # TODO tests for using the ip in a script. there is almost certainly whitelist "fun" here.

@@ -69,6 +69,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     protected final void emitValue(double v) {
+        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }

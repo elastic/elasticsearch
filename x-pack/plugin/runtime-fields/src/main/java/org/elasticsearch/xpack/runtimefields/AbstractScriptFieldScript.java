@@ -101,6 +101,10 @@ public abstract class AbstractScriptFieldScript {
         return leafSearchLookup.doc();
     }
 
+    /**
+     * Check if the we can add another value to the list of values.
+     * @param currentSize the current size of the list
+     */
     protected final void checkMaxSize(int currentSize) {
         if (currentSize >= MAX_VALUES) {
             throw new IllegalArgumentException(

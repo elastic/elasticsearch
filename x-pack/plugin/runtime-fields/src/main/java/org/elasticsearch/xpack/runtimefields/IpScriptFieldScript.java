@@ -93,6 +93,7 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
     }
 
     protected final void emitValue(String v) {
+        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }

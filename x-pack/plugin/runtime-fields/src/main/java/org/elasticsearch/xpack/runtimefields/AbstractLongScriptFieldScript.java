@@ -50,6 +50,7 @@ public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldS
     }
 
     protected final void emitValue(long v) {
+        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }

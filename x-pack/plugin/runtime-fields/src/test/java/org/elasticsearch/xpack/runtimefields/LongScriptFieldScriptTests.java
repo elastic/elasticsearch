@@ -31,7 +31,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
     ) {
         @Override
         public void execute() {
-            emitValue(1);
+            emit(1);
         }
     };
 

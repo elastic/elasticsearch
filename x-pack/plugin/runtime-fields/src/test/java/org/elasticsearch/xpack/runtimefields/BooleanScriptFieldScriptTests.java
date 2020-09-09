@@ -30,7 +30,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
     ) {
         @Override
         public void execute() {
-            emitValue(false);
+            emit(false);
         }
     };
 

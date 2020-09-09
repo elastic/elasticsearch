@@ -31,7 +31,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
     ) {
         @Override
         public void execute() {
-            emitValue("foo");
+            emit("foo");
         }
     };
 

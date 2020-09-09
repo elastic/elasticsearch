@@ -23,7 +23,7 @@ setup:
                 script:
                   source: |
                     for (double v : doc['voltage']) {
-                      emitValue(v / params.max);
+                      emit(v / params.max);
                     }
                   params:
                     max: 5.8
@@ -33,7 +33,7 @@ setup:
                 runtime_type: double
                 script:
                   source: |
-                    emitValue(params._source.voltage / params.max);
+                    emit(params._source.voltage / params.max);
                   params:
                     max: 5.8
               # Test fetching many values
@@ -45,7 +45,7 @@ setup:
                     for (double voltage : doc['voltage']) {
                       double v = voltage;
                       while (v > 1.2) {
-                        emitValue(v);
+                        emit(v);
                         v = Math.sqrt(v);
                       }
                     }
@@ -78,7 +78,7 @@ setup:
   - match:
       sensor.mappings.properties.voltage_percent.script.source: |
         for (double v : doc['voltage']) {
-          emitValue(v / params.max);
+          emit(v / params.max);
         }
   - match: {sensor.mappings.properties.voltage_percent.script.params: {max: 5.8} }
   - match: {sensor.mappings.properties.voltage_percent.script.lang: painless }

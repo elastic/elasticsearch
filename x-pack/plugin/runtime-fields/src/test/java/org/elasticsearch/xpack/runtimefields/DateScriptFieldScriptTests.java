@@ -33,7 +33,7 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
     ) {
         @Override
         public void execute() {
-            emitValue(1595431354874L);
+            emit(1595431354874L);
         }
     };
 

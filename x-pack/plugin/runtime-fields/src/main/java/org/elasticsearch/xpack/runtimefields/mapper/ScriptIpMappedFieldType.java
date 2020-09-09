@@ -80,7 +80,7 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
     }
 
     private IpScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(script.getParams(), searchLookup);
+        return scriptFactory.newFactory(name(), script.getParams(), searchLookup);
     }
 
     @Override

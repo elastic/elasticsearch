@@ -256,14 +256,14 @@ public class AsyncSearchTaskTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             task.getSearchProgressActionListener().onPartialReduce(shards.subList(i, i+1),
                 new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-            assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true);
+            assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false);
         }
         task.getSearchProgressActionListener().onFinalReduce(shards,
             new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true);
+        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
             newSearchResponse(totalShards, totalShards, numSkippedShards));
-        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false);
+        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false);
     }
 
     public void testWithFetchFailures() throws InterruptedException {
@@ -283,7 +283,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             task.getSearchProgressActionListener().onPartialReduce(shards.subList(i, i+1),
                 new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-            assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true);
+            assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false);
         }
         task.getSearchProgressActionListener().onFinalReduce(shards,
             new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
@@ -291,15 +291,16 @@ public class AsyncSearchTaskTests extends ESTestCase {
         ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFetchFailures];
         for (int i = 0; i < numFetchFailures; i++) {
             IOException failure = new IOException("boum");
+            //fetch failures are currently ignored, they come back with onFailure or onResponse anyways
             task.getSearchProgressActionListener().onFetchFailure(i,
                 new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
                 failure);
             shardSearchFailures[i] = new ShardSearchFailure(failure);
         }
-        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numFetchFailures, true);
+        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
             newSearchResponse(totalShards, totalShards - numFetchFailures, numSkippedShards, shardSearchFailures));
-        assertCompletionListeners(task, totalShards, totalShards - numFetchFailures, numSkippedShards, numFetchFailures, false);
+        assertCompletionListeners(task, totalShards, totalShards - numFetchFailures, numSkippedShards, numFetchFailures, false, false);
     }
 
     public void testFatalFailureDuringFetch() throws InterruptedException {
@@ -319,18 +320,19 @@ public class AsyncSearchTaskTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             task.getSearchProgressActionListener().onPartialReduce(shards.subList(0, i+1),
                 new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-            assertCompletionListeners(task, totalShards, i + 1 + numSkippedShards, numSkippedShards, 0, true);
+            assertCompletionListeners(task, totalShards, i + 1 + numSkippedShards, numSkippedShards, 0, true, false);
         }
         task.getSearchProgressActionListener().onFinalReduce(shards,
             new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
         for (int i = 0; i < numShards; i++) {
+            //fetch failures are currently ignored, they come back with onFailure or onResponse anyways
             task.getSearchProgressActionListener().onFetchFailure(i,
                 new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
                 new IOException("boum"));
         }
-        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
+        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
-        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
+        assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, true);
     }
 
     public void testFatalFailureWithNoCause() throws InterruptedException {
@@ -350,7 +352,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
 
         listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
-        assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true);
+        assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true, true);
     }
 
     public void testAddCompletionListenerScheduleErrorWaitForInitListener() throws InterruptedException {
@@ -415,7 +417,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
                                            int expectedSuccessfulShards,
                                            int expectedSkippedShards,
                                            int expectedShardFailures,
-                                           boolean isPartial) throws InterruptedException {
+                                           boolean isPartial,
+                                           boolean totalFailureExpected) throws InterruptedException {
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
@@ -433,6 +436,11 @@ public class AsyncSearchTaskTests extends ESTestCase {
                             assertThat(failure.getCause(), instanceOf(IOException.class));
                             assertThat(failure.getCause().getMessage(), equalTo("boum"));
                         }
+                    }
+                    if (totalFailureExpected) {
+                        assertNotNull(resp.getFailure());
+                    } else {
+                        assertNull(resp.getFailure());
                     }
                     latch.countDown();
                 }

@@ -19,84 +19,63 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-
-import static org.hamcrest.Matchers.equalTo;
-
-public class DocumentMapperParserTests extends ESSingleNodeTestCase {
-    public void testTypeLevel() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject());
-
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertThat(mapper.type(), equalTo("type"));
-    }
+public class DocumentMapperParserTests extends MapperServiceTestCase {
 
     public void testFieldNameWithDots() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo.bar").field("type", "text").endObject()
-            .startObject("foo.baz").field("type", "keyword").endObject()
-            .endObject().endObject().endObject());
-        DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("foo.bar").field("type", "text").endObject();
+            b.startObject("foo.baz").field("type", "keyword").endObject();
+        }));
         assertNotNull(docMapper.mappers().getMapper("foo.bar"));
         assertNotNull(docMapper.mappers().getMapper("foo.baz"));
         assertNotNull(docMapper.objectMappers().get("foo"));
     }
 
     public void testFieldNameWithDeepDots() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo.bar").field("type", "text").endObject()
-            .startObject("foo.baz").startObject("properties")
-            .startObject("deep.field").field("type", "keyword").endObject().endObject()
-            .endObject().endObject().endObject().endObject());
-        DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("foo.bar").field("type", "text").endObject();
+            b.startObject("foo.baz");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("deep.field").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
         assertNotNull(docMapper.mappers().getMapper("foo.bar"));
         assertNotNull(docMapper.mappers().getMapper("foo.baz.deep.field"));
         assertNotNull(docMapper.objectMappers().get("foo"));
     }
 
-    public void testFieldNameWithDotsConflict() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo").field("type", "text").endObject()
-            .startObject("foo.baz").field("type", "keyword").endObject()
-            .endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            mapperParser.parse("type", new CompressedXContent(mapping)));
+    public void testFieldNameWithDotsConflict() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("foo").field("type", "text").endObject();
+            b.startObject("foo.baz").field("type", "keyword").endObject();
+        })));
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
     }
 
-    public void testMultiFieldsWithFieldAlias() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "text")
-                    .startObject("fields")
-                        .startObject("alias")
-                            .field("type", "alias")
-                            .field("path", "other-field")
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .startObject("other-field")
-                    .field("type", "keyword")
-                .endObject()
-            .endObject()
-        .endObject().endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapperParser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    public void testMultiFieldsWithFieldAlias() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("alias");
+                    {
+                        b.field("type", "alias");
+                        b.field("path", "other-field");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("other-field").field("type", "keyword").endObject();
+        })));
+        assertEquals("Failed to parse mapping: Type [alias] cannot be used in multi field", e.getMessage());
     }
 }

@@ -696,6 +696,10 @@ tag::from[]
 Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
 end::from[]
 
+tag::from-models[]
+Skips the specified number of models. The default value is `0`.
+end::from-models[]
+
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
 `max`, and `sum`. For more information, see
@@ -1279,6 +1283,11 @@ tag::size[]
 Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value
 is `100`.
 end::size[]
+
+tag::size-models[]
+Specifies the maximum number of models to obtain. The default value
+is `100`.
+end::size-models[]
 
 tag::snapshot-id[]
 Identifier for the model snapshot.

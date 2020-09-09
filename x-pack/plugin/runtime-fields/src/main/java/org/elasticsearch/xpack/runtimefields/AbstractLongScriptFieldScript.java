@@ -19,8 +19,8 @@ public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldS
     private long[] values = new long[1];
     private int count;
 
-    public AbstractLongScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public AbstractLongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**
@@ -50,6 +50,7 @@ public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldS
     }
 
     protected final void emitValue(long v) {
+        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }

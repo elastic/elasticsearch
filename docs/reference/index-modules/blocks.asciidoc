@@ -17,6 +17,7 @@ block.
 The following _dynamic_ index settings determine the blocks present on an
 index:
 
+[[index-blocks-read-only]]
 `index.blocks.read_only`::
 
     Set to `true` to make the index and index metadata read only, `false` to

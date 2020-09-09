@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.logging;
 
+import java.util.Map;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-
-import java.util.Map;
 
 /**
  * A logger message used by {@link DeprecationLogger}.

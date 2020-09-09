@@ -471,7 +471,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   SearchShardTask task,
                                   ActionListener<ScrollQuerySearchResult> listener) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        final Releasable markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        final Releasable markAsUsed;
+        try {
+            markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        } catch (Exception e) {
+            // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
+            freeReaderContext(readerContext.id());
+            throw e;
+        }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -536,7 +543,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        final Releasable markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        final Releasable markAsUsed;
+        try {
+            markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        } catch (Exception e) {
+            // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
+            freeReaderContext(readerContext.id());
+            throw e;
+        }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);

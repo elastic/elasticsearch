@@ -336,11 +336,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
+        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
+        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("yyyy/MM/dd||epoch_millis")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
@@ -352,11 +352,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
+        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
+        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("strict_date_time")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");

@@ -104,7 +104,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
                     Collections.emptyMap(), topLevelTag + "." + timeField.v1(), timeField.v2().getJavaTimestampFormats(),
-                    needClientTimeZone));
+                    needClientTimeZone, timeField.v2().needNanosecondPrecision()));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
@@ -114,14 +114,14 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
         }
 
-        SortedMap<String, Object> innerMappings = mappingsAndFieldStats.v1();
+        Map<String, Object> innerMappings = mappingsAndFieldStats.v1();
         Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
         secondLevelProperties.put(FileStructureUtils.MAPPING_TYPE_SETTING, "object");
         secondLevelProperties.put(FileStructureUtils.MAPPING_PROPERTIES_SETTING, innerMappings);
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
         if (timeField != null) {
-            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
+            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
         FileStructure structure = structureBuilder

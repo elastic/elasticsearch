@@ -91,6 +91,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createDocumentMapper(String mappings) throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        merge(mapperService, mappings);
+        return mapperService.documentMapper();
+    }
+
     protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(getIndexSettings(), mappings);
     }
@@ -155,13 +161,41 @@ public abstract class MapperServiceTestCase extends ESTestCase {
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
     protected final void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
-        mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
+    }
+
+    /**
+     * Merge a new mapping into the one in the provided {@link MapperService}.
+     */
+    protected final void merge(MapperService mapperService, String mapping) throws IOException {
+        mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
+    /**
+     * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
+     */
+    protected final void merge(MapperService mapperService,
+                               MapperService.MergeReason reason,
+                               XContentBuilder mapping) throws IOException {
+        mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), reason);
+    }
+
+    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        buildFields.accept(builder);
+        return builder.endObject().endObject();
     }
 
     protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();
+    }
+
+    protected final XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder.endObject();
     }
 
     protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {

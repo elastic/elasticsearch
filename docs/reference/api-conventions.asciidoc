@@ -27,7 +27,7 @@ wildcard (`*`) expressions to target any resources that match the pattern:
 You can exclude targets using the `-` character: `test*,-test3`.
 
 IMPORTANT: Index aliases are resolved after wildcard expressions. This can
-result in a request that targets an excluded alias. For example, if `-test3` is
+result in a request that targets an excluded alias. For example, if `test3` is
 an index alias, the pattern `test*,-test3` still targets the indices for
 `test3`. To avoid this, exclude the concrete indices for the alias instead.
 

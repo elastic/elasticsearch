@@ -102,7 +102,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
             FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
-        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
+        SortedMap<String, Object> fieldMappings = mappingsAndFieldStats.v1();
 
         List<String> columnNamesList = Arrays.asList(columnNames);
         char delimiter = (char) csvPreference.getDelimiterChar();
@@ -149,17 +149,17 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
-                    mappings, timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone,
+                    fieldMappings, timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone,
                     timeField.v2().needNanosecondPrecision()))
                 .setMultilineStartPattern(makeMultilineStartPattern(explanation, columnNamesList, maxLinesPerMessage, delimiterPattern,
-                    quotePattern, mappings, timeField.v1(), timeField.v2()));
+                    quotePattern, fieldMappings, timeField.v1(), timeField.v2()));
 
-            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
+            fieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         } else {
             structureBuilder.setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(),
-                csvProcessorSettings, mappings, null, null, false, false));
+                csvProcessorSettings, fieldMappings, null, null, false, false));
             structureBuilder.setMultilineStartPattern(makeMultilineStartPattern(explanation, columnNamesList, maxLinesPerMessage,
-                delimiterPattern, quotePattern, mappings, null, null));
+                delimiterPattern, quotePattern, fieldMappings, null, null));
         }
 
         if (mappingsAndFieldStats.v2() != null) {
@@ -167,7 +167,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         }
 
         FileStructure structure = structureBuilder
-            .setMappings(mappings)
+            .setMappings(Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
             .setExplanation(explanation)
             .build();
 
@@ -628,7 +628,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
      * records.
      */
     static String makeMultilineStartPattern(List<String> explanation, List<String> columnNames, int maxLinesPerMessage,
-                                            String delimiterPattern, String quotePattern, Map<String, Object> mappings,
+                                            String delimiterPattern, String quotePattern, Map<String, Object> fieldMappings,
                                             String timeFieldName, TimestampFormatFinder timeFieldFormat) {
 
         assert columnNames.isEmpty() == false;
@@ -653,7 +653,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 explanation.add("Created a multi-line start pattern based on timestamp column [" + columnName + "]");
                 return builder.toString();
             }
-            Object columnMapping = mappings.get(columnName);
+            Object columnMapping = fieldMappings.get(columnName);
             if (columnMapping instanceof Map) {
                 String type = (String) ((Map<?, ?>) columnMapping).get(FileStructureUtils.MAPPING_TYPE_SETTING);
                 if (type != null) {

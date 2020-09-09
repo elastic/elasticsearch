@@ -64,7 +64,7 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
     }
 
     private LongScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(script.getParams(), searchLookup);
+        return scriptFactory.newFactory(name(), script.getParams(), searchLookup);
     }
 
     @Override

@@ -9,6 +9,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
@@ -39,12 +46,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.Inferenc
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.TreeInferenceModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             (p, c) -> FrequencyEncoding.fromXContentLenient(p, (PreProcessor.PreProcessorParseContext) c)));
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, CustomWordEmbedding.NAME,
             (p, c) -> CustomWordEmbedding.fromXContentLenient(p)));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, NGram.NAME,
+            (p, c) -> NGram.fromXContentLenient(p, (PreProcessor.PreProcessorParseContext) c)));
 
         // PreProcessing Strict
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, OneHotEncoding.NAME,
@@ -74,6 +77,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             (p, c) -> FrequencyEncoding.fromXContentStrict(p, (PreProcessor.PreProcessorParseContext) c)));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, CustomWordEmbedding.NAME,
             (p, c) -> CustomWordEmbedding.fromXContentStrict(p)));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, NGram.NAME,
+            (p, c) -> NGram.fromXContentStrict(p, (PreProcessor.PreProcessorParseContext) c)));
 
         // Model Lenient
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentLenient));
@@ -154,6 +159,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             FrequencyEncoding::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, CustomWordEmbedding.NAME.getPreferredName(),
             CustomWordEmbedding::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, NGram.NAME.getPreferredName(),
+            NGram::new));
 
         // Model
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new));

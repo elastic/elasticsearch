@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'constant-keyword'
@@ -10,7 +11,7 @@ archivesBaseName = 'x-pack-constant-keyword'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 integTest.enabled = false

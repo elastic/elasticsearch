@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -65,9 +65,9 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     }
 
     @Override
-    protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
+    protected void executePhaseOnShard(final SearchShardIterator shardIt, final SearchShardTarget shard,
                                        final SearchActionListener<DfsSearchResult> listener) {
-        getSearchTransport().sendExecuteDfs(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
+        getSearchTransport().sendExecuteDfs(getConnection(shard.getClusterAlias(), shard.getNodeId()),
             buildShardSearchRequest(shardIt) , getTask(), listener);
     }
 

@@ -40,7 +40,7 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final ArraySearchPhaseResults<SearchPhaseResult> queryResult;
+    private final QueryPhaseResultConsumer queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
@@ -98,11 +98,13 @@ final class DfsQueryPhase extends SearchPhase {
                             progressListener.notifyQueryFailure(shardIndex, searchShardTarget, exception);
                             counter.onFailure(shardIndex, searchShardTarget, exception);
                         } finally {
-                            // the query might not have been executed at all (for example because thread pool rejected
-                            // execution) and the search context that was created in dfs phase might not be released.
-                            // release it again to be in the safe side
-                            context.sendReleaseSearchContext(
-                                querySearchRequest.contextId(), connection, searchShardTarget.getOriginalIndices());
+                            if (context.getRequest().pointInTimeBuilder() == null) {
+                                // the query might not have been executed at all (for example because thread pool rejected
+                                // execution) and the search context that was created in dfs phase might not be released.
+                                // release it again to be in the safe side
+                                context.sendReleaseSearchContext(
+                                    querySearchRequest.contextId(), connection, searchShardTarget.getOriginalIndices());
+                            }
                         }
                     }
                 });

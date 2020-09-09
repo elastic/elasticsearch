@@ -1,12 +1,9 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  yamlRestTestImplementation project(path: xpackModule('core'))
+  yamlRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 // bring in machine learning rest test suite
@@ -20,7 +17,7 @@ restResources {
   }
 }
 
-integTest {
+yamlRestTest {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
@@ -82,7 +79,7 @@ integTest {
     'ml/data_frame_analytics_crud/Test put regression given max_trees is greater than 2k',
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is negative',
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is greater than one',
-    'ml/data_frame_analytics_crud/Test put regression given training_percent is less than one',
+    'ml/data_frame_analytics_crud/Test put regression given training_percent is less than zero',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is greater than hundred',
     'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is zero',
     'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is negative',
@@ -97,7 +94,7 @@ integTest {
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than zero',
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
-    'ml/data_frame_analytics_crud/Test put classification given training_percent is less than one',
+    'ml/data_frame_analytics_crud/Test put classification given training_percent is less than zero',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',
     'ml/estimate_model_memory/Test missing overall cardinality',
     'ml/estimate_model_memory/Test missing max bucket cardinality',
@@ -213,7 +210,7 @@ integTest {
 }
 
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"

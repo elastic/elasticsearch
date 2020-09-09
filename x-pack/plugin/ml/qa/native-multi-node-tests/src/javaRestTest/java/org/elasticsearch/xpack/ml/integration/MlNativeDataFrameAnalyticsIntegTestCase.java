@@ -15,9 +15,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -53,7 +51,6 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
-import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -69,7 +66,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,13 +93,6 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         for (DataFrameAnalyticsConfig config : analytics) {
             try {
                 assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
-                if (searchStoredProgress(config.getId()).getHits().getTotalHits().value > 0) {
-                    logger.warn("[{}] had progress written after it was deleted.", config.getId());
-                    UnusedStateRemover remover = new UnusedStateRemover(new OriginSettingClient(client(), ML_ORIGIN), clusterService());
-                    PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                    remover.remove(Float.POSITIVE_INFINITY, future, () -> false);
-                    future.actionGet();
-                }
             } catch (Exception e) {
                 // just log and ignore
                 logger.error(new ParameterizedMessage("[{}] Could not clean up analytics job config", config.getId()), e);

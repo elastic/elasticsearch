@@ -360,7 +360,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
-    public void testToXContent() throws  IOException {
+    public void testToXContent() throws IOException {
         //verify that only what is set gets printed out through toXContent
         XContentType xContentType = randomFrom(XContentType.values());
         {
@@ -381,6 +381,22 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());
         }
+    }
+
+    public void testToXContentWithPointInTime() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder("id", TimeValue.timeValueHours(1)));
+        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference bytes = BytesReference.bytes(builder);
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(bytes, false, xContentType).v2();
+        assertEquals(1, sourceAsMap.size());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pit = (Map<String, Object>) sourceAsMap.get("pit");
+        assertEquals(2, pit.size());
+        assertEquals("id", pit.get("id"));
+        assertEquals("1h", pit.get("keep_alive"));
     }
 
     public void testParseIndicesBoost() throws IOException {

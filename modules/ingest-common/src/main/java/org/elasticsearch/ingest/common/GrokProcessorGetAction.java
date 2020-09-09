@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -55,15 +57,32 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
     public static class Request extends ActionRequest {
 
-        public Request() {}
+        private final boolean sorted;
+
+        public Request(boolean sorted) {
+            this.sorted = sorted;
+        }
 
         Request(StreamInput in) throws IOException {
             super(in);
+            this.sorted = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(sorted);
+            }
+        }
+
+        public boolean sorted() {
+            return sorted;
         }
     }
 
@@ -100,15 +119,25 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
+        private final Map<String, String> grokPatterns;
+        private final Map<String, String> sortedGrokPatterns;
+
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
+            this(transportService, actionFilters, GROK_PATTERNS);
+        }
+
+        // visible for testing
+        TransportAction(TransportService transportService, ActionFilters actionFilters, Map<String, String> grokPatterns) {
             super(NAME, transportService, actionFilters, Request::new);
+            this.grokPatterns = grokPatterns;
+            this.sortedGrokPatterns = new TreeMap<>(this.grokPatterns);
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
-                listener.onResponse(new Response(GROK_PATTERNS));
+                listener.onResponse(new Response(request.sorted() ? sortedGrokPatterns : grokPatterns));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -129,7 +158,9 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> client.executeLocally(INSTANCE, new Request(), new RestToXContentListener<>(channel));
+            boolean sorted = request.paramAsBoolean("s", false);
+            Request grokPatternsRequest = new Request(sorted);
+            return channel -> client.executeLocally(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
         }
     }
 }

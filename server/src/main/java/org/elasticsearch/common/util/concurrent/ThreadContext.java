@@ -197,28 +197,29 @@ public final class ThreadContext implements Writeable {
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
     public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
-        final ThreadContextStruct context = threadLocal.get();
+        final ThreadContextStruct originalContext = threadLocal.get();
         // clear specific transient headers from the current context
         Map<String, Object> newTransientHeaders = null;
         for (String transientHeaderToClear : transientHeadersToClear) {
-            if (context.transientHeaders.containsKey(transientHeaderToClear)) {
+            if (originalContext.transientHeaders.containsKey(transientHeaderToClear)) {
                 if (newTransientHeaders == null) {
-                    newTransientHeaders = new HashMap<>(context.transientHeaders);
+                    newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
                 }
                 newTransientHeaders.remove(transientHeaderToClear);
             }
         }
         if (newTransientHeaders != null) {
-            ThreadContextStruct threadContextStruct = new ThreadContextStruct(context.requestHeaders, context.responseHeaders,
-                    newTransientHeaders, context.isSystemContext, context.warningHeadersSize);
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(originalContext.requestHeaders, originalContext.responseHeaders,
+                    newTransientHeaders, originalContext.isSystemContext, originalContext.warningHeadersSize);
             threadLocal.set(threadContextStruct);
         }
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = threadLocal.get();
         return () -> {
-            if (preserveResponseHeaders && false == threadLocal.get().responseHeaders.equals(context.responseHeaders)) {
-                threadLocal.set(new ThreadContextStruct(context.requestHeaders, new HashMap<>(threadLocal.get().responseHeaders),
-                        context.transientHeaders, context.isSystemContext, threadLocal.get().warningHeadersSize));
+            if (preserveResponseHeaders && threadLocal.get() != newContext) {
+                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
             } else {
-                threadLocal.set(context);
+                threadLocal.set(originalContext);
             }
         };
     }

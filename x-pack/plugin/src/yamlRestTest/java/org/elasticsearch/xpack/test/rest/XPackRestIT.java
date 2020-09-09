@@ -65,7 +65,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return createParameters();
     }
 
     @Override
@@ -211,7 +211,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            ESRestTestCase.waitForPendingTasks(adminClient(), task -> {
+            waitForPendingTasks(adminClient(), task -> {
                     // Don't check rollup jobs because we clear them in the superclass.
                     return task.contains(RollupJob.NAME);
             });

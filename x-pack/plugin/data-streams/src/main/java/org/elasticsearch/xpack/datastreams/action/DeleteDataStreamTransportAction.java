@@ -120,7 +120,7 @@ public class DeleteDataStreamTransportAction extends TransportMasterNodeAction<D
         Set<String> dataStreams = new HashSet<>(
             indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.getNames())
         );
-        Set<String> snapshottingDataStreams = new HashSet<>(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
+        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {
             if (request.isWildcardExpressionsOriginallySpecified()) {

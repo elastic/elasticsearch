@@ -113,7 +113,7 @@ public enum XContentType implements MediaType {
         }
     };
 
-    public static MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values(),
+    public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values(),
         Map.of("application/*", JSON, "application/x-ndjson", JSON));
 
 

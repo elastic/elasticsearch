@@ -24,8 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MediaTypeParser<T extends MediaType> {
-    private Map<String, T> formatToMediaType = new HashMap<>();
-    private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
+    private final Map<String, T> formatToMediaType = new HashMap<>();
+    private final Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
 
     public MediaTypeParser(T[] acceptedMediaTypes) {
         for (T mediaType : acceptedMediaTypes) {

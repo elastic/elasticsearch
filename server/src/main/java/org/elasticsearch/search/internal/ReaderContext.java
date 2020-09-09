@@ -28,6 +28,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.util.HashMap;
 import java.util.List;
@@ -84,6 +85,10 @@ public class ReaderContext implements Releasable {
         };
     }
 
+    public void validate(TransportRequest request) {
+        indexShard.getSearchOperationListener().validateReaderContext(this, request);
+    }
+
     private long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
     }
@@ -119,17 +124,18 @@ public class ReaderContext implements Releasable {
         return searcherSupplier.acquireSearcher(source);
     }
 
-    public void keepAlive(long keepAlive) {
+    private void tryUpdateKeepAlive(long keepAlive) {
         this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
     }
 
     /**
-     * Marks this reader as being used so its time to live should not be expired.
-     *
-     * @return a releasable to indicate the caller has stopped using this reader
+     * Returns a releasable to indicate that the caller has stopped using this reader.
+     * The time to live of the reader after usage can be extended using the provided
+     * <code>keepAliveInMillis</code>.
      */
-    public Releasable markAsUsed() {
+    public Releasable markAsUsed(long keepAliveInMillis) {
         refCounted.incRef();
+        tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
             refCounted.decRef();

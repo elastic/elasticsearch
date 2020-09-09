@@ -36,6 +36,7 @@ public final class FileStructureUtils {
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
     public static final Map<String, String> DATE_MAPPING_WITHOUT_FORMAT =
         Collections.singletonMap(MAPPING_TYPE_SETTING, "date");
+    public static final String NANOSECOND_DATE_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXX";
     public static final Set<String> CONVERTIBLE_TYPES =
         Collections.unmodifiableSet(Sets.newHashSet("integer", "long", "float", "double", "boolean"));
 
@@ -397,13 +398,15 @@ public final class FileStructureUtils {
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
      *                         May be <code>null</code> if {@code timestampField} is also <code>null</code>.
      * @param needClientTimezone Is the timezone of the client supplying data to ingest required to uniquely parse the timestamp?
+     * @param needNanosecondPrecision Does the timestamp have more than millisecond accuracy?
      * @return The ingest pipeline definition, or <code>null</code> if none is required.
      */
     public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, Map<String, String> customGrokPatternDefinitions,
                                                                    Map<String, Object> csvProcessorSettings,
                                                                    Map<String, Object> mappingsForConversions,
                                                                    String timestampField, List<String> timestampFormats,
-                                                                   boolean needClientTimezone) {
+                                                                   boolean needClientTimezone,
+                                                                   boolean needNanosecondPrecision) {
 
         if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
             return null;
@@ -437,6 +440,9 @@ public final class FileStructureUtils {
                 dateProcessorSettings.put("timezone", "{{ " + BEAT_TIMEZONE_FIELD + " }}");
             }
             dateProcessorSettings.put("formats", timestampFormats);
+            if (needNanosecondPrecision) {
+                dateProcessorSettings.put("output_format", NANOSECOND_DATE_OUTPUT_FORMAT);
+            }
             processors.add(Collections.singletonMap("date", dateProcessorSettings));
         }
 

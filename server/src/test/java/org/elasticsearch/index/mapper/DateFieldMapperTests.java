@@ -192,6 +192,33 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testNanosNullValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+
+        MapperService mapperService = createMapperService(fieldMapping(b -> b
+            .field("type", "date_nanos")
+            .field("null_value", "2016-03-11")));
+
+        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
+        long expectedNullValue = ft.parse("2016-03-11");
+
+        doc = mapperService.documentMapper().parse(source(b -> b.nullField("field")));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(expectedNullValue, pointField.numericValue().longValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(expectedNullValue, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+    }
+
     public void testBadNullValue() {
 
         MapperParsingException e = expectThrows(MapperParsingException.class,

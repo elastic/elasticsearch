@@ -158,7 +158,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
         @Override
         public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-            logger.error("Bulk write of {} deprecation logs failed: {}", request.numberOfActions(), failure.getMessage(), failure);
+            logger.error("Bulk write of " + request.numberOfActions() + " deprecation logs failed: " + failure.getMessage(), failure);
         }
     }
 }

@@ -224,6 +224,7 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.FetchScorePhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.fetch.subphase.FetchVersionPhase;
+import org.elasticsearch.search.fetch.subphase.LoadStoredFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.MatchedQueriesPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermPhase;
@@ -732,6 +733,7 @@ public class SearchModule {
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
+        registerFetchSubPhase(new LoadStoredFieldsPhase());
         registerFetchSubPhase(new ExplainPhase());
         registerFetchSubPhase(new FetchDocValuesPhase());
         registerFetchSubPhase(new ScriptFieldsPhase());

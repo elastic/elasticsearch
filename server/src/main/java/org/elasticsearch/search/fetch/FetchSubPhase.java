@@ -39,14 +39,16 @@ public interface FetchSubPhase {
         private final IndexSearcher searcher;
         private final LeafReaderContext readerContext;
         private final int docId;
+        private final int rootId;   // root doc id for nested documents
         private final SourceLookup sourceLookup = new SourceLookup();
         private final Map<String, Object> cache;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher,
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, int rootId, IndexSearcher searcher,
                           Map<String, Object> cache) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
+            this.rootId = rootId;
             this.searcher = searcher;
             this.sourceLookup.setSegmentAndDocument(context, docId);
             this.cache = cache;
@@ -69,6 +71,14 @@ public interface FetchSubPhase {
          */
         public int docId() {
             return docId;
+        }
+
+        public int rootId() {
+            return rootId;
+        }
+
+        public boolean isNested() {
+            return rootId != -1;
         }
 
         /**

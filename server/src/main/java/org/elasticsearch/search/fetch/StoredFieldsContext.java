@@ -42,7 +42,7 @@ public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";
 
     private final List<String> fieldNames;
-    private boolean fetchFields;
+    private final boolean fetchFields;
 
     private StoredFieldsContext(boolean fetchFields) {
         this.fetchFields = fetchFields;
@@ -171,7 +171,7 @@ public class StoredFieldsContext implements Writeable {
             return fromList(Collections.singletonList(parser.text()));
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             return fromList(list);

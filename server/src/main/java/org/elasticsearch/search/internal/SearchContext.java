@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -229,6 +230,10 @@ public abstract class SearchContext implements Releasable {
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
+
+    public BitSetProducer getBitSetProducer(Query query) {
+        return bitsetFilterCache().getBitSetProducer(query);
+    }
 
     public abstract <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType);
 

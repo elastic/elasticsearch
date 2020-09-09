@@ -84,7 +84,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
 
-    private final Text id;
+    private Text id;
 
     private final NestedIdentity nestedIdentity;
 
@@ -95,7 +95,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private BytesReference source;
 
     private Map<String, DocumentField> documentFields;
-    private final Map<String, DocumentField> metaFields;
+    private Map<String, DocumentField> metaFields;
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -459,6 +459,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.documentFields.put(fieldName, field);
     }
 
+    public void setId(String id) {
+        this.id = new Text(id);
+    }
+
+    public void setFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
+        this.documentFields = docFields;
+        this.metaFields = metaFields;
+    }
+
     /**
      * A map of hit fields (from field name to hit fields) if additional fields
      * were required to be loaded.
@@ -569,6 +578,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         this.innerHits = innerHits;
     }
+
 
     public static class Fields {
         static final String _INDEX = "_index";

@@ -66,7 +66,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,7 +75,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 /**
@@ -92,25 +90,7 @@ import java.util.function.IntFunction;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
-
-    static {
-        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
-        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
-        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
-        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
-        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
-        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
-        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
-        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
-
-        for (TimeUnit value : TimeUnit.values()) {
-            assert timeUnitByteMap.containsKey(value) : value;
-        }
-
-        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
-    }
 
     private Version version = Version.CURRENT;
     private Set<String> features = Collections.emptySet();
@@ -1263,7 +1243,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeTimeValue(TimeValue timeValue) throws IOException {
         writeZLong(timeValue.duration());
-        writeByte(TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit()));
+        writeByte((byte) timeValue.timeUnit().ordinal());
     }
 
     /**

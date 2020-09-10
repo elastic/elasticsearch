@@ -19,11 +19,11 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 
-public class MlWithSecurityTestAbstract extends AbstractXPackRestTest {
+public class MlWithSecurityIT extends AbstractXPackRestTest {
 
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
-    public MlWithSecurityTestAbstract(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public MlWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

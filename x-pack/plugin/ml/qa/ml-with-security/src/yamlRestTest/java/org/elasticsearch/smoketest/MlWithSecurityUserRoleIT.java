@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 
-public class MlWithSecurityUserRoleTestAbstract extends MlWithSecurityTestAbstract {
+public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
     /**
      * These are actions that require the monitor role and/or access to the relevant source index.
@@ -32,7 +32,7 @@ public class MlWithSecurityUserRoleTestAbstract extends MlWithSecurityTestAbstra
 
     private final ClientYamlTestCandidate testCandidate;
 
-    public MlWithSecurityUserRoleTestAbstract(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public MlWithSecurityUserRoleIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
         this.testCandidate = testCandidate;
     }

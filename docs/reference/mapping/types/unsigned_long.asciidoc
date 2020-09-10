@@ -80,11 +80,12 @@ GET /my_index/_search
 
 
 For queries with sort on an `unsigned_long` field,
-for a particular document {es} returns a sort value of the type `Long`
+for a particular document {es} returns a sort value of the type `long`
 if the value of this document is within the range of long values,
 or of the type `BigInteger` if the value exceeds this range.
 
-WARNING: Not all {es} clients can properly handle big integer values.
+NOTE: Rest clients need to be able to handle big integer values
+in json to support this field type correctly.
 
 [source,console]
 --------------------------------
@@ -99,12 +100,12 @@ GET /my_index/_search
 //TEST[continued]
 
 Similarly to sort values, script values of an `unsigned_long` field
-produce `BigInteger` or `Long` values. The same values: `BigInteger` or
-`Long` are used for `terms` aggregation.
+return a number representing a `long` or `BigInteger`.
+The same values: `long` or `BigInteger` are used for `terms` aggregations.
 
 ==== Queries with mixed numeric types
 
-Search queries across several numeric types one of which `unsigned_long` are
+Search queries across several numeric types one of which is `unsigned_long` are
 supported, except queries with sort. Thus, a sort query across two indexes
 where the same field name has an `unsigned_long` type in one index,
 and `long` type in another, doesn't produce correct results and must

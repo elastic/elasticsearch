@@ -86,7 +86,6 @@ setup:
           search_after: [24, 172]
           pit:
             id: "$point_in_time_id"
-            keep_alive: 1m
 
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
@@ -106,7 +105,6 @@ setup:
           search_after: [18, 42]
           pit:
             id: "$point_in_time_id"
-            keep_alive: 1m
 
   - match: {hits.total: 3}
   - length: {hits.hits: 1 }

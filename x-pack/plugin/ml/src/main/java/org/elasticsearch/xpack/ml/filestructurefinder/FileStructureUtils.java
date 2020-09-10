@@ -393,6 +393,7 @@ public final class FileStructureUtils {
      * @param csvProcessorSettings The CSV processor settings for delimited formats.  <code>null</code> for
      *                             non-delimited formats.
      * @param mappingsForConversions Mappings (or partial mappings) that will be considered for field type conversions.
+     *                               The keys in the map are the top level field names - there is no properties layer.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.

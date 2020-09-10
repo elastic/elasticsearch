@@ -844,12 +844,28 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+            String searchTerm = BytesRefs.toString(value);
+            return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+        }
+        
+        private String escapeWildcardSyntax(String term) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < term.length();) {
+                final int c = term.codePointAt(i);
+                int length = Character.charCount(c);
+                // Escape any reserved characters
+                if (c == WildcardQuery.WILDCARD_STRING || c == WildcardQuery.WILDCARD_CHAR || c == WildcardQuery.WILDCARD_ESCAPE) {
+                    result.append("\\");
+                }
+                result.appendCodePoint(c);
+                i += length;
+            }
+            return result.toString();
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            return wildcardQuery(value + "*", method, context);
+            return wildcardQuery(escapeWildcardSyntax(value) + "*", method, context);
         }
 
         @Override

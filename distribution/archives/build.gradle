@@ -17,39 +17,11 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.EmptyDirTask
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-import groovy.io.FileType
 import java.nio.file.Files
 import java.nio.file.Path
 
-// need this so Zip/Tar tasks get basic defaults...
-apply plugin: 'base'
-
-// CopySpec does not make it easy to create an empty directory so we
-// create the directory that we want, and then point CopySpec to its
-// parent to copy to the root of the distribution
-ext.logsDir = new File(buildDir, 'logs-hack/logs')
-tasks.register('createLogsDir', EmptyDirTask) {
-  dir = "${logsDir}"
-  dirMode = 0755
-}
-ext.pluginsDir = new File(buildDir, 'plugins-hack/plugins')
-tasks.register('createPluginsDir', EmptyDirTask) {
-  dir = "${pluginsDir}"
-  dirMode = 0755
-}
-ext.jvmOptionsDir = new File(buildDir, 'jvm-options-hack/jvm.options.d')
-tasks.register('createJvmOptionsDir', EmptyDirTask) {
-  dir = "${jvmOptionsDir}"
-  dirMode = 0750
-}
+apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean oss, boolean jdk) {
   return copySpec {
@@ -102,144 +74,123 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   }
 }
 
-// common config across all zip/tar
-tasks.withType(AbstractArchiveTask).configureEach {
-  dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
-  String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
-  destinationDirectory = file("${subdir}/build/distributions")
-  archiveBaseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
+distribution_archives {
+  integTestZip {
+    content {
+      archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
+    }
+  }
+
+  windowsZip {
+    archiveClassifier = 'windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
+    }
+  }
+
+  ossWindowsZip {
+    archiveClassifier = 'windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
+    }
+  }
+
+  noJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
+    }
+  }
+
+  ossNoJdkWindowsZip {
+    archiveClassifier = 'no-jdk-windows-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
+    }
+  }
+
+  darwinTar {
+    archiveClassifier = 'darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
+    }
+  }
+
+  ossDarwinTar {
+    archiveClassifier = 'darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
+    }
+  }
+
+  noJdkDarwinTar {
+    archiveClassifier = 'no-jdk-darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
+    }
+  }
+
+  ossNoJdkDarwinTar {
+    archiveClassifier = 'no-jdk-darwin-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
+    }
+  }
+
+  linuxAarch64Tar {
+    archiveClassifier = 'linux-aarch64'
+    content {
+      archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
+    }
+  }
+
+  linuxTar {
+    archiveClassifier = 'linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
+    }
+  }
+
+  ossLinuxAarch64Tar {
+    archiveClassifier = 'linux-aarch64'
+    content {
+      archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
+    }
+  }
+
+  ossLinuxTar {
+    archiveClassifier = 'linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
+    }
+  }
+
+  noJdkLinuxTar {
+    archiveClassifier = 'no-jdk-linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
+    }
+  }
+
+  ossNoJdkLinuxTar {
+    archiveClassifier = 'no-jdk-linux-x86_64'
+    content {
+      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
+    }
+  }
 }
 
-Closure commonZipConfig = {
-  dirMode 0755
-  fileMode 0644
-}
-
-tasks.register('buildIntegTestZip', Zip) {
-  configure(commonZipConfig)
-  with archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
-}
-
-tasks.register('buildWindowsZip', Zip) {
-  configure(commonZipConfig)
-  archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
-}
-
-tasks.register('buildOssWindowsZip', Zip) {
-  configure(commonZipConfig)
-  archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
-}
-
-tasks.register('buildNoJdkWindowsZip', Zip) {
-  configure(commonZipConfig)
-  archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
-}
-
-tasks.register('buildOssNoJdkWindowsZip', Zip) {
-  configure(commonZipConfig)
-  archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
-}
-
-Closure commonTarConfig = {
-  archiveExtension = 'tar.gz'
-  compression = Compression.GZIP
-  dirMode 0755
-  fileMode 0644
-}
-
-tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
-}
-
-tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
-}
-
-tasks.register('buildNoJdkDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
-}
-
-tasks.register('buildOssNoJdkDarwinTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
-}
-
-tasks.register('buildLinuxAarch64Tar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'linux-aarch64'
-  with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
-}
-
-tasks.register('buildLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
-}
-
-tasks.register('buildOssLinuxAarch64Tar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'linux-aarch64'
-  with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
-}
-
-tasks.register('buildOssLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
-}
-
-tasks.register('buildNoJdkLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
-}
-
-tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
-  configure(commonTarConfig)
-  archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
-}
-
-// This configures the default artifact for the distribution specific
-// subprojects. We have subprojects for two reasons:
-// 1. Gradle project substitutions can only bind to the default
-//    configuration of a project
-// 2. The integ-test-zip and zip distributions have the exact same
-//    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
   apply plugin: 'elasticsearch.internal-distribution-archive-check'
 
-  distributionArchiveCheck {
-    expectedMlLicenses.add("Boost Software License - Version 1.0 - August 17th, 2003")
-  }
-
-  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.named(buildTask)
-  artifacts {
-    'default' buildDist
-  }
-}
-
-subprojects {
   group = "org.elasticsearch.distribution.${name.startsWith("oss-") ? "oss" : "default"}"
 }
 
 /*****************************************************************************
  *                            Rest test config                               *
  *****************************************************************************/
-configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
+project('integ-test-zip') {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
 
@@ -259,6 +210,9 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
 
   // make the pom file name use elasticsearch instead of the project name
   archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
+
+  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
+  ext.buildDist = parent.tasks.named(buildTask)
 
   publishing {
     publications {

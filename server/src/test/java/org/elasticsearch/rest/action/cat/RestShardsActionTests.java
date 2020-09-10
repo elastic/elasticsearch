@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -138,7 +137,7 @@ public class RestShardsActionTests extends ESTestCase {
         request.params().put("local", randomFrom("", "true", "false"));
 
         action.doCatRequest(request, client);
-        assertWarnings(RestNodesAction.LOCAL_DEPRECATED_MESSAGE);
+        assertWarnings(RestShardsAction.LOCAL_DEPRECATED_MESSAGE);
 
         terminate(threadPool);
     }

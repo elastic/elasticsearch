@@ -352,6 +352,12 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
+
+        // The ContextPreservingActionListener here is for the purpose of dropping the response headers, as we need this reindex to run
+        // in the security context of the user (rather than Enrich's security context) to ensure that DLS/FLS is correctly applied, but
+        // the reindex needs to access the `.enrich` index, which causes a deprecation warning. Since we drop the response headers,
+        // the deprecation warning is also dropped - but this is a hack and will not work once full protections of system indices are
+        // enabled.
         client.execute(
             ReindexAction.INSTANCE,
             reindexRequest,

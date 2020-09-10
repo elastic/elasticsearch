@@ -62,7 +62,9 @@ tasks.register('destructivePackagingTest') {
 }
 
 processTestResources {
-  from project(":test:framework").file("src/main/resources/log4j2-test.properties")
+  from(project(":test:framework").file("src/main/resources/log4j2-test.properties")) {
+    filter { line -> line.contains("header_warning") ? null : line }
+  }
 }
 
 subprojects { Project platformProject ->

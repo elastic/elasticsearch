@@ -80,6 +80,33 @@ public class Classification implements Evaluation {
                           @Nullable String predictedClassNameField,
                           @Nullable String predictedProbabilityField,
                           @Nullable List<EvaluationMetric> metrics) {
+        // If any of these fields is specified, all of them must be specified.
+        if (resultsNestedField != null || predictedClassNameField != null || predictedProbabilityField != null) {
+            if (resultsNestedField != null && predictedClassNameField != null && predictedProbabilityField != null) {
+                if (predictedClassNameField.startsWith(resultsNestedField) == false) {
+                    throw ExceptionsHelper.badRequestException(
+                        "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
+                        PREDICTED_CLASS_NAME_FIELD.getPreferredName(),
+                        RESULTS_NESTED_FIELD.getPreferredName(),
+                        predictedClassNameField,
+                        resultsNestedField);
+                }
+                if (predictedProbabilityField.startsWith(resultsNestedField) == false) {
+                    throw ExceptionsHelper.badRequestException(
+                        "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
+                        PREDICTED_PROBABILITY_FIELD.getPreferredName(),
+                        RESULTS_NESTED_FIELD.getPreferredName(),
+                        predictedProbabilityField,
+                        resultsNestedField);
+                }
+            } else {
+                throw ExceptionsHelper.badRequestException(
+                    "Either all or none of [{}, {}, {}] must be specified",
+                    RESULTS_NESTED_FIELD.getPreferredName(),
+                    PREDICTED_CLASS_NAME_FIELD.getPreferredName(),
+                    PREDICTED_PROBABILITY_FIELD.getPreferredName());
+            }
+        }
         this.fields =
             new EvaluationFields(
                 ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),

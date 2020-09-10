@@ -655,8 +655,6 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "predicted_class_name_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.class_probability",
                 "metrics": {
                   "auc_roc": {
                     "class_name": "fish"
@@ -668,7 +666,7 @@ setup:
 ---
 "Test classification auc_roc with missing predicted_class_name_field":
   - do:
-      catch: /\[classification\] must define \[predicted_class_name_field\] as required by the following metrics \[auc_roc\]/
+      catch: /Either all or none of \[results_nested_field, predicted_class_name_field, predicted_probability_field\] must be specified/
       ml.evaluate_data_frame:
         body: >
           {
@@ -690,7 +688,7 @@ setup:
 ---
 "Test classification auc_roc with missing predicted_probability_field":
   - do:
-      catch: /\[classification\] must define \[predicted_probability_field\] as required by the following metrics \[auc_roc\]/
+      catch: /Either all or none of \[results_nested_field, predicted_class_name_field, predicted_probability_field\] must be specified/
       ml.evaluate_data_frame:
         body: >
           {
@@ -786,7 +784,6 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "predicted_probability_field": "outlier_score",
                 "metrics": { "accuracy": {} }
               }
             }
@@ -999,6 +996,63 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "missing"
+              }
+            }
+          }
+
+---
+"Test classification given missing results_nested_field":
+  - do:
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, missing, missing.class_name, missing.class_probability\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "results_nested_field": "missing",
+                "predicted_class_name_field": "missing.class_name",
+                "predicted_probability_field": "missing.class_probability"
+              }
+            }
+          }
+
+---
+"Test classification given missing predicted_class_name_field":
+  - do:
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes, ml.top_classes.missing, ml.top_classes.class_probability\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.missing",
+                "predicted_probability_field": "ml.top_classes.class_probability"
+              }
+            }
+          }
+
+---
+"Test classification given missing predicted_probability_field":
+  - do:
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes, ml.top_classes.class_name, ml.top_classes.missing\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "predicted_probability_field": "ml.top_classes.missing"
               }
             }
           }

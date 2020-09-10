@@ -64,15 +64,19 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             randomSubsetOf(
                 Arrays.asList(
                     AccuracyTests.createRandom(),
+                    AucRocTests.createRandom(),
                     PrecisionTests.createRandom(),
                     RecallTests.createRandom(),
                     MulticlassConfusionMatrixTests.createRandom()));
+        boolean usesAucRoc = metrics.stream().map(EvaluationMetric::getName).anyMatch(n -> AucRoc.NAME.getPreferredName().equals(n));
+        boolean specifiesNestedFields = usesAucRoc || randomBoolean();
+        String resultsNestedField = specifiesNestedFields ? randomAlphaOfLength(10) : null;
         return new Classification(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
+            resultsNestedField,
+            specifiesNestedFields ? resultsNestedField + "." + randomAlphaOfLength(10) : null,
+            specifiesNestedFields ? resultsNestedField + "." + randomAlphaOfLength(10) : null,
             metrics.isEmpty() ? null : metrics);
     }
 
@@ -89,6 +93,51 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     @Override
     protected Writeable.Reader<Classification> instanceReader() {
         return Classification::new;
+    }
+
+    public void testConstructor_GivenMissingField() {
+        String expectedErrorMessage =
+            "Either all or none of [results_nested_field, predicted_class_name_field, predicted_probability_field] must be specified";
+        {
+            ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> new Classification("foo", "bar", "baz", null, null, null));
+            assertThat(e.getMessage(), is(equalTo(expectedErrorMessage)));
+        }
+        {
+            ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> new Classification("foo", "bar", null, "baz", null, null));
+            assertThat(e.getMessage(), is(equalTo(expectedErrorMessage)));
+        }
+        {
+            ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> new Classification("foo", "bar", null, null, "baz", null));
+            assertThat(e.getMessage(), is(equalTo(expectedErrorMessage)));
+        }
+    }
+
+    public void testConstructor_GivenBadField() {
+        {
+            ElasticsearchStatusException e =
+                expectThrows(
+                    ElasticsearchStatusException.class,
+                    () -> new Classification("foo", "bar", "results", "class_name", "results.class_probability", null));
+            assertThat(
+                e.getMessage(),
+                is(equalTo(
+                    "The value of [predicted_class_name_field] must start with the value of [results_nested_field] "
+                    + "but it didn't ([class_name] is not a prefix of [results])")));
+        }
+        {
+            ElasticsearchStatusException e =
+                expectThrows(
+                    ElasticsearchStatusException.class,
+                    () -> new Classification("foo", "bar", "results", "results.class_name", "class_probability", null));
+            assertThat(
+                e.getMessage(),
+                is(equalTo(
+                    "The value of [predicted_probability_field] must start with the value of [results_nested_field] "
+                    + "but it didn't ([class_probability] is not a prefix of [results])")));
+        }
     }
 
     public void testConstructor_GivenEmptyMetrics() {
@@ -117,7 +166,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
 
-    public void testBuildSearch_WithProbabilityField() {
+    public void testBuildSearch_WithNestedFields() {
         QueryBuilder userProvidedQuery =
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("field_A", "some-value"))
@@ -126,37 +175,20 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.existsQuery("act"))
                 .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.existsQuery("pred_prob"))
+                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results"), ScoreMode.None).ignoreUnmapped(true))
+                .filter(
+                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.pred_class"), ScoreMode.None)
+                        .ignoreUnmapped(true))
+                .filter(
+                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.pred_prob"), ScoreMode.None)
+                        .ignoreUnmapped(true))
                 .filter(QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
         Classification evaluation =
-            new Classification("act", "pred", null, null, "pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
-
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
-        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
-        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
-    }
-
-    public void testBuildSearch_WithNestedProbabilityField() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results"), ScoreMode.None))
-                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("pred_class"), ScoreMode.None))
-                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("pred_prob"), ScoreMode.None))
-                .filter(QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
-
-        Classification evaluation =
-            new Classification("act", "pred", "results", "pred_class", "pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
+            new Classification(
+                "act", "pred", "results", "results.pred_class", "results.pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));

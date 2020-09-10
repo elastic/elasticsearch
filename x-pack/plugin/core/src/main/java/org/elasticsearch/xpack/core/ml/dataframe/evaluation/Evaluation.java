@@ -93,12 +93,17 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
         if (getFields().getResultsNestedField() != null) {
             // Verify existence of the results nested field if required for this evaluation
             QueryBuilder resultsNestedFieldExistsQuery = QueryBuilders.existsQuery(getFields().getResultsNestedField());
-            boolQuery.filter(QueryBuilders.nestedQuery(getFields().getResultsNestedField(), resultsNestedFieldExistsQuery, ScoreMode.None));
+            boolQuery.filter(
+                QueryBuilders.nestedQuery(getFields().getResultsNestedField(), resultsNestedFieldExistsQuery, ScoreMode.None)
+                    .ignoreUnmapped(true));
         }
         if (getFields().getPredictedClassNameField() != null) {
+            assert getFields().getResultsNestedField() != null;
             // Verify existence of the predicted class name field if required for this evaluation
             QueryBuilder classNameFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassNameField());
-            boolQuery.filter(QueryBuilders.nestedQuery(getFields().getResultsNestedField(), classNameFieldExistsQuery, ScoreMode.None));
+            boolQuery.filter(
+                QueryBuilders.nestedQuery(getFields().getResultsNestedField(), classNameFieldExistsQuery, ScoreMode.None)
+                    .ignoreUnmapped(true));
         }
         if (getFields().getPredictedProbabilityField() != null) {
             // Verify existence of the predicted probability field if required for this evaluation
@@ -107,7 +112,8 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             // in case of outlier detection evaluation). Here we support both modes.
             if (getFields().getResultsNestedField() != null) {
                 boolQuery.filter(
-                    QueryBuilders.nestedQuery(getFields().getResultsNestedField(), probabilityFieldExistsQuery, ScoreMode.None));
+                    QueryBuilders.nestedQuery(getFields().getResultsNestedField(), probabilityFieldExistsQuery, ScoreMode.None)
+                        .ignoreUnmapped(true));
             } else {
                 boolQuery.filter(probabilityFieldExistsQuery);
             }

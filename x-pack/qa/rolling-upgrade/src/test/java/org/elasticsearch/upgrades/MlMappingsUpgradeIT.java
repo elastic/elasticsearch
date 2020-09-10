@@ -195,7 +195,8 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true, Collections.emptySet());
         assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, statsIndexException);
         assertLegacyTemplateMatchesIndexMappings(".ml-state", ".ml-state-000001");
-        assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
+        // AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
+        // assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
         assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened

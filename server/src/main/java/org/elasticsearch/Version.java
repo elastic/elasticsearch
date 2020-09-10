@@ -302,10 +302,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        if (minCompatVersion == null) {
-            minCompatVersion = computeMinCompatVersion();
+        Version res = minCompatVersion;
+        if (res == null) {
+            res = computeMinCompatVersion();
+            minCompatVersion = res;
         }
-        return minCompatVersion;
+        return res;
     }
 
     private Version computeMinCompatVersion() {
@@ -340,10 +342,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
      */
     public Version minimumIndexCompatibilityVersion() {
-        if (minIndexCompatVersion == null) {
-            minIndexCompatVersion = computeMinIndexCompatVersion();
+        Version res = minIndexCompatVersion;
+        if (res == null) {
+            res = computeMinIndexCompatVersion();
+            minIndexCompatVersion = res;
         }
-        return minIndexCompatVersion;
+        return res;
     }
 
     private Version computeMinIndexCompatVersion() {

@@ -30,7 +30,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
@@ -94,31 +93,25 @@ public class FetchPhase {
 
         FetchContext fetchContext = FetchContext.fromSearchContext(context);
 
-        try {
-            DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
-            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-                docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+        DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
+        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+            docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+        }
+        Arrays.sort(docs);
+
+        SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+        Map<String, Object> sharedCache = new HashMap<>();
+
+        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
+
+        int currentReaderIndex = -1;
+        LeafReaderContext currentReaderContext = null;
+        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+            if (context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
             }
-            Arrays.sort(docs);
-
-            SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
-            Map<String, Object> sharedCache = new HashMap<>();
-
-            List<FetchSubPhaseProcessor> processors = new ArrayList<>();
-            for (FetchSubPhase fsp : fetchSubPhases) {
-                FetchSubPhaseProcessor processor = fsp.getProcessor(fetchContext);
-                if (processor != null) {
-                    processors.add(processor);
-                }
-            }
-
-            int currentReaderIndex = -1;
-            LeafReaderContext currentReaderContext = null;
-            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-                if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
-                }
-                int docId = docs[index].docId;
+            int docId = docs[index].docId;
+            try {
                 int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                 if (currentReaderIndex != readerIndex) {
                     currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
@@ -128,22 +121,37 @@ public class FetchPhase {
                     }
                 }
                 assert currentReaderContext != null;
-
                 HitContext hit
                     = prepareHitContext(context, fieldsVisitor, docId, storedToRequestedFields, currentReaderContext, sharedCache);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
                 hits[docs[index].index] = hit.hit();
+            } catch (IOException e) {
+                throw new FetchPhaseExecutionException(context.shardTarget(), "Error running fetch phase for doc [" + docId + "]", e);
             }
-            if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled");
-            }
+        }
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
+        }
 
-            TotalHits totalHits = context.queryResult().getTotalHits();
-            context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
+        TotalHits totalHits = context.queryResult().getTotalHits();
+        context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
+
+    }
+
+    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context) {
+        try {
+            List<FetchSubPhaseProcessor> processors = new ArrayList<>();
+            for (FetchSubPhase fsp : fetchSubPhases) {
+                FetchSubPhaseProcessor processor = fsp.getProcessor(context);
+                if (processor != null) {
+                    processors.add(processor);
+                }
+            }
+            return processors;
         } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+            throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
         }
     }
 
@@ -245,14 +253,14 @@ public class FetchPhase {
                                    int docId,
                                    Map<String, Set<String>> storedToRequestedFields,
                                    LeafReaderContext subReaderContext,
-                                   Map<String, Object> sharedCache) {
+                                   Map<String, Object> sharedCache) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
             return new HitContext(hit, subReaderContext, subDocId, context.searcher(), sharedCache);
         } else {
             SearchHit hit;
-            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, fieldsVisitor, subDocId);
+            loadStoredFields(context.mapperService(), subReaderContext, fieldsVisitor, subDocId);
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -308,7 +316,7 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, rootFieldsVisitor, rootDocId);
+            loadStoredFields(context.mapperService(), subReaderContext, rootFieldsVisitor, rootDocId);
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
@@ -323,7 +331,7 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context.shardTarget(), context.mapperService(), subReaderContext, nestedFieldsVisitor, nestedDocId);
+            loadStoredFields(context.mapperService(), subReaderContext, nestedFieldsVisitor, nestedDocId);
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -451,16 +459,11 @@ public class FetchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchShardTarget shardTarget,
-                                  MapperService mapperService,
+    private void loadStoredFields(MapperService mapperService,
                                   LeafReaderContext readerContext,
-                                  FieldsVisitor fieldVisitor, int docId) {
+                                  FieldsVisitor fieldVisitor, int docId) throws IOException {
         fieldVisitor.reset();
-        try {
-            readerContext.reader().document(docId, fieldVisitor);
-        } catch (IOException e) {
-            throw new FetchPhaseExecutionException(shardTarget, "Failed to fetch doc id [" + docId + "]", e);
-        }
+        readerContext.reader().document(docId, fieldVisitor);
         fieldVisitor.postProcess(mapperService);
     }
 

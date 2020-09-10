@@ -29,7 +29,6 @@ public class FieldHighlightContext {
     public final String fieldName;
     public final SearchHighlightContext.Field field;
     public final MappedFieldType fieldType;
-    public final SearchShardTarget shardTarget;
     public final QueryShardContext context;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
@@ -38,7 +37,6 @@ public class FieldHighlightContext {
     public FieldHighlightContext(String fieldName,
                                  SearchHighlightContext.Field field,
                                  MappedFieldType fieldType,
-                                 SearchShardTarget shardTarget,
                                  QueryShardContext context,
                                  FetchSubPhase.HitContext hitContext,
                                  Query query,
@@ -46,7 +44,6 @@ public class FieldHighlightContext {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
-        this.shardTarget = shardTarget;
         this.context = context;
         this.hitContext = hitContext;
         this.query = query;

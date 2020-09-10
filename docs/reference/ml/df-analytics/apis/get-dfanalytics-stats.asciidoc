@@ -502,7 +502,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 * `coarse_parameter_search` (for {regression} and {classification} only),
 * `fine_tuning_parameters` (for {regression} and {classification} only),
 * `final_training` (for {regression} and {classification} only),
-* `writing_results`.
+* `writing_results`,
+* `inference` (for {regression} and {classification} only).
 +
 To learn more about the different phases, refer to
 {ml-docs}/ml-dfa-phases.html[How a {dfanalytics} job works].

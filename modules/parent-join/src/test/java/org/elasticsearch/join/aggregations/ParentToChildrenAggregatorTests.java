@@ -40,7 +40,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -164,7 +164,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result = search(indexSearcher, new MatchAllDocsQuery(), request, longField("number"), keywordField("kwd"));
+                StringTerms result =
+                    searchAndReduce(indexSearcher, new MatchAllDocsQuery(), request, longField("number"), keywordField("kwd"));
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -232,8 +233,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        DocumentFieldMappers fieldMappers = new DocumentFieldMappers(Collections.singleton(joinFieldMapper),
-            Collections.emptyList(), null);
+        MappingLookup fieldMappers = new MappingLookup(Collections.singleton(joinFieldMapper),
+            Collections.emptyList(), Collections.emptyList(), 0, null);
         DocumentMapper mockMapper = mock(DocumentMapper.class);
         when(mockMapper.mappers()).thenReturn(fieldMappers);
         when(mapperService.documentMapper()).thenReturn(mockMapper);
@@ -254,7 +255,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
+        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
 

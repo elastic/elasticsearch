@@ -71,6 +71,7 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
@@ -1045,6 +1046,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         testAppliesNoMasterBlock("all", NO_MASTER_BLOCK_ALL);
     }
 
+    public void testAppliesNoMasterBlockMetadataWritesIfConfigured() {
+        testAppliesNoMasterBlock("metadata_write", NO_MASTER_BLOCK_METADATA_WRITES);
+    }
+
     private void testAppliesNoMasterBlock(String noMasterBlockSetting, ClusterBlock expectedBlock) {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
@@ -1362,7 +1367,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
                     failed.set(true);
                 });
-            cluster.runFor(DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
+            cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 
             cluster.stabilise();

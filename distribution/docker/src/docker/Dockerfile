@@ -9,10 +9,43 @@
   can also comment out blocks, like this one. See:
 
   https://docs.groovy-lang.org/latest/html/api/groovy/text/SimpleTemplateEngine.html
-*/ %>
 
+  We use control-flow tags in this file to conditionally render the content. The
+  layout/presentation here has been adjusted so that it looks reasonable when rendered,
+  at the slight expense of how it looks here.
+*/ %>
+<% if (docker_base == "ubi") { %>
 ################################################################################
-# Step 1. Build curl statically. Installing it from RPM on CentOS pulls in too
+# Extract Elasticsearch artifact
+################################################################################
+
+FROM ${base_image} AS builder
+
+# Install required packages to extract the Elasticsearch distribution
+RUN ${package_manager} install -y tar gzip
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+#
+# The tini GitHub page gives instructions for verifying the binary using
+# gpg, but the keyservers are slow to return the key and this can fail the
+# build. Instead, we check the binary against the published checksum.
+RUN set -eux ; \\
+    tini_bin="" ; \\
+    case "\$(arch)" in \\
+        aarch64) tini_bin='tini-arm64' ;; \\
+        x86_64)  tini_bin='tini-amd64' ;; \\
+        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
+    esac ; \\
+    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+    sha256sum -c \${tini_bin}.sha256sum ; \\
+    rm \${tini_bin}.sha256sum ; \\
+    mv \${tini_bin} /bin/tini ; \\
+    chmod +x /bin/tini
+<% } else { %>
+################################################################################
+# Stage 1. Build curl statically. Installing it from RPM on CentOS pulls in too
 # many dependencies.
 ################################################################################
 FROM alpine:latest AS curl
@@ -48,18 +81,18 @@ RUN tar xfJ "\${TARBALL_PATH}" && \\
 # Step 2. Create a minimal root filesystem directory. This will form the basis
 # for our image.
 ################################################################################
-FROM centos:7 AS rootfs
+FROM ${base_image} AS rootfs
 
 ENV BUSYBOX_VERSION 1.31.0
 ENV TINI_VERSION 0.19.0
 
 # Start off with an up-to-date system
-RUN yum update --setopt=tsflags=nodocs -y
+RUN ${package_manager} update --setopt=tsflags=nodocs -y
 
 # Create a directory into which we will install files
 RUN mkdir /rootfs
 
-# Create required devices
+# Create required devices
 RUN mkdir -m 755 /rootfs/dev && \\
     mknod -m 600 /rootfs/dev/console c 5 1 && \\
     mknod -m 600 /rootfs/dev/initctl p && \\
@@ -73,11 +106,14 @@ RUN mkdir -m 755 /rootfs/dev && \\
     mknod -m 666 /rootfs/dev/zero c 1 5
 
 # Install a minimal set of dependencies, and some for Elasticsearch
-RUN yum --installroot=/rootfs --releasever=/ --setopt=tsflags=nodocs \\
+RUN ${package_manager} --installroot=/rootfs --releasever=/ --setopt=tsflags=nodocs \\
       --setopt=group_package_types=mandatory -y  \\
       --skip-broken \\
       install basesystem bash zip zlib
 
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+#
 # The tini GitHub page gives instructions for verifying the binary using
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against the published checksum.
@@ -110,7 +146,7 @@ RUN set -e ; \\
 
 # Add links for most of the Busybox utilities
 RUN set -e ; \\
-    for path in \$( /rootfs/bin/busybox --list-full | grep -v bin/sh | grep -v telnet ); do \\
+    for path in \$( /rootfs/bin/busybox --list-full | grep -v bin/sh | grep -v telnet | grep -v unzip); do \\
       ln /rootfs/bin/busybox /rootfs/\$path ; \\
     done
 
@@ -121,7 +157,7 @@ RUN mkdir -p /rootfs/etc && \\
     cp -a /etc/pki /rootfs/etc/
 
 # Cleanup the filesystem
-RUN yum --installroot=/rootfs -y clean all && \\
+RUN ${package_manager} --installroot=/rootfs -y clean all && \\
     cd /rootfs && \\
     rm -rf \\
         etc/{X11,centos-release*,csh*,profile*,skel*,yum*} \\
@@ -147,9 +183,10 @@ COPY --from=curl /work/curl /rootfs/usr/bin/curl
 ################################################################################
 # Step 3. Fetch the Elasticsearch distribution and configure it for Docker
 ################################################################################
-FROM centos:7 AS builder
+FROM ${base_image} AS builder
+<% } %>
 
-RUN mkdir -p /usr/share/elasticsearch
+RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 # Fetch the appropriate Elasticsearch distribution for this architecture
@@ -164,8 +201,30 @@ RUN chmod 0775 config config/jvm.options.d data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
+<% if (docker_base == "ubi") { %>
 ################################################################################
-# Step 4. Build the final image, using the rootfs above as the basis, and
+# Copy Elasticsearch distribution from previous stage
+# Add entrypoint
+################################################################################
+
+FROM ${base_image}
+
+RUN for iter in {1..10}; do \\
+      ${package_manager} update --setopt=tsflags=nodocs -y && \\
+      ${package_manager} install --setopt=tsflags=nodocs -y \\
+        nc shadow-utils zip unzip findutils procps-ng && \\
+      ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
+      sleep 10; \\
+    done; \\
+    (exit \$exit_code)
+
+RUN groupadd -g 1000 elasticsearch && \\
+    adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
+    chmod 0775 /usr/share/elasticsearch && \\
+    chown -R 1000:0 /usr/share/elasticsearch
+<% } else { %>
+################################################################################
+# Stage 4. Build the final image, using the rootfs above as the basis, and
 # copying in the Elasticsearch distribution
 ################################################################################
 FROM scratch
@@ -173,16 +232,20 @@ FROM scratch
 # Setup the initial filesystem.
 COPY --from=rootfs /rootfs /
 
-ENV ELASTIC_CONTAINER true
-
 RUN addgroup -g 1000 elasticsearch && \\
     adduser -D -u 1000 -G elasticsearch -g elasticsearch -h /usr/share/elasticsearch elasticsearch && \\
     addgroup elasticsearch root && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chgrp 0 /usr/share/elasticsearch
+<% } %>
+
+ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+<% if (docker_base == "ubi") { %>
+COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+<% } %>
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
@@ -193,10 +256,13 @@ ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# 1. Sync the user and group permissions of /etc/passwd
-# 2. Set correct permissions of the entrypoint
-# 3. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-RUN chmod g=u /etc/passwd && \\
+# 1. The JDK's directories' permissions don't allow `java` to be executed under a different
+#    group to the default. Fix this.
+# 2. Sync the user and group permissions of /etc/passwd
+# 3. Set correct permissions of the entrypoint
+# 4. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 '{}' \\; && \\
+    chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} +
 
@@ -221,7 +287,18 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
+<% if (docker_base == 'ubi') { %>
+LABEL name="Elasticsearch" \\
+  maintainer="infra@elastic.co" \\
+  vendor="Elastic" \\
+  version="${version}" \\
+  release="1" \\
+  summary="Elasticsearch" \\
+  description="You know, for search."
 
+RUN mkdir /licenses && \\
+    cp LICENSE.txt /licenses/LICENSE
+<% } %>
 USER elasticsearch:root
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It

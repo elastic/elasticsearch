@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-graph'
   description 'Elasticsearch Expanded Pack Plugin - Graph'
@@ -21,4 +22,3 @@ gradle.projectsEvaluated {
     .each { check.dependsOn it.check }
 }
 
-integTest.enabled = false

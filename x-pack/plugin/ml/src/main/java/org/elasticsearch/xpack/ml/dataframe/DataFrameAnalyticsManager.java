@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -27,10 +28,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -48,7 +51,11 @@ import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Clock;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -66,6 +73,8 @@ public class DataFrameAnalyticsManager {
     private final AnalyticsProcessManager processManager;
     private final DataFrameAnalyticsAuditor auditor;
     private final IndexNameExpressionResolver expressionResolver;
+    /** Indicates whether the node is shutting down. */
+    private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
     public DataFrameAnalyticsManager(NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
                                      AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor,
@@ -214,6 +223,7 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             reindexResponse -> {
+
                 // If the reindex task is canceled, this listener is called.
                 // Consequently, we should not signal reindex completion.
                 if (task.isStopping()) {
@@ -222,7 +232,18 @@ public class DataFrameAnalyticsManager {
                     task.markAsCompleted();
                     return;
                 }
+
                 task.setReindexingTaskId(null);
+
+                Exception reindexError = getReindexError(task.getParams().getId(), reindexResponse);
+                if (reindexError != null) {
+                    task.setFailed(reindexError);
+                    return;
+                }
+
+                LOGGER.debug("[{}] Reindex completed; created [{}]; retries [{}]", task.getParams().getId(),
+                    reindexResponse.getCreated(), reindexResponse.getBulkRetries());
+
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
@@ -247,9 +268,26 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setRefresh(true);
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
+                reindexRequest.getSearchRequest().allowPartialSearchResults(false);
                 reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
+                reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
                 reindexRequest.setDestIndex(config.getDest().getIndex());
-                reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
+
+                // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
+                reindexRequest.setSlices(1);
+                Map<String, Object> counterValueParam = new HashMap<>();
+                counterValueParam.put("value", -1);
+                reindexRequest.setScript(
+                    new Script(
+                        Script.DEFAULT_SCRIPT_TYPE,
+                        Script.DEFAULT_SCRIPT_LANG,
+                        // We use indirection here because top level params are immutable.
+                        // This is a work around at the moment but the plan is to make this a feature of reindex API.
+                        "ctx._source." + DestinationIndex.INCREMENTAL_ID + " = ++params.counter.value",
+                        Collections.singletonMap("counter", counterValueParam)
+                    )
+                );
+
                 reindexRequest.setParentTask(task.getParentTaskId());
 
                 final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
@@ -293,6 +331,26 @@ public class DataFrameAnalyticsManager {
 
         ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, GetIndexAction.INSTANCE,
                 new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
+    }
+
+    private static Exception getReindexError(String jobId, BulkByScrollResponse reindexResponse) {
+        if (reindexResponse.getBulkFailures().isEmpty() == false) {
+            LOGGER.error("[{}] reindexing encountered {} failures", jobId,
+                reindexResponse.getBulkFailures().size());
+            for (BulkItemResponse.Failure failure : reindexResponse.getBulkFailures()) {
+                LOGGER.error("[{}] reindexing failure: {}", jobId, failure);
+            }
+            return ExceptionsHelper.serverError("reindexing encountered " + reindexResponse.getBulkFailures().size() + " failures");
+        }
+        if (reindexResponse.getReasonCancelled() != null) {
+            LOGGER.error("[{}] reindex task got cancelled with reason [{}]", jobId, reindexResponse.getReasonCancelled());
+            return ExceptionsHelper.serverError("reindex task got cancelled with reason [" + reindexResponse.getReasonCancelled() + "]");
+        }
+        if (reindexResponse.isTimedOut()) {
+            LOGGER.error("[{}] reindex task timed out after [{}]", jobId, reindexResponse.getTook().getStringRep());
+            return ExceptionsHelper.serverError("reindex task timed out after [" + reindexResponse.getTook().getStringRep() + "]");
+        }
+        return null;
     }
 
     private static boolean isTaskCancelledException(Exception error) {
@@ -357,5 +415,13 @@ public class DataFrameAnalyticsManager {
 
     public void stop(DataFrameAnalyticsTask task) {
         processManager.stop(task);
+    }
+
+    public boolean isNodeShuttingDown() {
+        return nodeShuttingDown.get();
+    }
+
+    public void markNodeAsShuttingDown() {
+        nodeShuttingDown.set(true);
     }
 }

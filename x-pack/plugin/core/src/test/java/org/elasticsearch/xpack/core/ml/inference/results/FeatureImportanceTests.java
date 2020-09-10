@@ -10,7 +10,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,7 +28,8 @@ public class FeatureImportanceTests extends AbstractSerializingTestCase<FeatureI
             randomAlphaOfLength(10),
             Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomLongBetween(2, 10))
-                .collect(Collectors.toMap(Function.identity(), (k) -> randomDoubleBetween(-10, 10, false))));
+                .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
+                .collect(Collectors.toList()));
     }
 
     @Override

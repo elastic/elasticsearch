@@ -20,7 +20,7 @@ parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
 data streams, indices, or index aliases: `test1,test2,test3`. You can also use
-https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
+{wikipedia}/Glob_(programming)[glob-like] wildcard (`*`)
 expressions to target any
 resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
 
@@ -49,8 +49,8 @@ syntax.
 [[date-math-index-names]]
 === Date math support in index names
 
-Date math index name resolution enables you to search a range of time-series indices, rather
-than searching all of your time-series indices and filtering the results or maintaining aliases.
+Date math index name resolution enables you to search a range of time series indices, rather
+than searching all of your time series indices and filtering the results or maintaining aliases.
 Limiting the number of indices that are searched reduces the load on the cluster and improves
 execution performance. For example, if you are searching for errors in your
 daily logs, you can use a date math name template to restrict the search to the past
@@ -85,19 +85,10 @@ You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
 [source,console]
-----------------------------------------------------------------------
-# GET /<logstash-{now/d}>/_search
-GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
-{
-  "query" : {
-    "match": {
-      "test": "data"
-    }
-  }
-}
-----------------------------------------------------------------------
-// TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/now/2016.09.20%7C%7C/]
+----
+# PUT /<my-index-{now/d}>
+PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
+----
 
 [NOTE]
 .Percent encoding of date math characters
@@ -400,6 +391,7 @@ Returns:
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
+      "index.routing.allocation.include._tier" : "data_hot",
       "index.provided_name" : "my-index-000001"
     }
   }
@@ -432,6 +424,13 @@ Returns:
         "uuid": "n6gzFZTgS664GUfx0Xrpjw",
         "version": {
           "created": ...
+        },
+        "routing": {
+          "allocation": {
+            "include": {
+              "_tier": "data_hot"
+            }
+          }
         },
         "provided_name" : "my-index-000001"
       }
@@ -679,4 +678,4 @@ URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.y
 
 
 This causes  {es} to
-reject requests that explicitly specfiy a data stream or index in the request body.
+reject requests that explicitly specify a data stream or index in the request body.

@@ -53,8 +53,15 @@ public class NewObjectNode extends ArgumentsNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitNewObject(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitNewObject(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

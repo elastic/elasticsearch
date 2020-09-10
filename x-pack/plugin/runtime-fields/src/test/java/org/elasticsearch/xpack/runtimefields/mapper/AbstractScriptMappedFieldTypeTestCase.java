@@ -92,7 +92,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("Field [test] of type [runtime_script] with runtime type [" + runtimeType() + "] does not support DISJOINT ranges")
+            equalTo("Field [test] of type [runtime] with runtime type [" + runtimeType() + "] does not support DISJOINT ranges")
         );
     }
 

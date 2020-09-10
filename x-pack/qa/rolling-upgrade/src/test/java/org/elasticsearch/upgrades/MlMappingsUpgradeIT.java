@@ -42,7 +42,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
     public void testMappingsUpgrade() throws Exception {
 
         switch (CLUSTER_TYPE) {
@@ -172,6 +171,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.outlier_fraction.type");
         configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.standardization_enabled.type");
         configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
+        configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
 
         assertLegacyTemplateMatchesIndexMappings(".ml-config", ".ml-config", false, configIndexExceptions);

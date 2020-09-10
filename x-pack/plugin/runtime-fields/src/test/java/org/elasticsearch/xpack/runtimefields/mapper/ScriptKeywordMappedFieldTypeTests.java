@@ -371,7 +371,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                     private StringScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new StringScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> ctx -> new StringScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -380,7 +380,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                                     }
                                 };
                             case "append_param":
-                                return (params, lookup) -> (ctx) -> new StringScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> ctx -> new StringScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -407,7 +407,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 }

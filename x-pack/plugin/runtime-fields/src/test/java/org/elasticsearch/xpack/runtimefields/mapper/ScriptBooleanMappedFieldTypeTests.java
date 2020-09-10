@@ -409,7 +409,12 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                     private BooleanScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new BooleanScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new BooleanScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -418,7 +423,12 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                                     }
                                 };
                             case "xor_param":
-                                return (params, lookup) -> (ctx) -> new BooleanScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new BooleanScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -445,7 +455,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 }

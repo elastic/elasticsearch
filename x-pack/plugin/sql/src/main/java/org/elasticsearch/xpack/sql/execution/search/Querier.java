@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -26,6 +27,11 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -134,23 +140,51 @@ public class Querier {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
         } else {
-            search.scroll(keepAlive);
-            l = new ScrollActionListener(listener, client, cfg, output, query);
+            l = new SearchHitActionListener(listener, client, cfg, output, query, search);
         }
 
-        client.search(search, l);
+        openPointInTime(index, query.shouldIncludeFrozen(), search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
+    private void openPointInTime(String index, boolean includeFrozen, SearchRequest search, ActionListener<SearchResponse> listener) {
+        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(Strings.commaDelimitedListToStringArray(index),
+            indicesOptions(includeFrozen), keepAlive, null, null); // TODO: routing
+        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(OpenPointInTimeResponse openPointInTimeResponse) {
+                String searchContextId = openPointInTimeResponse.getSearchContextId();
+                search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, keepAlive));
+                client.search(search, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
+        if (pointInTimeId != null) {
+            client.execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pointInTimeId),
+                wrap(clearPointInTimeResponse -> listener.onResponse(clearPointInTimeResponse.isSucceeded()), listener::onFailure));
+        } else {
+            listener.onResponse(false);
+        }
+    }
+
+    private static IndicesOptions indicesOptions(boolean includeFrozen) {
+        return includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
+    }
+
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
-                // always track total hits accurately
-                .setTrackTotalHits(true).setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+                .setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout) // TODO: track hits was overwritten
+                .setIndicesOptions(indicesOptions(includeFrozen))
                 .request();
     }
-    
+
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
@@ -160,7 +194,7 @@ public class Querier {
         for (int i = 0; i < aggs.size(); i++) {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
-        
+
         logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
                 response.getHits().getTotalHits().relation.toString(),
@@ -177,7 +211,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     * 
+     *
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -308,7 +342,7 @@ public class Querier {
             if (log.isTraceEnabled()) {
                 logSearchResponse(response, log);
             }
-            
+
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -363,21 +397,29 @@ public class Querier {
         }
 
         @Override
-        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) throws Exception {
 
-            Supplier<CompositeAggRowSet> makeRowSet = isPivot ? () -> new PivotRowSet(schema, initBucketExtractors(response), mask,
-                    response, query.sortingColumns().isEmpty() ? query.limit() : -1, null) : () -> new SchemaCompositeAggRowSet(schema,
-                            initBucketExtractors(response), mask, response, query.sortingColumns().isEmpty() ? query.limit() : -1);
+            Supplier<CompositeAggRowSet> makeRowSet = isPivot
+                ? () -> new PivotRowSet(schema, initBucketExtractors(response), mask, response,
+                    query.sortingColumns().isEmpty() ? query.limit() : -1, null)
+                : () -> new SchemaCompositeAggRowSet(schema, initBucketExtractors(response), mask, response,
+                    query.sortingColumns().isEmpty() ? query.limit() : -1);
 
-            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
-                Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
-                return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), query.shouldIncludeFrozen(),
-                        request.indices());
-            } : (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
+            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot
+                ? (q, r) -> {
+                        Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
+                        return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingLimit(),
+                            query.shouldIncludeFrozen(), request.indices());
+                    }
+                : (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
                     request.indices());
 
-            CompositeAggCursor.handle(response, request.source(), makeRowSet, makeCursor, () -> client.search(request, this), listener,
-                    schema);
+            CompositeAggCursor.handle(response, request.source(),
+                makeRowSet, makeCursor,
+                () -> client.search(request, this),
+                listener::onResponse,
+                p -> closePointInTime(client, response.pointInTimeId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
+                schema);
         }
     }
 
@@ -451,21 +493,23 @@ public class Querier {
     /**
      * Dedicated listener for column retrieval/non-grouped queries (scrolls).
      */
-    static class ScrollActionListener extends BaseActionListener {
+    static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
+        private final SearchRequest request;
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
-                QueryContainer query) {
+        SearchHitActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
+                                QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output);
             this.query = query;
+            this.request = request;
             this.mask = query.columnMask(output);
             this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
         }
 
         @Override
-        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+        protected void handleResponse(SearchResponse response, ActionListener<Page> listener) throws Exception {
             // create response extractors for the first time
             List<Tuple<FieldExtraction, String>> refs = query.fields();
 
@@ -474,9 +518,14 @@ public class Querier {
                 exts.add(createExtractor(ref.v1()));
             }
 
-            ScrollCursor.handle(response, () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
-                    p -> listener.onResponse(p),
-                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)), schema);
+            SearchHitCursor.handle(response, request.source(),
+                () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
+                (q, r) -> new SearchHitCursor(q, r.extractors(), r.mask(), r.remainingLimit(), query.shouldIncludeFrozen(),
+                    request.indices()),
+                null,
+                listener::onResponse,
+                p -> closePointInTime(client, response.pointInTimeId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
+                schema);
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
@@ -526,7 +575,6 @@ public class Querier {
 
         final Client client;
         final SqlConfiguration cfg;
-        final TimeValue keepAlive;
         final Schema schema;
 
         BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
@@ -534,7 +582,6 @@ public class Querier {
 
             this.client = client;
             this.cfg = cfg;
-            this.keepAlive = cfg.requestTimeout();
             this.schema = Rows.schema(output);
         }
 
@@ -553,28 +600,23 @@ public class Querier {
             }
         }
 
-        protected abstract void handleResponse(SearchResponse response, ActionListener<Page> listener);
+        protected abstract void handleResponse(SearchResponse response, ActionListener<Page> listener) throws Exception;
 
-        // clean-up the scroll in case of exception
+        // clean-up the point-in-time in case of exception
         protected final void cleanup(SearchResponse response, Exception ex) {
-            if (response != null && response.getScrollId() != null) {
-                client.prepareClearScroll().addScrollId(response.getScrollId())
-                        // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                        .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
+            if (response != null && response.pointInTimeId() != null) {
+                client.execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(response.pointInTimeId()),
+                    // in case of failure, report the initial exception instead of the one resulting from closing the PIT
+                    ActionListener.wrap(
+                        r -> listener.onFailure(ex),
+                        e -> {
                             ex.addSuppressed(e);
                             listener.onFailure(ex);
-                        }));
+                        }
+                    )
+                );
             } else {
                 listener.onFailure(ex);
-            }
-        }
-
-        protected final void clear(String scrollId, ActionListener<Boolean> listener) {
-            if (scrollId != null) {
-                client.prepareClearScroll().addScrollId(scrollId).execute(ActionListener
-                        .wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure));
-            } else {
-                listener.onResponse(false);
             }
         }
 

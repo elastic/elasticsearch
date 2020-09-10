@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
@@ -36,7 +35,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
     private final int size;
     private final int[] indexPerLevel;
-    private final Tuple<String, Integer> nextScrollData;
+    private int remainingLimit;
 
     private int row = 0;
 
@@ -84,30 +83,24 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
 
-        String scrollId = response.getScrollId();
-        
-        if (scrollId == null) {
-            /* SearchResponse can contain a null scroll when you start a
-             * scroll but all results fit in the first page. */
-            nextScrollData = null;
+        String pointInTimeId = response.pointInTimeId();
+        assert pointInTimeId != null;
+
+        TotalHits totalHits = response.getHits().getTotalHits();
+
+        // if the size is zero it means either there's nothing left or the limit has been reached
+        if (size == 0
+            // or the scroll has ended
+            || (totalHits != null && totalHits.value == hits.length)) {
+            remainingLimit = 0;
         } else {
-            TotalHits totalHits = response.getHits().getTotalHits();
-            
             // compute remaining limit (only if the limit is specified - that is, positive).
-            int remainingLimit = limit < 0 ? limit : limit - size;
-            // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
-            if (size == 0 || remainingLimit == 0
-                // or the scroll has ended
-                || totalHits != null && totalHits.value == hits.length) {
-                nextScrollData = null;
-            } else {
-                nextScrollData = new Tuple<>(scrollId, remainingLimit);
-            }
+            remainingLimit = limit < 0 ? limit : limit - size;
         }
     }
-    
-    protected boolean isLimitReached() {
-        return nextScrollData == null;
+
+    protected int remainingLimit() {
+        return remainingLimit;
     }
 
     @Override
@@ -132,7 +125,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         if (hit == null) {
             return null;
         }
-        
+
         // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
         // using the offset as the "deduplicator" in a HashMap
         HashMap<Integer, SearchHit> lhm = new HashMap<>();
@@ -153,7 +146,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         return sortedList.toArray(SearchHit[]::new);
     }
-    
+
     private class NestedHitOffsetComparator implements Comparator<SearchHit> {
     @Override
         public int compare(SearchHit sh1, SearchHit sh2) {
@@ -217,9 +210,5 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     @Override
     public int size() {
         return size;
-    }
-
-    Tuple<String, Integer> nextScrollData() {
-        return nextScrollData;
     }
 }

@@ -58,8 +58,8 @@ public class TextFormatterCursor implements Cursor {
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
-        delegate.clear(cfg, client, listener);
+    public void clear(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
+        delegate.clear(cfg, client, registry, listener);
     }
 
     @Override

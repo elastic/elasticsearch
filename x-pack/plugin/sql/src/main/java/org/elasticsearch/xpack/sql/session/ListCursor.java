@@ -81,14 +81,14 @@ public class ListCursor implements Cursor {
                 : data.size() == pageSize ? data : data.subList(0, Math.min(pageSize, data.size()));
         return new Page(new ListRowSet(schema, currData, columnCount), next);
     }
-    
+
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

@@ -37,7 +37,7 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
         // There is nothing to clean
         listener.onResponse(false);
     }

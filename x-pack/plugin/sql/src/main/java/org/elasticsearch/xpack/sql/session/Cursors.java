@@ -6,16 +6,21 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.CompositeAggCursor;
 import org.elasticsearch.xpack.sql.execution.search.PivotCursor;
-import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
+import org.elasticsearch.xpack.sql.execution.search.SearchHitCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
@@ -45,7 +50,7 @@ public final class Cursors {
 
         // cursors
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> Cursor.EMPTY));
-        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
+        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, SearchHitCursor.NAME, SearchHitCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CompositeAggCursor.NAME, CompositeAggCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, PivotCursor.NAME, PivotCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, TextFormatterCursor.NAME, TextFormatterCursor::new));
@@ -98,4 +103,26 @@ public final class Cursors {
         }
     }
 
+    /**
+     * Deserializes the search source from a byte array.
+     */
+    public static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
+        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
+            return new SearchSourceBuilder(in);
+        }
+    }
+
+    /**
+     * Serializes the search source to a byte array.
+     */
+    public static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
+        if (source == null) {
+            return new byte[0];
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            source.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
+    }
 }

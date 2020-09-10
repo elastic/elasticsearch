@@ -55,15 +55,15 @@ public class PivotCursor extends CompositeAggCursor {
     }
 
     @Override
-    protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
+    protected Supplier<ResultRowSet<BucketExtractor>> makeRowSet(SearchResponse response) {
         return () -> new PivotRowSet(Schema.EMPTY, extractors(), mask(), response, limit(), previousKey);
     }
 
     @Override
-    protected BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor() {
+    protected BiFunction<byte[], ResultRowSet<BucketExtractor>, ResultCursor<BucketExtractor>> makeCursor() {
         return (q, r) -> {
             Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
-            return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), includeFrozen(), indices());
+            return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingLimit(), includeFrozen(), indices());
         };
     }
 

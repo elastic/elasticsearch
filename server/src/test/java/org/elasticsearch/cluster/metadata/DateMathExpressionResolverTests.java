@@ -43,7 +43,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
-            ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
+        ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
         false
     );
 

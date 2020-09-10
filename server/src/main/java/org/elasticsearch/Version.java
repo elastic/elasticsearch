@@ -188,6 +188,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
             + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
 
+        builder.put(V_EMPTY_ID, V_EMPTY);
         idToVersion = builder.build();
     }
 
@@ -196,39 +197,38 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static Version fromId(int id) {
-        if (idToVersion.containsKey(id)) {
-            return idToVersion.get(id);
+        final Version known = idToVersion.get(id);
+        if (known != null) {
+            return known;
         }
-        switch (id) {
+        return fromIdSlow(id);
+    }
 
-            case V_EMPTY_ID:
-                return V_EMPTY;
-            default:
-                // We need at least the major of the Lucene version to be correct.
-                // Our best guess is to use the same Lucene version as the previous
-                // version in the list, assuming that it didn't change. This is at
-                // least correct for patch versions of known minors since we never
-                // update the Lucene dependency for patch versions.
-                List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
-                Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
-                int index = Collections.binarySearch(versions, tmp);
-                if (index < 0) {
-                    index = -2 - index;
-                } else {
-                    assert false : "Version [" + tmp + "] is declared but absent from the switch statement in Version#fromId";
-                }
-                final org.apache.lucene.util.Version luceneVersion;
-                if (index == -1) {
-                    // this version is older than any supported version, so we
-                    // assume it is the previous major to the oldest Lucene version
-                    // that we know about
-                    luceneVersion = org.apache.lucene.util.Version.fromBits(
-                        versions.get(0).luceneVersion.major - 1, 0, 0);
-                } else {
-                    luceneVersion = versions.get(index).luceneVersion;
-                }
-                return new Version(id, luceneVersion);
+    private static Version fromIdSlow(int id) {
+        // We need at least the major of the Lucene version to be correct.
+        // Our best guess is to use the same Lucene version as the previous
+        // version in the list, assuming that it didn't change. This is at
+        // least correct for patch versions of known minors since we never
+        // update the Lucene dependency for patch versions.
+        List<Version> versions = DeclaredVersionsHolder.DECLARED_VERSIONS;
+        Version tmp = new Version(id, org.apache.lucene.util.Version.LATEST);
+        int index = Collections.binarySearch(versions, tmp);
+        if (index < 0) {
+            index = -2 - index;
+        } else {
+            assert false : "Version [" + tmp + "] is declared but absent from the switch statement in Version#fromId";
         }
+        final org.apache.lucene.util.Version luceneVersion;
+        if (index == -1) {
+            // this version is older than any supported version, so we
+            // assume it is the previous major to the oldest Lucene version
+            // that we know about
+            luceneVersion = org.apache.lucene.util.Version.fromBits(
+                versions.get(0).luceneVersion.major - 1, 0, 0);
+        } else {
+            luceneVersion = versions.get(index).luceneVersion;
+        }
+        return new Version(id, luceneVersion);
     }
 
     /**
@@ -373,6 +373,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     }
 
+    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
+    // instances
+    private Version minCompatVersion;
+
+    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
+    // instances
+    private Version minIndexCompatVersion;
+
     /**
      * Returns the minimum compatible version based on the current
      * version. Ie a node needs to have at least the return version in order
@@ -381,6 +389,15 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
+        Version res = minCompatVersion;
+        if (res == null) {
+            res = computeMinCompatVersion();
+            minCompatVersion = res;
+        }
+        return res;
+    }
+
+    private Version computeMinCompatVersion() {
         if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
@@ -409,6 +426,15 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
      */
     public Version minimumIndexCompatibilityVersion() {
+        Version res = minIndexCompatVersion;
+        if (res == null) {
+            res = computeMinIndexCompatVersion();
+            minIndexCompatVersion = res;
+        }
+        return res;
+    }
+
+    private Version computeMinIndexCompatVersion() {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5

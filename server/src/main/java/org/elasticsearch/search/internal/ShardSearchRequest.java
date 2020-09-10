@@ -175,7 +175,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
-        assert (readerId != null) == (keepAlive != null);
+        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {

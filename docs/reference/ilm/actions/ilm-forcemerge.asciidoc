@@ -26,8 +26,9 @@ Number of segments to merge to. To fully merge the index, set to `1`.
 `index_codec`::
 (Optional, string)
 Codec used to compress the document store. The only accepted value is
-`best_compression`. To use the default LZ4 compression codec, omit this
-argument.
+`best_compression`, which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
+compression ratio but slower stored fields performance. To use the default LZ4
+codec, omit this argument.
 +
 WARNING: If using `best_compression`, {ilm-init} will <<indices-close,close>>
 and then <<indices-open-close,re-open>> the index prior to the force merge.

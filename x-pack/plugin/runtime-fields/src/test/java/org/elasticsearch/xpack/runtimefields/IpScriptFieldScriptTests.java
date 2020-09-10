@@ -29,7 +29,7 @@ public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScript
     ) {
         @Override
         public void execute() {
-            emitValue("192.168.0.1");
+            emit("192.168.0.1");
         }
     };
 
@@ -56,7 +56,7 @@ public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScript
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emitValue("192.168.0.1");
+                            emit("192.168.0.1");
                         }
                     }
                 };

@@ -200,17 +200,17 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static final Map<String, String> PAINLESS_TO_EMIT = org.elasticsearch.common.collect.Map.of(
         BooleanFieldMapper.CONTENT_TYPE,
-        "emitValue(parse(value));",
+        "emit(parse(value));",
         DateFieldMapper.CONTENT_TYPE,
-        "emitValue(parse(value.toString()));",
+        "emit(parse(value.toString()));",
         NumberType.DOUBLE.typeName(),
-        "emitValue(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));",
+        "emit(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));",
         KeywordFieldMapper.CONTENT_TYPE,
-        "emitValue(value.toString());",
+        "emit(value.toString());",
         IpFieldMapper.CONTENT_TYPE,
-        "emitValue(value.toString());",
+        "emit(value.toString());",
         NumberType.LONG.typeName(),
-        "emitValue(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
+        "emit(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
     );
 
     private static final ExecutableSection ADD_TEMPLATE = new ExecutableSection() {

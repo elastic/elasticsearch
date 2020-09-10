@@ -95,7 +95,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                         @Override
                         public void execute() {
                             for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                emitValue(((Number) timestamp).longValue());
+                                emit(((Number) timestamp).longValue());
                             }
                         }
                     };

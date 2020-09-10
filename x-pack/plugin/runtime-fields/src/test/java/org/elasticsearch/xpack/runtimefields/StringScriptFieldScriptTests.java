@@ -29,7 +29,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
     ) {
         @Override
         public void execute() {
-            emitValue("foo");
+            emit("foo");
         }
     };
 
@@ -56,7 +56,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emitValue("test");
+                            emit("test");
                         }
                     }
                 };
@@ -87,7 +87,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                         }
                         String bigString = big.toString();
                         for (int i = 0; i <= 4; i++) {
-                            emitValue(bigString);
+                            emit(bigString);
                         }
                     }
                 };

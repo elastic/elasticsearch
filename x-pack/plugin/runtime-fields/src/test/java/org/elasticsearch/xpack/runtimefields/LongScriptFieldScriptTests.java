@@ -29,7 +29,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
     ) {
         @Override
         public void execute() {
-            emitValue(1);
+            emit(1);
         }
     };
 
@@ -56,7 +56,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emitValue(0);
+                            emit(0);
                         }
                     }
                 };

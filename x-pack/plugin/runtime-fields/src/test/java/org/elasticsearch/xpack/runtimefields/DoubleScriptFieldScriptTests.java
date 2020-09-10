@@ -29,7 +29,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
     ) {
         @Override
         public void execute() {
-            emitValue(1.0);
+            emit(1.0);
         }
     };
 
@@ -56,7 +56,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emitValue(1.0);
+                            emit(1.0);
                         }
                     }
                 };

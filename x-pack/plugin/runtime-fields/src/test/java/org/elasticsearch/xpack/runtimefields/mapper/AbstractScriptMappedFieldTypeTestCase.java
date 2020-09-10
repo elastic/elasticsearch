@@ -151,7 +151,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on text fields - not on [test] which is of type [script] with runtime_type ["
+                    + " queries on text fields - not on [test] which is of type [runtime] with runtime_type ["
                     + runtimeType()
                     + "]"
             )
@@ -166,7 +166,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(simpleMappedFieldType(), mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 

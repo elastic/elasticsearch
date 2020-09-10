@@ -325,7 +325,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     }
                                 };
                             case "loop":
-                                return (params, lookup) -> {
+                                return (fieldName, params, lookup) -> {
                                     // Indicate that this script wants the field call "test", which *is* the name of this field
                                     lookup.forkAndTrackFieldReferences("test");
                                     throw new IllegalStateException("shoud have thrown on the line above");
@@ -343,16 +343,4 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             return new ScriptLongMappedFieldType("test", script, factory, emptyMap());
         }
     }
-<<<<<<< HEAD
-=======
-
-    private void checkExpensiveQuery(BiConsumer<ScriptLongMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptLongMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
-    }
->>>>>>> master
 }

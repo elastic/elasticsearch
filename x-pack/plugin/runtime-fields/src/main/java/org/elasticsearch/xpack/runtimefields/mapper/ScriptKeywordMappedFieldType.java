@@ -129,7 +129,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
         if (matchFlags != 0) {
             throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
         }
-        return new StringScriptFieldRegexpQuery(script, leafFactory(context.lookup()), name(), value, syntaxFlags, maxDeterminizedStates);
+        return new StringScriptFieldRegexpQuery(script, leafFactory(context), name(), value, syntaxFlags, maxDeterminizedStates);
     }
 
     @Override

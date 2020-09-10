@@ -263,20 +263,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
-    public void testRegexpQueryIsExpensive() throws IOException {
-<<<<<<< HEAD
-        checkExpensiveQuery(this::randomRegexpQuery);
-    }
-
     public void testRegexpQueryInLoop() throws IOException {
         checkLoop(this::randomRegexpQuery);
     }
 
     private Query randomRegexpQuery(MappedFieldType ft, QueryShardContext ctx) {
         return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, Integer.MAX_VALUE, null, ctx);
-=======
-        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, randomInt(), null, ctx));
->>>>>>> master
     }
 
     @Override
@@ -420,7 +412,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                                     }
                                 };
                             case "loop":
-                                return (params, lookup) -> {
+                                return (fieldName, params, lookup) -> {
                                     // Indicate that this script wants the field call "test", which *is* the name of this field
                                     lookup.forkAndTrackFieldReferences("test");
                                     throw new IllegalStateException("shoud have thrown on the line above");
@@ -438,16 +430,4 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             return new ScriptKeywordMappedFieldType("test", script, factory, emptyMap());
         }
     }
-<<<<<<< HEAD
-=======
-
-    private void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptKeywordMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
-    }
->>>>>>> master
 }

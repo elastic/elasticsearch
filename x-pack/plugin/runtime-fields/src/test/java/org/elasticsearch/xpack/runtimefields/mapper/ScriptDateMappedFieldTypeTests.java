@@ -484,7 +484,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     }
                                 };
                             case "loop":
-                                return (params, lookup, formatter) -> {
+                                return (fieldName, params, lookup, formatter) -> {
                                     // Indicate that this script wants the field call "test", which *is* the name of this field
                                     lookup.forkAndTrackFieldReferences("test");
                                     throw new IllegalStateException("shoud have thrown on the line above");
@@ -503,18 +503,8 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         }
     }
 
-<<<<<<< HEAD
     private static long randomDate() {
         return Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
-=======
-    private void checkExpensiveQuery(BiConsumer<ScriptDateMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptDateMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
->>>>>>> master
     }
 
     private void checkBadDate(ThrowingRunnable queryBuilder) {

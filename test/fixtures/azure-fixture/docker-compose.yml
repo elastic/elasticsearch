@@ -17,3 +17,12 @@ services:
       - ./testfixtures_shared/shared:/fixture/shared
     ports:
       - "8091"
+
+  azure-fixture-repositories-metering:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "8091"

@@ -89,6 +89,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         indexRandom(true, true, reqs);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testMaxMinAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
@@ -133,7 +134,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61850")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
@@ -234,6 +235,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(initial.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testInvalidId() throws Exception {
         try (SearchResponseIterator it =
                  assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {

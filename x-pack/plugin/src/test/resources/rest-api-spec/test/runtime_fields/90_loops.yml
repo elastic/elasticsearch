@@ -18,51 +18,51 @@ setup:
               node:
                 type: keyword
               tight_loop:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['tight_loop'].value)
               loose_loop:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['lla'].value)
               lla:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['llb'].value)
               llb:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['llc'].value)
               llc:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['loose_loop'].value)
               refs:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['over_max_depth_2'].value + doc['over_max_depth_3'].value + doc['over_max_depth_4'].value + doc['over_max_depth_5'].value + doc['node'].value)
               over_max_depth:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['over_max_depth_1'].value)
               over_max_depth_1:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['over_max_depth_2'].value)
               over_max_depth_2:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['over_max_depth_3'].value)
               over_max_depth_3:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['over_max_depth_4'].value)
               over_max_depth_4:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue(doc['over_max_depth_5'].value)
               over_max_depth_5:
-                type: runtime_script
+                type: runtime
                 runtime_type: keyword
                 script: emitValue('test')
 

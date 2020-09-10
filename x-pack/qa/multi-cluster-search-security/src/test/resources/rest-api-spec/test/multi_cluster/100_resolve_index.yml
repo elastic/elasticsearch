@@ -1,8 +1,8 @@
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/62210"
 
   - do:
       indices.resolve_index:

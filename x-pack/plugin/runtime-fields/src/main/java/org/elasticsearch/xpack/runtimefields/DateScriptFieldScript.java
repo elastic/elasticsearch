@@ -57,15 +57,15 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
         return millis;
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final DateScriptFieldScript script;
 
-        public EmitValue(DateScriptFieldScript script) {
+        public Emit(DateScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(long v) {
-            script.emitValue(v);
+        public void emit(long v) {
+            script.emit(v);
         }
     }
 

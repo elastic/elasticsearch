@@ -66,7 +66,7 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         return falses;
     }
 
-    protected final void emitValue(boolean v) {
+    protected final void emit(boolean v) {
         if (v) {
             trues++;
         } else {
@@ -78,15 +78,15 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         return Booleans.parseBoolean(str.toString());
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final BooleanScriptFieldScript script;
 
-        public EmitValue(BooleanScriptFieldScript script) {
+        public Emit(BooleanScriptFieldScript script) {
             this.script = script;
         }
 
         public void value(boolean v) {
-            script.emitValue(v);
+            script.emit(v);
         }
     }
 }

@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assume.assumeThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +59,18 @@ public class BitArrayTests extends ESTestCase {
                     assertEquals(bitArray.get(i), bits[i]);
                 }
             }
+        }
+    }
+
+    public void testVeryLarge() {
+        assumeThat(Runtime.getRuntime().maxMemory(), greaterThanOrEqualTo(ByteSizeUnit.MB.toBytes(512)));
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            long index = randomLongBetween(Integer.MAX_VALUE, (long) (Integer.MAX_VALUE * 1.5));
+            assertFalse(bitArray.get(index));
+            bitArray.set(index);
+            assertTrue(bitArray.get(index));
+            bitArray.clear(index);
+            assertFalse(bitArray.get(index));
         }
     }
 

@@ -180,6 +180,13 @@ public class RandomSearchRequestGenerator {
         }
 
         if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+            }
+        }
+
+        if (randomBoolean()) {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
@@ -362,6 +369,10 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.collapse(randomCollapseBuilder.get());
+        }
+        if (randomBoolean()) {
+            TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 60)) : null;
+            builder.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10), keepAlive));
         }
         return builder;
     }

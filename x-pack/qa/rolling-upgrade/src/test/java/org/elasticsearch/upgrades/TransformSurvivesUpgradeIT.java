@@ -152,6 +152,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
+                assertLegacyTemplateMatchesIndexMappings(".transform-internal-005", ".transform-internal-005");
                 cleanUpTransforms();
                 break;
             default:

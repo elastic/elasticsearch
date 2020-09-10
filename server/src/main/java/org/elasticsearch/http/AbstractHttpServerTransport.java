@@ -67,6 +67,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
+    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -74,7 +75,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
-    protected final CorsHandler.Config corsConfig;
+    protected final CorsHandler corsHandler;
     private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
@@ -98,7 +99,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
-        this.corsConfig = CorsHandler.fromSettings(settings);
+        this.corsHandler = CorsHandler.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -321,6 +322,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        if (exception == null) {
+            HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
+            if (earlyResponse != null) {
+                httpChannel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, httpChannel));
+                httpRequest.release();
+                return;
+            }
+        }
+
         Exception badRequestCause = exception;
 
         /*
@@ -359,12 +369,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
                 innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext, trace);
+                    new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext, corsHandler,
+                        trace);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, trace);
+                    new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, corsHandler,
+                        trace);
             }
             channel = innerChannel;
         }
@@ -379,6 +391,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
             return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+        }
+    }
+
+    private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
+        if (HttpUtils.shouldCloseConnection(request)) {
+            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+        } else {
+            return NO_OP;
         }
     }
 }

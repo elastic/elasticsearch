@@ -25,7 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -41,11 +41,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
-        contextId = new SearchContextId(in);
+        contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
     }
 
-    public FetchSearchResult(SearchContextId id, SearchShardTarget shardTarget) {
+    public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
     }

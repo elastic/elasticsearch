@@ -186,7 +186,6 @@ public class ILMHistoryStore implements Closeable {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         listener.onResponse(true);
-
                     }
 
                     @Override

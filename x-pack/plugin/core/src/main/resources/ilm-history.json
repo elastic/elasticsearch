@@ -8,7 +8,10 @@
       "index.number_of_shards": 1,
       "index.number_of_replicas": 0,
       "index.auto_expand_replicas": "0-1",
-      "index.lifecycle.name": "ilm-history-ilm-policy"
+    "index.lifecycle.name": "ilm-history-ilm-policy",
+    "index.lifecycle.rollover_alias": "ilm-history-${xpack.ilm_history.template.version}",
+    "index.hidden": true,
+    "index.format": 1
     },
     "mappings": {
         "dynamic": false,
@@ -77,6 +80,10 @@
           }
         }
       }
+  },
+  "_meta": {
+    "description": "index template for ILM history indices",
+    "managed": true
   },
   "priority": 2147483647,
   "version": ${xpack.ilm_history.template.version}

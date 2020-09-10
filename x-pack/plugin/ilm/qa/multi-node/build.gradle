@@ -2,6 +2,8 @@ apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
 File repoDir = file("$buildDir/testclusters/repo")

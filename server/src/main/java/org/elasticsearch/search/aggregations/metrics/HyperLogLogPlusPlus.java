@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -103,7 +102,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public void merge(long thisBucket, HyperLogLogPlusPlus other, long otherBucket) {
-        LogManager.getLogger().error("SADFADSF {} {} {} {}", other.collectTimer.getApproximateTiming(), other.lcTimer.getApproximateTiming(), other.hllTimer.getApproximateTiming(), other.upgradeTimer.getApproximateTiming());
         if (precision() != other.precision()) {
             throw new IllegalArgumentException();
         }

@@ -30,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,9 +44,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator that computes approximate counts of unique values.
@@ -60,6 +63,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private HyperLogLogPlusPlus counts;
 
     private Collector collector;
+
+    private int emptyCollectorsUsed = 0;
+    private int numericCollectorsUsed = 0;
+    private int ordinalsCollectorsUsed;
+    private int ordinalsCollectorsOverheadTooHigh;
+    private int stringHashingCollectorsUsed = 0;
+    private final Timer hashTimer = new Timer(); // NOCOMMIT tmp
+    private final Timer collectTimer = new Timer(); // NOCOMMIT tmp
 
     public CardinalityAggregator(
             String name,
@@ -82,6 +93,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
+            emptyCollectorsUsed++;
             return new EmptyCollector();
         }
 
@@ -89,6 +101,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
             MurmurHash3Values hashValues = source.isFloatingPoint() ?
                 MurmurHash3Values.hash(source.doubleValues(ctx)) : MurmurHash3Values.hash(source.longValues(ctx));
+            numericCollectorsUsed++;
             return new DirectCollector(counts, hashValues);
         }
 
@@ -97,17 +110,21 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
+                emptyCollectorsUsed++;
                 return new EmptyCollector();
             }
 
             final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
             final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
             // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+            if (ordinalsMemoryUsage < countsMemoryUsage * 10) {
+                ordinalsCollectorsUsed++;
+                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), hashTimer, collectTimer);
             }
+            ordinalsCollectorsOverheadTooHigh++;
         }
 
+        stringHashingCollectorsUsed++;
         return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
     }
 
@@ -161,6 +178,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     @Override
     protected void doClose() {
         Releasables.close(counts, collector);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("empty_collectors_used", emptyCollectorsUsed);
+        add.accept("numeric_collectors_used", numericCollectorsUsed);
+        add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
+        add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
+        add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
+        add.accept("hash_time", hashTimer.getApproximateTiming());
+        add.accept("hash_count", hashTimer.getCount());
+        add.accept("collect_time", collectTimer.getApproximateTiming());
+        add.accept("collect_count", collectTimer.getCount());
     }
 
     private abstract static class Collector extends LeafBucketCollector implements Releasable {
@@ -234,10 +265,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final SortedSetDocValues values;
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
-        private ObjectArray<FixedBitSet> visitedOrds;
+        private final Timer hashTimer; // NOCOMMIT temporary
+        private final Timer collectTimer; // NOCOMMIT temporary
+        private ObjectArray<FixedBitSet> visitedOrds;  // Danger! This is not tracked by BigArrays!
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values,
-                BigArrays bigArrays) {
+                BigArrays bigArrays, Timer hashTimer, Timer collectTimer) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -246,6 +279,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.counts = counts;
             this.values = values;
             visitedOrds = bigArrays.newObjectArray(1);
+            this.hashTimer = hashTimer;
+            this.collectTimer = collectTimer;
         }
 
         @Override
@@ -273,12 +308,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 }
             }
 
-            final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
+            final MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
             try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                 for (int ord = allVisitedOrds.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS;
                         ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
+                    hashTimer.start();
                     final BytesRef value = values.lookupOrd(ord);
-                    org.elasticsearch.common.hash.MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                    MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                    hashTimer.stop();
                     hashes.set(ord, hash.h1);
                 }
 
@@ -287,7 +324,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     if (bits != null) {
                         for (int ord = bits.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS;
                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
+                            collectTimer.start();
                             counts.collect(bucket, hashes.get(ord));
+                            collectTimer.stop();
                         }
                     }
                 }
@@ -298,7 +337,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         public void close() {
             Releasables.close(visitedOrds);
         }
-
     }
 
     /**
@@ -383,8 +421,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private static class Bytes extends MurmurHash3Values {
 
-            private final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash =
-                new org.elasticsearch.common.hash.MurmurHash3.Hash128();
+            private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
             private final SortedBinaryDocValues values;
 
@@ -405,7 +442,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             @Override
             public long nextValue() throws IOException {
                 final BytesRef bytes = values.nextValue();
-                org.elasticsearch.common.hash.MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, hash);
+                MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, hash);
                 return hash.h1;
             }
         }

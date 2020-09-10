@@ -1295,6 +1295,18 @@ public abstract class StreamInput extends InputStream {
 
     private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
 
+    static {
+        // assert the exact form of the TimeUnit values to ensure we're not silently broken by a JDK change
+        assert TIME_UNITS.length == 7;
+        assert TIME_UNITS[0] == TimeUnit.NANOSECONDS;
+        assert TIME_UNITS[1] == TimeUnit.MICROSECONDS;
+        assert TIME_UNITS[2] == TimeUnit.MILLISECONDS;
+        assert TIME_UNITS[3] == TimeUnit.SECONDS;
+        assert TIME_UNITS[4] == TimeUnit.MINUTES;
+        assert TIME_UNITS[5] == TimeUnit.HOURS;
+        assert TIME_UNITS[6] == TimeUnit.DAYS;
+    }
+
     /**
      * Read a {@link TimeValue} from the stream
      */

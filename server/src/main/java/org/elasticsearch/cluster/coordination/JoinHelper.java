@@ -100,13 +100,21 @@ public class JoinHelper {
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                if (currentState.term() != term) {
-                    assert joiningTasks.stream().anyMatch(t -> t.isBecomeMasterTask()) : "CS term should only change on election";
-                    assert currentState.term() < term : "term never goes backwards";
+                // The current state that MasterService uses might have been updated by a (different) master in a higher term already
+                // Stop processing the current cluster state update, as there's no point in continuing to compute it as
+                // it will later be rejected by Coordinator anyhow
+                if (currentState.term() > term) {
+                    logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
+                    throw new NotMasterException("Higher term encountered (current: " + currentState.term() + " > used: " +
+                        term + "), there is a newer master");
+                } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
+                    assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
                     final CoordinationMetadata coordinationMetadata =
                             CoordinationMetadata.builder(currentState.coordinationMetadata()).term(term).build();
                     final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
                     currentState = ClusterState.builder(currentState).metadata(metadata).build();
+                } else if (currentState.nodes().isLocalNodeElectedMaster()) {
+                    assert currentState.term() == term : "term should be stable for the same master";
                 }
                 return super.execute(currentState, joiningTasks);
             }
@@ -408,6 +416,7 @@ public class JoinHelper {
                     joinTaskExecutor);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
+                joinTaskExecutor = null;
                 joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(
                     new CoordinationStateRejectedException("became follower")));
             }

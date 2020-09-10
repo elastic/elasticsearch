@@ -213,6 +213,34 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     failure, userMetadata, version);
         }
 
+        /**
+         * Create a new instance that has its shard assignments replaced by the given shard assignment map.
+         * If the given shard assignments show all shard snapshots in a completed state then the returned instance will be of state
+         * {@link State#SUCCESS}, otherwise the state remains unchanged.
+         *
+         * @param shards new shard snapshot states
+         * @return new snapshot entry
+         */
+        public Entry withShardStates(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+            if (completed(shards.values())) {
+                return new Entry(snapshot, includeGlobalState, partial, State.SUCCESS, indices, dataStreams, startTime, repositoryStateId,
+                        shards, failure, userMetadata, version);
+            }
+            return withStartedShards(shards);
+        }
+
+        /**
+         * Same as {@link #withShardStates} but does not check if the snapshot completed and thus is only to be used when starting new
+         * shard snapshots on data nodes for a running snapshot.
+         */
+        public Entry withStartedShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+            final SnapshotsInProgress.Entry updated = new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams,
+                    startTime, repositoryStateId, shards, failure, userMetadata, version);
+            assert updated.state().completed() == false && completed(updated.shards().values()) == false
+                    : "Only running snapshots allowed but saw [" + updated + "]";
+            return updated;
+        }
+
         @Override
         public String repository() {
             return snapshot.getRepository();

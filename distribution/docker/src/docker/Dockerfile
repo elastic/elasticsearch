@@ -16,6 +16,7 @@
 */ %>
 <% if (docker_base == "ubi") { %>
 ################################################################################
+# Build stage 0 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
 
@@ -203,7 +204,9 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 <% if (docker_base == "ubi") { %>
 ################################################################################
-# Copy Elasticsearch distribution from previous stage
+# Build stage 1 (the actual Elasticsearch image):
+#
+# Copy elasticsearch from stage 0
 # Add entrypoint
 ################################################################################
 

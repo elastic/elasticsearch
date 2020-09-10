@@ -224,7 +224,6 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
     onlyIf { Architecture.current() == architecture }
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, base, "DockerContext"))
     dependsOn(copyContextTask)
-
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
     String version = VersionProperties.elasticsearch

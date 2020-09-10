@@ -19,6 +19,25 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ProcessInfo;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
@@ -50,26 +69,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ProcessInfo;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;

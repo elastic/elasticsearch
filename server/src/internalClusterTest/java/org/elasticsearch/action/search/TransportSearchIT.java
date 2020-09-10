@@ -472,16 +472,16 @@ public class TransportSearchIT extends ESIntegTestCase {
      * together (coordinator node).
      */
     private static class TestAggregationBuilder extends AbstractAggregationBuilder<TestAggregationBuilder> {
-        final static String NAME = "test";
+        static final String NAME = "test";
 
         private static final ObjectParser<TestAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, TestAggregationBuilder::new);
 
-        public TestAggregationBuilder(String name) {
+        TestAggregationBuilder(String name) {
             super(name);
         }
 
-        public TestAggregationBuilder(StreamInput input) throws IOException {
+        TestAggregationBuilder(StreamInput input) throws IOException {
             super(input);
         }
 

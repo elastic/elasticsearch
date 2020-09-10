@@ -78,11 +78,13 @@ public class JoinHelper {
 
     private final MasterService masterService;
     private final TransportService transportService;
-    private final JoinTaskExecutor joinTaskExecutor;
+    private volatile JoinTaskExecutor joinTaskExecutor;
     private final NodeHealthService nodeHealthService;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
+
+    private final Function<Long, JoinTaskExecutor> joinTaskExecutorGenerator;
 
     JoinHelper(AllocationService allocationService, MasterService masterService, TransportService transportService,
                LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -92,21 +94,17 @@ public class JoinHelper {
         this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, rerouteService) {
+        this.joinTaskExecutorGenerator = term ->
+            new JoinTaskExecutor(allocationService, logger, rerouteService, term) {
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // This is called when preparing the next cluster state for publication. There is no guarantee that the term we see here is
-                // the term under which this state will eventually be published: the current term may be increased after this check due to
-                // some other activity. That the term is correct is, however, checked properly during publication, so it is sufficient to
-                // check it here on a best-effort basis. This is fine because a concurrent change indicates the existence of another leader
-                // in a higher term which will cause this node to stand down.
-
-                final long currentTerm = currentTermSupplier.getAsLong();
-                if (currentState.term() != currentTerm) {
+                if (currentState.term() != term) {
+                    assert joiningTasks.stream().anyMatch(t -> t.isBecomeMasterTask()) : "CS term should only change on election";
+                    assert currentState.term() < term : "term never goes backwards";
                     final CoordinationMetadata coordinationMetadata =
-                            CoordinationMetadata.builder(currentState.coordinationMetadata()).term(currentTerm).build();
+                            CoordinationMetadata.builder(currentState.coordinationMetadata()).term(term).build();
                     final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
                     currentState = ClusterState.builder(currentState).metadata(metadata).build();
                 }
@@ -114,9 +112,8 @@ public class JoinHelper {
             }
 
         };
-
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-            (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
+        (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
 
         transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
             StartJoinRequest::new,
@@ -331,7 +328,7 @@ public class JoinHelper {
     interface JoinAccumulator {
         void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
 
-        default void close(Mode newMode) {
+        default void close(Mode newMode, long newTerm) {
         }
     }
 
@@ -339,6 +336,7 @@ public class JoinHelper {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
+            assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(task, joinCallback));
         }
@@ -389,7 +387,7 @@ public class JoinHelper {
         }
 
         @Override
-        public void close(Mode newMode) {
+        public void close(Mode newMode, long newTerm) {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
@@ -405,6 +403,7 @@ public class JoinHelper {
                 });
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {
                 });
+                joinTaskExecutor = joinTaskExecutorGenerator.apply(newTerm);
                 masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor);
             } else {

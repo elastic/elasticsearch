@@ -109,6 +109,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
@@ -237,7 +238,7 @@ public class ClusterStateChanges {
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {}, randomLongBetween(1L, 100L));
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

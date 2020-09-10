@@ -32,4 +32,12 @@ public class GetPipelineResponseTests extends AbstractWireSerializingTestCase<Ge
         }
         return new GetPipelineResponse(map);
     }
+
+    @Override
+    protected GetPipelineResponse mutateInstance(GetPipelineResponse instance) {
+        Map<String, BytesReference> map = new HashMap<>(instance.pipelines().size() + 1);
+        map.putAll(instance.pipelines());
+        map.put(randomAlphaOfLengthBetween(2, 10), new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 16))));
+        return new GetPipelineResponse(map);
+    }
 }

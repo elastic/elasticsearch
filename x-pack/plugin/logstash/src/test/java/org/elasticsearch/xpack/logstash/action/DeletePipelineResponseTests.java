@@ -20,4 +20,10 @@ public class DeletePipelineResponseTests extends AbstractWireSerializingTestCase
     protected DeletePipelineResponse createTestInstance() {
         return new DeletePipelineResponse(randomBoolean());
     }
+
+    @Override
+    protected DeletePipelineResponse mutateInstance(DeletePipelineResponse instance) {
+        // return a response with the opposite boolean value
+        return new DeletePipelineResponse(instance.isDeleted() == false);
+    }
 }

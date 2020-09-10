@@ -126,7 +126,6 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
             assertTrue(responseMap.containsKey(id));
         }
 
-        // TODO need to update this after system indices are truly system indices to enable refresh
         refreshAllIndices();
 
         // list without any IDs

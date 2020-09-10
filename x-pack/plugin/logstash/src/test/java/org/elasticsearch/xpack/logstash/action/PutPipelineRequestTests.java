@@ -21,4 +21,13 @@ public class PutPipelineRequestTests extends AbstractWireSerializingTestCase<Put
     protected PutPipelineRequest createTestInstance() {
         return new PutPipelineRequest(randomAlphaOfLength(2), randomAlphaOfLengthBetween(10, 100), randomFrom(XContentType.values()));
     }
+
+    @Override
+    protected PutPipelineRequest mutateInstance(PutPipelineRequest instance) {
+        return new PutPipelineRequest(
+            instance.id() + randomAlphaOfLength(1),
+            instance.source() + randomAlphaOfLength(1),
+            instance.xContentType()
+        );
+    }
 }

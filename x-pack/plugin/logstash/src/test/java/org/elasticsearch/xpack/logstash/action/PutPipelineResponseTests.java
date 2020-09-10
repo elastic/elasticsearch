@@ -21,4 +21,12 @@ public class PutPipelineResponseTests extends AbstractWireSerializingTestCase<Pu
     protected PutPipelineResponse createTestInstance() {
         return new PutPipelineResponse(randomFrom(RestStatus.OK, RestStatus.CREATED));
     }
+
+    @Override
+    protected PutPipelineResponse mutateInstance(PutPipelineResponse instance) {
+        if (instance.status() == RestStatus.OK) {
+            return new PutPipelineResponse(RestStatus.CREATED);
+        }
+        return new PutPipelineResponse(RestStatus.OK);
+    }
 }

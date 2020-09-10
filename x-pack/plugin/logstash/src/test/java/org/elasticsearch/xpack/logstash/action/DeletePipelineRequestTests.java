@@ -20,4 +20,9 @@ public class DeletePipelineRequestTests extends AbstractWireSerializingTestCase<
     protected DeletePipelineRequest createTestInstance() {
         return new DeletePipelineRequest(randomAlphaOfLengthBetween(2, 10));
     }
+
+    @Override
+    protected DeletePipelineRequest mutateInstance(DeletePipelineRequest instance) {
+        return new DeletePipelineRequest(instance.id() + randomAlphaOfLength(1));
+    }
 }

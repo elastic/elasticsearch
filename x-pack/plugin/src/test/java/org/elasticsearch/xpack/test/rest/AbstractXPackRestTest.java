@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.TimeUnits;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -61,12 +63,18 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters();
+    }
+
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
                 .build();
     }
+
 
     @Before
     public void setupForTests() throws Exception {

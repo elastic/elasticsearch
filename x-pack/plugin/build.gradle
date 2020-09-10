@@ -17,8 +17,6 @@ dependencies {
 configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
-  testArtifacts.extendsFrom yamlRestTestImplementation
-  testArtifacts.extendsFrom javaRestTestImplementation
 }
 
 restResources {
@@ -36,10 +34,8 @@ artifacts {
 
 def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
-  duplicatesStrategy = DuplicatesStrategy.INCLUDE
   from sourceSets.test.output
-  from sourceSets.yamlRestTest.output
-  from sourceSets.javaRestTest.output
+
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid

@@ -1,5 +1,5 @@
 plugins {
-  id "com.gradle.enterprise" version "3.3.3"
+  id "com.gradle.enterprise" version "3.4.1"
 }
 
 String dirName = rootProject.projectDir.name

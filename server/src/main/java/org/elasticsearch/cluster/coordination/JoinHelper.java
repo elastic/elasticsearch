@@ -94,15 +94,14 @@ public class JoinHelper {
         this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
-        this.joinTaskExecutorGenerator = term ->
-            new JoinTaskExecutor(allocationService, logger, rerouteService, term) {
+        this.joinTaskExecutorGenerator = term -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
                 // The current state that MasterService uses might have been updated by a (different) master in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
-                // it will later be rejected by Coordinator anyhow
+                // it will later be rejected by Coordinator.publish(...) anyhow
                 if (currentState.term() > term) {
                     logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
                     throw new NotMasterException("Higher term encountered (current: " + currentState.term() + " > used: " +
@@ -120,8 +119,9 @@ public class JoinHelper {
             }
 
         };
+
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-        (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
+            (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
 
         transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
             StartJoinRequest::new,

@@ -108,10 +108,6 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals(1, threadContext.getResponseHeaders().get("foo").size());
         assertEquals("qux", threadContext.getResponseHeaders().get("bar").get(0));
 
-        if (randomBoolean()) {
-            threadContext.putTransient("acme", null);
-        }
-
         // test stashed missing header stays missing
         try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(randomBoolean(), randomFrom(Arrays.asList("acme", "acme"),
                 Arrays.asList("acme")))) {

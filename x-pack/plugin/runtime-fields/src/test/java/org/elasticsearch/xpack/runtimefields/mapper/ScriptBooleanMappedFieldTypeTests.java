@@ -437,20 +437,30 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                     private BooleanScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new BooleanScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new BooleanScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(parse(foo));
+                                            emit(parse(foo));
                                         }
                                     }
                                 };
                             case "xor_param":
-                                return (params, lookup) -> (ctx) -> new BooleanScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new BooleanScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue((Boolean) foo ^ ((Boolean) getParams().get("param")));
+                                            emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
                                         }
                                     }
                                 };
@@ -473,4 +483,16 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
             return new ScriptBooleanMappedFieldType("test", script, factory, emptyMap());
         }
     }
+<<<<<<< HEAD
+=======
+
+    private void checkExpensiveQuery(BiConsumer<ScriptBooleanMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        ScriptBooleanMappedFieldType ft = simpleMappedFieldType();
+        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
+        assertThat(
+            e.getMessage(),
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
+        );
+    }
+>>>>>>> master
 }

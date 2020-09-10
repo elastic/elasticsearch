@@ -60,12 +60,9 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
-        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime_script] with runtime type [ip] does not support custom formats"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom formats"));
         e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
-        assertThat(
-            e.getMessage(),
-            equalTo("Field [test] of type [runtime_script] with runtime type [ip] does not support custom time zones")
-        );
+        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom time zones"));
     }
 
     @Override
@@ -297,20 +294,20 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                     private IpScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new IpScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString());
+                                            emit(foo.toString());
                                         }
                                     }
                                 };
                             case "append_param":
-                                return (params, lookup) -> (ctx) -> new IpScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString() + getParams().get("param"));
+                                            emit(foo.toString() + getParams().get("param"));
                                         }
                                     }
                                 };
@@ -333,4 +330,16 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
             return new ScriptIpMappedFieldType("test", script, factory, emptyMap());
         }
     }
+<<<<<<< HEAD
+=======
+
+    private void checkExpensiveQuery(BiConsumer<ScriptIpMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        ScriptIpMappedFieldType ft = simpleMappedFieldType();
+        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
+        assertThat(
+            e.getMessage(),
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
+        );
+    }
+>>>>>>> master
 }

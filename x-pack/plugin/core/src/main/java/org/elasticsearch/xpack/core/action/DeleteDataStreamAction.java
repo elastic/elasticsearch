@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
@@ -34,8 +36,17 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         private String[] names;
 
+        // Security intercepts requests and rewrites names if wildcards are used to expand to concrete resources
+        // that a user has privileges for.
+        // This keeps track whether wildcards were originally specified in names,
+        // So that in the case no matches ds are found, that either an
+        // empty response can be returned in case wildcards were used or
+        // 404 status code returned in case no wildcard were used.
+        private final boolean wildcardExpressionsOriginallySpecified;
+
         public Request(String[] names) {
             this.names = Objects.requireNonNull(names);
+            this.wildcardExpressionsOriginallySpecified = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
         }
 
         public String[] getNames() {
@@ -54,12 +65,16 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
+            this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(names);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(wildcardExpressionsOriginallySpecified);
+            }
         }
 
         @Override
@@ -67,12 +82,15 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return wildcardExpressionsOriginallySpecified == request.wildcardExpressionsOriginallySpecified &&
+                Arrays.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            int result = Objects.hash(wildcardExpressionsOriginallySpecified);
+            result = 31 * result + Arrays.hashCode(names);
+            return result;
         }
 
         @Override
@@ -96,6 +114,10 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;
+        }
+
+        public boolean isWildcardExpressionsOriginallySpecified() {
+            return wildcardExpressionsOriginallySpecified;
         }
     }
 

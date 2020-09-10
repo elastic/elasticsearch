@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -27,7 +28,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -36,12 +36,12 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  */
 abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldType {
     protected final Script script;
-    private final BiFunction<Map<String, Object>, SearchLookup, LeafFactory> factory;
+    private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
 
     AbstractScriptMappedFieldType(
         String name,
         Script script,
-        BiFunction<Map<String, Object>, SearchLookup, LeafFactory> factory,
+        TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
         Map<String, String> meta
     ) {
         super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
@@ -53,7 +53,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
 
     @Override
     public final String typeName() {
-        return RuntimeScriptFieldMapper.CONTENT_TYPE;
+        return RuntimeFieldMapper.CONTENT_TYPE;
     }
 
     @Override
@@ -75,7 +75,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(script.getParams(), searchLookup);
+        return factory.apply(name(), script.getParams(), searchLookup);
     }
 
     /**
@@ -187,7 +187,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against ["
-                    + RuntimeScriptFieldMapper.CONTENT_TYPE
+                    + RuntimeFieldMapper.CONTENT_TYPE
                     + "] fields while ["
                     + ALLOW_EXPENSIVE_QUERIES.getKey()
                     + "] is set to [false]."

@@ -47,7 +47,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<Dat
         DateFormatter dateTimeFormatter,
         Map<String, String> meta
     ) {
-        super(name, script, (params, ctx) -> scriptFactory.newFactory(params, ctx, dateTimeFormatter), meta);
+        super(name, script, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), meta);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 

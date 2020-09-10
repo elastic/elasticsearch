@@ -127,9 +127,9 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     ) {
         checkAllowExpensiveQueries(context);
         if (matchFlags != 0) {
-            throw new UnsupportedOperationException("we'll need to add case insensitive match support before release....");
+            throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
         }
-        return new StringScriptFieldRegexpQuery(script, leafFactory(context), name(), value, syntaxFlags, maxDeterminizedStates);
+        return new StringScriptFieldRegexpQuery(script, leafFactory(context.lookup()), name(), value, syntaxFlags, maxDeterminizedStates);
     }
 
     @Override

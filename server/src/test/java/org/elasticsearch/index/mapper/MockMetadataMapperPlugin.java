@@ -54,7 +54,7 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                 context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
             } else {
-                return;
+                throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a string.");
             }
         }
 

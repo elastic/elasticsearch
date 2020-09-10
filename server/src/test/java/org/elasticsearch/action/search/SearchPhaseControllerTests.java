@@ -1008,7 +1008,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         private volatile long allocated;
 
-        public AssertingCircuitBreaker(String name) {
+        AssertingCircuitBreaker(String name) {
             super(name);
         }
 

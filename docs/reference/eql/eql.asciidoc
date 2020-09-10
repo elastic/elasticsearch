@@ -56,6 +56,10 @@ The following request searches `my-index-000001` for events with an
 document in `my-index-000001` includes a `@timestamp` and `event.category`
 field.
 
+TIP: By default, EQL queries are case-insensitive. To run a case-sensitive
+search, include `case_sensitive: true` as a request body argument. See
+<<eql-search-case-sensitive>>.
+
 [source,console]
 ----
 GET /my-index-000001/_eql/search
@@ -449,8 +453,10 @@ GET /my-index-000001/_eql/search
 [[eql-search-case-sensitive]]
 === Run a case-sensitive EQL search
 
-By default, matching for EQL queries is case-insensitive. You can use the
-`case_sensitive` parameter to toggle case sensitivity on or off.
+By default, matching for EQL <<eql-syntax-comparison-operators,comparison
+operators>> and <<eql-function-ref,functions>> is case-insensitive. You can use
+the `case_sensitive` parameter to toggle this case sensitivity on or off. This
+affects all comparisons and functions in the EQL query.
 
 The following search request contains a query that matches `process` events
 with a `process.executable` containing `System32`.

@@ -10,6 +10,10 @@ experimental::[]
 
 {es} supports the following <<eql-functions,EQL functions>>.
 
+TIP: By default, matching for functions is case-insensitive. You can control
+case sensitivity using the EQL search API's
+<<eql-search-case-sensitive,`case_sensitive`>> parameter.
+
 [discrete]
 [[eql-fn-add]]
 === `add`
@@ -155,7 +159,9 @@ in regular expressions. Defaults to `false`.
 
 `<case_sensitive>`::
 (Optional, boolean)
-If `true`, matching is case-sensitive. Defaults to `false`.
+If `true`, matching for the function is case-sensitive. Defaults to `false`.
+This overrides the EQL search request's
+<<eql-search-case-sensitive,`case_sensitive`>> argument.
 
 *Returns:* string or `null`
 

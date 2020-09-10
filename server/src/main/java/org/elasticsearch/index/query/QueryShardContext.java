@@ -295,17 +295,22 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            this.lookup = newSearchLookup();
+            this.lookup = new SearchLookup(
+                getMapperService(),
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+            );
         }
         return this.lookup;
     }
 
     /**
-     * Build a new {@link SearchLookup}. Prefer {@link #lookup()} for things
-     * like queries and scripts. Call this only when you are sure you need a
-     * <strong>new</strong> lookup.
+     * Build a lookup customized for the fetch phase. Use {@link #lookup()}
+     * in other phases.
      */
-    public SearchLookup newSearchLookup() {
+    public SearchLookup newFetchLookup() {
+        /*
+         * Real customization coming soon, I promise!
+         */
         return new SearchLookup(
             getMapperService(),
             (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)

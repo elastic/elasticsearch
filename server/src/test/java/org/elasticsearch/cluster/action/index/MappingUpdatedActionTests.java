@@ -138,33 +138,6 @@ public class MappingUpdatedActionTests extends ESTestCase {
         assertTrue(fut2.isDone());
     }
 
-    public void testSendUpdateMappingUsingPutMappingAction() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_8_0))
-            .build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        AdminClient adminClient = mock(AdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        Client client = mock(Client.class);
-        when(client.admin()).thenReturn(adminClient);
-
-        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        mua.setClient(client);
-
-        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
-        Mapping update = new Mapping(Version.V_7_8_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
-
-        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
-        verify(indicesAdminClient).putMapping(any(), any());
-    }
-
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_9_0))

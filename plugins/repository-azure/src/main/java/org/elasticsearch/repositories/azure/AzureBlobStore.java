@@ -117,11 +117,7 @@ public class AzureBlobStore implements BlobStore {
         };
         this.uploadMetricsCollector = (httpURLConnection -> {
            assert httpURLConnection.getRequestMethod().equals("PUT");
-            String queryParams = httpURLConnection.getURL().getQuery();
-            if (queryParams == null) {
-                stats.putOperations.incrementAndGet();
-                return;
-            }
+            String queryParams = httpURLConnection.getURL().getQuery() == null ? "" : httpURLConnection.getURL().getQuery();
 
             // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
             // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
@@ -129,6 +125,10 @@ public class AzureBlobStore implements BlobStore {
                 stats.putBlockOperations.incrementAndGet();
             } else if (queryParams.contains("comp=blocklist")) {
                 stats.putBlockListOperations.incrementAndGet();
+            } else {
+                // if a sas token is used, it's possible that the query params contain
+                // additional parameters unrelated to the upload type
+                stats.putOperations.incrementAndGet();
             }
         });
     }

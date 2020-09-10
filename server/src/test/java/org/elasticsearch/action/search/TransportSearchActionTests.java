@@ -208,7 +208,6 @@ public class TransportSearchActionTests extends ESTestCase {
             null)) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
-            List<SearchShardIterator> iteratorList = new ArrayList<>();
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
             DiscoveryNode[] nodes = new DiscoveryNode[] {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -246,9 +245,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 new OriginalIndices(new String[]{"fo*", "ba*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             remoteIndicesByCluster.put("test_cluster_2",
                 new OriginalIndices(new String[]{"x*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
-            Map<String, AliasFilter> remoteAliases = new HashMap<>();
-            TransportSearchAction.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
-                remoteAliases);
+            Map<String, AliasFilter> remoteAliases = TransportSearchAction.getRemoteAliasFilters(searchShardsResponseMap);
+            List<SearchShardIterator> iteratorList =
+                TransportSearchAction.getRemoteShardsIterator(searchShardsResponseMap, remoteIndicesByCluster, remoteAliases);
             assertEquals(4, iteratorList.size());
             for (SearchShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {

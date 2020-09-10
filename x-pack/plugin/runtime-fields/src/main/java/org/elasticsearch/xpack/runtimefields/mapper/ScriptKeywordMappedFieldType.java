@@ -68,7 +68,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     }
 
     private StringScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(script.getParams(), searchLookup);
+        return scriptFactory.newFactory(name(), script.getParams(), searchLookup);
     }
 
     @Override

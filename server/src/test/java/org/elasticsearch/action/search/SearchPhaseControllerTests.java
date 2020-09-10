@@ -33,10 +33,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -77,7 +77,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -95,7 +94,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.search.SearchProgressListener.NOOP;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -112,7 +110,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
     @Override
     protected NamedWriteableRegistry writableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, "throwing", InternalThrowing::new));
         return new NamedWriteableRegistry(entries);
     }
 
@@ -418,7 +415,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
         ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, 3+numEmptyResponses, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, 3+numEmptyResponses, exc  -> {});
         if (numEmptyResponses == 0) {
             assertEquals(0, reductions.size());
         }
@@ -505,7 +503,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
         ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-                NOOP, request, expectedNumResults, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         Thread[] threads = new Thread[expectedNumResults];
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -555,7 +554,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, expectedNumResults, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch =  new CountDownLatch(expectedNumResults);
         for (int i = 0; i < expectedNumResults; i++) {
@@ -596,7 +596,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, expectedNumResults, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch =  new CountDownLatch(expectedNumResults);
         for (int i = 0; i < expectedNumResults; i++) {
@@ -639,7 +640,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, 4, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP
+            , request, 4, exc  -> {});
         int score = 100;
         CountDownLatch latch =  new CountDownLatch(4);
         for (int i = 0; i < 4; i++) {
@@ -677,7 +679,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, expectedNumResults, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         SortField[] sortFields = {new SortField("field", SortField.Type.INT, true)};
         DocValueFormat[] docValueFormats = {DocValueFormat.RAW};
@@ -715,7 +718,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, expectedNumResults, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc  -> {});
         SortField[] sortFields = {new SortField("field", SortField.Type.STRING)};
         BytesRef a = new BytesRef("a");
         BytesRef b = new BytesRef("b");
@@ -756,7 +760,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, expectedNumResults, exc  -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc  -> {});
         int maxScoreTerm = -1;
         int maxScorePhrase = -1;
         int maxScoreCompletion = -1;
@@ -882,7 +887,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             };
             QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-                progressListener, request, expectedNumResults, exc  -> {});
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST), progressListener, request, expectedNumResults, exc  -> {});
             AtomicInteger max = new AtomicInteger();
             Thread[] threads = new Thread[expectedNumResults];
             CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -931,7 +936,19 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
-    public void testPartialMergeFailure() throws InterruptedException {
+    public void testPartialReduce() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            testReduceCase(false);
+        }
+    }
+
+    public void testPartialReduceWithFailure() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            testReduceCase(true);
+        }
+    }
+
+    private void testReduceCase(boolean shouldFail) throws Exception {
         int expectedNumResults = randomIntBetween(20, 200);
         int bufferSize = randomIntBetween(2, expectedNumResults - 1);
         SearchRequest request = new SearchRequest();
@@ -939,11 +956,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
+        AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
+        boolean shouldFailPartial = shouldFail && randomBoolean();
+        if (shouldFailPartial) {
+            circuitBreaker.shouldBreak.set(true);
+        }
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            NOOP, request, expectedNumResults, exc -> hasConsumedFailure.set(true));
+            circuitBreaker, SearchProgressListener.NOOP,
+            request, expectedNumResults, exc -> hasConsumedFailure.set(true));
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
         Thread[] threads = new Thread[expectedNumResults];
-        int failedIndex = randomIntBetween(0, expectedNumResults-1);
         for (int i =  0; i < expectedNumResults; i++) {
             final int index = i;
             threads[index] = new Thread(() -> {
@@ -954,7 +976,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
                 InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalThrowing("test", (failedIndex == index), Collections.emptyMap())));
+                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap())));
                 result.aggregations(aggs);
                 result.setShardIndex(index);
                 result.size(1);
@@ -966,60 +988,44 @@ public class SearchPhaseControllerTests extends ESTestCase {
             threads[i].join();
         }
         latch.await();
-        IllegalStateException exc = expectThrows(IllegalStateException.class, () -> consumer.reduce());
-        if (exc.getMessage().contains("partial reduce")) {
-            assertTrue(hasConsumedFailure.get());
-        } else {
-            assertThat(exc.getMessage(), containsString("final reduce"));
-        }
-    }
-
-    private static class InternalThrowing extends InternalAggregation {
-        private final boolean shouldThrow;
-
-        protected InternalThrowing(String name, boolean shouldThrow, Map<String, Object> metadata) {
-            super(name, metadata);
-            this.shouldThrow = shouldThrow;
-        }
-
-        protected InternalThrowing(StreamInput in) throws IOException {
-            super(in);
-            this.shouldThrow = in.readBoolean();
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeBoolean(shouldThrow);
-        }
-
-        @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-            if (aggregations.stream()
-                    .map(agg -> (InternalThrowing) agg)
-                    .anyMatch(agg -> agg.shouldThrow)) {
-                if (reduceContext.isFinalReduce()) {
-                    throw new IllegalStateException("final reduce");
-                } else  {
-                    throw new IllegalStateException("partial reduce");
-                }
+        if (shouldFail) {
+            if (shouldFailPartial == false) {
+                circuitBreaker.shouldBreak.set(true);
             }
-            return new InternalThrowing(name,  false, metadata);
+            CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
+            assertEquals(shouldFailPartial, hasConsumedFailure.get());
+            assertThat(exc.getMessage(), containsString("<aggs_reduce>"));
+            circuitBreaker.shouldBreak.set(false);
+        } else {
+            SearchPhaseController.ReducedQueryPhase phase = consumer.reduce();
         }
-
-        @Override
-        public Object getProperty(List<String> path) {
-            return null;
-        }
-
-        @Override
-        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            throw new IllegalStateException("not implemented");
-        }
-
-        @Override
-        public String getWriteableName() {
-            return "throwing";
-        }
+        consumer.close();
+        assertThat(circuitBreaker.allocated, equalTo(0L));
     }
 
+    private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
+        private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
+
+        private volatile long allocated;
+
+        public AssertingCircuitBreaker(String name) {
+            super(name);
+        }
+
+        @Override
+        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            assert bytes >= 0;
+            if (shouldBreak.get()) {
+                throw new CircuitBreakingException(label, getDurability());
+            }
+            allocated += bytes;
+            return allocated;
+        }
+
+        @Override
+        public long addWithoutBreaking(long bytes) {
+            allocated += bytes;
+            return allocated;
+        }
+    }
 }

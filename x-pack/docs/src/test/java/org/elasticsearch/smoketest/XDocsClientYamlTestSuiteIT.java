@@ -29,10 +29,10 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
-public class AbstractXDocsClientYamlTestSuiteTest extends AbstractXPackRestTest {
+public class XDocsClientYamlTestSuiteIT extends AbstractXPackRestTest {
     private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
 
-    public AbstractXDocsClientYamlTestSuiteTest(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public XDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

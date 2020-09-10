@@ -103,7 +103,7 @@ public class FetchPhase {
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
             Map<String, Object> sharedCache = new HashMap<>();
 
-            SearchLookup lookup = context.getQueryShardContext().newSearchLookup();
+            SearchLookup lookup = context.getQueryShardContext().newFetchLookup();
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
                 FetchSubPhaseProcessor processor = fsp.getProcessor(context, lookup);

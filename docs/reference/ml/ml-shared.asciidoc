@@ -969,7 +969,7 @@ failure.
 end::model-bytes-exceeded[]
 
 tag::model-id[]
-The unique identifier of the trained {infer} model.
+The unique identifier of the trained model.
 end::model-id[]
 
 tag::model-memory-limit[]
@@ -1352,8 +1352,8 @@ function.
 end::summary-count-field-name[]
 
 tag::tags[]
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-When supplied, only {infer} models that contain all the supplied tags are
+A comma delimited string of tags. A trained model can have many tags, or none.
+When supplied, only trained models that contain all the supplied tags are
 returned.
 end::tags[]
 

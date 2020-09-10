@@ -126,9 +126,6 @@ testClusters.all {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
 }
 
 

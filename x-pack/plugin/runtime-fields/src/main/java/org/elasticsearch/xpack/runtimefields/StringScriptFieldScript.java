@@ -16,9 +16,15 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
+    /**
+     * The maximum number of chars a script should be allowed to emit.
+     */
+    public static final long MAX_CHARS = 1024 * 1024;
+
     public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -28,7 +34,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
@@ -36,9 +42,10 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     private final List<String> results = new ArrayList<>();
+    private long chars;
 
-    public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public StringScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**
@@ -49,12 +56,26 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
      */
     public final List<String> resultsForDoc(int docId) {
         results.clear();
+        chars = 0;
         setDocument(docId);
         execute();
         return results;
     }
 
     protected final void emitValue(String v) {
+        checkMaxSize(results.size());
+        chars += v.length();
+        if (chars > MAX_CHARS) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Runtime field [%s] is emitting [%s] characters while the maximum number of values allowed is [%s]",
+                    fieldName,
+                    chars,
+                    MAX_CHARS
+                )
+            );
+        }
         results.add(v);
     }
 

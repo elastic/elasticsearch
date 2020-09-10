@@ -126,8 +126,9 @@ public class AzureBlobStore implements BlobStore {
             } else if (queryParams.contains("comp=blocklist")) {
                 stats.putBlockListOperations.incrementAndGet();
             } else {
-                // if a sas token is used, it's possible that the query params contain
-                // additional parameters unrelated to the upload type
+                // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
+                // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
+                // it's possible that the URI parameters contain additional parameters unrelated to the upload type.
                 stats.putOperations.incrementAndGet();
             }
         });

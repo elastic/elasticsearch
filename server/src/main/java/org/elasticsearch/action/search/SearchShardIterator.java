@@ -68,7 +68,7 @@ public final class SearchShardIterator extends PlainShardIterator {
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
         this.searchContextKeepAlive = searchContextKeepAlive;
-        assert (searchContextId == null) == (searchContextKeepAlive == null);
+        assert searchContextKeepAlive == null || searchContextId != null;
     }
 
     /**

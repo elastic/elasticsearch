@@ -84,7 +84,7 @@ public class JoinHelper {
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
-    private final Function<Long, JoinTaskExecutor> joinTaskExecutorGenerator;
+    private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
     JoinHelper(AllocationService allocationService, MasterService masterService, TransportService transportService,
                LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -94,7 +94,9 @@ public class JoinHelper {
         this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
-        this.joinTaskExecutorGenerator = term -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
+
+            private final long term = currentTermSupplier.getAsLong();
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
@@ -336,7 +338,7 @@ public class JoinHelper {
     interface JoinAccumulator {
         void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
 
-        default void close(Mode newMode, long newTerm) {
+        default void close(Mode newMode) {
         }
     }
 
@@ -395,7 +397,7 @@ public class JoinHelper {
         }
 
         @Override
-        public void close(Mode newMode, long newTerm) {
+        public void close(Mode newMode) {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
@@ -411,7 +413,7 @@ public class JoinHelper {
                 });
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {
                 });
-                joinTaskExecutor = joinTaskExecutorGenerator.apply(newTerm);
+                joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor);
             } else {

@@ -109,7 +109,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;

@@ -523,7 +523,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final Mode prevMode = mode;
             mode = Mode.CANDIDATE;
             cancelActivePublication("become candidate: " + method);
-            joinAccumulator.close(mode, getCurrentTerm());
+            joinAccumulator.close(mode);
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
@@ -559,7 +559,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             method, getCurrentTerm(), mode, lastKnownLeader);
 
         mode = Mode.LEADER;
-        joinAccumulator.close(mode, getCurrentTerm());
+        joinAccumulator.close(mode);
         joinAccumulator = joinHelper.new LeaderJoinAccumulator();
 
         lastKnownLeader = Optional.of(getLocalNode());
@@ -589,7 +589,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
-            joinAccumulator.close(mode, getCurrentTerm());
+            joinAccumulator.close(mode);
             joinAccumulator = new JoinHelper.FollowerJoinAccumulator();
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
         }

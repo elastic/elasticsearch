@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
 
@@ -83,7 +84,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             boolean targetTierNodeFound = false;
             for (DiscoveryNode node : clusterState.nodes()) {
                 for (DiscoveryNodeRole role : node.getRoles()) {
-                    if (role.roleName().equals(tier)) {
+                    if (role.roleName().equals(DATA_ROLE.roleName()) || role.roleName().equals(tier)) {
                         targetTierNodeFound = true;
                         break;
                     }

@@ -179,6 +179,27 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         assertThat(result.getInfomationContext(), is(nullValue()));
     }
 
+    public void testExecuteWithGenericDataNodes() {
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_WARM))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        Index index = indexMetadata.getIndex();
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED));
+
+        ClusterState clusterState =
+            ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
+                .nodes(DiscoveryNodes.builder()
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                )
+                .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+                .build();
+        DataTierMigrationRoutedStep step = createRandomInstance();
+        Result result = step.isConditionMet(index, clusterState);
+        assertThat(result.isComplete(), is(true));
+        assertThat(result.getInfomationContext(), is(nullValue()));
+    }
+
     private DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }

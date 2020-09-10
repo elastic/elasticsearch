@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
@@ -48,7 +49,7 @@ import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldName();
@@ -217,7 +218,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
     }
 
-    private static DocValueField buildField(SearchContext context, FieldAndFormat fieldAndFormat) {
+    private static DocValueField buildField(FetchContext context, FieldAndFormat fieldAndFormat) {
         MappedFieldType fieldType = context.mapperService().fieldType(fieldAndFormat.field);
         if (fieldType == null) {
             return null;

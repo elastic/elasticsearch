@@ -92,6 +92,8 @@ public class FetchPhase {
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
 
+        FetchContext fetchContext = FetchContext.fromSearchContext(context);
+
         try {
             DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
@@ -104,7 +106,7 @@ public class FetchPhase {
 
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
-                FetchSubPhaseProcessor processor = fsp.getProcessor(context);
+                FetchSubPhaseProcessor processor = fsp.getProcessor(fetchContext);
                 if (processor != null) {
                     processors.add(processor);
                 }

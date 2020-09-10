@@ -20,6 +20,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -34,7 +35,7 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.explain() == false || context.hasOnlySuggest()) {
             return null;
         }

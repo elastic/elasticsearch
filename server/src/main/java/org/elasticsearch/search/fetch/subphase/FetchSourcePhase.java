@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
@@ -36,12 +37,12 @@ import java.util.Map;
 public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
-        if (searchContext.sourceRequested() == false) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
+        if (fetchContext.sourceRequested() == false) {
             return null;
         }
-        String index = searchContext.indexShard().shardId().getIndexName();
-        FetchSourceContext fetchSourceContext = searchContext.fetchSourceContext();
+        String index = fetchContext.getIndexName();
+        FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
 
         return new FetchSubPhaseProcessor() {

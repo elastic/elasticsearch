@@ -96,7 +96,8 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
             value = context.parser().numberValue().floatValue();
         } else {
-            return;
+            throw new IllegalArgumentException(
+                "Field [" + fieldType().name() + "] must be a positive integer.");
         }
 
         if (value != null) {

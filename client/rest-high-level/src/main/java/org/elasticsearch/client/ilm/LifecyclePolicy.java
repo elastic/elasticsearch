@@ -57,7 +57,7 @@ public class LifecyclePolicy implements ToXContentObject {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
 
-        ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, RolloverAction.NAME));
+        ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME));
         ALLOWED_ACTIONS.put("warm", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
             ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
         ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,

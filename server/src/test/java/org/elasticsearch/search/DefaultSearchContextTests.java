@@ -31,7 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,8 +50,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ScrollContext;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.LegacyReaderContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -63,6 +62,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -82,9 +83,11 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(shardSearchRequest.shardId()).thenReturn(shardId);
         when(shardSearchRequest.types()).thenReturn(new String[]{});
 
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
         when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
 
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
@@ -117,28 +120,49 @@ public class DefaultSearchContextTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
         try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-             IndexReader reader = w.getReader();
-             Engine.Searcher searcher = new Engine.Searcher("test", reader,
-                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
-                 IndexSearcher.getDefaultQueryCachingPolicy(), reader)) {
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected void doClose() {
+                }
+
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    try {
+                        IndexReader reader = w.getReader();
+                        return new Engine.Searcher("test", reader, IndexSearcher.getDefaultSimilarity(),
+                            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), reader);
+                    } catch (IOException exc) {
+                        throw new AssertionError(exc);
+                    }
+                }
+            };
 
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            ReaderContext readerWithoutScroll = new ReaderContext(
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
 
-            DefaultSearchContext context1 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 1L),
-                    shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null,
-                    false, Version.CURRENT);
-            context1.from(300);
+            DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(readerWithoutScroll, shardSearchRequest, target, null,
+                bigArrays, null, timeout, null, false, Version.CURRENT);
+            contextWithoutScroll.from(300);
+            contextWithoutScroll.close();
 
             // resultWindow greater than maxResultWindow and scrollContext is null
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> contextWithoutScroll.preProcess(false));
             assertThat(exception.getMessage(), equalTo("Result window is too large, from + size must be less than or equal to:"
                 + " [" + maxResultWindow + "] but was [310]. See the scroll api for a more efficient way to request large data sets. "
                 + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
                 + "] index level setting."));
 
             // resultWindow greater than maxResultWindow and scrollContext isn't null
-            context1.scrollContext(new ScrollContext());
+            when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
+            ReaderContext readerContext = new LegacyReaderContext(
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
+            DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
+                bigArrays, null, timeout, null, false, Version.CURRENT);
+            context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
             assertThat(exception.getMessage(), equalTo("Batch size is too large, size must be less than or equal to: ["
                 + maxResultWindow + "] but was [310]. Scroll batch sizes cost as much memory as result windows so they are "
@@ -166,10 +190,12 @@ public class DefaultSearchContextTests extends ESTestCase {
                 + "to be rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                 + "] index level setting."));
 
+            readerContext.close();
+            readerContext = new ReaderContext(
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             // rescore is null but sliceBuilder is not null
-            DefaultSearchContext context2 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 2L),
-                    shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null,
-                    false, Version.CURRENT);
+            DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
+                null, bigArrays, null, timeout, null, false, Version.CURRENT);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -185,9 +211,8 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
-            DefaultSearchContext context3 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 3L),
-                    shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null,
-                    false, Version.CURRENT);
+            DefaultSearchContext context3 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
+                bigArrays, null, timeout, null, false, Version.CURRENT);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
@@ -196,15 +221,19 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
-            DefaultSearchContext context4 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 4L),
-                    shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null,
-                    false, Version.CURRENT);
+            readerContext.close();
+            readerContext = new ReaderContext(randomNonNegativeLong(), indexService, indexShard,
+                searcherSupplier.get(), randomNonNegativeLong(), false);
+            DefaultSearchContext context4 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, bigArrays, null,
+                timeout, null, false, Version.CURRENT);
             context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
             context4.sliceBuilder(new SliceBuilder(0,2)).parsedQuery(parsedQuery).preProcess(false);
             Query query2 = context4.query();
             assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
 
+            readerContext.close();
+            threadPool.shutdown();
         }
     }
 
@@ -234,11 +263,23 @@ public class DefaultSearchContextTests extends ESTestCase {
                  IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
                  IndexSearcher.getDefaultQueryCachingPolicy(), reader)) {
 
+            Engine.SearcherSupplier searcherSupplier = new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected void doClose() {
 
+                }
+
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    return searcher;
+                }
+            };
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
-            DefaultSearchContext context = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 1L), shardSearchRequest,
-                target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null, false, Version.CURRENT);
+            ReaderContext readerContext = new ReaderContext(
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier, randomNonNegativeLong(), false);
 
+            DefaultSearchContext context = new DefaultSearchContext(
+                readerContext, shardSearchRequest, target, null, bigArrays, null, timeout, null, false, Version.CURRENT);
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});
             assertThat(context.searcher().hasCancellations(), is(true));

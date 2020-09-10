@@ -694,8 +694,8 @@ public class Node implements Closeable {
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
-
+                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(),
+                    namedWriteableRegistry);
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");

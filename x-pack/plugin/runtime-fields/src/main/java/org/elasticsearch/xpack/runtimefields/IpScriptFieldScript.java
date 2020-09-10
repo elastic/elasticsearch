@@ -92,7 +92,7 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
         return count;
     }
 
-    protected final void emitValue(String v) {
+    protected final void emit(String v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
@@ -100,15 +100,15 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
         values[count++] = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final IpScriptFieldScript script;
 
-        public EmitValue(IpScriptFieldScript script) {
+        public Emit(IpScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(String v) {
-            script.emitValue(v);
+        public void emit(String v) {
+            script.emit(v);
         }
     }
 }

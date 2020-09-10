@@ -375,7 +375,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString());
+                                            emit(foo.toString());
                                         }
                                     }
                                 };
@@ -384,7 +384,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString() + getParams().get("param").toString());
+                                            emit(foo.toString() + getParams().get("param").toString());
                                         }
                                     }
                                 };

@@ -68,7 +68,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         return count;
     }
 
-    protected final void emitValue(double v) {
+    protected final void emit(double v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
@@ -76,15 +76,15 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         values[count++] = v;
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final DoubleScriptFieldScript script;
 
-        public EmitValue(DoubleScriptFieldScript script) {
+        public Emit(DoubleScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(double v) {
-            script.emitValue(v);
+        public void emit(double v) {
+            script.emit(v);
         }
     }
 }

@@ -15,13 +15,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Represents the state of an index's shards allocation, including a user friendly message describing the current state.
+ * It allows to transfer the allocation information to {@link org.elasticsearch.common.xcontent.XContent} using
+ * {@link #toXContent(XContentBuilder, Params)}
+ */
 public class AllocationInfo implements ToXContentObject {
-    private final long actualReplicas;
+
+    private final long numberOfReplicas;
     private final long numberShardsLeftToAllocate;
     private final boolean allShardsActive;
     private final String message;
 
-    static final ParseField ACTUAL_REPLICAS = new ParseField("actual_replicas");
+    static final ParseField NUMBER_OF_REPLICAS = new ParseField("number_of_replicas");
     static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
     static final ParseField ALL_SHARDS_ACTIVE = new ParseField("all_shards_active");
     static final ParseField MESSAGE = new ParseField("message");
@@ -29,14 +35,14 @@ public class AllocationInfo implements ToXContentObject {
         a -> new AllocationInfo((long) a[0], (long) a[1], (boolean) a[2], (String) a[3]));
 
     static {
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), ACTUAL_REPLICAS);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_REPLICAS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_ALLOCATE);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ALL_SHARDS_ACTIVE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MESSAGE);
     }
 
-    public AllocationInfo(long actualReplicas, long numberShardsLeftToAllocate, boolean allShardsActive, String message) {
-        this.actualReplicas = actualReplicas;
+    public AllocationInfo(long numberOfReplicas, long numberShardsLeftToAllocate, boolean allShardsActive, String message) {
+        this.numberOfReplicas = numberOfReplicas;
         this.numberShardsLeftToAllocate = numberShardsLeftToAllocate;
         this.allShardsActive = allShardsActive;
         this.message = message;
@@ -60,8 +66,8 @@ public class AllocationInfo implements ToXContentObject {
             "] shards to be allocated to nodes matching the given filters");
     }
 
-    public long getActualReplicas() {
-        return actualReplicas;
+    public long getNumberOfReplicas() {
+        return numberOfReplicas;
     }
 
     public long getNumberShardsLeftToAllocate() {
@@ -82,14 +88,14 @@ public class AllocationInfo implements ToXContentObject {
         builder.field(MESSAGE.getPreferredName(), message);
         builder.field(SHARDS_TO_ALLOCATE.getPreferredName(), numberShardsLeftToAllocate);
         builder.field(ALL_SHARDS_ACTIVE.getPreferredName(), allShardsActive);
-        builder.field(ACTUAL_REPLICAS.getPreferredName(), actualReplicas);
+        builder.field(NUMBER_OF_REPLICAS.getPreferredName(), numberOfReplicas);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualReplicas, numberShardsLeftToAllocate, allShardsActive);
+        return Objects.hash(numberOfReplicas, numberShardsLeftToAllocate, allShardsActive);
     }
 
     @Override
@@ -101,7 +107,7 @@ public class AllocationInfo implements ToXContentObject {
             return false;
         }
         AllocationInfo other = (AllocationInfo) obj;
-        return Objects.equals(actualReplicas, other.actualReplicas) &&
+        return Objects.equals(numberOfReplicas, other.numberOfReplicas) &&
             Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate) &&
             Objects.equals(message, other.message) &&
             Objects.equals(allShardsActive, other.allShardsActive);

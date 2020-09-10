@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -138,6 +140,26 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().startTransform(new StartTransformRequest(id), options);
         }
+    }
+
+    // workaround for https://github.com/elastic/elasticsearch/issues/62204
+    protected StartTransformResponse startTransformWithRetryOnConflict(String id, RequestOptions options) throws Exception {
+        int retries = 10;
+        ElasticsearchStatusException lastConflict = null;
+        while (retries > 0) {
+            try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+                return restClient.transform().startTransform(new StartTransformRequest(id), options);
+            } catch (ElasticsearchStatusException e) {
+                if (e.status().equals(RestStatus.CONFLICT) == false) {
+                    throw e;
+                }
+
+                lastConflict = e;
+                --retries;
+                Thread.sleep(5);
+            }
+        }
+        throw lastConflict;
     }
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {

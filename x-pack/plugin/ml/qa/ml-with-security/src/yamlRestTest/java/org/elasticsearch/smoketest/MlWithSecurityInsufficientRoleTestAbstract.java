@@ -19,11 +19,11 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 
-public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
+public class MlWithSecurityInsufficientRoleTestAbstract extends MlWithSecurityTestAbstract {
 
     private final ClientYamlTestCandidate testCandidate;
 
-    public MlWithSecurityInsufficientRoleIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public MlWithSecurityInsufficientRoleTestAbstract(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
         this.testCandidate = testCandidate;
     }

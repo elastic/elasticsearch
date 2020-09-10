@@ -17,7 +17,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.xpack.test.rest.XPackRestIT;
+import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
 import org.junit.After;
 
 import java.util.List;
@@ -29,10 +29,10 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
-public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
+public class AbstractXDocsClientYamlTestSuiteTest extends AbstractXPackRestTest {
     private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
 
-    public XDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public AbstractXDocsClientYamlTestSuiteTest(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

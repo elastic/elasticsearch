@@ -7,9 +7,11 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 archivesBaseName = 'x-pack'
 
 dependencies {
-  yamlRestTestImplementation project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // let the yamlRestTest see the classpath of test
+  yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
 }
 
 configurations {
@@ -17,16 +19,6 @@ configurations {
   testArtifacts.extendsFrom testImplementation
   testArtifacts.extendsFrom yamlRestTestImplementation
   testArtifacts.extendsFrom javaRestTestImplementation
-}
-
-restResources {
-  restApi {
-    includeCore '*'
-    includeXpack '*'
-  }
-  restTests {
-    includeXpack '*'
-  }
 }
 
 //The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.

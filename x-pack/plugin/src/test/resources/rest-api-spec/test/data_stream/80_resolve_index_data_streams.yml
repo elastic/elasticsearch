@@ -109,8 +109,8 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: " - 7.8.99"
-      reason: change after backporting
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/62190"
 
   - do:
       indices.resolve_index:

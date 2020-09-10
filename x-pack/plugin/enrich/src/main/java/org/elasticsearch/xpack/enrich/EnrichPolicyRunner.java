@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -351,30 +352,37 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
-        enrichOriginClient().execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                // Do we want to fail the request if there were failures during the reindex process?
-                if (bulkByScrollResponse.getBulkFailures().size() > 0) {
-                    listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
-                } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
-                    listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
-                } else {
-                    logger.info(
-                        "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
-                        policyName,
-                        bulkByScrollResponse.getCreated(),
-                        destinationIndexName
-                    );
-                    forceMergeEnrichIndex(destinationIndexName, 1);
-                }
-            }
+        client.execute(
+            ReindexAction.INSTANCE,
+            reindexRequest,
+            new ContextPreservingActionListener<>(
+                client.threadPool().getThreadContext().newRestorableContext(false),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                        // Do we want to fail the request if there were failures during the reindex process?
+                        if (bulkByScrollResponse.getBulkFailures().size() > 0) {
+                            listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
+                        } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
+                            listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
+                        } else {
+                            logger.info(
+                                "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
+                                policyName,
+                                bulkByScrollResponse.getCreated(),
+                                destinationIndexName
+                            );
+                            forceMergeEnrichIndex(destinationIndexName, 1);
+                        }
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+            )
+        );
     }
 
     private void forceMergeEnrichIndex(final String destinationIndexName, final int attempt) {

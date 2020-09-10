@@ -21,6 +21,13 @@ configurations {
   testArtifacts.extendsFrom javaRestTestImplementation
 }
 
+restResources {
+  restApi {
+    includeCore '*'
+    includeXpack '*'
+  }
+}
+
 //The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
 artifacts {
   restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))

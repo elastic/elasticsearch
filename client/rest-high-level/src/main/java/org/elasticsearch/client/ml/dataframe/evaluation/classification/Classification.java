@@ -45,15 +45,22 @@ public class Classification implements Evaluation {
 
     private static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
     private static final ParseField PREDICTED_FIELD = new ParseField("predicted_field");
+    private static final ParseField PREDICTED_CLASS_FIELD = new ParseField("predicted_class_field");
+    private static final ParseField PREDICTED_PROBABILITY_FIELD = new ParseField("predicted_probability_field");
+
     private static final ParseField METRICS = new ParseField("metrics");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Classification, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, true, a -> new Classification((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+        NAME,
+        true,
+        a -> new Classification((String) a[0], (String) a[1], (String) a[2], (String) a[3], (List<EvaluationMetric>) a[4]));
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
-        PARSER.declareString(constructorArg(), PREDICTED_FIELD);
+        PARSER.declareString(optionalConstructorArg(), PREDICTED_FIELD);
+        PARSER.declareString(optionalConstructorArg(), PREDICTED_CLASS_FIELD);
+        PARSER.declareString(optionalConstructorArg(), PREDICTED_PROBABILITY_FIELD);
         PARSER.declareNamedObjects(
             optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c), METRICS);
     }
@@ -64,32 +71,58 @@ public class Classification implements Evaluation {
 
     /**
      * The field containing the actual value
-     * The value of this field is assumed to be numeric
      */
     private final String actualField;
 
     /**
      * The field containing the predicted value
-     * The value of this field is assumed to be numeric
      */
     private final String predictedField;
+
+    /**
+     * The field containing the predicted class name value
+     */
+    private final String predictedClassField;
+
+    /**
+     * The field containing the predicted probability value in [0.0, 1.0]
+     */
+    private final String predictedProbabilityField;
 
     /**
      * The list of metrics to calculate
      */
     private final List<EvaluationMetric> metrics;
 
-    public Classification(String actualField, String predictedField) {
-        this(actualField, predictedField, (List<EvaluationMetric>)null);
+    public Classification(String actualField,
+                          String predictedField,
+                          String predictedClassField,
+                          String predictedProbabilityField) {
+        this(
+            actualField,
+            predictedField,
+            predictedClassField,
+            predictedProbabilityField,
+            (List<EvaluationMetric>)null);
     }
 
-    public Classification(String actualField, String predictedField, EvaluationMetric... metrics) {
-        this(actualField, predictedField, Arrays.asList(metrics));
+    public Classification(String actualField,
+                          String predictedField,
+                          String predictedClassField,
+                          String predictedProbabilityField,
+                          EvaluationMetric... metrics) {
+        this(actualField, predictedField, predictedClassField, predictedProbabilityField, Arrays.asList(metrics));
     }
 
-    public Classification(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
+    public Classification(String actualField,
+                          @Nullable String predictedField,
+                          @Nullable String predictedClassField,
+                          @Nullable String predictedProbabilityField,
+                          @Nullable List<EvaluationMetric> metrics) {
         this.actualField = Objects.requireNonNull(actualField);
-        this.predictedField = Objects.requireNonNull(predictedField);
+        this.predictedField = predictedField;
+        this.predictedClassField = predictedClassField;
+        this.predictedProbabilityField = predictedProbabilityField;
         if (metrics != null) {
             metrics.sort(Comparator.comparing(EvaluationMetric::getName));
         }
@@ -105,8 +138,15 @@ public class Classification implements Evaluation {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ACTUAL_FIELD.getPreferredName(), actualField);
-        builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
-
+        if (predictedField != null) {
+            builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
+        }
+        if (predictedClassField != null) {
+            builder.field(PREDICTED_CLASS_FIELD.getPreferredName(), predictedClassField);
+        }
+        if (predictedProbabilityField != null) {
+            builder.field(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField);
+        }
         if (metrics != null) {
            builder.startObject(METRICS.getPreferredName());
            for (EvaluationMetric metric : metrics) {
@@ -126,11 +166,13 @@ public class Classification implements Evaluation {
         Classification that = (Classification) o;
         return Objects.equals(that.actualField, this.actualField)
             && Objects.equals(that.predictedField, this.predictedField)
+            && Objects.equals(that.predictedClassField, this.predictedClassField)
+            && Objects.equals(that.predictedProbabilityField, this.predictedProbabilityField)
             && Objects.equals(that.metrics, this.metrics);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualField, predictedField, metrics);
+        return Objects.hash(actualField, predictedField, predictedClassField, predictedProbabilityField, metrics);
     }
 }

@@ -16,45 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
+package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetric.Result> {
+public class AucRocMetricAucRocPointTests extends AbstractXContentTestCase<AucRocMetric.AucRocPoint> {
 
-    public static AucRocMetric.Result randomResult() {
-        return new AucRocMetric.Result(
-            randomDouble(),
-            Stream
-                .generate(AucRocMetricAucRocPointTests::randomPoint)
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+    static AucRocMetric.AucRocPoint randomPoint() {
+        return new AucRocMetric.AucRocPoint(randomDouble(), randomDouble(), randomDouble());
     }
 
     @Override
-    protected AucRocMetric.Result createTestInstance() {
-        return randomResult();
+    protected AucRocMetric.AucRocPoint createTestInstance() {
+        return randomPoint();
     }
 
     @Override
-    protected AucRocMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return AucRocMetric.Result.fromXContent(parser);
+    protected AucRocMetric.AucRocPoint doParseInstance(XContentParser parser) throws IOException {
+        return AucRocMetric.AucRocPoint.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
     }
 }

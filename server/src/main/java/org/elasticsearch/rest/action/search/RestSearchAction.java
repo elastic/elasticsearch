@@ -186,12 +186,14 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
 
         checkRestTotalHits(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
-            preparePointInTime(searchRequest, namedWriteableRegistry);
+            preparePointInTime(searchRequest, request, namedWriteableRegistry);
+        } else {
+            searchRequest.setCcsMinimizeRoundtrips(
+                request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
         }
     }
 
@@ -308,7 +310,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
     }
 
-    static void preparePointInTime(SearchRequest request, NamedWriteableRegistry namedWriteableRegistry) {
+    static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
@@ -322,6 +324,11 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (request.preference() != null) {
             validationException = addValidationError("[preference] cannot be used with point in time", validationException);
+        }
+        if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
+            validationException =
+                addValidationError("[ccs_minimize_roundtrips] cannot be used with point in time", validationException);
+            request.setCcsMinimizeRoundtrips(false);
         }
         ExceptionsHelper.reThrowIfNotNull(validationException);
 

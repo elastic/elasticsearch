@@ -192,7 +192,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
         Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
 
-        return new SourceValueFetcher(name(), mapperService, searchLookup.source(), parsesArrayValue()) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return valueParser.apply(value);

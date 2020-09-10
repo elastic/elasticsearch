@@ -366,7 +366,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
             : defaultFormatter;
 
-        return new SourceValueFetcher(name(), mapperService, searchLookup.source(), parsesArrayValue()) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
 
             @Override
             @SuppressWarnings("unchecked")

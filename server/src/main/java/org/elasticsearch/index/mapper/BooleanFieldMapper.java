@@ -258,7 +258,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return new SourceValueFetcher(name(), mapperService, searchLookup.source(), parsesArrayValue(), nullValue) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
             @Override
             protected Boolean parseSourceValue(Object value) {
                 if (value instanceof Boolean) {

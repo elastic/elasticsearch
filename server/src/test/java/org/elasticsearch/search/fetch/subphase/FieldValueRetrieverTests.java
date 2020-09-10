@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -370,11 +370,11 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
     private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
 
-        SearchLookup lookup = new SearchLookup(mapperService, null);
-        lookup.source().setSource(BytesReference.bytes(source));
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, lookup, fields);
-        return fetchFieldsLookup.retrieve(0, Set.of());
+        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, null, fields);
+        return fetchFieldsLookup.retrieve(sourceLookup, Set.of());
     }
 
     public MapperService createMapperService() throws IOException {

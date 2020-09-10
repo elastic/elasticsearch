@@ -1094,7 +1094,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return new SourceValueFetcher(name(), mapperService, searchLookup.source(), parsesArrayValue(), nullValue) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
             @Override
             protected Object parseSourceValue(Object value) {
                 if (value.equals("")) {

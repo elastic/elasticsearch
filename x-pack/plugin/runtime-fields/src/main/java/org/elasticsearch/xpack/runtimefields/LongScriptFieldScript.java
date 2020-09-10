@@ -13,7 +13,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +24,7 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
         return Collections.singletonList(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -32,7 +32,7 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public interface LeafFactory {
-        LongScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        LongScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     public LongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {

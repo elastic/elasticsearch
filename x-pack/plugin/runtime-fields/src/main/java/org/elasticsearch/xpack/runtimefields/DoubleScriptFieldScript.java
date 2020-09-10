@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         );
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -35,7 +35,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        DoubleScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        DoubleScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private double[] values = new double[1];

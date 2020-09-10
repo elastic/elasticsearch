@@ -13,7 +13,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +33,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         );
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -41,7 +41,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        StringScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        StringScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final List<String> results = new ArrayList<>();

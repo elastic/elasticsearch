@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,7 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         );
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -35,7 +35,7 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
     }
 
     public interface LeafFactory {
-        BooleanScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        BooleanScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private int trues;

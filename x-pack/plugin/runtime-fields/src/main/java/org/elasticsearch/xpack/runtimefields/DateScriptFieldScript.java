@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Collections;
@@ -28,6 +27,7 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
         return Collections.singletonList(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "date_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -35,7 +35,7 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public interface LeafFactory {
-        DateScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        DateScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final DateFormatter formatter;

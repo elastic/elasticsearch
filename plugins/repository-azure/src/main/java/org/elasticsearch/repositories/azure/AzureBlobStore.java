@@ -118,19 +118,19 @@ public class AzureBlobStore implements BlobStore {
         this.uploadMetricsCollector = (httpURLConnection -> {
            assert httpURLConnection.getRequestMethod().equals("PUT");
             String queryParams = httpURLConnection.getURL().getQuery();
-            if (queryParams != null && isBlockUpload(queryParams)) {
-                stats.putBlockOperations.incrementAndGet();
-            } else {
+            if (queryParams == null) {
                 stats.putOperations.incrementAndGet();
+                return;
+            }
+
+            // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+            // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+            if (queryParams.contains("comp=block") && queryParams.contains("blockid=")) {
+                stats.putBlockOperations.incrementAndGet();
+            } else if (queryParams.contains("comp=blocklist")) {
+                stats.putBlockListOperations.incrementAndGet();
             }
         });
-    }
-
-    private boolean isBlockUpload(String queryParams) {
-        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-        return (queryParams.contains("comp=block") && queryParams.contains("blockid="))
-            || queryParams.contains("comp=blocklist");
     }
 
     @Override
@@ -383,12 +383,15 @@ public class AzureBlobStore implements BlobStore {
 
         private final AtomicLong putBlockOperations = new AtomicLong();
 
+        private final AtomicLong putBlockListOperations = new AtomicLong();
+
         private Map<String, Long> toMap() {
-            return Map.of("GET", getOperations.get(),
-                "LIST", listOperations.get(),
-                "HEAD", headOperations.get(),
-                "PUT", putOperations.get(),
-                "PUT_BLOCK", putBlockOperations.get());
+            return Map.of("GetBlob", getOperations.get(),
+                "ListBlobs", listOperations.get(),
+                "GetBlobProperties", headOperations.get(),
+                "PutBlob", putOperations.get(),
+                "PutBlock", putBlockOperations.get(),
+                "PutBlockList", putBlockListOperations.get());
         }
     }
 }

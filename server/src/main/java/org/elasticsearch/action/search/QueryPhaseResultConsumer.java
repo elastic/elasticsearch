@@ -192,7 +192,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchShardTarget target = result.getSearchShardTarget();
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
-        progressListener.onPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         return new MergeResult(processedShards, newTopDocs, newAggs);
     }
 
@@ -281,7 +281,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 if (task != null) {
                     toCancel.add(task);
                 }
-                queue.stream().forEach(toCancel::add);
+                toCancel.addAll(queue);
                 queue.clear();
                 mergeResult = null;
                 toCancel.stream().forEach(MergeTask::cancel);

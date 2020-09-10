@@ -28,7 +28,7 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
@@ -38,8 +38,8 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
     private int trues;
     private int falses;
 
-    public BooleanScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public BooleanScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**

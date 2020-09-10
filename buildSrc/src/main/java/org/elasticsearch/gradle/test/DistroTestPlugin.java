@@ -112,7 +112,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
-                addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
+                addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
@@ -151,8 +151,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                     upgradeDepsTask.configure(t -> t.dependsOn(distribution, bwcDistro));
                     depsTasks.put(upgradeTaskname, upgradeDepsTask);
                     TaskProvider<Test> upgradeTest = configureTestTask(project, upgradeTaskname, distribution, t -> {
-                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
-                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::toString);
+                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
+                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::getFilepath);
                         t.include("**/PackageUpgradeTests.class");
                     }, upgradeDepsTask);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));

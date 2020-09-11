@@ -106,9 +106,12 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     }
 
     @Override
+    public String getDescription() {
+        return "open point in time: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        final Supplier<String> description =
-            () -> "open point in time: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
-        return new SearchTask(id, type, action, description, parentTaskId, headers);
+        return new SearchTask(id, type, action, this::getDescription, parentTaskId, headers);
     }
 }

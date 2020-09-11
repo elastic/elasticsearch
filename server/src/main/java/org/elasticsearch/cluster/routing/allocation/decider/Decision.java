@@ -71,11 +71,20 @@ public abstract class Decision implements ToXContent, Writeable {
             }
             return result;
         } else {
-            Single result = new Single();
-            result.type = Type.readFrom(in);
-            result.label = in.readOptionalString();
-            result.explanationString = in.readOptionalString();
-            return result;
+            final Type type = Type.readFrom(in);
+            final String label = in.readOptionalString();
+            final String explanation = in.readOptionalString();
+            if (label == null && explanation == null) {
+                switch (type) {
+                    case YES:
+                        return YES;
+                    case THROTTLE:
+                        return THROTTLE;
+                    case NO:
+                        return NO;
+                }
+            }
+            return new Single(type, label, explanation);
         }
     }
 
@@ -153,21 +162,17 @@ public abstract class Decision implements ToXContent, Writeable {
      * Simple class representing a single decision
      */
     public static class Single extends Decision implements ToXContentObject {
-        private Type type;
-        private String label;
-        private String explanation;
+        private final Type type;
+        private final String label;
+        private final String explanation;
         private String explanationString;
-        private Object[] explanationParams;
-
-        public Single() {
-
-        }
+        private final Object[] explanationParams;
 
         /**
          * Creates a new {@link Single} decision of a given type
          * @param type {@link Type} of the decision
          */
-        public Single(Type type) {
+        private Single(Type type) {
             this(type, null, null, (Object[]) null);
         }
 
@@ -183,6 +188,11 @@ public abstract class Decision implements ToXContent, Writeable {
             this.label = label;
             this.explanation = explanation;
             this.explanationParams = explanationParams;
+            if (explanationParams == null || explanationParams.length == 0) {
+                // If no formatting is required assign this right away so that we don't needlessly run into any races when using this class
+                // for constants
+                this.explanationString = explanation;
+            }
         }
 
         @Override

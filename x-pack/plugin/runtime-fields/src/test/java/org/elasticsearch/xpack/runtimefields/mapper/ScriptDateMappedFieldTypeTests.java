@@ -439,24 +439,36 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     private DateScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_timestamp":
-                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
                                             DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
-                                            emitValue(parse.parse(timestamp));
+                                            emit(parse.parse(timestamp));
                                         }
                                     }
                                 };
                             case "add_days":
-                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
                                             long epoch = (Long) timestamp;
                                             ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                                             dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                                            emitValue(toEpochMilli(dt));
+                                            emit(toEpochMilli(dt));
                                         }
                                     }
                                 };
@@ -479,7 +491,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 

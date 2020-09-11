@@ -43,7 +43,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
 
     @Override
     public final String typeName() {
-        return RuntimeScriptFieldMapper.CONTENT_TYPE;
+        return RuntimeFieldMapper.CONTENT_TYPE;
     }
 
     @Override
@@ -91,6 +91,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         QueryShardContext context
     );
 
+    @Override
     public Query fuzzyQuery(
         Object value,
         Fuzziness fuzziness,
@@ -102,17 +103,21 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
     }
 
+    @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
     }
 
+    @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
     }
 
+    @Override
     public Query regexpQuery(
         String value,
-        int flags,
+        int syntaxFlags,
+        int matchFlags,
         int maxDeterminizedStates,
         MultiTermQuery.RewriteMethod method,
         QueryShardContext context
@@ -120,20 +125,25 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
     }
 
+    @Override
     public abstract Query existsQuery(QueryShardContext context);
 
+    @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
+    @Override
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
+    @Override
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
         throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
     }
 
+    @Override
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("span prefix", "text"));
     }
@@ -147,7 +157,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against ["
-                    + RuntimeScriptFieldMapper.CONTENT_TYPE
+                    + RuntimeFieldMapper.CONTENT_TYPE
                     + "] fields while ["
                     + ALLOW_EXPENSIVE_QUERIES.getKey()
                     + "] is set to [false]."

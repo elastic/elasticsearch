@@ -138,7 +138,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             state = State.fromValue(in.readByte());
             indices = in.readList(IndexId::new);
             startTime = in.readLong();
-            shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::new);
+            shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::readFrom);
             repositoryStateId = in.readLong();
             failure = in.readOptionalString();
             userMetadata = in.readMap();
@@ -450,14 +450,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
             assert (state != ShardState.INIT && state != ShardState.WAITING) || nodeId != null : "Null node id for state [" + state + "]";
+            assert state != ShardState.QUEUED || (nodeId == null && generation == null && reason == null) :
+                    "Found unexpected non-null values for queued state shard nodeId[" + nodeId + "][" + generation + "][" + reason + "]";
             return true;
         }
 
-        public ShardSnapshotStatus(StreamInput in) throws IOException {
-            nodeId = in.readOptionalString();
-            state = ShardState.fromValue(in.readByte());
-            generation = in.readOptionalString();
-            reason = in.readOptionalString();
+        public static ShardSnapshotStatus readFrom(StreamInput in) throws IOException {
+            String nodeId = in.readOptionalString();
+            final ShardState state = ShardState.fromValue(in.readByte());
+            final String generation = in.readOptionalString();
+            final String reason = in.readOptionalString();
+            if (state == ShardState.QUEUED) {
+                return UNASSIGNED_QUEUED;
+            }
+            return new ShardSnapshotStatus(nodeId, state, reason, generation);
         }
 
         public ShardState state() {

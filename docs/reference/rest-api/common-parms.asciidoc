@@ -509,8 +509,8 @@ end::index-metric[]
 tag::index-template[]
 `<index-template>`::
 (Required, string)
-Comma-separated list or wildcard expression of index template names
-used to limit the request.
+Comma-separated list of index template names used to limit the request. Wildcard
+(`*`) expressions are supported.
 end::index-template[]
 
 tag::component-template[]

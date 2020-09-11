@@ -26,8 +26,6 @@ esplugin {
   classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
 }
 
-// integTest have been converted to internalClusterTest 
-integTest.enabled = false
 dependencies {
   api project(':libs:elasticsearch-nio')
 

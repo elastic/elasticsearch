@@ -371,7 +371,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 if (logger.isTraceEnabled()) {
                     logger.trace("node: [{}], most available: total disk: {}," +
                             " available disk: {} / least available: total disk: {}, available disk: {}",
-                            nodeId, mostAvailablePath.getTotal(), leastAvailablePath.getAvailable(),
+                            nodeId, mostAvailablePath.getTotal(), mostAvailablePath.getAvailable(),
                             leastAvailablePath.getTotal(), leastAvailablePath.getAvailable());
                 }
                 if (leastAvailablePath.getTotal().getBytes() < 0) {

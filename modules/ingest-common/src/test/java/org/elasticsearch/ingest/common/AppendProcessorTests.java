@@ -28,13 +28,16 @@ import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class AppendProcessorTests extends ESTestCase {
 
@@ -53,13 +56,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value);
+            appendProcessor = createAppendProcessor(field, value, true);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values);
+            appendProcessor = createAppendProcessor(field, values, true);
         }
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
@@ -82,13 +85,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value);
+            appendProcessor = createAppendProcessor(field, value, true);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values);
+            appendProcessor = createAppendProcessor(field, values, true);
         }
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
@@ -106,13 +109,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value);
+            appendProcessor = createAppendProcessor(field, value, true);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values);
+            appendProcessor = createAppendProcessor(field, values, true);
         }
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(field, List.class);
@@ -132,13 +135,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             String value = randomAlphaOfLengthBetween(1, 10);
             values.add(value);
-            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), value);
+            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), value, true);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(randomAlphaOfLengthBetween(1, 10));
             }
-            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), values);
+            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), values, true);
         }
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -156,10 +159,65 @@ public class AppendProcessorTests extends ESTestCase {
         }
     }
 
-    private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
+    public void testAppendingDuplicateValueToScalarDoesNotModifyDocument() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String originalValue = randomAlphaOfLengthBetween(1, 10);
+        String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, originalValue);
+
+        List<Object> valuesToAppend = new ArrayList<>();
+        valuesToAppend.add(originalValue);
+        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false);
+        appendProcessor.execute(ingestDocument);
+        Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
+        assertThat(fieldValue, not(instanceOf(List.class)));
+        assertThat(fieldValue, equalTo(originalValue));
+    }
+
+    public void testAppendingUniqueValueToScalar() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String originalValue = randomAlphaOfLengthBetween(1, 10);
+        String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, originalValue);
+
+        List<Object> valuesToAppend = new ArrayList<>();
+        String newValue = randomAlphaOfLengthBetween(1, 10);
+        valuesToAppend.add(newValue);
+        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false);
+        appendProcessor.execute(ingestDocument);
+        List<?> list = ingestDocument.getFieldValue(field, List.class);
+        assertThat(list.size(), equalTo(2));
+        assertThat(list, equalTo(List.of(originalValue, newValue)));
+    }
+
+    public void testAppendingToListWithDuplicatesDisallowed() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        List<String> list = new ArrayList<>();
+        int size = randomIntBetween(0, 10);
+        for (int i = 0; i < size; i++) {
+            list.add(randomAlphaOfLengthBetween(1, 10));
+        }
+        String originalField = RandomDocumentPicks.addRandomField(random(), ingestDocument, list);
+        List<String> expectedValues = new ArrayList<>(list);
+        List<String> existingValues = randomSubsetOf(list);
+        int uniqueValuesSize = randomIntBetween(0, 10);
+        List<String> uniqueValues = new ArrayList<>();
+        for (int i = 0; i < uniqueValuesSize; i++) {
+            uniqueValues.add(randomAlphaOfLengthBetween(1, 10));
+        }
+        List<String> valuesToAppend = new ArrayList<>(existingValues);
+        valuesToAppend.addAll(uniqueValues);
+        expectedValues.addAll(uniqueValues);
+        Collections.sort(valuesToAppend);
+        Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false);
+        appendProcessor.execute(ingestDocument);
+        List<?> fieldValue = ingestDocument.getFieldValue(originalField, List.class);
+        assertThat(fieldValue, sameInstance(list));
+        assertThat(fieldValue, containsInAnyOrder(expectedValues.toArray()));
+    }
+
+    private static Processor createAppendProcessor(String fieldName, Object fieldValue, boolean allowDuplicates) {
         return new AppendProcessor(randomAlphaOfLength(10),
             null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
-            ValueSource.wrap(fieldValue, TestTemplateService.instance()));
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()), allowDuplicates);
     }
 
     private enum Scalar {

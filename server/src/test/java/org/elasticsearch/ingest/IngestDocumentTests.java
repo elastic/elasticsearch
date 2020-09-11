@@ -73,8 +73,12 @@ public class IngestDocumentTests extends ESTestCase {
         value.put("field", "value");
         list.add(value);
         list.add(null);
-
         document.put("list", list);
+        List<String> list2 = new ArrayList<>();
+        list2.add("foo");
+        list2.add("bar");
+        list2.add("baz");
+        document.put("list2", list2);
         ingestDocument = new IngestDocument("index", "type", "id", null, null, null, document);
     }
 
@@ -444,6 +448,26 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(list.get(2), equalTo("new_value"));
     }
 
+    public void testListAppendFieldValueWithDuplicate() {
+        ingestDocument.appendFieldValue("list2", "foo", false);
+        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(3));
+        assertThat(list, equalTo(org.elasticsearch.common.collect.List.of("foo", "bar", "baz")));
+    }
+
+    public void testListAppendFieldValueWithoutDuplicate() {
+        ingestDocument.appendFieldValue("list2", "foo2", false);
+        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(4));
+        assertThat(list, equalTo(org.elasticsearch.common.collect.List.of("foo", "bar", "baz", "foo2")));
+    }
+
     public void testListAppendFieldValues() {
         ingestDocument.appendFieldValue("list", Arrays.asList("item1", "item2", "item3"));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
@@ -456,6 +480,19 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(list.get(2), equalTo("item1"));
         assertThat(list.get(3), equalTo("item2"));
         assertThat(list.get(4), equalTo("item3"));
+    }
+
+    public void testListAppendFieldValuesWithoutDuplicates() {
+        ingestDocument.appendFieldValue("list2", org.elasticsearch.common.collect.List.of("foo", "bar", "baz", "foo2"), false);
+        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(4));
+        assertThat(list.get(0), equalTo("foo"));
+        assertThat(list.get(1), equalTo("bar"));
+        assertThat(list.get(2), equalTo("baz"));
+        assertThat(list.get(3), equalTo("foo2"));
     }
 
     public void testAppendFieldValueToNonExistingList() {

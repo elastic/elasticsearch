@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 

@@ -41,9 +41,12 @@ import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
@@ -127,6 +130,29 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
         assertThat(after.metadata().getIndices().get(
             DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
+    }
+
+    public void testDeleteMultipleBackingIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(3, 5);
+        int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+
+        List<Integer> indexNumbersToDelete =
+            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices).boxed().collect(Collectors.toList()));
+
+        Set<Index> indicesToDelete = new HashSet<>();
+        for (int k : indexNumbersToDelete) {
+            indicesToDelete.add(before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, k)).getIndex());
+        }
+        ClusterState after = service.deleteIndices(before, indicesToDelete);
+
+        for (Index i : indicesToDelete) {
+            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+        }
+        assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
     }
 
     public void testDeleteCurrentWriteIndexForDataStream() {

@@ -346,9 +346,28 @@ public class AuthenticationService {
         private void checkForApiKey() {
             apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated()) {
-                        final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
-                        this.authenticatedBy = authentication.getAuthenticatedBy();
-                        writeAuthToContext(authentication);
+                        final Authentication apiKeyAuthentication = apiKeyService.createApiKeyAuthentication(
+                            authResult,
+                            nodeName);
+                        final User authenticatedUser = authResult.getUser();
+                        this.authenticatedBy = apiKeyAuthentication.getAuthenticatedBy();
+                        this.authenticationResult = authResult;
+                        lookUpRunAsUserIfEnabled(
+                            authenticatedUser,
+                            lookedUpUser -> {
+                                final Authentication lookedUpAuthentication = new Authentication(
+                                    lookedUpUser,
+                                    authenticatedBy,
+                                    lookedupBy,
+                                    apiKeyAuthentication.getVersion(),
+                                    // It's important to fill the below in based on existing ApiKey Authentication
+                                    // so that the Authorisation engine that runs on the Authentication results
+                                    // can use it to look up the Roles of the User for RBAC checks (e.g. validate run_as)
+                                    apiKeyAuthentication.getAuthenticationType(),
+                                    apiKeyAuthentication.getMetadata());
+                                writeAuthToContext(lookedUpAuthentication);
+                            },
+                            () -> writeAuthToContext(apiKeyAuthentication));
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         Exception e = (authResult.getException() != null) ? authResult.getException()
                             : Exceptions.authenticationError(authResult.getMessage());
@@ -614,22 +633,44 @@ public class AuthenticationService {
                 logger.trace("Failed to authenticate request [{}]", request);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);
-                if (runAsEnabled) {
-                    final String runAsUsername = threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
-                    if (runAsUsername != null && runAsUsername.isEmpty() == false) {
-                        lookupRunAsUser(user, runAsUsername, this::finishAuthentication);
-                    } else if (runAsUsername == null) {
-                        finishAuthentication(user);
-                    } else {
-                        assert runAsUsername.isEmpty() : "the run as username may not be empty";
-                        logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-                        listener.onFailure(request.runAsDenied(
-                            new Authentication(new User(runAsUsername, null, user), authenticatedBy, lookedupBy), authenticationToken));
-                    }
+                lookUpRunAsUserIfEnabled(
+                    user,
+                    this::finishAuthentication,
+                    () -> finishAuthentication(user));
+            }
+        }
+
+        /**
+         * If run_as is enabled and a run_as User is requested, attempts to look up the User, calling the userConsumer
+         * with it, otherwise, calls the finishWithoutRunAsUser runnable.
+         */
+        private void lookUpRunAsUserIfEnabled(
+            final User authenticatedUser,
+            final Consumer<User> userConsumer,
+            final Runnable finishWithoutRunAsUser) {
+            threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);
+            if (runAsEnabled) {
+                final String runAsUsername = threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
+                if (runAsUsername != null && runAsUsername.isEmpty() == false) {
+                    lookupRunAsUser(authenticatedUser, runAsUsername, userConsumer);
+                } else if (runAsUsername == null) {
+                    finishWithoutRunAsUser.run();
                 } else {
-                    finishAuthentication(user);
+                    assert runAsUsername.isEmpty() : "the run as username may not be empty";
+                    logger.debug("user [{}] attempted to runAs with an empty username", authenticatedUser.principal());
+                    listener.onFailure(
+                        request.runAsDenied(
+                            new Authentication(
+                                new User(runAsUsername, null, authenticatedUser),
+                                authenticatedBy,
+                                lookedupBy
+                            ),
+                            authenticationToken
+                        )
+                    );
                 }
+            } else {
+                finishWithoutRunAsUser.run();
             }
         }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -125,6 +127,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             "  cluster: [\"manage_api_key\"]\n" +
             "manage_own_api_key_role:\n" +
             "  cluster: [\"manage_own_api_key\"]\n" +
+            "manage_own_api_key_and_run_as_role:\n" +
+            "  cluster: [\"manage_own_api_key\"]\n" +
+            "  run_as: [\"user_to_run_as_with_api_key\"]\n" +
             "run_as_role:\n" +
             "  run_as: [\"user_with_manage_own_api_key_role\"]\n";
     }
@@ -133,17 +138,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public String configUsers() {
         final String usersPasswdHashed = new String(
             getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers() +
-            "user_with_no_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_manage_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_manage_own_api_key_role:" + usersPasswdHashed + "\n";
+        final String customUsers = Arrays.stream(users)
+            .map(userName -> userName+":" + usersPasswdHashed + "\n")
+            .collect(Collectors.joining("\n"));
+        return super.configUsers() + customUsers;
     }
+
+    private static final String[] users = new String[]{
+        "user_with_no_api_key_role",
+        "user_with_manage_api_key_role",
+        "user_to_run_as_with_api_key",
+        "user_manage_own_api_key_and_run_as_role",
+        "user_with_manage_own_api_key_role"
+    };
 
     @Override
     public String configUsersRoles() {
         return super.configUsersRoles() +
             "no_api_key_role:user_with_no_api_key_role\n" +
             "manage_api_key_role:user_with_manage_api_key_role\n" +
+            "manage_own_api_key_and_run_as_role:user_manage_own_api_key_and_run_as_role\n" +
             "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
     }
 
@@ -602,6 +616,54 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             response, userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
     }
 
+    public void testApiKeyAuthenticateAsNonSuperUserWithRunAsUser() throws IOException {
+        final CreateApiKeyResponse response = createApiKey("user_manage_own_api_key_and_run_as_role");
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+
+        for (String user : users) {
+            try {
+                final AuthenticateResponse authResponse = restClient.security().authenticate(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue)
+                        .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, user)
+                        .build());
+                if (user.contentEquals("user_to_run_as_with_api_key")) {
+                    assertThat(authResponse.getUser().getUsername(), equalTo(user));
+                    assertThat(authResponse.getAuthenticationType(), equalTo("api_key"));
+                } else {
+                    fail("[user_with_manage_own_api_key_role] was unexpectedly able to run-as a user that it " +
+                        "has no role for [" + user + "]");
+                }
+            } catch (ElasticsearchStatusException e) {
+                assertThat(e.status(), is(RestStatus.FORBIDDEN));
+                assertNotEquals("user_to_run_as_with_api_key", user);
+            }
+        }
+    }
+
+    public void testApiKeyAuthenticateAsSuperUserWithRunAsUser()
+        throws ExecutionException, InterruptedException, IOException {
+        createUserWithRunAsRole();
+        final CreateApiKeyResponse response = createApiKey(SecuritySettingsSource.TEST_SUPERUSER);
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+
+        for (String user : users) {
+            final AuthenticateResponse authResponse = restClient.security().authenticate(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue)
+                    .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, user)
+                    .build());
+            assertThat(authResponse.getUser().getUsername(), equalTo(user));
+            assertThat(authResponse.getAuthenticationType(), equalTo("api_key"));
+        }
+    }
+
     public void testGetApiKeysOwnedByRunAsUserWhenOwnerIsTrue() throws ExecutionException, InterruptedException {
         createUserWithRunAsRole();
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
@@ -997,6 +1059,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Map<String, String> headers = Collections.singletonMap(
                 "Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return createApiKeys(headers, noOfApiKeys, expiration, clusterPrivileges);
+    }
+
+    private CreateApiKeyResponse createApiKey(String user) {
+        final Map<String, String> headers = Map.of("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
+        final Client client = client().filterWithHeader(headers);
+
+        return new CreateApiKeyRequestBuilder(client)
+            .setName("test-key-" + randomAlphaOfLengthBetween(5, 9))
+            .get();
     }
 
     private List<CreateApiKeyResponse> createApiKeys(String owningUser, String authenticatingUser,

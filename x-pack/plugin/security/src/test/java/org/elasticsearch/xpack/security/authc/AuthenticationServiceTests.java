@@ -1473,6 +1473,78 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testApiKeyAuthWithRunAs() {
+        final String id = randomAlphaOfLength(12);
+        final String key = UUIDs.randomBase64UUID(random());
+        final String apiKeyAuthHeaderValue =
+            "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+        doAnswer(invocationOnMock -> {
+            final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            if (request.id().equals(id)) {
+                final Map<String, Object> source = new HashMap<>();
+                source.put("doc_type", "api_key");
+                source.put("creation_time", Instant.now().minus(5, ChronoUnit.MINUTES).toEpochMilli());
+                source.put("expiration_time", null);
+                source.put("api_key_invalidated", false);
+                source.put("api_key_hash", new String(Hasher.BCRYPT4.hash(new SecureString(key.toCharArray()))));
+                source.put("role_descriptors", Collections.singletonMap("api key role", Collections.singletonMap("cluster", "all")));
+                source.put("limited_by_role_descriptors",
+                    Collections.singletonMap("limited api key role", Collections.singletonMap("cluster", "all")));
+                source.put("name", "my api key for testApiKeyAuth");
+                source.put("version", 0);
+                final Map<String, Object> creatorMap = new HashMap<>();
+                creatorMap.put("principal", "johndoe");
+                creatorMap.put("full_name", "john doe");
+                creatorMap.put("email", "john@doe.com");
+                creatorMap.put("metadata", Collections.emptyMap());
+                creatorMap.put("realm", "auth realm");
+                source.put("creator", creatorMap);
+                final GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.id(), 0, 1, 1L, true,
+                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
+                listener.onResponse(getResponse);
+            } else {
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.id(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
+            }
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            // set up run_as user lookup
+            final AuthenticationToken token = mock(AuthenticationToken.class);
+            when(token.principal()).thenReturn(randomAlphaOfLength(5));
+            threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
+            when(secondRealm.token(threadContext)).thenReturn(token);
+            when(secondRealm.supports(token)).thenReturn(true);
+            mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
+            doAnswer((i) -> {
+                ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
+                listener.onResponse(new User("looked up user", new String[]{"some role"}));
+                return null;
+            }).when(firstRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+
+            threadContext.putHeader("Authorization", apiKeyAuthHeaderValue);
+            final Authentication authentication = authenticateBlocking("_action", transportRequest, null);
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.API_KEY));
+
+            final User authenticatedUser = authentication.getUser().authenticatedUser();
+            final User user = authentication.getUser();
+
+            // check user
+            assertThat(user.isRunAs(), is(true));
+            assertThat(user.principal(), is("looked up user"));
+            assertThat(user.roles(), arrayContaining("some role"));
+
+            // check authenticated user
+            assertThat(authenticatedUser.principal(), is("johndoe"));
+            assertThat(authenticatedUser.fullName(), is("john doe"));
+            assertThat(authenticatedUser.email(), is("john@doe.com"));
+        }
+    }
+
     public void testExpiredApiKey() {
         final String id = randomAlphaOfLength(12);
         final String key = UUIDs.randomBase64UUID(random());

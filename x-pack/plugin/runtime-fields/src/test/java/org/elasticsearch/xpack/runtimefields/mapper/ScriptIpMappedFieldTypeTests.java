@@ -338,20 +338,20 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                     private IpScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new IpScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString());
+                                            emit(foo.toString());
                                         }
                                     }
                                 };
                             case "append_param":
-                                return (params, lookup) -> (ctx) -> new IpScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString() + getParams().get("param"));
+                                            emit(foo.toString() + getParams().get("param"));
                                         }
                                     }
                                 };

@@ -16,33 +16,37 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
-public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFieldQuery {
-    private final CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory;
+public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFieldQuery<AbstractLongScriptFieldScript> {
     private final long origin;
     private final long pivot;
     private final float boost;
 
     public LongScriptFieldDistanceFeatureQuery(
         Script script,
-        CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory,
+        Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory,
         String fieldName,
         long origin,
         long pivot,
         float boost
     ) {
-        super(script, fieldName);
-        this.leafFactory = leafFactory;
+        super(script, fieldName, leafFactory);
         this.origin = origin;
         this.pivot = pivot;
         this.boost = boost;
+    }
+
+    @Override
+    protected boolean matches(AbstractLongScriptFieldScript scriptContext, int docId) {
+        scriptContext.runForDoc(docId);
+        return scriptContext.count() > 0;
     }
 
     @Override
@@ -57,13 +61,13 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             public void extractTerms(Set<Term> terms) {}
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                return new DistanceScorer(this, leafFactory.apply(context), context.reader().maxDoc(), boost);
+            public Scorer scorer(LeafReaderContext context) {
+                return new DistanceScorer(this, scriptContextFunction().apply(context), context.reader().maxDoc(), boost);
             }
 
             @Override
-            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                AbstractLongScriptFieldScript script = leafFactory.apply(context);
+            public Explanation explain(LeafReaderContext context, int doc) {
+                AbstractLongScriptFieldScript script = scriptContextFunction().apply(context);
                 script.runForDoc(doc);
                 long value = valueWithMinAbsoluteDistance(script);
                 float weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
@@ -91,9 +95,8 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
                 @Override
-                public boolean matches() throws IOException {
-                    script.runForDoc(approximation().docID());
-                    return script.count() > 0;
+                public boolean matches() {
+                    return LongScriptFieldDistanceFeatureQuery.this.matches(script, approximation.docID());
                 }
 
                 @Override
@@ -121,12 +124,12 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         }
 
         @Override
-        public float getMaxScore(int upTo) throws IOException {
+        public float getMaxScore(int upTo) {
             return weight;
         }
 
         @Override
-        public float score() throws IOException {
+        public float score() {
             if (script.count() == 0) {
                 return 0;
             }

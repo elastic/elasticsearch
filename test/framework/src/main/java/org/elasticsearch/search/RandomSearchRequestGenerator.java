@@ -373,6 +373,10 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             builder.collapse(randomCollapseBuilder.get());
         }
+        if (randomBoolean()) {
+            TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 60)) : null;
+            builder.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10), keepAlive));
+        }
         return builder;
     }
 }

@@ -20,7 +20,7 @@ setup:
                   source: |
                     String m = doc["message"].value;
                     int end = m.indexOf(" ");
-                    emitValue(m.substring(0, end));
+                    emit(m.substring(0, end));
               # Test fetching from _source
               ip_from_source:
                 type: runtime
@@ -29,7 +29,7 @@ setup:
                   source: |
                     String m = params._source.message;
                     int end = m.indexOf(" ");
-                    emitValue(m.substring(0, end));
+                    emit(m.substring(0, end));
               # Test emitting many values
               ip_many:
                 type: runtime
@@ -41,7 +41,7 @@ setup:
                     end = m.lastIndexOf(".", end);
                     String stem = m.substring(0, end + 1);
                     for (int i = 0; i < 5; i++) {
-                      emitValue(stem + i);
+                      emit(stem + i);
                     }
   - do:
       bulk:
@@ -73,7 +73,7 @@ setup:
       http_logs.mappings.properties.ip.script.source: |
         String m = doc["message"].value;
         int end = m.indexOf(" ");
-        emitValue(m.substring(0, end));
+        emit(m.substring(0, end));
   - match: {http_logs.mappings.properties.ip.script.lang: painless }
 
 ---

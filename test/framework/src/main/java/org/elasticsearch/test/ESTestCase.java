@@ -1348,6 +1348,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY =
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
 
+    protected static final NamedWriteableRegistry DEFAULT_NAMED_WRITABLE_REGISTRY =
+        new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+
     /**
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
      */

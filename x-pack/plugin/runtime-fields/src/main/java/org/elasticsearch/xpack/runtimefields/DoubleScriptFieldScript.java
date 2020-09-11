@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,21 +27,22 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         );
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
-        DoubleScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        DoubleScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private double[] values = new double[1];
     private int count;
 
-    public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public DoubleScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**
@@ -71,22 +71,23 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         return count;
     }
 
-    protected final void emitValue(double v) {
+    protected final void emit(double v) {
+        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
         values[count++] = v;
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final DoubleScriptFieldScript script;
 
-        public EmitValue(DoubleScriptFieldScript script) {
+        public Emit(DoubleScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(double v) {
-            script.emitValue(v);
+        public void emit(double v) {
+            script.emit(v);
         }
     }
 }

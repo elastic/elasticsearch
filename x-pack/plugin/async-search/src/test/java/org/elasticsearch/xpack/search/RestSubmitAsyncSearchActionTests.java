@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -50,7 +51,7 @@ public class RestSubmitAsyncSearchActionTests extends ESTestCase {
                 return new Task(1L, "type", "action", "description", null, null);
             }
         };
-        nodeClient.initialize(new HashMap<>(), () -> "local", null);
+        nodeClient.initialize(new HashMap<>(), () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller = new RestController(Collections.emptySet(), null,
             nodeClient,
             new NoneCircuitBreakerService(),

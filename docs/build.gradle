@@ -54,7 +54,6 @@ testClusters.integTest {
     setting 'indices.lifecycle.history_index_enabled', 'false'
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-      systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
     setting 'xpack.eql.enabled', 'true'

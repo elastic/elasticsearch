@@ -25,4 +25,3 @@ gradle.projectsEvaluated {
     .each { check.dependsOn it.check }
 }
 
-integTest.enabled = false

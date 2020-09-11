@@ -48,7 +48,7 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
 
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
-        DeleteByQueryRequest dbqRequest = action.buildRequest(request);
+        DeleteByQueryRequest dbqRequest = action.buildRequest(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertArrayEquals(new String[]{"some_type"}, dbqRequest.getDocTypes());
 
         // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
@@ -57,7 +57,8 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
     }
 
     public void testParseEmpty() throws IOException {
-        DeleteByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build());
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build();
+        DeleteByQueryRequest request = action.buildRequest(restRequest, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }

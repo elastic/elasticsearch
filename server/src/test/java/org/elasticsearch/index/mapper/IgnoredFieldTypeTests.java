@@ -68,7 +68,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     public void testDocValues(){
         MappedFieldType legacyIgnored = IgnoredFieldMapper.IgnoredFieldType.getInstance(Version.V_7_1_0);
         MappedFieldType ignored = IgnoredFieldMapper.IgnoredFieldType.getInstance(IgnoredFieldMapper.DOC_VALUES_VERSION);
-        assertEquals(true,legacyIgnored.hasDocValues());
-        assertEquals(ignored.hasDocValues(), false);
+        assertEquals(false,legacyIgnored.hasDocValues());
+        assertEquals(true, ignored.hasDocValues());
     }
 }

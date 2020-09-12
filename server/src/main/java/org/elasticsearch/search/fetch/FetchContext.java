@@ -20,8 +20,19 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.collapse.CollapseContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -48,8 +59,24 @@ public class FetchContext {
         return searchContext.docIdsToLoadSize();
     }
 
+    public boolean hasOnlySuggest() {
+        return searchContext.hasOnlySuggest();
+    }
+
     public ContextIndexSearcher searcher() {
         return searchContext.searcher();
+    }
+
+    public MapperService mapperService() {
+        return searchContext.mapperService();
+    }
+
+    public IndexSettings getIndexSettings() {
+        return mapperService().getIndexSettings();
+    }
+
+    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
+        return searchContext.getForField(fieldType);
     }
 
     public Query query() {
@@ -64,23 +91,59 @@ public class FetchContext {
         return searchContext.parsedPostFilter();
     }
 
-    public boolean sourceRequested() {
-        return searchContext.sourceRequested();
+    public FetchSourceContext fetchSourceContext() {
+        return searchContext.fetchSourceContext();
+    }
+
+    public boolean explain() {
+        return searchContext.explain();
     }
 
     public List<RescoreContext> rescore() {
         return searchContext.rescore();
     }
 
-    public FetchSourceContext fetchSourceContext() {
-        return searchContext.fetchSourceContext();
+    public boolean seqNoAndPrimaryTerm() {
+        return searchContext.seqNoAndPrimaryTerm();
     }
 
-    public boolean hasOnlySuggest() {
-        return searchContext.hasOnlySuggest();
+    public CollapseContext collapse() {
+        return searchContext.collapse();
     }
 
-    public boolean explain() {
-        return searchContext.explain();
+    public FetchDocValuesContext docValuesContext() {
+        return searchContext.docValuesContext();
+    }
+
+    public SearchHighlightContext highlight() {
+        return searchContext.highlight();
+    }
+
+    public boolean fetchScores() {
+        return getFetchSize() > 0 && searchContext.sort() != null && searchContext.trackScores();
+    }
+
+    public InnerHitsContext innerHits() {
+        return searchContext.innerHits();
+    }
+
+    public boolean version() {
+        return searchContext.version();
+    }
+
+    public StoredFieldsContext storedFieldsContext() {
+        return searchContext.storedFieldsContext();
+    }
+
+    public FetchFieldsContext fetchFieldsContext() {
+        return searchContext.fetchFieldsContext();
+    }
+
+    public ScriptFieldsContext scriptFields() {
+        return searchContext.scriptFields();
+    }
+
+    public SearchExtBuilder getSearchExt(String name) {
+        return searchContext.getSearchExt(name);
     }
 }

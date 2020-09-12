@@ -31,7 +31,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,24 +48,27 @@ import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
+
+        FetchDocValuesContext dvContext = context.docValuesContext();
+
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             String name = context.collapse().getFieldName();
-            if (context.docValuesContext() == null) {
-                context.docValuesContext(new FetchDocValuesContext(
-                    Collections.singletonList(new FieldAndFormat(name, null))));
+            if (dvContext == null) {
+                dvContext = new FetchDocValuesContext(
+                    Collections.singletonList(new FieldAndFormat(name, null)));
             } else if (context.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValuesContext().fields().add(new FieldAndFormat(name, null));
+                dvContext.fields().add(new FieldAndFormat(name, null));
             }
         }
 
-        if (context.docValuesContext() == null) {
+        if (dvContext == null) {
             return null;
         }
 
         List<DocValueField> fields = new ArrayList<>();
-        for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
+        for (FieldAndFormat fieldAndFormat : dvContext.fields()) {
             DocValueField f = buildField(context, fieldAndFormat);
             if (f != null) {
                 fields.add(f);
@@ -75,7 +77,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
         return new FetchSubPhaseProcessor() {
             @Override
-            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            public void setNextReader(LeafReaderContext readerContext) {
                 for (DocValueField f : fields) {
                     f.setNextReader(readerContext);
                 }

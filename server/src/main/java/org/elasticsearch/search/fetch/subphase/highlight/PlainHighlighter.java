@@ -138,8 +138,10 @@ public class PlainHighlighter implements Highlighter {
                         fragsList.add(bestTextFragment);
                     }
                 }
-            } catch (InvalidTokenOffsetsException | BytesRefHash.MaxBytesLengthExceededException e) {
+            } catch (BytesRefHash.MaxBytesLengthExceededException e) {
                 // ignore and continue to the next value
+            } catch (InvalidTokenOffsetsException e) {
+                throw new IllegalArgumentException(e);
             }
         }
 

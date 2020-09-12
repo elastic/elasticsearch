@@ -124,7 +124,7 @@ public class FetchPhase {
                     processor.process(hit);
                 }
                 hits[docs[index].index] = hit.hit();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new FetchPhaseExecutionException(context.shardTarget(), "Error running fetch phase for doc [" + docId + "]", e);
             }
         }
@@ -147,7 +147,7 @@ public class FetchPhase {
                 }
             }
             return processors;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new FetchPhaseExecutionException(context.shardTarget(), "Error building fetch sub-phases", e);
         }
     }

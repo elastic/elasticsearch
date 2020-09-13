@@ -204,16 +204,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
             bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+            readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+            keepAlive = in.readOptionalTimeValue();
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
             bottomSortValues = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.readerId = in.readOptionalWriteable(ShardSearchContextId::new);
-            this.keepAlive = in.readOptionalTimeValue();
-        } else {
-            this.readerId = null;
-            this.keepAlive = null;
+            readerId = null;
+            keepAlive = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert (readerId != null) == (keepAlive != null);
@@ -271,11 +268,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0) && asKey == false) {
+        if (asKey == false && out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0) && asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }

@@ -33,9 +33,7 @@ endif::[]
 * <<repositories-metering-apis,Repositories Metering APIs>>
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
-ifdef::permanently-unreleased-branch[]
 * <<searchable-snapshots-apis, Searchable snapshots APIs>>
-endif::[]
 * <<security-api,Security APIs>>
 * <<snapshot-restore-apis,Snapshot and restore APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>

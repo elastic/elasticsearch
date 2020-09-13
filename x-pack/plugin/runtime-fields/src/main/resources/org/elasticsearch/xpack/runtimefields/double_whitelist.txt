@@ -13,7 +13,7 @@ class org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript$Factory @no_
 }
 
 static_import {
-    # The `emitValue` callback to collect values for the field
-    void emitValue(org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript, double) bound_to org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript$EmitValue
+    # The `emit` callback to collect values for the field
+    void emit(org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript, double) bound_to org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript$Emit
 }
 

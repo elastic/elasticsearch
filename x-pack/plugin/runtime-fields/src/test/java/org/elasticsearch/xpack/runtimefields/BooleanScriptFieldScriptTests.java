@@ -30,7 +30,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
     ) {
         @Override
         public void execute() {
-            emitValue(false);
+            emit(false);
         }
     };
 
@@ -57,7 +57,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES * 1000; i++) {
-                            emitValue(i % 2 == 0);
+                            emit(i % 2 == 0);
                         }
                     }
                 };

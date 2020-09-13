@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,11 +51,8 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         final List<XPackUsageFeatureAction> actions = new ArrayList<>();
         actions.addAll(Arrays.asList(
             SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS
+            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS, SEARCHABLE_SNAPSHOTS
         ));
-        if (SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            actions.add(SEARCHABLE_SNAPSHOTS);
-        }
         ALL = Collections.unmodifiableList(actions);
     }
 

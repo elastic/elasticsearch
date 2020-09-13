@@ -100,8 +100,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final Collection<TimeoutClusterStateListener> timeoutClusterStateListeners =
         Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final LocalNodeMasterListeners localNodeMasterListeners;
-
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
 
     private final AtomicReference<ClusterState> state; // last applied state
@@ -110,11 +108,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
 
+    private LocalNodeMasterListeners localNodeMasterListeners;
+
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
-        this.localNodeMasterListeners = new LocalNodeMasterListeners();
         this.nodeName = nodeName;
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -144,7 +143,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     protected synchronized void doStart() {
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         Objects.requireNonNull(state.get(), "please set initial state before starting");
-        addListener(localNodeMasterListeners);
+        if (localNodeMasterListeners != null) {
+            addListener(localNodeMasterListeners);
+        }
         threadPoolExecutor = createThreadPoolExecutor();
     }
 
@@ -192,7 +193,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
         // close timeout listeners that did not have an ongoing timeout
         timeoutClusterStateListeners.forEach(TimeoutClusterStateListener::onClose);
-        removeListener(localNodeMasterListeners);
+        if (localNodeMasterListeners != null) {
+            removeListener(localNodeMasterListeners);
+        }
     }
 
     @Override
@@ -271,7 +274,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     /**
      * Add a listener for on/off local node master events
      */
-    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+    public synchronized void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+        if (localNodeMasterListeners == null) {
+            this.localNodeMasterListeners = new LocalNodeMasterListeners();
+            if (lifecycle.started()) {
+                addListener(localNodeMasterListeners);
+            }
+        }
         localNodeMasterListeners.add(listener);
     }
 

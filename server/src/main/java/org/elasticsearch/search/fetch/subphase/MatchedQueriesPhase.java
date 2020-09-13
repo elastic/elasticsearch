@@ -39,9 +39,6 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
-        if (context.getFetchSize() == 0 || context.hasOnlySuggest()) {
-            return null;
-        }
         Map<String, Query> namedQueries = new HashMap<>(context.parsedQuery().namedFilters());
         if (context.parsedPostFilter() != null) {
             namedQueries.putAll(context.parsedPostFilter().namedFilters());

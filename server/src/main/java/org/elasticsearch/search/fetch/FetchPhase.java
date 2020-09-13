@@ -88,16 +88,23 @@ public class FetchPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
 
-        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
-
-        FetchContext fetchContext = FetchContext.fromSearchContext(context);
+        if (context.docIdsToLoadSize() == 0) {
+            // no individual hits to process, so we shortcut
+            context.fetchResult().hits(new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(),
+                context.queryResult().getMaxScore()));
+            return;
+        }
 
         DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
         }
         Arrays.sort(docs);
+
+        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+
+        FetchContext fetchContext = FetchContext.fromSearchContext(context);
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
         Map<String, Object> sharedCache = new HashMap<>();

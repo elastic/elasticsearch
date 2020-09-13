@@ -30,6 +30,7 @@ import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 
+import java.util.Collections;
 import java.util.List;
 
 public class FetchContext {
@@ -53,14 +55,6 @@ public class FetchContext {
 
     public String getIndexName() {
         return searchContext.indexShard().shardId().getIndexName();
-    }
-
-    public int getFetchSize() {
-        return searchContext.docIdsToLoadSize();
-    }
-
-    public boolean hasOnlySuggest() {
-        return searchContext.hasOnlySuggest();
     }
 
     public ContextIndexSearcher searcher() {
@@ -107,12 +101,18 @@ public class FetchContext {
         return searchContext.seqNoAndPrimaryTerm();
     }
 
-    public CollapseContext collapse() {
-        return searchContext.collapse();
-    }
-
     public FetchDocValuesContext docValuesContext() {
-        return searchContext.docValuesContext();
+        FetchDocValuesContext dvContext = searchContext.docValuesContext();
+        if (searchContext.collapse() != null) {
+            // retrieve the `doc_value` associated with the collapse field
+            String name = searchContext.collapse().getFieldName();
+            if (dvContext == null) {
+                return new FetchDocValuesContext(Collections.singletonList(new FieldAndFormat(name, null)));
+            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+                dvContext.fields().add(new FieldAndFormat(name, null));
+            }
+        }
+        return dvContext;
     }
 
     public SearchHighlightContext highlight() {
@@ -120,7 +120,7 @@ public class FetchContext {
     }
 
     public boolean fetchScores() {
-        return getFetchSize() > 0 && searchContext.sort() != null && searchContext.trackScores();
+        return searchContext.sort() != null && searchContext.trackScores();
     }
 
     public InnerHitsContext innerHits() {
@@ -128,11 +128,10 @@ public class FetchContext {
     }
 
     public boolean version() {
-        return searchContext.version();
-    }
-
-    public StoredFieldsContext storedFieldsContext() {
-        return searchContext.storedFieldsContext();
+        // TODO version is loaded from docvalues, not stored fields, so why are we checking
+        // stored fields here?
+        return searchContext.version() &&
+            (searchContext.storedFieldsContext() == null || searchContext.storedFieldsContext().fetchFields());
     }
 
     public FetchFieldsContext fetchFieldsContext() {

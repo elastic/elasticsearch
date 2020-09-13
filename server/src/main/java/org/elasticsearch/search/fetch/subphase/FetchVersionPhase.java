@@ -32,8 +32,7 @@ public final class FetchVersionPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.version() == false ||
-            (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
+        if (context.version() == false) {
             return null;
         }
         return new FetchSubPhaseProcessor() {

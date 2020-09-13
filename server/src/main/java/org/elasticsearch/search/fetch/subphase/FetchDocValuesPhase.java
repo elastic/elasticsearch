@@ -51,18 +51,6 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
 
         FetchDocValuesContext dvContext = context.docValuesContext();
-
-        if (context.collapse() != null) {
-            // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldName();
-            if (dvContext == null) {
-                dvContext = new FetchDocValuesContext(
-                    Collections.singletonList(new FieldAndFormat(name, null)));
-            } else if (context.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                dvContext.fields().add(new FieldAndFormat(name, null));
-            }
-        }
-
         if (dvContext == null) {
             return null;
         }

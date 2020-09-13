@@ -34,7 +34,7 @@ public final class ExplainPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.explain() == false || context.hasOnlySuggest()) {
+        if (context.explain() == false) {
             return null;
         }
         return new FetchSubPhaseProcessor() {

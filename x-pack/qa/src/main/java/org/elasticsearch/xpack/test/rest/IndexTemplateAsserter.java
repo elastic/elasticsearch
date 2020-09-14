@@ -97,15 +97,15 @@ public class IndexTemplateAsserter {
      * template. Each exception should be a '.' separated path to the value
      * e.g. {@code properties.analysis.analysis_field.type}.
      *
-     * @param client The rest client to use
-     * @param templateName The template
-     * @param indexName The index
+     * @param client                        The rest client to use
+     * @param templateName                  The template
+     * @param indexName                     The index
      * @param notAnErrorIfIndexDoesNotExist The index may or may not have been created from
      *                                      the template. If {@code true} then the missing
      *                                      index does not cause an error
-     * @param exceptions List of keys to ignore in the index mappings.
-     *                   The key is a '.' separated path.
-     * @throws IOException Yes
+     * @param exceptions                    List of keys to ignore in the index mappings.
+     *                                      Each key is a '.' separated path.
+     * @throws IOException                  Yes
      */
     @SuppressWarnings("unchecked")
     public static void assertLegacyTemplateMatchesIndexMappings(RestClient client,

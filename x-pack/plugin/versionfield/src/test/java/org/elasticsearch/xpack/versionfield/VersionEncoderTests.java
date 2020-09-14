@@ -41,6 +41,9 @@ public class VersionEncoderTests extends ESTestCase {
         assertTrue(encodeVersion("2.0.0-pre127").compareTo(encodeVersion("2.0.0-pre128")) < 0);
         assertTrue(encodeVersion("2.0.0-pre128").compareTo(encodeVersion("2.0.0-pre128-somethingelse")) < 0);
         assertTrue(encodeVersion("2.0.0-pre20201231z110026").compareTo(encodeVersion("2.0.0-pre227")) < 0);
+        // invalid versions sort after valid ones
+        assertTrue(encodeVersion("99999.99999.99999").compareTo(encodeVersion("1.invalid")) < 0);
+        assertTrue(encodeVersion("").compareTo(encodeVersion("a")) < 0);
     }
 
     private static BytesRef encodeVersion(String version) {

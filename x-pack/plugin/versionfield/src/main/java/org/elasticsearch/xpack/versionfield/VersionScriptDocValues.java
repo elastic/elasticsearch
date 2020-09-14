@@ -36,10 +36,11 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
     public String getValue() {
         if (count == 0) {
-            return null;
-        } else {
-            return get(0);
+            throw new IllegalStateException(
+                "A document doesn't have a value for a field! " + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+            );
         }
+        return get(0);
     }
 
     @Override

@@ -147,7 +147,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                         + "fields please enable [index_prefixes]."
                 );
             }
-            failIfNotIndexed();
             return wildcardQuery(value + "*", method, context);
         }
 
@@ -156,7 +155,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
          * automaton in the query will assume unencoded terms. We are running through all terms, decode them and
          * then run them through the automaton manually instead. This is not as efficient as intersecting the original
          * Terms with the compiled automaton, but we expect the number of distinct version terms indexed into this field
-         * to be low enough and the use of "rexexp" queries on this field rare enough to brute-force this
+         * to be low enough and the use of "regexp" queries on this field rare enough to brute-force this
          */
         @Override
         public Query regexpQuery(
@@ -172,7 +171,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            failIfNotIndexed();
             RegexpQuery query = new RegexpQuery(new Term(name(), new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
 
                 @Override
@@ -219,7 +217,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            failIfNotIndexed();
             return new FuzzyQuery(
                 new Term(name(), (BytesRef) value),
                 fuzziness.asDistance(BytesRefs.toString(value)),
@@ -254,7 +251,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                     "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            failIfNotIndexed();
 
             VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value));
             QueryParsers.setRewriteMethod(query, method);
@@ -277,7 +273,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.BYTES);
         }
 
@@ -304,14 +299,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException(
-                    "[range] queries on [version] fields cannot be executed when '"
-                        + ALLOW_EXPENSIVE_QUERIES.getKey()
-                        + "' is set to false."
-                );
-            }
-            failIfNotIndexed();
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
 

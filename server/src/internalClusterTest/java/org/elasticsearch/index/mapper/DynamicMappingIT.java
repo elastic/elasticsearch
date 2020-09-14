@@ -42,6 +42,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -161,5 +162,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
         } finally {
             indexingCompletedLatch.countDown();
         }
+    }
+
+    public void testMappingVersionAfterDynamicMappingUpdate() {
+        createIndex("test");
+        final ClusterService clusterService = internalCluster().clusterService();
+        final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
+        client().prepareIndex("test", "_doc").setId("1").setSource("field", "text").get();
+        assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
     }
 }

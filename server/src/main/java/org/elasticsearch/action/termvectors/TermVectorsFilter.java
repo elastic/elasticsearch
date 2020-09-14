@@ -215,7 +215,7 @@ public class TermVectorsFilter {
                 }
 
                 // now call on docFreq
-                long docFreq = termsEnum.docFreq();
+                long docFreq = topLevelTermsEnum.docFreq();
                 if (!isAccepted(docFreq)) {
                     continue;
                 }

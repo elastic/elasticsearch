@@ -118,10 +118,10 @@ public enum XContentType implements MediaType {
 
 
     /**
-     * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
-     * parameters and attempts to match the value to an {@link XContentType}. The comparisons are done in lower case format and this method
-     * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
-     * format query string parameter. This method will return {@code null} if no match is found
+     * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}
+     * and attempts to match the value to an {@link XContentType}.
+     * The comparisons are done in lower case format.
+     * This method will return {@code null} if no match is found
      */
     public static XContentType fromFormat(String mediaType) {
         return mediaTypeParser.fromFormat(mediaType);
@@ -129,8 +129,9 @@ public enum XContentType implements MediaType {
 
     /**
      * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
-     * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
-     * HTTP header. This method will return {@code null} if no match is found
+     * The provided media type can optionally has parameters.
+     * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
+     * This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
         return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);

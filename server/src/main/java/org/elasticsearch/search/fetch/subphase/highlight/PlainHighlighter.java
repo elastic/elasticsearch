@@ -139,6 +139,9 @@ public class PlainHighlighter implements Highlighter {
                     }
                 }
             } catch (BytesRefHash.MaxBytesLengthExceededException e) {
+                // this can happen if for example a field is not_analyzed and ignore_above option is set.
+                // the field will be ignored when indexing but the huge term is still in the source and
+                // the plain highlighter will parse the source and try to analyze it.
                 // ignore and continue to the next value
             } catch (InvalidTokenOffsetsException e) {
                 throw new IllegalArgumentException(e);

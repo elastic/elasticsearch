@@ -10,7 +10,7 @@ esplugin {
 }
 
 // let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest")
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
 
 javaRestTest {
   systemProperty 'tests.security.manager', 'false'

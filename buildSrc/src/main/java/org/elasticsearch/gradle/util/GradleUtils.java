@@ -196,6 +196,19 @@ public abstract class GradleUtils {
         child.setRuntimeClasspath(project.getObjects().fileCollection().from(child.getRuntimeClasspath(), parent.getOutput()));
     }
 
+    /**
+     * Extends one configuration from another and refreshes the classpath of a provided Test.
+     * The Test parameter is only needed for eagerly defined test tasks.
+     */
+    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, Test test) {
+        extendSourceSet(project, parentSourceSetName, childSourceSetName);
+        if (test != null) {
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet child = sourceSets.getByName(childSourceSetName);
+            test.setClasspath(child.getRuntimeClasspath());
+        }
+    }
+
     public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
         if (project.findProject(projectPath) == null) {
             throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());

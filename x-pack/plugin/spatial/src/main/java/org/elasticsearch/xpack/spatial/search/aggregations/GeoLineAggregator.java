@@ -31,16 +31,17 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
 import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
 /**
- * Metric Aggregation for computing the pearson product correlation coefficient between multiple fields
+ * Metric Aggregation for joining sorted geo_point values into a single path
  **/
 final class GeoLineAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
     private final MultiValuesSource.AnyMultiValuesSource valuesSources;
+    private static final int PATH_ARRAY_SIZE = 10000;
 
     private ObjectArray<long[]> paths;
     private ObjectArray<double[]> sortValues;
     private IntArray idxs;
-    private boolean includeSorts;
+    private final boolean includeSorts;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
                       Aggregator parent, Map<String,Object> metaData, boolean includeSorts) throws IOException {
@@ -50,6 +51,10 @@ final class GeoLineAggregator extends MetricsAggregator {
             paths = context.bigArrays().newObjectArray(1);
             sortValues = context.bigArrays().newObjectArray(1);
             idxs = context.bigArrays().newIntArray(1);
+        } else {
+            paths = null;
+            sortValues = null;
+            idxs = null;
         }
         this.includeSorts = includeSorts;
     }
@@ -99,19 +104,19 @@ final class GeoLineAggregator extends MetricsAggregator {
                     long[] bucketLine = paths.get(bucket);
                     double[] sortVals = sortValues.get(bucket);
                     if (bucketLine == null) {
-                        bucketLine = new long[10000];
+                        bucketLine = new long[PATH_ARRAY_SIZE];
+                        addRequestCircuitBreakerBytes(Long.BYTES * PATH_ARRAY_SIZE);
                     }
-
-
                     if (sortVals == null) {
-                        sortVals = new double[10000];
+                        sortVals = new double[PATH_ARRAY_SIZE];
+                        addRequestCircuitBreakerBytes(Long.BYTES * PATH_ARRAY_SIZE);
                     }
 
                     int encodedLat = GeoEncodingUtils.encodeLatitude(point.lat());
                     int encodedLon = GeoEncodingUtils.encodeLongitude(point.lon());
                     long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
 
-                    if (idx < 10000) {
+                    if (idx < PATH_ARRAY_SIZE) {
                         sortVals[idx] = sort;
                         bucketLine[idx] = lonLat;
 

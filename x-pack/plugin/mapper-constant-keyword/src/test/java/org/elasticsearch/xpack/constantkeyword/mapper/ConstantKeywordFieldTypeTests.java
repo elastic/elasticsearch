@@ -86,9 +86,9 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
-        assertEquals(new MatchNoDocsQuery(), none.regexpQuery("f..o", RegExp.ALL, 10, null, null));
+        assertEquals(new MatchNoDocsQuery(), none.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp.ALL, 10, null, null));
-        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("f..o", RegExp.ALL, 10, null, null));
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp.ALL, 0, 10, null, null));
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
     }
 }

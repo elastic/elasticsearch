@@ -47,6 +47,9 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             query.flags(flags.toArray(new RegexpFlag[flags.size()]));
         }
         if (randomBoolean()) {
+            query.caseInsensitive(true);
+        }
+        if (randomBoolean()) {
             query.maxDeterminizedStates(randomInt(50000));
         }
         if (randomBoolean()) {
@@ -101,6 +104,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "    \"name.first\" : {\n" +
                 "      \"value\" : \"s.*y\",\n" +
                 "      \"flags_value\" : 7,\n" +
+                "      \"case_insensitive\" : true,\n" +
                 "      \"max_determinized_states\" : 20000,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
@@ -147,4 +151,18 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
+
+    public void testParseFailsWithCaseSensitive() throws IOException {
+        String json =
+                "{\n" +
+                "    \"regexp\": {\n" +
+                "      \"user1\": {\n" +
+                "        \"value\": \"k.*y\",\n" +
+                "        \"case_insensitive\": false\n" +
+                "      },\n" +
+                "    }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[regexp] query does not support [case_insensitive] = false", e.getMessage());
+   }
 }

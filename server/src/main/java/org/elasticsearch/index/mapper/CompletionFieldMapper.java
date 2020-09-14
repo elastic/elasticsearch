@@ -187,6 +187,9 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 this.contexts.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endArray();
             }
+            if (this.meta.getValue().isEmpty() == false) {
+                builder.field(this.meta.name, this.meta.getValue());
+            }
         }
 
         @Override
@@ -537,16 +540,21 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected List<?> parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        if (value instanceof List) {
-            return (List<?>) value;
-        } else {
-            return List.of(value);
-        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected List<?> parseSourceValue(Object value) {
+                if (value instanceof List) {
+                    return (List<?>) value;
+                } else {
+                    return List.of(value);
+                }
+            }
+        };
     }
 
     static class CompletionInputMetadata {

@@ -675,13 +675,13 @@ public class QueryStringQueryParser extends XQueryParser {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
-            }            
-            if (forceAnalyzer != null && 
+            }
+            if (forceAnalyzer != null &&
                 (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
                 setAnalyzer(forceAnalyzer);
                 return super.getWildcardQuery(currentFieldType.name(), termStr);
             }
-            
+
             return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
@@ -730,8 +730,8 @@ public class QueryStringQueryParser extends XQueryParser {
             if (forceAnalyzer != null) {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
-            }            
-            return currentFieldType.regexpQuery(termStr, RegExp.ALL, getMaxDeterminizedStates(), 
+            }
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getMaxDeterminizedStates(),
                 getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {

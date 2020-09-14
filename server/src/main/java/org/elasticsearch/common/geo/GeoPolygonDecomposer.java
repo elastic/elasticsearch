@@ -528,6 +528,7 @@ public class GeoPolygonDecomposer {
                 if (visitedEdge.containsKey(current.coordinate)) {
                     partitionPoint[0] = current.coordinate.getX();
                     partitionPoint[1] = current.coordinate.getY();
+                    partitionPoint[2] = current.coordinate.getZ();
                     if (connectedComponents > 0 && current.next != edge) {
                         throw new InvalidShapeException("Shape contains more than one shared point");
                     }
@@ -576,7 +577,7 @@ public class GeoPolygonDecomposer {
         }
         // First and last coordinates must be equal
         if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
-            if (partitionPoint[2] == Double.NaN) {
+            if (Double.isNaN(partitionPoint[2])) {
                 throw new InvalidShapeException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "]");
             } else {

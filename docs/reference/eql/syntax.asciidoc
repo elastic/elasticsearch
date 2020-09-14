@@ -8,7 +8,7 @@
 
 experimental::[]
 
-[IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>.
+IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>>.
 
 [discrete]
 [[eql-basic-syntax]]
@@ -73,9 +73,7 @@ You cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a
 <<eql-functions,function>>.
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following EQL query compares the `process.parent_name` field
 value to a static value, `foo`. This comparison is supported.
 
@@ -95,7 +93,6 @@ and `process.name` fields to static values.
 ----
 process where process.parent.name == "foo" and process.name == "foo"
 ----
-====
 
 [IMPORTANT]
 ====
@@ -219,9 +216,7 @@ _rounds down_ any returned floating point numbers to the nearest integer.
 EQL queries in {es} should account for this rounding. To avoid rounding, convert
 either the dividend or divisor to a float.
 
-[%collapsible]
-.**Example**
-=====
+*Example* +
 The `process.args_count` field is a <<number,`long`>> integer field containing a
 count of process arguments.
 
@@ -248,7 +243,6 @@ The following EQL query changes the integer `4` to the equivalent float `4.0`.
 ----
 process where ( 4.0 / process.args_count ) == 1
 ----
-=====
 ====
 
 [discrete]
@@ -383,9 +377,7 @@ sequence
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following EQL sequence query matches this series of ordered events:
 
 . Start with an event with:
@@ -402,7 +394,6 @@ sequence
   [ file where file.extension == "exe" ]
   [ process where true ]
 ----
-====
 
 [discrete]
 [[eql-with-maxspan-keywords]]
@@ -422,9 +413,7 @@ sequence with maxspan=30s
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following sequence query uses a `maxspan` value of `15m` (15 minutes).
 Events in a matching sequence must occur within 15 minutes of the first event's
 timestamp.
@@ -435,7 +424,6 @@ sequence with maxspan=15m
   [ file where file.extension == "exe" ]
   [ process where true ]
 ----
-====
 
 [discrete]
 [[eql-by-keyword]]
@@ -453,9 +441,7 @@ sequence by field_foo
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following sequence query uses the `by` keyword to constrain matching events
 to:
 
@@ -480,7 +466,6 @@ sequence by user.name
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
-====
 
 You can combine the `sequence by` and `with maxspan` keywords to constrain a
 sequence by both field values and a timespan.
@@ -493,9 +478,7 @@ sequence by field_foo with maxspan=30s
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following sequence query uses the `sequence by` keyword and `with maxspan`
 keywords to match only a sequence of events that:
 
@@ -508,16 +491,16 @@ sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
-====
 
 [discrete]
 [[eql-until-keyword]]
 ==== `until` keyword
 
-You can use the `until` keyword to specify an expiration event for sequences.
-Matching sequences must end before this event, which is not included the
-results. If this event occurs within a sequence, the sequence is not considered
-a match.
+You can use the `until` keyword to specify an expiration event for a sequence.
+If this expiration event occurs _between_ matching events in a sequence, the
+sequence expires and is not considered a match. If the expiration event occurs
+_after_ matching events in a sequence, the sequence is still considered a
+match. The expiration event is not included in the results.
 
 [source,eql]
 ----
@@ -525,30 +508,36 @@ sequence
   [ event_category_1 where condition_1 ]
   [ event_category_2 where condition_2 ]
   ...
-until [ event_category_2 where condition_2 ]
+until [ event_category_3 where condition_3 ]
 ----
 
-.*Example*
-[%collapsible]
-====
-The following EQL sequence query uses the `until` keyword to end sequences
-before a process termination event. Process termination events have an event
-category of `process` and `event.type` value of `termination`.
+*Example* +
+A dataset contains the following event sequences, grouped by shared IDs:
+
+[source,txt]
+----
+A, B
+A, B, C
+A, C, B
+----
+
+The following EQL query searches the dataset for sequences containing
+event `A` followed by event `B`. Event `C` is used as an expiration event.
 
 [source,eql]
 ----
-sequence
-  [ file where file.extension == "exe" ]
-  [ process where true ]
-until [ process where event.type == "termination" ]
+sequence by ID
+  A
+  B
+until C
 ----
-====
+
+The query matches sequences `A, B` and `A, B, C` but not `A, C, B`.
 
 [TIP]
 ====
-The `until` keyword can be helpful when searching for process sequences in
-Windows event logs, such as those ingested using
-{winlogbeat-ref}/index.html[Winlogbeat].
+The `until` keyword can be useful when searching for process sequences in
+Windows event logs.
 
 In Windows, a process ID (PID) is unique only while a process is running. After
 a process terminates, its PID can be reused.
@@ -556,41 +545,33 @@ a process terminates, its PID can be reused.
 You can search for a sequence of events with the same PID value using the `by`
 and `sequence by` keywords.
 
-.*Example*
-[%collapsible]
-=====
-The following EQL query uses the `sequence by` keyword to match a sequence of
-events that share the same `process.pid` value.
+*Example* +
+The following EQL query uses the `sequence by` keyword to match a
+sequence of events that share the same `process.pid` value.
 
 [source,eql]
 ----
 sequence by process.pid
-  [ process where process.name == "cmd.exe" ]
-  [ process where process.name == "whoami.exe" ]
+  [ process where event.type == "start" and process.name == "cmd.exe" ]
+  [ process where file.extension == "exe" ]
 ----
-=====
 
 However, due to PID reuse, this can result in a matching sequence that
 contains events across unrelated processes. To prevent false positives, you can
 use the `until` keyword to end matching sequences before a process termination
 event.
 
-.*Example*
-[%collapsible]
-=====
 The following EQL query uses the `until` keyword to end sequences before
-`process` events with an `event.type` of `termination`. These events indicate a
-process has been terminated.
+`process` events with an `event.type` of `stop`. These events indicate a process
+has been terminated.
 
 [source,eql]
 ----
 sequence by process.pid
-  [ process where process.name == "cmd.exe" ]
-  [ process where process.name == "whoami.exe" ]
-until [ process where event.type == "termination" ]
+  [ process where event.type == "start" and process.name == "cmd.exe" ]
+  [ process where file.extension == "exe" ]
+until [ process where event.type == "stop" ]
 ----
-=====
-
 ====
 
 [discrete]
@@ -609,9 +590,7 @@ often use functions to transform indexed data, you can speed up search by making
 these changes during indexing instead. However, that often means slower index
 speeds.
 
-.*Example*
-[%collapsible]
-=====
+*Example* +
 An index contains the `file.path` field. `file.path` contains the full path to a
 file, including the file extension.
 
@@ -642,7 +621,6 @@ calls:
 ----
 file where file.extension in ("exe", "dll")
 ----
-=====
 
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
@@ -663,9 +641,7 @@ Pipes are delimited using the pipe (`|`) character.
 event_category where condition | pipe
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following EQL query uses the `tail` pipe to return only the 10 most recent
 events matching the query.
 
@@ -674,7 +650,6 @@ events matching the query.
 authentication where agent.id == 4624
 | tail 10
 ----
-====
 
 You can pass the output of a pipe to another pipe. This lets you use multiple
 pipes with a single query.

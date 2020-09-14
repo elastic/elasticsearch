@@ -197,23 +197,25 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testDeleteCancelRunningTask() throws Exception {
         final AsyncSearchResponse initial;
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        initial = it.next();
-        deleteAsyncSearch(initial.getId());
-        it.close();
-        ensureTaskCompletion(initial.getId());
-        ensureTaskRemoval(initial.getId());
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            initial = it.next();
+            deleteAsyncSearch(initial.getId());
+            it.close();
+            ensureTaskCompletion(initial.getId());
+            ensureTaskRemoval(initial.getId());
+        }
     }
 
     public void testDeleteCleanupIndex() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        deleteAsyncSearch(response.getId());
-        it.close();
-        ensureTaskCompletion(response.getId());
-        ensureTaskRemoval(response.getId());
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            deleteAsyncSearch(response.getId());
+            it.close();
+            ensureTaskCompletion(response.getId());
+            ensureTaskRemoval(response.getId());
+        }
     }
 
     public void testCleanupOnFailure() throws Exception {
@@ -234,16 +236,17 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testInvalidId() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getMessage(), containsString("invalid id"));
-        while (it.hasNext()) {
-            response = it.next();
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
+            assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(exc.getMessage(), containsString("invalid id"));
+            while (it.hasNext()) {
+                response = it.next();
+            }
+            assertFalse(response.isRunning());
         }
-        assertFalse(response.isRunning());
     }
 
     public void testNoIndex() throws Exception {

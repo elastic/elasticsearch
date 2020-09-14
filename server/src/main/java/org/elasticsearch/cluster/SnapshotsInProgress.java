@@ -59,6 +59,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static final String TYPE = "snapshots";
 
+    public static final String ABORTED_FAILURE_TEXT = "Snapshot was aborted by deletion";
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -138,7 +140,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             state = State.fromValue(in.readByte());
             indices = in.readList(IndexId::new);
             startTime = in.readLong();
-            shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::new);
+            shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::readFrom);
             repositoryStateId = in.readLong();
             failure = in.readOptionalString();
             userMetadata = in.readMap();
@@ -178,14 +180,19 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * data node or to {@link ShardState#FAILED} if not assigned to any data node.
          * If the instance had no in-progress shard snapshots assigned to data nodes it's moved to state {@link State#SUCCESS}, otherwise
          * it's moved to state {@link State#ABORTED}.
+         * In the special case where this instance has not yet made any progress on any shard this method just returns
+         * {@code null} since no abort is needed and the snapshot can simply be removed from the cluster state outright.
          *
-         * @return aborted snapshot entry
+         * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
+        @Nullable
         public Entry abort() {
             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
             boolean completed = true;
+            boolean allQueued = true;
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : shards) {
                 ShardSnapshotStatus status = shardEntry.value;
+                allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
                     status = new ShardSnapshotStatus(nodeId, nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
@@ -194,7 +201,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.key, status);
             }
-            return fail(shardsBuilder.build(), completed ? State.SUCCESS : State.ABORTED, "Snapshot was aborted by deletion");
+            if (allQueued) {
+                return null;
+            }
+            return fail(shardsBuilder.build(), completed ? State.SUCCESS : State.ABORTED, ABORTED_FAILURE_TEXT);
         }
 
         public Entry fail(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, State state, String failure) {
@@ -412,6 +422,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public static final ShardSnapshotStatus UNASSIGNED_QUEUED =
                 new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.QUEUED, null);
 
+        /**
+         * Shard snapshot status for shards that could not be snapshotted because their index was deleted from before the shard snapshot
+         * started.
+         */
+        public static final ShardSnapshotStatus MISSING =
+                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "missing index", null);
+
         private final ShardState state;
 
         @Nullable
@@ -443,14 +460,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
             assert (state != ShardState.INIT && state != ShardState.WAITING) || nodeId != null : "Null node id for state [" + state + "]";
+            assert state != ShardState.QUEUED || (nodeId == null && generation == null && reason == null) :
+                    "Found unexpected non-null values for queued state shard nodeId[" + nodeId + "][" + generation + "][" + reason + "]";
             return true;
         }
 
-        public ShardSnapshotStatus(StreamInput in) throws IOException {
-            nodeId = in.readOptionalString();
-            state = ShardState.fromValue(in.readByte());
-            generation = in.readOptionalString();
-            reason = in.readOptionalString();
+        public static ShardSnapshotStatus readFrom(StreamInput in) throws IOException {
+            String nodeId = in.readOptionalString();
+            final ShardState state = ShardState.fromValue(in.readByte());
+            final String generation = in.readOptionalString();
+            final String reason = in.readOptionalString();
+            if (state == ShardState.QUEUED) {
+                return UNASSIGNED_QUEUED;
+            }
+            return new ShardSnapshotStatus(nodeId, state, reason, generation);
         }
 
         public ShardState state() {

@@ -5,18 +5,18 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Get Trained Models API
+=== Get trained models API
 
 experimental[]
 
-Retrieves one or more Trained Models.
+Retrieves one or more trained models.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Trained Models request
+==== Get trained models request
 
-A +{request}+ requires either a Trained Model ID, a comma-separated list of
-IDs, or the special wildcard `_all` to get all Trained Models.
+A +{request}+ requires either a trained model ID, a comma-separated list of
+IDs, or the special wildcard `_all` to get all trained models.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

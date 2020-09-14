@@ -8,6 +8,10 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.ActionType;
 
+/**
+ * @deprecated This action is superseded by the Repositories Metering action
+ */
+@Deprecated
 public class RepositoryStatsAction extends ActionType<RepositoryStatsResponse> {
 
     public static final RepositoryStatsAction INSTANCE = new RepositoryStatsAction();

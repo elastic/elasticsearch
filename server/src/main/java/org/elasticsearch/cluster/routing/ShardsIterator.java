@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.util.Countable;
+
 import java.util.List;
 
 /**
  * Allows to iterate over unrelated shards.
  */
-public interface ShardsIterator extends Iterable<ShardRouting> {
+public interface ShardsIterator extends Iterable<ShardRouting>, Countable {
 
     /**
      * Resets the iterator to its initial state.

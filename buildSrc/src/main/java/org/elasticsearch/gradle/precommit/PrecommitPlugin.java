@@ -23,11 +23,8 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.testing.Test;
-import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 /**
  * Base plugin for adding a precommit task.
@@ -57,22 +54,4 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
 
     public abstract TaskProvider<? extends Task> createTask(Project project);
 
-    static class PrecommitTaskPlugin implements Plugin<Project> {
-
-        @Override
-        public void apply(Project project) {
-            TaskProvider<Task> precommit = project.getTasks().register(PRECOMMIT_TASK_NAME, t -> {
-                t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-                t.setDescription("Runs all non-test checks");
-            });
-
-            project.getPluginManager()
-                .withPlugin(
-                    "lifecycle-base",
-                    p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
-                );
-            project.getPluginManager()
-                .withPlugin("java", p -> project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit)));
-        }
-    }
 }

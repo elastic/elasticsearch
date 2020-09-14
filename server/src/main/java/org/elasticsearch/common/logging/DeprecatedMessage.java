@@ -28,22 +28,28 @@ import org.elasticsearch.common.SuppressLoggerChecks;
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage  {
-    private static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    private static final String ECS_VERSION = "1.6";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public static ESLogMessage of(String xOpaqueId, String messagePattern, Object... args){
+    public static ESLogMessage of(String key, String xOpaqueId, String messagePattern, Object... args){
         if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return new ESLogMessage(messagePattern, args);
+            return new ESLogMessage(messagePattern, args).field("key", key);
         }
 
         Object value = new Object() {
             @Override
             public String toString() {
                 return ParameterizedMessage.format(messagePattern, args);
-
             }
         };
+
         return new ESLogMessage(messagePattern, args)
+            .field("data_stream.type", "logs")
+            .field("data_stream.datatype", "deprecation")
+            .field("data_stream.namespace", "elasticsearch")
+            .field("ecs.version", ECS_VERSION)
+            .field("key", key)
             .field("message", value)
             .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }

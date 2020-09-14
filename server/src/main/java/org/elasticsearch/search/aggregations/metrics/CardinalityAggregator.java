@@ -44,7 +44,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.Map;
@@ -69,8 +68,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private int ordinalsCollectorsUsed;
     private int ordinalsCollectorsOverheadTooHigh;
     private int stringHashingCollectorsUsed = 0;
-    private final Timer hashTimer = new Timer(); // NOCOMMIT tmp
-    private final Timer collectTimer = new Timer(); // NOCOMMIT tmp
 
     public CardinalityAggregator(
             String name,
@@ -119,7 +116,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage * 10) {
                 ordinalsCollectorsUsed++;
-                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), hashTimer, collectTimer);
+                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             }
             ordinalsCollectorsOverheadTooHigh++;
         }
@@ -188,10 +185,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
-        add.accept("hash_time", hashTimer.getApproximateTiming());
-        add.accept("hash_count", hashTimer.getCount());
-        add.accept("collect_time", collectTimer.getApproximateTiming());
-        add.accept("collect_count", collectTimer.getCount());
     }
 
     private abstract static class Collector extends LeafBucketCollector implements Releasable {
@@ -265,12 +258,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final SortedSetDocValues values;
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
-        private final Timer hashTimer; // NOCOMMIT temporary
-        private final Timer collectTimer; // NOCOMMIT temporary
         private ObjectArray<FixedBitSet> visitedOrds;  // Danger! This is not tracked by BigArrays!
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values,
-                BigArrays bigArrays, Timer hashTimer, Timer collectTimer) {
+                BigArrays bigArrays) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -279,8 +270,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.counts = counts;
             this.values = values;
             visitedOrds = bigArrays.newObjectArray(1);
-            this.hashTimer = hashTimer;
-            this.collectTimer = collectTimer;
         }
 
         @Override
@@ -312,10 +301,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                 for (int ord = allVisitedOrds.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS;
                         ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
-                    hashTimer.start();
                     final BytesRef value = values.lookupOrd(ord);
                     MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
-                    hashTimer.stop();
                     hashes.set(ord, hash.h1);
                 }
 
@@ -324,9 +311,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     if (bits != null) {
                         for (int ord = bits.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS;
                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
-                            collectTimer.start();
                             counts.collect(bucket, hashes.get(ord));
-                            collectTimer.stop();
                         }
                     }
                 }

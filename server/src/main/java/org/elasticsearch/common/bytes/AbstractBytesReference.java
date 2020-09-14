@@ -295,7 +295,11 @@ public abstract class AbstractBytesReference implements BytesReference {
 
         @Override
         public long skip(long n) throws IOException {
-            final int numBytesSkipped = ByteSizeUnit.BYTES.toIntBytes(Math.min(n, length() - offset()));
+            if (n <= 0L) {
+                return 0L;
+            }
+            assert offset() <= length() : offset() + " vs " + length();
+            final int numBytesSkipped = (int)Math.min(n, length() - offset()); // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
             int remaining = numBytesSkipped;
             while (remaining > 0) {
                 maybeNextSlice();

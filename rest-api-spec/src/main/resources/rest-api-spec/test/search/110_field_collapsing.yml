@@ -6,6 +6,7 @@ setup:
           mappings:
               properties:
                 numeric_group: { type: integer }
+                tag: { type: keyword }
 
   - do:
       index:
@@ -13,42 +14,42 @@ setup:
           id:     1
           version_type: external
           version: 11
-          body:   { numeric_group: 1, sort: 10 }
+          body:   { numeric_group: 1, tag: A, sort: 10 }
   - do:
       index:
           index:  test
           id:     2
           version_type: external
           version: 22
-          body:   { numeric_group: 1, sort: 6 }
+          body:   { numeric_group: 1, tag: B, sort: 6 }
   - do:
       index:
           index:  test
           id:     3
           version_type: external
           version: 33
-          body:   { numeric_group: 1, sort: 24 }
+          body:   { numeric_group: 1, tag: A, sort: 24 }
   - do:
       index:
           index:  test
           id:     4
           version_type: external
           version: 44
-          body:   { numeric_group: 25, sort: 10 }
+          body:   { numeric_group: 25, tag: B, sort: 10 }
   - do:
       index:
           index:  test
           id:     5
           version_type: external
           version: 55
-          body:   { numeric_group: 25, sort: 5 }
+          body:   { numeric_group: 25, tag: A, sort: 5 }
   - do:
       index:
           index:  test
           id:     6
           version_type: external
           version: 66
-          body:   { numeric_group: 3, sort: 36 }
+          body:   { numeric_group: 3, tag: B, sort: 36 }
   - do:
       indices.refresh:
         index: test
@@ -138,6 +139,40 @@ setup:
   - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
+
+---
+"field collapsing, inner_hits, and fields":
+  - skip:
+      version: " - 7.99.99"
+      reason: the enhancement is not yet backported to 7.x
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse:
+            field: numeric_group
+            inner_hits:
+              name: sub_hits
+              size: 2
+              sort: [{ sort: asc }]
+              fields: ["tag"]
+          sort: [{ sort: desc }]
+
+  - length: { hits.hits: 3 }
+  - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0.fields.tag: ["B"]}
+  - length: { hits.hits.1.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0.fields.tag: ["B"]}
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1.fields.tag: ["A"]}
+  - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0.fields.tag: ["A"]}
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1.fields.tag: ["B"]}
 
 ---
 "field collapsing, inner_hits and maxConcurrentGroupRequests":

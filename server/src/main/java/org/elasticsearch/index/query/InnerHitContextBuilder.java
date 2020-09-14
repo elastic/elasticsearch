@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -91,6 +92,12 @@ public abstract class InnerHitContextBuilder {
             FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
                 queryShardContext.getMapperService(), innerHitBuilder.getDocValueFields());
             innerHitsContext.docValuesContext(docValuesContext);
+        }
+        if (innerHitBuilder.getFetchFields() != null) {
+            String indexName = queryShardContext.index().getName();
+            FetchFieldsContext fieldsContext = FetchFieldsContext.create(
+                indexName, queryShardContext.getMapperService(), innerHitBuilder.getFetchFields());
+            innerHitsContext.fetchFieldsContext(fieldsContext);
         }
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {

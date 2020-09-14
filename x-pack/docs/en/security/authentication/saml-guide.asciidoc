@@ -28,7 +28,8 @@ to login. The <<saml-kibana>> section provides more detail about how this works.
 The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
 2.0 _Single Logout_ profiles and can integrate with any Identity Provider (IdP)
 that supports at least the SAML 2.0 _Web Browser SSO Profile_.
-It has been tested with a number of popular IdP implementations.
+It has been tested with a number of popular IdP implementations, such as
+https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-with-adfs[Microsoft Active Directory Federation Services (ADFS)].
 
 This guide assumes that you have an existing IdP and wish to add {kib} as a
 Service Provider.
@@ -373,24 +374,24 @@ in order to assess the level of confidence that it can place in
 the corresponding authentication response. The restrictions might have to do
 with the authentication method (password, client certificates, etc), the
 user identification method during registration, and other details. {es} implements
-https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context], which can be used for this purpose as defined in SAML 2.0 Core 
+https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context], which can be used for this purpose as defined in SAML 2.0 Core
 Specification.
 
 In short, the SAML SP defines a set of Authentication Context Class Reference
 values, which describe the restrictions to be imposed on the IdP, and sends these
-in the Authentication Request. The IdP attempts to grant these restrictions. 
-If it cannot grant them, the authentication attempt fails. If the user is 
-successfully authenticated, the Authentication Statement of the SAML Response 
+in the Authentication Request. The IdP attempts to grant these restrictions.
+If it cannot grant them, the authentication attempt fails. If the user is
+successfully authenticated, the Authentication Statement of the SAML Response
 contains an indication of the restrictions that were satisfied.
 
-You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
-<<ref-saml-settings>>. 
+You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See
+<<ref-saml-settings>>.
 
-{es} supports only the `exact` comparison method for the Authentication Context. 
-When it receives the Authentication Response from the IdP, {es} examines the 
+{es} supports only the `exact` comparison method for the Authentication Context.
+When it receives the Authentication Response from the IdP, {es} examines the
 value of the Authentication Context Class Reference that is part of the
-Authentication Statement of the SAML Assertion. If it matches one of the 
-requested values, the authentication is considered successful. Otherwise, the 
+Authentication Statement of the SAML Assertion. If it matches one of the
+requested values, the authentication is considered successful. Otherwise, the
 authentication attempt fails.
 
 [[saml-logout]]
@@ -671,7 +672,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-<<security-role-mapping-apis>>. 
+<<security-role-mapping-apis>>.
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in
@@ -933,7 +934,7 @@ POST /_security/saml/prepare
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `realm` and `id`. The custom web application would need to store the value for `id`
  in the user's session (client side in a cookie or server side if session information is
-persisted this way). It must also redirect the user's browser to the URL that  was returned in the 
+persisted this way). It must also redirect the user's browser to the URL that  was returned in the
   `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in
 order to mitigate against replay attacks.
 . Handle a subsequent response from the SAML IdP. After the user is successfully authenticated with the
@@ -1002,10 +1003,10 @@ POST /_security/saml/logout
 If the SAML realm is configured accordingly and the IdP supports it (see <<saml-logout>>), this request will trigger a SAML
 SP-initiated Single Logout. In this case, the response will include a `redirect`
 parameter indicating where the user needs to be redirected at the IdP in order to complete the logout.
-. Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this, 
+. Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this,
 the Logout URL (`sp.logout`) needs to be handled by the custom web app. The query part of the URL that the
 user will be redirected to will contain a SAML Logout request and this query part needs to be relayed to {es}
-using the <<security-api-saml-invalidate,SAML invalidate API>> 
+using the <<security-api-saml-invalidate,SAML invalidate API>>
 +
 [source,console]
 --------------------------------------------------
@@ -1019,4 +1020,4 @@ POST /_security/saml/invalidate
 +
 The custom web application will then need to also handle the response, which will include a `redirect`
 parameter with a URL in the IdP that contains the SAML Logout response. The application should redirect the user
-there to complete the logout. 
+there to complete the logout.

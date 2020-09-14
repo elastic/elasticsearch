@@ -13,8 +13,8 @@ class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Factory @no
 }
 
 static_import {
-    # The `emitValue` callback to collect values for the field
-    void emitValue(org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$EmitValue
+    # The `emit` callback to collect values for the field
+    void emit(org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Emit
     # Parse a value from the source to a boolean
     boolean parse(def) from_class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript
 }

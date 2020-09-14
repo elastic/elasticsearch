@@ -68,7 +68,8 @@ The API returns a PIT ID.
 // TESTRESPONSE[s/"id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
 
 To get the first page of results, submit a search request with a `sort`
-argument. If using a PIT, specify the PIT ID in the `pit.id` parameter.
+argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit
+the target data stream or index from the request path.
 
 IMPORTANT: We recommend you include a tiebreaker field in your `sort`. This
 tiebreaker field should contain a unique value for each document. If you don't

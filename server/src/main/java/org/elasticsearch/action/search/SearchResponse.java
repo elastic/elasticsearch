@@ -96,7 +96,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             pointInTimeId = in.readOptionalString();
         } else {
             pointInTimeId = null;
@@ -408,7 +408,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalString(pointInTimeId);
         }
     }

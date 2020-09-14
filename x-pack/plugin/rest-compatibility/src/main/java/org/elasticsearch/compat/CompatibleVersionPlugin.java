@@ -23,8 +23,7 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
     );
 
     @Override
-    public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, Boolean hasContent)
-        throws ElasticsearchStatusException {
+    public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, boolean hasContent) {
         String aVersion = parseVersion(acceptHeader);
         byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
         String cVersion = parseVersion(contentTypeHeader);

@@ -20,6 +20,7 @@ package org.elasticsearch.node;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
@@ -36,6 +37,8 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RestCompatibilityPlugin;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -153,10 +156,10 @@ public class NodeTests extends ESTestCase {
     private static Settings.Builder baseSettings() {
         final Path tempDir = createTempDir();
         return Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                .put(dataNode());
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .put(dataNode());
     }
 
     public void testCloseOnOutstandingTask() throws Exception {
@@ -167,7 +170,7 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get());
+            while (shouldRun.get()) ;
         });
         threadRunning.await();
         node.close();
@@ -190,7 +193,7 @@ public class NodeTests extends ESTestCase {
             }
             try {
                 threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                    while (shouldRun.get());
+                    while (shouldRun.get()) ;
                 });
             } catch (RejectedExecutionException e) {
                 assertThat(e.getMessage(), containsString("[Terminated,"));
@@ -229,7 +232,7 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get());
+            while (shouldRun.get()) ;
         });
         threadRunning.await();
         node.close();
@@ -272,7 +275,7 @@ public class NodeTests extends ESTestCase {
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertAcked(node.client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         Searcher searcher = shard.acquireSearcher("test");
@@ -288,7 +291,7 @@ public class NodeTests extends ESTestCase {
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertAcked(node.client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
@@ -311,7 +314,7 @@ public class NodeTests extends ESTestCase {
             CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
             assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
             assertSame("plugin circuit breaker instance is not the same as breaker service's instance",
-                ((MockCircuitBreakerPlugin)breakerPlugin).myCircuitBreaker.get(),
+                ((MockCircuitBreakerPlugin) breakerPlugin).myCircuitBreaker.get(),
                 service.getBreaker("test_breaker"));
         }
     }
@@ -337,6 +340,57 @@ public class NodeTests extends ESTestCase {
         public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
             assertThat(circuitBreaker.getName(), equalTo("test_breaker"));
             myCircuitBreaker.set(circuitBreaker);
+        }
+    }
+
+    public static class TestRestCompatibility1 extends Plugin implements RestCompatibilityPlugin {
+        @Override
+        public Version getCompatibleVersion(String acceptHeader, String contentTypeHeader, boolean hasContent) {
+            return Version.CURRENT.previousMajor();
+        }
+    }
+
+    public static class TestRestCompatibility2 extends Plugin implements RestCompatibilityPlugin {
+        @Override
+        public Version getCompatibleVersion(String acceptHeader, String contentTypeHeader, boolean hasContent) {
+            return null;
+        }
+    }
+
+    public void testLoadingMultipleRestCompatibilityPlugins() throws IOException {
+        Settings.Builder settings = baseSettings();
+
+        // throw an exception when two plugins are registered
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(TestRestCompatibility1.class);
+        plugins.add(TestRestCompatibility2.class);
+
+        expectThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
+    }
+
+    public void testCorrectUsageOfRestCompatibilityPlugin() throws IOException {
+        Settings.Builder settings = baseSettings();
+
+        // the correct usage expects one plugin
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(TestRestCompatibility1.class);
+
+        try (Node node = new MockNode(settings.build(), plugins)) {
+            CompatibleVersion restCompatibleFunction = node.getRestCompatibleFunction();
+            assertThat(restCompatibleFunction.get("", "", false), equalTo(Version.CURRENT.previousMajor()));
+        }
+    }
+
+
+    public void testDefaultingRestCompatibilityPlugin() throws IOException {
+        Settings.Builder settings = baseSettings();
+
+        // default to CompatibleVersion.CURRENT_VERSION when no plugins provided
+        List<Class<? extends Plugin>> plugins = basePlugins();
+
+        try (Node node = new MockNode(settings.build(), plugins)) {
+            CompatibleVersion restCompatibleFunction = node.getRestCompatibleFunction();
+            assertThat(restCompatibleFunction.get("", "", false), equalTo(Version.CURRENT));
         }
     }
 }

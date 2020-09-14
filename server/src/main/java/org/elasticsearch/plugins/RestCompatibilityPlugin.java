@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 

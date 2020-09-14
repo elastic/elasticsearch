@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
+import com.tdunning.math.stats.Centroid;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,10 +70,36 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         }
     }
 
-    public static double upper(TDigestState state) {
+    /**
+     * For a given TDigest, find the "whisker" valeus, such that the upper whisker is (close to) the highest observed value less than
+     * q3 + 1.5 * IQR and the lower whisker is (close to) the lowest observed value greater than q1 - 1.5 * IQR.  Since we don't track
+     * observed values directly, this function returns the centroid according to the above logic.
+     *
+     * @param state - an initialized TDigestState representing the observed data.
+     * @return - two doubles in an array, where whiskers[0] is the lower whisker and whiskers[1] is the upper whisker.
+     */
+    public static double[] whiskers(TDigestState state) {
         double q3 = state.quantile(0.75);
-        double iqr = q3 - state.quantile(0.25);
-        return state.quantile(state.cdf(q3 + (1.5 * iqr)));
+        double q1 = state.quantile(0.25);
+        double iqr = q3 - q1;
+        double upper = q3 + (1.5 * iqr);
+        double lower = q1 - (1.5 * iqr);
+        Centroid prev = null;
+        double[] results = new double[2];
+        results[0] = Double.NaN;
+        results[1] = Double.NaN;
+        // Does this iterate in ascending order? if not, we might need to sort...
+        for (Centroid c : state.centroids()) {
+            if (Double.isNaN(results[0]) && c.mean() > lower) {
+                results[0] = c.mean();
+            }
+            if (c.mean() > upper) {
+                results[1] = prev.mean();
+                break;
+            }
+            prev = c;
+        }
+        return results;
     }
 
     private final TDigestState state;

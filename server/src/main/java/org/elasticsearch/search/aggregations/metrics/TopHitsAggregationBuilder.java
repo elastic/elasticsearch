@@ -145,7 +145,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             seqNoAndPrimaryTerm = in.readBoolean();
         }
 
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
@@ -181,7 +181,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             out.writeBoolean(seqNoAndPrimaryTerm);
         }
 
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);

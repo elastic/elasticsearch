@@ -135,14 +135,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             return XContentType.JSON;
         }
         XContentType xContentType = XContentType.fromFormat(accept);
-        if (xContentType != null) {
-            return xContentType;
-        }
-        xContentType = XContentType.fromMediaType(accept);
-        if (xContentType != null) {
-            return xContentType;
-        }
-        return xContentType;
+        return xContentType != null ? xContentType : XContentType.fromMediaType(accept);
     }
 
     @Override

@@ -40,7 +40,7 @@ import static org.junit.Assert.fail;
  *
  * These assertions are usually part of upgrade testing.
  */
-public class IndexTemplateAsserter {
+public class IndexMappingTemplateAsserter {
     /**
      * Assert that the mappings of the ml indices are the same as in the
      * templates. If different this is either a consequence of an unintended

@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xpack.test.rest.IndexTemplateAsserter;
+import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -65,7 +65,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
 
             // assert that the mappings are updated
-            IndexTemplateAsserter.assertMlMappingsMatchTemplates(client());
+            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
         }
     }
 

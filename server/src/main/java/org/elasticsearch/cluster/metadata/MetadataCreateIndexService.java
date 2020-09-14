@@ -633,7 +633,8 @@ public class MetadataCreateIndexService {
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
-                additionalIndexSettings.put(provider.getAdditionalIndexSettings(request.index(), isDataStreamIndex, templateAndRequestSettings));
+                additionalIndexSettings.put(provider.getAdditionalIndexSettings(request.index(),
+                    isDataStreamIndex, templateAndRequestSettings));
             }
 
             // For all the explicit settings, we go through the template and request level settings

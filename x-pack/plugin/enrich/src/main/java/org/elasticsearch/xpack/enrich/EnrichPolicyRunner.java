@@ -360,15 +360,18 @@ public class EnrichPolicyRunner implements Runnable {
                         policyName,
                         bulkByScrollResponse.getBulkFailures().size()
                     );
-                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                        logger.debug(
-                            new ParameterizedMessage(
-                                "Policy [{}]: bulk index failed for index [{}], id [{}]",
-                                failure.getIndex(),
-                                failure.getId()
-                            ),
-                            failure.getCause()
-                        );
+                    if (logger.isDebugEnabled()) {
+                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "Policy [{}]: bulk index failed for index [{}], id [{}]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getId()
+                                ),
+                                failure.getCause()
+                            );
+                        }
                     }
                     listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
                 } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
@@ -377,16 +380,19 @@ public class EnrichPolicyRunner implements Runnable {
                         policyName,
                         bulkByScrollResponse.getSearchFailures().size()
                     );
-                    for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
-                        logger.debug(
-                            new ParameterizedMessage("Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
-                                policyName,
-                                failure.getIndex(),
-                                failure.getShardId(),
-                                failure.getNodeId()
-                            ),
-                            failure.getReason()
-                        );
+                    if (logger.isDebugEnabled()) {
+                        for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getShardId(),
+                                    failure.getNodeId()
+                                ),
+                                failure.getReason()
+                            );
+                        }
                     }
                     listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
                 } else {

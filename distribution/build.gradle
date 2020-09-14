@@ -665,6 +665,6 @@ subprojects {
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)
   dependencies {
-    "${configuration.name}" project(subproject.path)
+    "${configuration.name}" project(path: subproject.path, configuration:'default')
   }
 }

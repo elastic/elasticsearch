@@ -73,8 +73,14 @@ public class IngestDocumentTests extends ESTestCase {
         value.put("field", "value");
         list.add(value);
         list.add(null);
-
         document.put("list", list);
+
+        List<String> list2 = new ArrayList<>();
+        list2.add("foo");
+        list2.add("bar");
+        list2.add("baz");
+        document.put("list2", list2);
+
         ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
 
@@ -442,6 +448,26 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(list.get(2), equalTo("new_value"));
     }
 
+    public void testListAppendFieldValueWithDuplicate() {
+        ingestDocument.appendFieldValue("list2", "foo", false);
+        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(3));
+        assertThat(list, equalTo(List.of("foo", "bar", "baz")));
+    }
+
+    public void testListAppendFieldValueWithoutDuplicate() {
+        ingestDocument.appendFieldValue("list2", "foo2", false);
+        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(4));
+        assertThat(list, equalTo(List.of("foo", "bar", "baz", "foo2")));
+    }
+
     public void testListAppendFieldValues() {
         ingestDocument.appendFieldValue("list", Arrays.asList("item1", "item2", "item3"));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
@@ -454,6 +480,19 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(list.get(2), equalTo("item1"));
         assertThat(list.get(3), equalTo("item2"));
         assertThat(list.get(4), equalTo("item3"));
+    }
+
+    public void testListAppendFieldValuesWithoutDuplicates() {
+        ingestDocument.appendFieldValue("list2", List.of("foo", "bar", "baz", "foo2"), false);
+        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        assertThat(object, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) object;
+        assertThat(list.size(), equalTo(4));
+        assertThat(list.get(0), equalTo("foo"));
+        assertThat(list.get(1), equalTo("bar"));
+        assertThat(list.get(2), equalTo("baz"));
+        assertThat(list.get(3), equalTo("foo2"));
     }
 
     public void testAppendFieldValueToNonExistingList() {
@@ -751,23 +790,23 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveField() {
         ingestDocument.removeField("foo");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("foo"), equalTo(false));
         ingestDocument.removeField("_index");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         ingestDocument.removeField("_source.fizz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(4));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(1));
         ingestDocument.removeField("_ingest.timestamp");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(4));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(0));
     }
 
     public void testRemoveInnerField() {
         ingestDocument.removeField("fizz.buzz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
@@ -776,17 +815,17 @@ public class IngestDocumentTests extends ESTestCase {
 
         ingestDocument.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(2));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.1");
         assertThat(map.size(), equalTo(1));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
     }
 
@@ -820,7 +859,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveIngestObject() {
         ingestDocument.removeField("_ingest");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
     }
 
@@ -842,7 +881,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListRemoveField() {
         ingestDocument.removeField("list.0.field");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));

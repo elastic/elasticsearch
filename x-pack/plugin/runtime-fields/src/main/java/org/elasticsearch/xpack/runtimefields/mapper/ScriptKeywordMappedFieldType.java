@@ -68,7 +68,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     }
 
     private StringScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(script.getParams(), searchLookup);
+        return scriptFactory.newFactory(name(), script.getParams(), searchLookup);
     }
 
     @Override
@@ -127,9 +127,19 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     }
 
     @Override
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+    public Query regexpQuery(
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        RewriteMethod method,
+        QueryShardContext context
+    ) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldRegexpQuery(script, leafFactory(context.lookup()), name(), value, flags, maxDeterminizedStates);
+        if (matchFlags != 0) {
+            throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
+        }
+        return new StringScriptFieldRegexpQuery(script, leafFactory(context.lookup()), name(), value, syntaxFlags, maxDeterminizedStates);
     }
 
     @Override

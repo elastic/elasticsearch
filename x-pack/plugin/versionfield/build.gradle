@@ -18,5 +18,3 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackModule('analytics'), configuration: 'default')
 }
-
-integTest.enabled = false

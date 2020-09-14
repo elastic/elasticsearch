@@ -72,6 +72,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .preference(request.preference())
             .routing(request.routing())
             .allowPartialSearchResults(false);
+        searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest(
             task,
             searchRequest,
@@ -91,7 +92,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     new ActionListenerResponseHandler<SearchPhaseResult>(phaseListener, ShardOpenReaderResponse::new)
                 );
             },
-            ActionListener.map(listener, r -> new OpenPointInTimeResponse(r.pointInTimeId()))
+            ActionListener.map(listener, r -> {
+                assert r.pointInTimeId() != null : r;
+                return new OpenPointInTimeResponse(r.pointInTimeId());
+            })
         );
     }
 

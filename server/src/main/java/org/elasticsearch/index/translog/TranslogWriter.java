@@ -22,11 +22,15 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -40,6 +44,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -74,7 +79,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
+    private final Object addLock = new Object();
 
+    private ArrayList<BytesReference> bufferedOps = new ArrayList<>();
     private LongArrayList nonFsyncedSequenceNumbers;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
@@ -163,10 +170,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * add the given bytes to the translog and return the location they were written at
-     */
-
-    /**
      * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
      *
      * @param data  the bytes to write
@@ -174,34 +177,31 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public synchronized Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
-        ensureOpen();
-        final long offset = totalOffset;
-        try {
-            data.writeTo(outputStream);
-        } catch (final Exception ex) {
-            closeWithTragicEvent(ex);
-            throw ex;
+    public synchronized Translog.Location add(final ReleasableBytesReference data, final long seqNo) throws IOException {
+        Translog.Location location;
+        synchronized (addLock) {
+            ensureOpen();
+            final long offset = totalOffset;
+            totalOffset += data.length();
+            bufferedOps.add(data);
+
+            if (minSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
+                assert operationCounter == 0;
+            }
+            if (maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
+                assert operationCounter == 0;
+            }
+            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+            nonFsyncedSequenceNumbers.add(seqNo);
+
+            operationCounter++;
+
+            assert assertNoSeqNumberConflict(seqNo, data);
+
+            location = new Translog.Location(generation, offset, data.length());
         }
-        totalOffset += data.length();
-
-        if (minSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
-            assert operationCounter == 0;
-        }
-        if (maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
-            assert operationCounter == 0;
-        }
-
-        minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-        maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-
-        nonFsyncedSequenceNumbers.add(seqNo);
-
-        operationCounter++;
-
-        assert assertNoSeqNumberConflict(seqNo, data);
-
-        return new Translog.Location(generation, offset, data.length());
+        return location;
     }
 
     private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
@@ -401,6 +401,64 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             }
         }
         return false;
+    }
+
+    private void writeBufferedOps() throws IOException {
+        synchronized (this) {
+            // TODO: Pooled
+            ByteBuffer ioBuffer = ByteBuffer.allocateDirect(1024);
+            ArrayList<ReleasableBytesReference> operations = new ArrayList<>();
+
+            try {
+                for (ReleasableBytesReference operation : operations) {
+//                    long seqNo = operation.seqNo;
+//                    minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+//                    maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+//                    ++numOps;
+
+                    try (Releasable toClose = operation) {
+                        BytesRefIterator iterator = operation.iterator();
+                        BytesRef current;
+                        while ((current = iterator.next()) != null) {
+                            int currentBytesConsumed = 0;
+                            while (currentBytesConsumed != current.length) {
+                                int nBytesToWrite = Math.min(current.length - currentBytesConsumed, ioBuffer.remaining());
+                                ioBuffer.put(current.bytes, current.offset + currentBytesConsumed, nBytesToWrite);
+                                currentBytesConsumed += nBytesToWrite;
+                                if (ioBuffer.hasRemaining() == false) {
+                                    ioBuffer.flip();
+                                    final int bytesToWrite = ioBuffer.remaining();
+                                    writeToFile(ioBuffer);
+//                                    writtenOffset.getAndAdd(bytesToWrite);
+                                    ioBuffer.clear();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                ioBuffer.flip();
+                final int bytesToWrite = ioBuffer.remaining();
+                writeToFile(ioBuffer);
+//                writtenOffset.getAndAdd(bytesToWrite);
+//                lastWrittenCheckpoint = new Checkpoint(writtenOffset.get(), numOps, generation, minSeqNo, maxSeqNo,
+//                    globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
+//                    SequenceNumbers.UNASSIGNED_SEQ_NO);
+
+            } finally {
+            }
+        }
+    }
+
+    private void writeToFile(ByteBuffer ioBuffer) throws IOException {
+        try {
+            while (ioBuffer.remaining() > 0) {
+                channel.write(ioBuffer);
+            }
+        } catch (final Exception ex) {
+            closeWithTragicEvent(ex);
+            throw ex;
+        }
     }
 
     @Override

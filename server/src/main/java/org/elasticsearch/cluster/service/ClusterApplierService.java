@@ -275,10 +275,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 @Override
                 public void run() {
                     final NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+                    final NotifyTimeout previous = timeoutClusterStateListeners.put(listener, notifyTimeout);
+                    assert previous == null : "Added same listener [" + listener + "]";
                     if (timeout != null) {
                         notifyTimeout.cancellable = threadPool.schedule(notifyTimeout, timeout, ThreadPool.Names.GENERIC);
                     }
-                    timeoutClusterStateListeners.put(listener, notifyTimeout);
                     listener.postAdded();
                 }
             });

@@ -65,14 +65,14 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
-            this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
+            this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_7_10_0) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(names);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeBoolean(wildcardExpressionsOriginallySpecified);
             }
         }

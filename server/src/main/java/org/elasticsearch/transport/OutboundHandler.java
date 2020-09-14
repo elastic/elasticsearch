@@ -195,6 +195,7 @@ public final class OutboundHandler {
                 TransportLogger.logOutboundMessage(channel, message);
                 return message;
             } catch (Exception e) {
+                assert false : new AssertionError("Serialization shouild never fail", e);
                 onFailure(e);
                 throw e;
             }

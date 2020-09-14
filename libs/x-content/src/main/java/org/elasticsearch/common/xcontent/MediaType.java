@@ -20,9 +20,9 @@
 package org.elasticsearch.common.xcontent;
 
 /**
- * Abstracts a Media Type <a href="http://en.wikipedia.org/wiki/Internet_media_type"> and a format parameter.
+ * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a format parameter.
  * Media types are used as values on Content-Type and Accept headers
- * format is an URL parameter, which when specified overrides Accept and Content-Type headers.
+ * format is an URL parameter, specifies response media type.
  */
 public interface MediaType {
     /**

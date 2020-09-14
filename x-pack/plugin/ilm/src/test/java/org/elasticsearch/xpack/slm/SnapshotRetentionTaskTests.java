@@ -390,7 +390,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
                 }),
-                    () -> {
+                () -> {
                     retentionWasRun.set(true);
                     return Collections.emptyMap();
                 },

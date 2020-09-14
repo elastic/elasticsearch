@@ -19,11 +19,30 @@
 
 package org.elasticsearch.common.xcontent;
 
+/**
+ * Abstracts a Media Type <a href="http://en.wikipedia.org/wiki/Internet_media_type"> and a format parameter.
+ * Media types are used as values on Content-Type and Accept headers
+ * format is an URL parameter, which when specified overrides Accept and Content-Type headers.
+ */
 public interface MediaType {
+    /**
+     * Returns a type part of a MediaType
+     * i.e. application for application/json
+     */
     String type();
+    /**
+     * Returns a subtype part of a MediaType.
+     * i.e. json for application/json
+     */
     String subtype();
+    /**
+     * Returns a corresponding format for a MediaType. i.e. json for application/json media type
+     */
     String format();
 
+    /**
+     * returns a string representation of a media type.
+     */
     default String typeWithSubtype(){
         return type() + "/" + subtype();
     }

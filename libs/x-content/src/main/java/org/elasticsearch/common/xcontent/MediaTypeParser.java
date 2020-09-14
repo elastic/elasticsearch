@@ -58,7 +58,7 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     /**
-     * parsing media type that follows https://tools.ietf.org/html/rfc2616#section-3.7
+     * parsing media type that follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1
      * @param headerValue a header value from Accept or Content-Type
      * @return a parsed media-type
      */
@@ -75,9 +75,9 @@ public class MediaTypeParser<T extends MediaType> {
                 if (xContentType != null) {
                     Map<String, String> parameters = new HashMap<>();
                     for (int i = 1; i < split.length; i++) {
+                        //spaces are allowed between parameters, but not between '=' sign
                         String[] keyValueParam = split[i].trim().split("=");
-                        // should we validate that there are no spaces between key = value?
-                        if (keyValueParam.length != 2) {
+                        if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
                             return null;
                         }
                         parameters.put(keyValueParam[0].toLowerCase(Locale.ROOT), keyValueParam[1].toLowerCase(Locale.ROOT));
@@ -88,6 +88,10 @@ public class MediaTypeParser<T extends MediaType> {
 
         }
         return null;
+    }
+
+    private boolean hasSpaces(String s) {
+        return s.trim().equals(s) == false;
     }
 
     /**

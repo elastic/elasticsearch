@@ -58,9 +58,12 @@ public class MediaTypeParserTests extends ESTestCase {
             is(nullValue()));
     }
 
-    public void testInvalidParameters() throws Exception {
+    public void testInvalidParameters() {
         String mediaType = "application/json";
         assertThat(mediaTypeParser.parseMediaType(mediaType + "; keyvalueNoEqualsSign"),
+            is(nullValue()));
+
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; key = value"),
             is(nullValue()));
     }
 }

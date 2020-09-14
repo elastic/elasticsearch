@@ -921,6 +921,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
+        private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =
+                new DiffableUtils.DiffableValueReader<>(IndexMetadata::readFrom, IndexMetadata::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, IndexTemplateMetadata> TEMPLATES_DIFF_VALUE_READER =
+                new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
+
         MetadataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
@@ -939,10 +944,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             } else {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
             }
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetadata::readFrom,
-                IndexMetadata::readDiffFrom);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetadata::readFrom,
-                IndexTemplateMetadata::readDiffFrom);
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
@@ -996,7 +999,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            builder.hashesOfConsistentSettings(new DiffableStringMap(in));
+            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {

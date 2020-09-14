@@ -58,7 +58,7 @@ public class OutlierDetection implements Evaluation {
     /**
      * The collection of fields in the index being evaluated.
      *   fields.getActualField() is assumed to either be 1 or 0, or true or false.
-     *   fields.getPredictedField() is assumed to be a number in [0.0, 1.0].
+     *   fields.getPredictedProbabilityField() is assumed to be a number in [0.0, 1.0].
      * Other fields are not needed by this evaluation.
      */
     private final EvaluationFields fields;

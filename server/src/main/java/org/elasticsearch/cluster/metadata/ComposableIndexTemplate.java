@@ -138,7 +138,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         } else {
             this.dataStreamTemplate = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().after(Version.V_7_10_0)) {
             this.allowAutoCreate = in.readOptionalBoolean();
         } else {
             this.allowAutoCreate = null;
@@ -205,7 +205,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalWriteable(dataStreamTemplate);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().after(Version.V_7_10_0)) {
             out.writeOptionalBoolean(allowAutoCreate);
         }
     }

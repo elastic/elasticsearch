@@ -65,13 +65,18 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
 
             // assert that the mappings are updated
-            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client(), true);
         }
     }
 
     private void assertThatMlConfigIndexDoesNotExist() {
         Request getIndexRequest = new Request("GET", ".ml-config");
-        getIndexRequest.addParameter("allow_system_index_access", "true");
+        getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
+                "access to system indices will be prevented by default";
+            v.current(systemIndexWarning);
+            v.compatible(systemIndexWarning);
+        }));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
@@ -99,7 +104,12 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     @SuppressWarnings("unchecked")
     private Map<String, Object> getConfigIndexMappings() throws Exception {
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
-        getIndexMappingsRequest.addParameter("allow_system_index_access", "true");
+        getIndexMappingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
+                "access to system indices will be prevented by default";
+            v.current(systemIndexWarning);
+            v.compatible(systemIndexWarning);
+        }));
         Response getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));
 

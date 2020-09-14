@@ -471,12 +471,15 @@ public abstract class Rounding implements Writeable {
         }
 
         /**
-         * Time zones have a daylight savings time transition after midnight that
-         * transitions back before midnight break the array-based rounding so
-         * we don't use it for them during those transitions. Luckily they are
-         * fairly rare and a while in the past. Note: we can use the array based
-         * rounding if the transition is <strong>at</strong> midnight. Just not
-         * if it is <strong>after</strong> it.
+         * Time zones that have a daylight savings time transition after midnight
+         * that transitions back before midnight which breaks the array-based rounding.
+         * This is a map from the id of the zone to the last time when such a transition
+         * occurred in millis since epoch. We do not use the array based rounding when any
+         * times come before this transition.
+         * <p>
+         * Note: we can use the array based rounding if the transition is
+         * <strong>at</strong> midnight and transitions before it. Just not if it is
+         * <strong>after</strong> midnight and jumps before it.
          */
         private static final Map<String, Long> FORWARDS_BACKWRADS_ZONES = Map.ofEntries(
             Map.entry("America/Goose_Bay", 1289116800000L),   // Stopped transitioning after midnight in 2010
@@ -1228,6 +1231,11 @@ public abstract class Rounding implements Writeable {
             if (i >= max) {
                 return orig;
             }
+            /*
+             * We expect a time in the last transition (rounded - 1) to round
+             * to the last value we calculated. If it doesn't then we're
+             * probably doing something wrong here....
+             */
             assert values[i - 1] == orig.round(rounded - 1);
             values = ArrayUtil.grow(values, i + 1);
             values[i++]= rounded;

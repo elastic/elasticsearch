@@ -146,7 +146,7 @@ setup:
   - match: {hits.total.value: 6}
   - match: {aggregations.v10.buckets.0.key_as_string: "2018-01-19T17:41:34.000Z"}
   - match: {aggregations.v10.buckets.0.doc_count: 1}
-  - match: {aggregations.v10.buckets.1.key_as_string: 2018-01-20T17:41:34.000Z}
+  - match: {aggregations.v10.buckets.1.key_as_string: "2018-01-20T17:41:34.000Z"}
   - match: {aggregations.v10.buckets.1.doc_count: 1}
 
 ---

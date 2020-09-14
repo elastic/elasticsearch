@@ -62,8 +62,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private volatile int operationCounter;
     /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
     private final TragicExceptionHolder tragedy;
-    /* A buffered outputstream what writes to the writers channel */
-    private final OutputStream outputStream;
     /* the total offset of this file including the bytes written to the file as well as into the buffer */
     private volatile long totalOffset;
 
@@ -107,7 +105,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.checkpointChannel = checkpointChannel;
         this.checkpointPath = checkpointPath;
         this.minTranslogGenerationSupplier = minTranslogGenerationSupplier;
-        this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedCheckpoint = initialCheckpoint;
         this.totalOffset = initialCheckpoint.offset;
         assert initialCheckpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.minSeqNo;
@@ -374,7 +371,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     synchronized (this) {
                         ensureOpen();
                         try {
-                            outputStream.flush();
+                            writeBufferedOps();
                             checkpointToSync = getCheckpoint();
                             flushedSequenceNumbers = nonFsyncedSequenceNumbers;
                             nonFsyncedSequenceNumbers = new LongArrayList(64);
@@ -471,7 +468,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // which is not really important in production but some test can make most strict assumptions
                     // if we don't fail in this call unless absolutely necessary.
                     if (position + targetBuffer.remaining() > getWrittenOffset()) {
-                        outputStream.flush();
+                        writeBufferedOps();
                     }
                 }
             }

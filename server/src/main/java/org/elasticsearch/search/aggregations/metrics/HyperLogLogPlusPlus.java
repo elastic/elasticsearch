@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -131,31 +130,18 @@ public final class HyperLogLogPlusPlus implements Releasable {
         }
     }
 
-    private final Timer collectTimer  = new Timer();
-    private final Timer lcTimer = new Timer();
-    private final Timer upgradeTimer = new Timer();
-    private final Timer hllTimer = new Timer();
-
     public void collect(long bucket, long hash) {
-        collectTimer.start();
         hll.ensureCapacity(bucket + 1);
         if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            lcTimer.start();
             lc.bucket = bucket;
             final int newSize = lc.collect(hash);
             if (newSize > lc.threshold) {
-                upgradeTimer.start();
                 upgradeToHll(bucket);
-                upgradeTimer.stop();
             }
-            lcTimer.stop();
         } else {
-            hllTimer.start();
             hll.bucket = bucket;
             hll.collect(hash);
-            hllTimer.stop();
         }
-        collectTimer.stop();
     }
 
     public long cardinality(long bucket) {

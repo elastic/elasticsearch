@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
@@ -148,9 +149,12 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         }
         ClusterState after = service.deleteIndices(before, indicesToDelete);
 
+        DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
+        assertThat(dataStream, IsNull.notNullValue());
+        assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
             assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
-            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+            assertFalse(dataStream.getIndices().contains(i));
         }
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
     }

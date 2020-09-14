@@ -181,7 +181,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
 
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
@@ -225,7 +225,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(highlightBuilder);
         out.writeOptionalWriteable(innerCollapseBuilder);
 
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);

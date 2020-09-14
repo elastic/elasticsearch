@@ -34,7 +34,7 @@ not use the `elastic` user.
 * On the cluster containing the leader index, access {kib} and add the
 sample eCommerce orders.
 +
-From the {kib} home page, choose *Load a data set and a {kib} dashboard*.
+From the {kib} home page, click the link to *Add sample data*.
 Select the *Sample eCommerce orders* to add that data into {es}.
 +
 NOTE: If you already have a leader index that you want to replicate, skip
@@ -95,7 +95,7 @@ To configure a remote cluster, access {kib} and go to
 
 Add a remote cluster (`ClusterB`) by specifying the IP address or host name, followed by
 the transport port of the remote cluster (defaults to `9300`). For example,
-specify `127.0.0.1:9300` for a remote cluster that is running locally.
+specify `127.0.0.1:9300` for a remote cluster running locally.
 
 [role="screenshot"]
 image::images/ccr-add-remote-cluster.png["The Add remote clusters page in {kib}"]
@@ -165,7 +165,7 @@ remote cluster.
 ====
 
 [[ccr-getting-started-leader-index]]
-==== Choosing a leader index
+==== Choose a leader index
 You can choose an existing index as your leader index or create a new one.
 This guide uses the `kibana_sample_data_ecommerce` index as the leader
 index, which you'll <<ccr-getting-started-follower-index,configure as a follower index>> on your remote cluster (`ClusterB`).

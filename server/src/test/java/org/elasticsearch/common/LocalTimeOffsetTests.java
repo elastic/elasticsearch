@@ -51,20 +51,22 @@ public class LocalTimeOffsetTests extends ESTestCase {
     }
 
     public void testUtc() {
-        assertFixOffset(ZoneId.of("UTC"), 0);
+        assertFixedOffset(ZoneId.of("UTC"), 0);
     }
 
     public void testFixedOffset() {
         ZoneOffset zone = ZoneOffset.ofTotalSeconds(between((int) -TimeUnit.HOURS.toSeconds(18), (int) TimeUnit.HOURS.toSeconds(18)));
-        assertFixOffset(zone, zone.getTotalSeconds() * 1000);
+        assertFixedOffset(zone, zone.getTotalSeconds() * 1000);
     }
 
-    private void assertFixOffset(ZoneId zone, long offsetMillis) {
+    private void assertFixedOffset(ZoneId zone, long offsetMillis) {
         LocalTimeOffset fixed = LocalTimeOffset.fixedOffset(zone);
         assertThat(fixed, notNullValue());
 
         LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE);
         assertThat(lookup.size(), equalTo(1));
+        assertThat(lookup.anyMoveBackToPreviousDay(), equalTo(false));
+
         long min = randomLong();
         long max = randomValueOtherThan(min, ESTestCase::randomLong);
         if (min > max) {
@@ -72,8 +74,10 @@ public class LocalTimeOffsetTests extends ESTestCase {
             min = max;
             max = s;
         }
+
         LocalTimeOffset fixedInRange = lookup.fixedInRange(min, max);
         assertThat(fixedInRange, notNullValue());
+        assertThat(fixedInRange.anyMoveBackToPreviousDay(), equalTo(false));
 
         assertRoundingAtOffset(randomBoolean() ? fixed : fixedInRange, randomLong(), offsetMillis);
     }
@@ -118,6 +122,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertRoundingAtOffset(lookup.lookup(max), max, minMaxOffset);
         assertThat(lookup.fixedInRange(min, max), nullValue());
         assertThat(lookup.fixedInRange(min, sameOffsetAsMin), sameInstance(lookup.lookup(min)));
+        assertThat(lookup.anyMoveBackToPreviousDay(), equalTo(false)); // None of the examples we use this method with move back
     }
 
     // Some sanity checks for when you pas a single time. We don't expect to do this much but it shouldn't be totally borked.
@@ -239,6 +244,22 @@ public class LocalTimeOffsetTests extends ESTestCase {
         long gapValue = randomLong();
         long localSkippedTime = randomLongBetween(localBeforeTransition, localAtTransition);
         assertThat(gapOffset.localToUtc(localSkippedTime, useValueForGap(gapValue)), equalTo(gapValue));
+    }
+
+    public void testKnownMovesBackToPreviousDay() {
+        assertKnownMovesBacktoPreviousDay("America/Goose_Bay", "2010-11-07T03:01:00");
+        assertKnownMovesBacktoPreviousDay("America/Moncton", "2006-10-29T03:01:00");
+        assertKnownMovesBacktoPreviousDay("America/Moncton", "2005-10-29T03:01:00");
+        assertKnownMovesBacktoPreviousDay("America/St_Johns", "2010-11-07T02:31:00");
+        assertKnownMovesBacktoPreviousDay("Canada/Newfoundland", "2010-11-07T02:31:00");
+        assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
+        assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");
+        assertKnownMovesBacktoPreviousDay("Europe/Paris", "1911-03-1T00:01:00");
+    }
+
+    private void assertKnownMovesBacktoPreviousDay(String zone, String time) {
+        long utc = utcTime(time);
+        assertTrue(LocalTimeOffset.lookup(ZoneId.of(zone), utc, utc + 1).anyMoveBackToPreviousDay());
     }
 
     private static long utcTime(String time) {

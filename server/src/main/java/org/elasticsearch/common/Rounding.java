@@ -48,7 +48,6 @@ import java.time.zone.ZoneRules;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -408,6 +407,34 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    private abstract class PreparedRounding implements Prepared {
+        /**
+         * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
+         * "round down" points. If there would be more than {@code max} points then return
+         * the original implementation, otherwise return the new, faster implementation.
+         */
+        protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+            long[] values = new long[1];
+            long rounded = round(minUtcMillis);
+            int i = 0;
+            values[i++] = rounded;
+            while ((rounded = nextRoundingValue(rounded)) <= maxUtcMillis) {
+                if (i >= max) {
+                    return this;
+                }
+                /*
+                 * We expect a time in the last transition (rounded - 1) to round
+                 * to the last value we calculated. If it doesn't then we're
+                 * probably doing something wrong here....
+                 */
+                assert values[i - 1] == round(rounded - 1);
+                values = ArrayUtil.grow(values, i + 1);
+                values[i++]= rounded;
+            }
+            return new ArrayRounding(values, i, this);
+        }
+    }
+
     static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
@@ -470,36 +497,12 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-        /**
-         * Time zones that have a daylight savings time transition after midnight
-         * that transitions back before midnight which breaks the array-based rounding.
-         * This is a map from the id of the zone to the last time when such a transition
-         * occurred in millis since epoch. We do not use the array based rounding when any
-         * times come before this transition.
-         * <p>
-         * Note: we can use the array based rounding if the transition is
-         * <strong>at</strong> midnight and transitions before it. Just not if it is
-         * <strong>after</strong> midnight and jumps before it.
-         */
-        private static final Map<String, Long> FORWARDS_BACKWRADS_ZONES = Map.ofEntries(
-            Map.entry("America/Goose_Bay", 1289116800000L),   // Stopped transitioning after midnight in 2010
-            Map.entry("America/Moncton", 1162108800000L),     // Stopped transitioning after midnight in 2006
-            Map.entry("America/St_Johns", 1289118600000L),    // Stopped transitioning after midnight in 2010
-            Map.entry("Canada/Newfoundland", 1289118600000L), // Stopped transitioning after midnight in 2010
-            Map.entry("Pacific/Guam", -29347200000L),         // Stopped transitioning after midnight in 1969
-            Map.entry("Pacific/Saipan", -29347200000L)        // Stopped transitioning after midnight in 1969
-        );
-
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            Prepared orig = prepareOffsetRounding(minUtcMillis, maxUtcMillis);
-            if (unitRoundsToMidnight && minUtcMillis <= FORWARDS_BACKWRADS_ZONES.getOrDefault(timeZone.getId(), Long.MIN_VALUE)) {
-                return orig;
-            }
-            return maybeUseArray(orig, minUtcMillis, maxUtcMillis, 128);
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
         }
 
-        private Prepared prepareOffsetRounding(long minUtcMillis, long maxUtcMillis) {
+        private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
             long maxLookup = maxUtcMillis;
 
@@ -546,7 +549,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        TimeUnitPreparedRounding prepareJavaTime() {
             if (unitRoundsToMidnight) {
                 return new JavaTimeToMidnightRounding();
             }
@@ -585,7 +588,7 @@ public abstract class Rounding implements Writeable {
             return "Rounding[" + unit + " in " + timeZone + "]";
         }
 
-        private abstract class TimeUnitPreparedRounding implements Prepared {
+        private abstract class TimeUnitPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased == unit.isMillisBased) {
@@ -678,6 +681,14 @@ public abstract class Rounding implements Writeable {
             @Override
             public long beforeOverlap(long localMillis, Overlap overlap) {
                 return overlap.previous().localToUtc(localMillis, this);
+            }
+
+            @Override
+            protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+                if (lookup.anyMoveBackToPreviousDay()) {
+                    return this;
+                }
+                return super.maybeUseArray(minUtcMillis, maxUtcMillis, max);
             }
         }
 
@@ -1215,32 +1226,6 @@ public abstract class Rounding implements Writeable {
             default:
                 throw new ElasticsearchException("unknown rounding id [" + id + "]");
         }
-    }
-
-    /**
-     * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
-     * "round down" points. If there would be more than {@code max} points then return
-     * the original implementation, otherwise return the new, faster implementation.
-     */
-    static Prepared maybeUseArray(Prepared orig, long minUtcMillis, long maxUtcMillis, int max) {
-        long[] values = new long[1];
-        long rounded = orig.round(minUtcMillis);
-        int i = 0;
-        values[i++] = rounded;
-        while ((rounded = orig.nextRoundingValue(rounded)) <= maxUtcMillis) {
-            if (i >= max) {
-                return orig;
-            }
-            /*
-             * We expect a time in the last transition (rounded - 1) to round
-             * to the last value we calculated. If it doesn't then we're
-             * probably doing something wrong here....
-             */
-            assert values[i - 1] == orig.round(rounded - 1);
-            values = ArrayUtil.grow(values, i + 1);
-            values[i++]= rounded;
-        }
-        return new ArrayRounding(values, i, orig);
     }
 
     /**

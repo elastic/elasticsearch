@@ -1030,6 +1030,11 @@ public class RoundingTests extends ESTestCase {
             return t <= time("2010-03-03T00:00:00Z")
                 || t >= time("2010-03-07T00:00:00Z");
         }
+        if (tz.getId().equals("Pacific/Guam") || tz.getId().equals("Pacific/Saipan")) {
+            // Clocks went back at 00:01 in 1969, causing overlapping days.
+            return t <= time("1969-01-25T00:00:00Z")
+                || t >= time("1969-01-26T00:00:00Z");  
+        }
 
         return true;
     }

@@ -448,7 +448,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      */
     public TopHitsAggregationBuilder fetchField(String field, String format) {
         if (field == null) {
-            throw new IllegalArgumentException("[docValueField] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[fields] must not be null: [" + name + "]");
         }
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();

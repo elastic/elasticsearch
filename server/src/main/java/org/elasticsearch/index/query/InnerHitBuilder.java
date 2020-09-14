@@ -375,7 +375,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     }
 
     /**
-     * Sets the stored fields to load from the docvalue and return.
+     * Sets the stored fields to load and return as part of the search request.
      */
     public InnerHitBuilder setFetchFields(List<FieldAndFormat> fetchFields) {
         this.fetchFields = fetchFields;

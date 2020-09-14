@@ -250,8 +250,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
     }
@@ -313,8 +311,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
     }

@@ -22,7 +22,7 @@ setup:
                 type: runtime
                 runtime_type: keyword
                 script: |
-                  emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching from _source
               day_of_week_from_source:
                 type: runtime
@@ -30,7 +30,7 @@ setup:
                 script: |
                   Instant instant = Instant.ofEpochMilli(params._source.timestamp);
                   ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                  emitValue(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching many values
               day_of_week_letters:
                 type: runtime
@@ -38,7 +38,7 @@ setup:
                 script: |
                   for (String dow: doc['day_of_week']) {
                     for (int i = 0; i < dow.length(); i++) {
-                      emitValue(dow.charAt(i).toString());
+                      emit(dow.charAt(i).toString());
                     }
                   }
               prefixed_node:
@@ -47,7 +47,7 @@ setup:
                 script:
                   source: |
                     for (String node : params._fields.node.values) {
-                      emitValue(params.prefix + node);
+                      emit(params.prefix + node);
                     }
                   params:
                     prefix: node_
@@ -79,7 +79,7 @@ setup:
   - match: {sensor.mappings.properties.day_of_week.runtime_type: keyword }
   - match:
       sensor.mappings.properties.day_of_week.script.source: |
-        emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
   - match: {sensor.mappings.properties.day_of_week.script.lang: painless }
 
 ---
@@ -95,7 +95,7 @@ setup:
         runtime_type: keyword
         script:
           source: |
-            emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+            emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
           lang: painless
         meta: {}
 
@@ -204,11 +204,11 @@ setup:
                   first_script:
                     type: runtime
                     runtime_type: keyword
-                    script: emitValue(doc['users.first'].value)
+                    script: emit(doc['users.first'].value)
                   last_script:
                     type: runtime
                     runtime_type: keyword
-                    script: emitValue(doc['users.last'].value)
+                    script: emit(doc['users.last'].value)
   - do:
       bulk:
         index: test

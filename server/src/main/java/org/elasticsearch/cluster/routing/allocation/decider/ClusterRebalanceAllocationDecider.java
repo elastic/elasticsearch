@@ -130,33 +130,35 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             "the cluster has inactive shards and cluster setting [" + CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE +
                     "] is set to [" + ClusterRebalanceType.INDICES_ALL_ACTIVE + "]");
 
+    @SuppressWarnings("fallthrough")
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
-        final boolean debug = allocation.debugDecision();
         final RoutingNodes routingNodes = allocation.routingNodes();
         switch (type) {
             case INDICES_PRIMARIES_ACTIVE:
                 // check if there are unassigned primaries.
                 if (routingNodes.hasUnassignedPrimaries()) {
-                    return debug ? NO_UNASSIGNED_PRIMARIES : Decision.NO;
+                    return NO_UNASSIGNED_PRIMARIES;
                 }
                 // check if there are initializing primaries that don't have a relocatingNodeId entry.
                 if (routingNodes.hasInactivePrimaries()) {
-                    return debug ? NO_INACTIVE_PRIMARIES : Decision.NO;
+                    return NO_INACTIVE_PRIMARIES;
                 }
-                return debug ? YES_ALL_PRIMARIES_ACTIVE : Decision.YES;
+                return YES_ALL_PRIMARIES_ACTIVE;
             case INDICES_ALL_ACTIVE:
                 // check if there are unassigned shards.
                 if (routingNodes.hasUnassignedShards()) {
-                    return debug ? NO_UNASSIGNED_SHARDS : Decision.NO;
+                    return NO_UNASSIGNED_SHARDS;
                 }
                 // in case all indices are assigned, are there initializing shards which
                 // are not relocating?
                 if (routingNodes.hasInactiveShards()) {
-                    return debug ? NO_INACTIVE_SHARDS : Decision.NO;
+                    return NO_INACTIVE_SHARDS;
                 }
+                // fall-through
+            default:
+                // all shards active from above or type == Type.ALWAYS
+                return YES_ALL_SHARDS_ACTIVE;
         }
-        // all shards active from above or type == Type.ALWAYS
-        return debug ? YES_ALL_SHARDS_ACTIVE : Decision.YES;
     }
 }

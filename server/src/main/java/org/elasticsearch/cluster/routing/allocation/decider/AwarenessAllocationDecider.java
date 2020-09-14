@@ -133,11 +133,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
 
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
-        final boolean debug = allocation.debugDecision();
         if (awarenessAttributes.isEmpty()) {
-            return debug ? YES_NOT_ENABLED : Decision.YES;
+            return YES_NOT_ENABLED;
         }
 
+        final boolean debug = allocation.debugDecision();
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
@@ -193,7 +193,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
         }
 
-        return debug ? YES_ALL_MET : Decision.YES;
+        return YES_ALL_MET;
     }
 
     private static Decision debugNoTooManyCopies(int shardCount, String awarenessAttribute, int numberOfAttributes, int currentNodeCount,

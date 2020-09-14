@@ -77,8 +77,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
             // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
             return decision;
         }
-        final boolean debug = allocation.debugDecision();
         if (node.node() != null) {
+            final boolean debug = allocation.debugDecision();
             for (RoutingNode checkNode : allocation.routingNodes()) {
                 if (checkNode.node() == null) {
                     continue;
@@ -104,7 +104,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 }
             }
         }
-        return debug ? YES_NONE_HOLD_COPY : Decision.YES;
+        return YES_NONE_HOLD_COPY;
     }
 
     private static Decision debugNoAlreadyAllocatedToHost(RoutingNode node, RoutingAllocation allocation,
@@ -134,7 +134,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 return debug ? debugNo(shardRouting, assignedShard) : Decision.NO;
             }
         }
-        return debug ? YES_NO_COPY : Decision.YES;
+        return YES_NO_COPY;
     }
 
     private static Decision debugNo(ShardRouting shardRouting, ShardRouting assignedShard) {

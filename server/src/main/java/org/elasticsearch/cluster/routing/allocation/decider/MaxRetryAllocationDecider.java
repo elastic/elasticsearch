@@ -46,18 +46,19 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        final Decision decision;
-        final boolean debug = allocation.debugDecision();
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.getNumFailedAllocations();
         if (numFailedAllocations > 0) {
-            final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-            final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetadata.getSettings());
-            final Decision res = numFailedAllocations >= maxRetry ? Decision.NO : Decision.YES;
-            decision = debug ? debugDecision(res, unassignedInfo, numFailedAllocations, maxRetry) : res;
-        } else {
-            decision = debug ? YES_NO_FAILURES : Decision.YES;
+            return decisionWithFailures(shardRouting, allocation, unassignedInfo, numFailedAllocations);
         }
-        return decision;
+        return YES_NO_FAILURES;
+    }
+
+    private static Decision decisionWithFailures(ShardRouting shardRouting, RoutingAllocation allocation, UnassignedInfo unassignedInfo,
+                                                 int numFailedAllocations) {
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetadata.getSettings());
+        final Decision res = numFailedAllocations >= maxRetry ? Decision.NO : Decision.YES;
+        return allocation.debugDecision() ? debugDecision(res, unassignedInfo, numFailedAllocations, maxRetry) : res;
     }
 
     private static Decision debugDecision(Decision decision, UnassignedInfo unassignedInfo, int numFailedAllocations, int maxRetry) {

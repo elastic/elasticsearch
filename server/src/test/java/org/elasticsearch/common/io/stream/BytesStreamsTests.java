@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Tests for {@link BytesStreamOutput} paging behaviour.
+ * Tests for {@link StreamOutput}.
  */
 public class BytesStreamsTests extends ESTestCase {
     public void testEmpty() throws Exception {
@@ -829,6 +829,15 @@ public class BytesStreamsTests extends ESTestCase {
         output.writeVInt(value);
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readVInt());
+
+        BytesStreamOutput simple = new BytesStreamOutput();
+        int i = value;
+        while ((i & ~0x7F) != 0) {
+            simple.writeByte(((byte) ((i & 0x7f) | 0x80)));
+            i >>>= 7;
+        }
+        simple.writeByte((byte) i);
+        assertEquals(simple.bytes().toBytesRef().toString(), output.bytes().toBytesRef().toString());
     }
 
     public void testVLong() throws IOException {

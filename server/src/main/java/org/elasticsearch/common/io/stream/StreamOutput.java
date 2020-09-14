@@ -218,14 +218,61 @@ public abstract class StreamOutput extends OutputStream {
      * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
-        final byte[] buffer = scratch.get();
-        int index = 0;
-        while ((i & ~0x7F) != 0) {
-            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
-            i >>>= 7;
+        /*
+         * Pick the number of bytes that we need based on the value and then
+         * encode the int, unrolling the loops by hand. This allows writing
+         * small numbers to use `writeByte` which is simple and fast. The
+         * unrolling saves a few comparisons and bitwise operations. All
+         * together this saves quite a bit of time compared to a naive
+         * implementation.
+         */
+        if (i < 0x7f) {
+            if (i >= 0) {
+                writeByte((byte) i);
+                return;
+            }
+            byte[] buffer = scratch.get();
+            buffer[0] = (byte) (i & 0x7f | 0x80);
+            buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
+            buffer[2] = (byte) ((i >>> 14) & 0x7f | 0x80);
+            buffer[3] = (byte) ((i >>> 21) & 0x7f | 0x80);
+            buffer[4] = (byte) (i >>> 28);
+            assert buffer[4] <= 0x7f;
+            writeBytes(buffer, 0, 5);
+            return;
         }
-        buffer[index++] = ((byte) i);
-        writeBytes(buffer, 0, index);
+        byte[] buffer = scratch.get();
+        if (i < 0x3fff) {
+            buffer[0] = (byte) (i & 0x7f | 0x80);
+            buffer[1] = (byte) (i >>> 7);
+            assert buffer[1] <= 0x7f;
+            writeBytes(buffer, 0, 2);
+            return;
+        }
+        if (i < 0x1f_ffff) {
+            buffer[0] = (byte) (i & 0x7f | 0x80);
+            buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
+            buffer[2] = (byte) (i >>> 14);
+            assert buffer[2] <= 0x7f;
+            writeBytes(buffer, 0, 3);
+            return;
+        }
+        if (i < 0x0fff_ffff) {
+            buffer[0] = (byte) (i & 0x7f | 0x80);
+            buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
+            buffer[2] = (byte) ((i >>> 14) & 0x7f | 0x80);
+            buffer[3] = (byte) (i >>> 21);
+            assert buffer[3] <= 0x7f;
+            writeBytes(buffer, 0, 4);
+            return;
+        }
+        buffer[0] = (byte) ((i & 0x7f) | 0x80);
+        buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
+        buffer[2] = (byte) ((i >>> 14) & 0x7f | 0x80);
+        buffer[3] = (byte) ((i >>> 21) & 0x7f | 0x80);
+        buffer[4] = (byte) (i >>> 28);
+        assert buffer[4] <= 0x7f;
+        writeBytes(buffer, 0, 5);
     }
 
     /**

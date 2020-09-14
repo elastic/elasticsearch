@@ -30,13 +30,16 @@ public interface MediaType {
      * i.e. application for application/json
      */
     String type();
+
     /**
      * Returns a subtype part of a MediaType.
      * i.e. json for application/json
      */
     String subtype();
+
     /**
      * Returns a corresponding format for a MediaType. i.e. json for application/json media type
+     * Can differ from the MediaType's subtype i.e plain/text but format is txt
      */
     String format();
 

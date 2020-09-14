@@ -84,7 +84,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        String shortName() {
+        public String format() {
             return FORMAT_TEXT;
         }
 
@@ -107,6 +107,8 @@ enum TextFormat implements MediaType {
         public String subtype() {
             return "plain";
         }
+
+
     },
 
     /**
@@ -131,7 +133,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        String shortName() {
+        public String format() {
             return FORMAT_CSV;
         }
 
@@ -241,7 +243,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        String shortName() {
+        public String format() {
             return FORMAT_TSV;
         }
 
@@ -327,13 +329,6 @@ enum TextFormat implements MediaType {
     }
 
     /**
-     * Short name typically used by format parameter.
-     * Can differ from the IANA mime type.
-     */
-    abstract String shortName();
-
-
-    /**
      * Formal IANA mime type.
      */
     abstract String contentType();
@@ -383,11 +378,6 @@ enum TextFormat implements MediaType {
     @Override
     public String type() {
         return "text";
-    }
-
-    @Override
-    public String format() {
-        return shortName();
     }
 
     @Override

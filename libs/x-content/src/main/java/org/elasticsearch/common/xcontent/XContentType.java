@@ -46,7 +46,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "json";
         }
 
@@ -65,7 +65,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "smile";
         }
 
@@ -84,7 +84,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "yaml";
         }
 
@@ -103,7 +103,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "cbor";
         }
 
@@ -151,7 +151,6 @@ public enum XContentType implements MediaType {
         return mediaTypeWithoutParameters();
     }
 
-    public abstract String shortName();
 
     public abstract XContent xContent();
 
@@ -164,12 +163,7 @@ public enum XContentType implements MediaType {
     }
 
     @Override
-    public String subtype() {
-        return shortName();
-    }
-
-    @Override
     public String format() {
-        return shortName();
+        return subtype();
     }
 }

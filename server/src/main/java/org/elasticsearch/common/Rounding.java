@@ -749,6 +749,12 @@ public abstract class Rounding implements Writeable {
                 return firstTimeOnDay(localMidnight);
             }
 
+            @Override
+            protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+                // We don't have the right information needed to know if this is safe for this time zone so we always use java rounding
+                return this;
+            }
+
             private long firstTimeOnDay(LocalDateTime localMidnight) {
                 assert localMidnight.toLocalTime().equals(LocalTime.of(0, 0, 0)) : "firstTimeOnDay should only be called at midnight";
 

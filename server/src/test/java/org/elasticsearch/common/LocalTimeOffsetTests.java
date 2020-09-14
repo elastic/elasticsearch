@@ -259,7 +259,10 @@ public class LocalTimeOffsetTests extends ESTestCase {
 
     private void assertKnownMovesBacktoPreviousDay(String zone, String time) {
         long utc = utcTime(time);
-        assertTrue(LocalTimeOffset.lookup(ZoneId.of(zone), utc, utc + 1).anyMoveBackToPreviousDay());
+        assertTrue(
+            zone + " just after " + time + " should move back",
+            LocalTimeOffset.lookup(ZoneId.of(zone), utc, utc + 1).anyMoveBackToPreviousDay()
+        );
     }
 
     private static long utcTime(String time) {

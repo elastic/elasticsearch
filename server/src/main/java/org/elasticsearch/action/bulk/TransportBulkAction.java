@@ -221,7 +221,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 || request.versionType() == VersionType.EXTERNAL
                 || request.versionType() == VersionType.EXTERNAL_GTE)
             .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
-        /* Step 2: filter the list of indices to find those that don't currently exist. */
+
+        // Step 2: filter the list of indices to find those that don't currently exist.
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
         Set<String> autoCreateIndices = new HashSet<>();
         ClusterState state = clusterService.state();

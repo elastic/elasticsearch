@@ -137,7 +137,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     } else {
                         String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
 
-                        // This will throw an exception if creating this index is prohibited
+                        // This will throw an exception if the index does not exist and creating it is prohibited
                         final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
 
                         if (shouldAutoCreate == false) {

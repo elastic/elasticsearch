@@ -63,11 +63,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private Collector collector;
 
-    private int emptyCollectorsUsed = 0;
-    private int numericCollectorsUsed = 0;
+    private int emptyCollectorsUsed;
+    private int numericCollectorsUsed;
     private int ordinalsCollectorsUsed;
     private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed = 0;
+    private int stringHashingCollectorsUsed;
 
     public CardinalityAggregator(
             String name,

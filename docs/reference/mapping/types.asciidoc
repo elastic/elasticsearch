@@ -108,11 +108,12 @@ as-you-type completion.
 === Arrays
 In {es}, arrays do not require a dedicated field data type. Any field can contain
 zero or more values by default, however, all values in the array must be of the
-same field type. See <<array>>.
+same field type.
+
+See <<array>> to learn more.
 
 [discrete]
 === Multi-fields
-
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for
@@ -123,6 +124,21 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 
 This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
+
+[discrete]
+=== Runtime
+Oftentimes, you just want to make your data available to {es} without indexing
+or preprocessing. _Runtime fields_ extend the flexibility of the
+<<search-search,search API>> to quickly make data searchable, even with minimal
+structure.
+
+Runtime fields are not indexed and do have <<doc-values,doc_values>>, meaning
+Lucene is unaware of their existence. However, runtime fields are accessible
+from the search API like any other field that has `doc_values` and is
+searchable. You can retrieve and query these fields, as well as aggregate and
+sort on them.
+
+See <<runtime>> to learn more.
 
 include::types/alias.asciidoc[]
 

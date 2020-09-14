@@ -1147,7 +1147,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             private final Collection<Snapshot> completedNoCleanup = new ArrayList<>();
 
             // Snapshots that were aborted and that already wrote data to the repository and now have to be deleted
-            // from teh repository after the clsuter state update
+            // from the repository after the cluster state update
             private final Collection<SnapshotsInProgress.Entry> completedWithCleanup = new ArrayList<>();
 
             @Override

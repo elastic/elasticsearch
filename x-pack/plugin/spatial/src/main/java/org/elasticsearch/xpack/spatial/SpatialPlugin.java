@@ -64,6 +64,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonList;
 
 public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
+   private final SpatialUsage usage = new SpatialUsage();
 
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
@@ -107,9 +108,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     public List<AggregationSpec> getAggregations() {
         return List.of(
             new AggregationSpec(
-                GeoLineAggregationBuilder.NAME,
-                GeoLineAggregationBuilder::new,
-                checkLicense(GeoLineAggregationBuilder.PARSER))
+                    GeoLineAggregationBuilder.NAME,
+                    GeoLineAggregationBuilder::new,
+                    usage.track(SpatialStatsAction.Item.GEOLINE, checkLicense(GeoLineAggregationBuilder.PARSER)))
                 .addResultReader(InternalGeoLine::new)
                 .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
     }

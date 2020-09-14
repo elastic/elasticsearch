@@ -38,6 +38,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
      * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
      */
     public enum Item {
+        GEOLINE
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {

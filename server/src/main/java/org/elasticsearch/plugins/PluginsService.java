@@ -355,6 +355,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 if (bundles.add(bundle) == false) {
                     throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
                 }
+                if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+                    throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
+                }
             }
         }
 
@@ -374,14 +377,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             throw new IllegalStateException("Could not load plugin descriptor for " + type +
                                             " directory [" + plugin.getFileName() + "]", e);
         }
-        final Bundle bundle = new Bundle(info, plugin);
-        if (bundles.add(bundle) == false) {
-            throw new IllegalStateException("duplicate " + type + ": " + info);
-        }
-        if (type.equals("module") && info.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
-            throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
-        }
-        return bundle;
+        return new Bundle(info, plugin);
     }
 
     /**

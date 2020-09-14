@@ -109,12 +109,12 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/62190"
+      version: " - 7.8.99"
+      reason: "resolve index api only supported in 7.9+"
 
   - do:
       indices.resolve_index:
-        name: '*'
+        name: ['*','-.ml*']
         expand_wildcards: [all]
 
   - match: {indices.0.name: .ds-simple-data-stream1-000001}

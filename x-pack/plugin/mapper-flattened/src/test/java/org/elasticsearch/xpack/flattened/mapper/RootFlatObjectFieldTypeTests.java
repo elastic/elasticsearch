@@ -10,7 +10,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery87;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
@@ -96,7 +96,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         RootFlatObjectFieldType ft = createDefaultFieldType();
 
-        Query expected = new RegexpQuery87(new Term("field", "val.*"));
+        Query expected = new RegexpQuery(new Term("field", "val.*"));
         Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_QSC);
         assertEquals(expected, actual);
 

@@ -1,7 +1,7 @@
 {
   "searchable_snapshots.clear_cache": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-api-clear-cache.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-apis.html",
       "description" : "Clear the cache of searchable snapshots."
     },
     "stability": "experimental",

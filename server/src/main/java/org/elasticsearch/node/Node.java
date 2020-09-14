@@ -503,6 +503,9 @@ public class Node implements Closeable {
                     systemIndices,
                     forbidPrivateIndexSettings
             );
+            pluginsService.filterPlugins(Plugin.class)
+                .forEach(p -> p.getAdditionalIndexSettingProviders()
+                    .forEach(metadataCreateIndexService::addAdditionalIndexSettingProvider));
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
                 new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);
@@ -530,7 +533,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(settings, xContentRegistry,
-                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices);
+                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices, scriptService);
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
@@ -650,6 +653,7 @@ public class Node implements Closeable {
                     b.bind(RerouteService.class).toInstance(rerouteService);
                     b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                     b.bind(FsHealthService.class).toInstance(fsHealthService);
+                    b.bind(SystemIndices.class).toInstance(systemIndices);
                 }
             );
             injector = modules.createInjector();

@@ -140,7 +140,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
         List<Integer> indexNumbersToDelete =
-            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices).boxed().collect(Collectors.toList()));
+            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList()));
 
         Set<Index> indicesToDelete = new HashSet<>();
         for (int k : indexNumbersToDelete) {

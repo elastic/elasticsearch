@@ -113,10 +113,14 @@ class JavaDateFormatter implements DateFormatter {
     private List<DateTimeFormatter> createRoundUpParser(String format,
                                                         Consumer<DateTimeFormatterBuilder> roundupParserConsumer) {
         if (format.contains("||") == false) {
-            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-            builder.append(this.parsers.get(0));
-            roundupParserConsumer.accept(builder);
-            return Arrays.asList(builder.toFormatter(locale()));
+            List<DateTimeFormatter> roundUpParsers = new ArrayList<>();
+            for (DateTimeFormatter parser : this.parsers) {
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+                builder.append(parser);
+                roundupParserConsumer.accept(builder);
+                roundUpParsers.add(builder.toFormatter(locale()));
+            }
+            return roundUpParsers;
         }
         return null;
     }

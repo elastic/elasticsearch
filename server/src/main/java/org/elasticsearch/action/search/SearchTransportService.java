@@ -281,7 +281,7 @@ public class SearchTransportService {
     }
 
     static boolean keepStatesInContext(Version version) {
-        return version.before(Version.V_8_0_0);
+        return version.before(Version.V_7_10_0);
     }
 
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {

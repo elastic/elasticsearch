@@ -249,7 +249,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().regexpQuery("ca.+", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+                        simpleMappedFieldType().regexpQuery("ca.+", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
                     ),
                     equalTo(2)
                 );
@@ -258,7 +258,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     public void testRegexpQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), randomInt(), null, ctx));
+        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, randomInt(), null, ctx));
     }
 
     @Override

@@ -197,23 +197,25 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testDeleteCancelRunningTask() throws Exception {
         final AsyncSearchResponse initial;
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        initial = it.next();
-        deleteAsyncSearch(initial.getId());
-        it.close();
-        ensureTaskCompletion(initial.getId());
-        ensureTaskRemoval(initial.getId());
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            initial = it.next();
+            deleteAsyncSearch(initial.getId());
+            it.close();
+            ensureTaskCompletion(initial.getId());
+            ensureTaskRemoval(initial.getId());
+        }
     }
 
     public void testDeleteCleanupIndex() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        deleteAsyncSearch(response.getId());
-        it.close();
-        ensureTaskCompletion(response.getId());
-        ensureTaskRemoval(response.getId());
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            deleteAsyncSearch(response.getId());
+            it.close();
+            ensureTaskCompletion(response.getId());
+            ensureTaskRemoval(response.getId());
+        }
     }
 
     public void testCleanupOnFailure() throws Exception {
@@ -233,7 +235,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(initial.getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61790")
     public void testInvalidId() throws Exception {
         try (SearchResponseIterator it =
                  assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {

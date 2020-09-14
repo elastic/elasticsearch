@@ -97,7 +97,7 @@ public class DiffableStringMapTests extends ESTestCase {
 
         BytesStreamOutput bso = new BytesStreamOutput();
         dsm.writeTo(bso);
-        DiffableStringMap deserialized = new DiffableStringMap(bso.bytes().streamInput());
+        DiffableStringMap deserialized = DiffableStringMap.readFrom(bso.bytes().streamInput());
         assertThat(deserialized, equalTo(dsm));
     }
 }

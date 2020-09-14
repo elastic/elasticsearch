@@ -219,4 +219,5 @@ testClusters.all {
   user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
 }

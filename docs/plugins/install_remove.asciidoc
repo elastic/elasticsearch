@@ -30,6 +30,7 @@ endif::[]
 ==== Removal
 
 The plugin can be removed with the following command:
+Go to /usr/share/elasticsearch directory first (Ubuntu).
 
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------

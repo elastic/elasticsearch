@@ -185,7 +185,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(3));
-        policies.forEach(p -> policyMap.put(p.getName(), p.get()));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
@@ -214,7 +214,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(3));
-        policies.forEach(p -> policyMap.put(p.getName(), p.get()));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {

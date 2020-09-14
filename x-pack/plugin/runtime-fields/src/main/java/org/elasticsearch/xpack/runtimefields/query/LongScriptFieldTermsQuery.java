@@ -7,21 +7,19 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
-import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
     private final LongSet terms;
 
     public LongScriptFieldTermsQuery(
         Script script,
-        CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory,
+        Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory,
         String fieldName,
         LongSet terms
     ) {

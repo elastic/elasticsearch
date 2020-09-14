@@ -2439,9 +2439,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     endSnapshot(updatedEntry, newState.metadata(), null);
                                 }
                             }
-                            // TODO: this is horrifically expensive, find a way of more efficiently transporting the state here
                             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                                if (entry.source() != null && entry.state() == State.STARTED) {
+                                if (entry.source() != null && entry.state() == State.STARTED
+                                        && entry.repository().equals(update.snapshot.getRepository())) {
                                     // this is a clone, see if new work is ready
                                     for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> clone : entry.clones()) {
                                         if (clone.value.state() == ShardState.INIT) {

@@ -16,6 +16,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 
 import java.io.IOException;
 
+@Deprecated
 public class RepositoryStatsNodeResponse extends BaseNodeResponse implements ToXContentObject {
 
     private final RepositoryStats repositoryStats;

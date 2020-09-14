@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +24,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "double_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -32,7 +32,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        DoubleScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        DoubleScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private double[] values = new double[1];
@@ -68,7 +68,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         return count;
     }
 
-    protected final void emitValue(double v) {
+    protected final void emit(double v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
@@ -76,15 +76,15 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         values[count++] = v;
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final DoubleScriptFieldScript script;
 
-        public EmitValue(DoubleScriptFieldScript script) {
+        public Emit(DoubleScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(double v) {
-            script.emitValue(v);
+        public void emit(double v) {
+            script.emit(v);
         }
     }
 }

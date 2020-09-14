@@ -19,16 +19,17 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 import java.util.Set;
 
 /**
- * The {@code DataTier} class encapsulates the formalization of the "hot",
- * "warm", "cold", and "frozen" tiers as node roles. In contains the roles
- * themselves as well as helpers for validation and determining if a node has
- * a tier configured.
+ * The {@code DataTier} class encapsulates the formalization of the "content",
+ * "hot", "warm", "cold", and "frozen" tiers as node roles. In contains the
+ * roles themselves as well as helpers for validation and determining if a node
+ * has a tier configured.
  *
  * Related:
  * {@link org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider}
  */
 public class DataTier {
 
+    public static final String DATA_CONTENT = "data_content";
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
@@ -38,7 +39,8 @@ public class DataTier {
      * Returns true if the given tier name is a valid tier
      */
     public static boolean validTierName(String tierName) {
-        return DATA_HOT.equals(tierName) ||
+        return DATA_CONTENT.equals(tierName) ||
+            DATA_HOT.equals(tierName) ||
             DATA_WARM.equals(tierName) ||
             DATA_COLD.equals(tierName) ||
             DATA_FROZEN.equals(tierName);
@@ -60,6 +62,23 @@ public class DataTier {
         }
         return false;
     }
+
+    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s") {
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return false;
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            return null;
+        }
+
+        @Override
+        public boolean canContainData() {
+            return true;
+        }
+    };
 
     public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h") {
         @Override
@@ -128,6 +147,10 @@ public class DataTier {
             return true;
         }
     };
+
+    public static boolean isContentNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.getRoles().contains(DATA_CONTENT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+    }
 
     public static boolean isHotNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(DATA_HOT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);

@@ -8,7 +8,8 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
-  // Currently needed for ml tests are using the building for datafeed and job config)
+  // Currently needed for MlConfigIndexMappingsFullClusterRestartIT and SLM classes used in
+  // FullClusterRestartIT
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 
   testImplementation project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')

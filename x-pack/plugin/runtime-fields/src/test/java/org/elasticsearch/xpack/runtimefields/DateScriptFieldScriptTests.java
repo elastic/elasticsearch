@@ -33,7 +33,7 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
     ) {
         @Override
         public void execute() {
-            emitValue(1595431354874L);
+            emit(1595431354874L);
         }
     };
 
@@ -61,7 +61,7 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emitValue(0);
+                            emit(0);
                         }
                     }
                 };

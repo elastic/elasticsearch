@@ -23,7 +23,7 @@ setup:
                 script:
                   source: |
                     for (double v : doc['voltage']) {
-                      emitValue((long)(v * params.multiplier));
+                      emit((long)(v * params.multiplier));
                     }
                   params:
                     multiplier: 10
@@ -33,7 +33,7 @@ setup:
                 runtime_type: long
                 script:
                   source: |
-                    emitValue((long)(params._source.voltage * params.multiplier));
+                    emit((long)(params._source.voltage * params.multiplier));
                   params:
                     multiplier: 10
               # Test fetching many values
@@ -45,7 +45,7 @@ setup:
                     for (long temperature : doc['temperature']) {
                       long t = temperature;
                       while (t != 0) {
-                        emitValue(t % 10);
+                        emit(t % 10);
                         t /= 10;
                       }
                     }
@@ -56,7 +56,7 @@ setup:
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
-                      emitValue(System.currentTimeMillis() - dt.toInstant().toEpochMilli());
+                      emit(System.currentTimeMillis() - dt.toInstant().toEpochMilli());
                     }
 
   - do:
@@ -87,7 +87,7 @@ setup:
   - match:
       sensor.mappings.properties.voltage_times_ten.script.source: |
         for (double v : doc['voltage']) {
-          emitValue((long)(v * params.multiplier));
+          emit((long)(v * params.multiplier));
         }
   - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
   - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
@@ -167,11 +167,11 @@ setup:
                   first_script:
                     type: runtime
                     runtime_type: long
-                    script: emitValue(doc['users.first'].value.length())
+                    script: emit(doc['users.first'].value.length())
                   last_script:
                     type: runtime
                     runtime_type: long
-                    script: emitValue(doc['users.last'].value.length())
+                    script: emit(doc['users.last'].value.length())
   - do:
       bulk:
         index: test

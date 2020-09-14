@@ -251,6 +251,51 @@ setup:
         index: ".ds-simple-data-stream1-000001"
 
 ---
+"Delete data stream missing behaviour":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: simple-data-streamz
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream*
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.delete_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      catch: missing
+      indices.delete_data_stream:
+        name: simple-data-stream2
+
+---
 "append-only writes to backing indices prohobited":
   - skip:
       version: " - 7.8.99"

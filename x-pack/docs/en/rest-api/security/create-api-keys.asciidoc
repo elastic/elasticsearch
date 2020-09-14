@@ -17,7 +17,7 @@ Creates an API key for access without requiring basic authentication.
 [[security-api-create-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_api_key` cluster privilege.
+* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
 
 [[security-api-create-api-key-desc]]
 ==== {api-description-title}

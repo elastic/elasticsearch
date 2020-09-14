@@ -2441,11 +2441,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                             // TODO: this is horrifically expensive, find a way of more efficiently transporting the state here
                             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                                // this is a clone, see if new work is ready
-                                for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> clone : entry.clones()) {
-                                    if (clone.value.state() == ShardState.INIT) {
-                                        runReadyClone(entry.snapshot(), entry.source(), clone.value, clone.key,
-                                                repositoriesService.repository(entry.repository()));
+                                if (entry.source() != null && entry.state() == State.STARTED) {
+                                    // this is a clone, see if new work is ready
+                                    for (ObjectObjectCursor<RepoShardId, ShardSnapshotStatus> clone : entry.clones()) {
+                                        if (clone.value.state() == ShardState.INIT) {
+                                            runReadyClone(entry.snapshot(), entry.source(), clone.value, clone.key,
+                                                    repositoriesService.repository(entry.repository()));
+                                        }
                                     }
                                 }
                             }

@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
-import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
 /**
- * Extension of basic query, adding awareness Point-in-Time awareness.
+ * Extension of basic query, adding Point-in-Time awareness.
  * Opens a point-in-time, uses it for all queries and closes it when disposed,
  * freeing consumer from doing any special management for it.
  */
@@ -40,7 +40,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     @Override
     protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
-        // no pid, ask for one
+        // no pitId, ask for one
         if (pitId == null) {
             openPIT(wrap(r -> {
                 pitId = r;

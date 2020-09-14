@@ -11,6 +11,8 @@ dependencies {
 
   // JDBC testing dependencies
   api project(path: xpackModule('sql:jdbc'))
+  // Common utilities from QL
+  api project(path: xpackModule('ql'), configuration: 'testArtifacts')
 
   api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 

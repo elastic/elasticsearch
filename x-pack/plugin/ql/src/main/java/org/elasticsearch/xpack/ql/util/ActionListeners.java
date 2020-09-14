@@ -20,27 +20,6 @@ public class ActionListeners {
      * Combination of {@link ActionListener#wrap(CheckedConsumer, Consumer)} and {@link ActionListener#map(ActionListener, CheckedFunction)}
      */
     public static <T, Response> ActionListener<Response> map(ActionListener<T> delegate, CheckedFunction<Response, T, Exception> fn) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                T mapped;
-                try {
-                    mapped = fn.apply(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                    return;
-                }
-                try {
-                    delegate.onResponse(mapped);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                delegate.onFailure(e);
-            }
-        };
+        return ActionListener.wrap(r -> delegate.onResponse(fn.apply(r)), delegate::onFailure);
     }
 }

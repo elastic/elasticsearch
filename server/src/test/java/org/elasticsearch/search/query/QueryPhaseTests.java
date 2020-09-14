@@ -74,6 +74,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDReader;
 import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -771,9 +772,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         int maxPointsInLeafNode = 40;
         float duplicateRatio = 0.7f;
         long duplicateValue = randomLongBetween(-10000000L, 10000000L);
-
+        BKDConfig config = new BKDConfig(1, 1, 8, maxPointsInLeafNode);
         try (Directory dir = newDirectory()) {
-            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, docsCount);
+            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", config, 1, docsCount);
             byte[] longBytes = new byte[8];
             for (int docId = 0; docId < docsCount; docId++) {
                 long value = randomFloat() < duplicateRatio ? duplicateValue : randomLongBetween(-10000000L, 10000000L);
@@ -799,9 +800,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         int maxPointsInLeafNode = 40;
         float duplicateRatio = 0.3f;
         long duplicateValue = randomLongBetween(-10000000L, 10000000L);
-
+        BKDConfig config = new BKDConfig(1, 1, 8, maxPointsInLeafNode);
         try (Directory dir = newDirectory()) {
-            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, docsCount);
+            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", config, 1, docsCount);
             byte[] longBytes = new byte[8];
             for (int docId = 0; docId < docsCount; docId++) {
                 long value = randomFloat() < duplicateRatio ? duplicateValue : randomLongBetween(-10000000L, 10000000L);

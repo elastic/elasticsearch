@@ -13,8 +13,8 @@ class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Factory @no_im
 }
 
 static_import {
-    # The `emitValue` callback to collect values for the field
-    void emitValue(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$EmitValue
+    # The `emit` callback to collect values for the field
+    void emit(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Emit
     # Parse a value from the source to millis since epoch
     long parse(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, def) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Parse
     # Add an easy method to convert temporalAccessors to millis since epoch.

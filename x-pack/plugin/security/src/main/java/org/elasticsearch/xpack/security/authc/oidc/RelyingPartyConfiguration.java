@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.oidc;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
+import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
 import com.nimbusds.oauth2.sdk.id.ClientID;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
@@ -26,15 +27,22 @@ public class RelyingPartyConfiguration {
     private final Scope requestedScope;
     private final JWSAlgorithm signatureAlgorithm;
     private final URI postLogoutRedirectUri;
+    private final ClientAuthenticationMethod clientAuthenticationMethod;
+    private final JWSAlgorithm clientAuthenticationJwtAlgorithm;
 
     public RelyingPartyConfiguration(ClientID clientId, SecureString clientSecret, URI redirectUri, ResponseType responseType,
-                                     Scope requestedScope, JWSAlgorithm algorithm, @Nullable URI postLogoutRedirectUri) {
+                                     Scope requestedScope, JWSAlgorithm algorithm, ClientAuthenticationMethod clientAuthenticationMethod,
+                                     JWSAlgorithm clientAuthenticationJwtAlgorithm, @Nullable URI postLogoutRedirectUri) {
         this.clientId = Objects.requireNonNull(clientId, "clientId must be provided");
         this.clientSecret = Objects.requireNonNull(clientSecret, "clientSecret must be provided");
         this.redirectUri = Objects.requireNonNull(redirectUri, "redirectUri must be provided");
         this.responseType = Objects.requireNonNull(responseType, "responseType must be provided");
         this.requestedScope = Objects.requireNonNull(requestedScope, "responseType must be provided");
         this.signatureAlgorithm = Objects.requireNonNull(algorithm, "algorithm must be provided");
+        this.clientAuthenticationMethod = Objects.requireNonNull(clientAuthenticationMethod,
+            "clientAuthenticationMethod must be provided");
+        this.clientAuthenticationJwtAlgorithm = Objects.requireNonNull(clientAuthenticationJwtAlgorithm,
+            "clientAuthenticationJwtAlgorithm must be provided");
         this.postLogoutRedirectUri = postLogoutRedirectUri;
     }
 
@@ -64,5 +72,13 @@ public class RelyingPartyConfiguration {
 
     public URI getPostLogoutRedirectUri() {
         return postLogoutRedirectUri;
+    }
+
+    public ClientAuthenticationMethod getClientAuthenticationMethod() {
+        return clientAuthenticationMethod;
+    }
+
+    public JWSAlgorithm getClientAuthenticationJwtAlgorithm() {
+        return clientAuthenticationJwtAlgorithm;
     }
 }

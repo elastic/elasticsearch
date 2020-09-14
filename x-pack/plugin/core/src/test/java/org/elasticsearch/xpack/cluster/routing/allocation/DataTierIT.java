@@ -33,12 +33,41 @@ public class DataTierIT extends ESIntegTestCase {
         return Collections.singleton(LocalStateCompositeXPackPlugin.class);
     }
 
-    public void testDefaultAllocateToHot() {
+    public void testDefaultIndexAllocateToContent() {
         startWarmOnlyNode();
         startColdOnlyNode();
         ensureGreen();
 
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
+
+        // index should be red
+        assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
+            equalTo(ClusterHealthStatus.RED));
+
+        logger.info("--> starting hot node");
+        if (randomBoolean()) {
+            startContentOnlyNode();
+        } else {
+            startDataNode();
+        }
+
+        logger.info("--> waiting for {} to be yellow", index);
+        ensureYellow(index);
+    }
+
+    public void testDefaultDataStreamAllocateToHot() {
+        startWarmOnlyNode();
+        startColdOnlyNode();
+        ensureGreen();
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(index),
+            null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate());
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)).actionGet();
+        client().prepareIndex(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
@@ -187,6 +216,20 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE), equalTo(false));
 
         ensureYellow(index);
+    }
+
+    public void startDataNode() {
+        Settings nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data", "ingest"))
+            .build();
+        internalCluster().startNode(nodeSettings);
+    }
+
+    public void startContentOnlyNode() {
+        Settings nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data_content", "ingest"))
+            .build();
+        internalCluster().startNode(nodeSettings);
     }
 
     public void startHotOnlyNode() {

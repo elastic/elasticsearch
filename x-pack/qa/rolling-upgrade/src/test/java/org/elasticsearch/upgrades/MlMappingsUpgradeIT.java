@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
-import static org.elasticsearch.xpack.test.rest.IndexTemplateAsserter.assertLegacyTemplateMatchesIndexMappings;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 

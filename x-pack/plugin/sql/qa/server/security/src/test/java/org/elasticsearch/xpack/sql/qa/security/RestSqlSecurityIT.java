@@ -271,6 +271,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
 
         createAuditLogAsserter().expectSqlCompositeActionFieldCaps("test_admin", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
+            // one scroll access denied per shard
+            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
             .assertLogs();
     }
 

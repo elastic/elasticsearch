@@ -321,15 +321,16 @@ public class AuthorizationServiceTests extends ESTestCase {
         } else {
             assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
         }
-        // but the authorization listener observes the authorization resulting headers, which are different
+        // but the authorization listener observes the authorization-resulting headers, which are different
         if (mockAccessControlHeader != null) {
             assertThat(indicesPermissions.actionGet(), not(sameInstance(mockAccessControlHeader)));
         }
-        if (originatingActionHeader != null) {
-            assertThat(originatingAction.actionGet(), not(sameInstance(originatingActionHeader)));
-        }
         if (authorizationInfoHeader != null) {
             assertThat(authorizationInfo.actionGet(), not(sameInstance(authorizationInfoHeader)));
+        }
+        // except originating action, which is not overwritten
+        if (originatingActionHeader != null) {
+            assertThat(originatingAction.actionGet(), sameInstance(originatingActionHeader));
         }
     }
 

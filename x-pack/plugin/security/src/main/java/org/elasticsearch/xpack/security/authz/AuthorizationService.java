@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -90,8 +89,10 @@ import java.util.function.Consumer;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
@@ -168,14 +169,19 @@ public class AuthorizationService {
      */
     public void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
                           final ActionListener<Void> listener) throws ElasticsearchSecurityException {
-        /* authorization fills in certain transient headers (that must be observed in the listener as well), therefore we
-         * begin by clearing the existing ones up (as they might be already set by the authorization of a previous parent
-         * action (which ran under the same context (on the same node))).
+        /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
+         * as well, but which must not bleed across different action context (eg parent-child action contexts).
+         * <p>
+         * Therefore we begin by clearing the existing ones up, as they might already be set during the authorization of a
+         * previous parent action that ran under the same thread context (also on the same node).
          * When the returned {@code StoredContext} is closed, ALL the original headers are restored.
          */
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false, AuthorizationServiceField.ALL_AUTHORIZATION_KEYS)) {
-            // prior to doing any authorization lets set the originating action in the context only
-            threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, action);
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false,
+                ACTION_SCOPE_AUTHORIZATION_KEYS)) { // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
+            // prior to doing any authorization lets set the originating action in the thread context
+            // the originating action is the current action if no originating action has yet been set in the current thread context
+            // if there is already an original action, that stays put (eg. the current action is a child action)
+            putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
             String auditId = AuditUtil.extractRequestId(threadContext);
             if (auditId == null) {
@@ -577,6 +583,13 @@ public class AuthorizationService {
     private void resolveIndexNames(TransportRequest request, Metadata metadata, List<String> authorizedIndices,
                                    ActionListener<ResolvedIndices> listener) {
         listener.onResponse(indicesAndAliasesResolver.resolve(request, metadata, authorizedIndices));
+    }
+
+    private void putTransientIfNonExisting(String key, Object value) {
+        Object existing = threadContext.getTransient(key);
+        if (existing == null) {
+            threadContext.putTransient(key, value);
+        }
     }
 
     private ElasticsearchSecurityException denialException(Authentication authentication, String action, Exception cause) {

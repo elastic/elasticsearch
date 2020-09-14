@@ -245,7 +245,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Checks if the state should be persisted, if true doSaveState is called before continuing. Inherited classes
-     * can overwrite this, to provide a better logic, when state should be saved.
+     * can override this, to provide a better logic, when state should be saved.
      *
      * @return true if state should be saved, false if not.
      */
@@ -270,9 +270,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Re-schedules the current search request to run immediately, iff one is scheduled.
      *
-     * Call this if you need the indexer to fast forward a scheduled(throttled) search once in order to complete a full cycle.
+     * Call this if you need the indexer to fast forward a scheduled(in case it's throttled) search once in order to
+     * complete a full cycle.
      */
-    protected void runSearchImmediatly() {
+    protected void runSearchImmediately() {
         reQueueThrottledSearch(true);
     }
 

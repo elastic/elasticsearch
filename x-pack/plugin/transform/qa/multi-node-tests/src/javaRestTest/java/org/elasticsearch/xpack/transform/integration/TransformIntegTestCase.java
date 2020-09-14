@@ -144,13 +144,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     // workaround for https://github.com/elastic/elasticsearch/issues/62204
     protected StartTransformResponse startTransformWithRetryOnConflict(String id, RequestOptions options) throws Exception {
-        int retries = 10;
         ElasticsearchStatusException lastConflict = null;
-        while (retries > 0) {
+        for (int retries = 10; retries > 0; --retries) {
             try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
                 return restClient.transform().startTransform(new StartTransformRequest(id), options);
             } catch (ElasticsearchStatusException e) {
-                if (e.status().equals(RestStatus.CONFLICT) == false) {
+                if (RestStatus.CONFLICT.equals(e.status()) == false) {
                     throw e;
                 }
 

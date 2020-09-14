@@ -547,7 +547,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         });
 
         // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
-        runSearchImmediatly();
+        runSearchImmediately();
     }
 
     void stopAndSaveState() {

@@ -389,9 +389,9 @@ documents use a different timestamp or event category field, you must specify it
 in the search request using the `timestamp_field` or `event_category_field`
 parameters.
 
-The event category field is typically mapped as a <<keyword,`keyword`>> or
-<<constant-keyword-field-type,constant keyword>> field. The timestamp field is typically
-mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field.
+The event category field is typically mapped as a field type in the
+<<keyword,`keyword`>> family. The timestamp field is typically mapped as a
+<<date,`date`>> or <<date_nanos,`date_nanos`>> field.
 
 NOTE: You cannot use a <<nested,`nested`>> field or the sub-fields of a `nested`
 field as the timestamp or event category field. See <<eql-nested-fields>>.

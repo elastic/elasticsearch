@@ -38,13 +38,6 @@
               "type": "keyword"
             }
           }
-        },
-        "host": {
-          "properties": {
-            "ip": {
-              "type": "ip"
-            }
-          }
         }
       }
     }

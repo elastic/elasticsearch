@@ -12,6 +12,7 @@ import java.util.Map;
 
 public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62299")
     public void testOldAndMixedClusterHaveActiveBasic() throws Exception {
         assumeTrue("only runs against old or mixed cluster", clusterType == CLUSTER_TYPE.OLD || clusterType == CLUSTER_TYPE.MIXED);
         assertBusy(this::checkBasicLicense);

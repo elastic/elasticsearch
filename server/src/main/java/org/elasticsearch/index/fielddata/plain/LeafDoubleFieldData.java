@@ -34,11 +34,11 @@ import java.util.Collections;
 /**
  * Specialization of {@link LeafNumericFieldData} for floating-point numerics.
  */
-abstract class LeafDoubleFieldData implements LeafNumericFieldData {
+public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
 
     private final long ramBytesUsed;
 
-    LeafDoubleFieldData(long ramBytesUsed) {
+    protected LeafDoubleFieldData(long ramBytesUsed) {
         this.ramBytesUsed = ramBytesUsed;
     }
 

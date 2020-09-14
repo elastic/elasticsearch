@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -290,7 +291,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
         String progressDocId = StoredProgress.documentId(jobId);
 
-        // Step 3: Run the runnable provided as the argument
+        // Step 4: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
                 LOGGER.debug("[{}] Successfully indexed progress document", jobId);
@@ -303,23 +304,37 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         );
 
-        // Step 2: Create or update the progress document:
+        // Step 3: Create or update the progress document:
         //   - if the document did not exist, create the new one in the current write index
         //   - if the document did exist, update it in the index where it resides (not necessarily the current write index)
         ActionListener<SearchResponse> searchFormerProgressDocListener = ActionListener.wrap(
             searchResponse -> {
                 String indexOrAlias = AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+                StoredProgress previous = null;
                 if (searchResponse.getHits().getHits().length > 0) {
                     indexOrAlias = searchResponse.getHits().getHits()[0].getIndex();
+                    try {
+                        previous = MlParserUtils.parse(searchResponse.getHits().getHits()[0], StoredProgress.PARSER);
+                    } catch (Exception ex) {
+                        LOGGER.warn(new ParameterizedMessage("[{}] failed to parse previously stored progress", jobId), ex);
+                    }
                 }
+
+                List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
+                final StoredProgress progressToStore = new StoredProgress(progress);
+                if (progressToStore.equals(previous)) {
+                    LOGGER.debug("[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId);
+                    runnable.run();
+                    return;
+                }
+
                 IndexRequest indexRequest = new IndexRequest(indexOrAlias)
                     .id(progressDocId)
                     .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     LOGGER.debug("[{}] Persisting progress is: {}", jobId, progress);
-                    new StoredProgress(progress).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    progressToStore.toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
                 executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
@@ -331,14 +346,26 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         );
 
-        // Step 1: Search for existing progress document in .ml-state*
-        SearchRequest searchRequest =
-            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .source(
-                    new SearchSourceBuilder()
-                        .size(1)
-                        .query(new IdsQueryBuilder().addIds(progressDocId)));
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+        // Step 2: Search for existing progress document in .ml-state*
+        ActionListener<Void> reindexProgressUpdateListener = ActionListener.wrap(
+            aVoid -> {
+                SearchRequest searchRequest =
+                    new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+                        .source(
+                            new SearchSourceBuilder()
+                                .size(1)
+                                .query(new IdsQueryBuilder().addIds(progressDocId)));
+                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+            },
+            e -> {
+                LOGGER.error(new ParameterizedMessage(
+                    "[{}] cannot persist progress as an error occurred while updating reindexing task progress", taskParams.getId()), e);
+                runnable.run();
+            }
+        );
+
+        // Step 1: Update reindexing progress as it could be stale
+        updateReindexTaskProgress(reindexProgressUpdateListener);
     }
 
     /**

@@ -40,7 +40,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -75,11 +74,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
-    }
-
-    @Override
-    protected List<String> requestTypesTracked() {
-        return List.of("GET", "LIST", "HEAD", "PUT", "PUT_BLOCK");
     }
 
     @Override
@@ -181,23 +175,28 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         @Override
         protected void maybeTrack(String request, Headers headers) {
             if (Regex.simpleMatch("GET /*/*", request)) {
-                trackRequest("GET");
+                trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*", request)) {
-                trackRequest("HEAD");
+                trackRequest("GetBlobProperties");
             } else if (listPattern.test(request)) {
-                trackRequest("LIST");
-            } else if (isBlockUpload(request)) {
-                trackRequest("PUT_BLOCK");
+                trackRequest("ListBlobs");
+            } else if (isPutBlock(request)) {
+                trackRequest("PutBlock");
+            } else if (isPutBlockList(request)) {
+                trackRequest("PutBlockList");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
-                trackRequest("PUT");
+                trackRequest("PutBlob");
             }
         }
 
-        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
         // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-        private boolean isBlockUpload(String request) {
-            return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request)
-                || (Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid="));
+        private boolean isPutBlock(String request) {
+            return Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid=");
+        }
+
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+        private boolean isPutBlockList(String request) {
+            return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request);
         }
     }
 }

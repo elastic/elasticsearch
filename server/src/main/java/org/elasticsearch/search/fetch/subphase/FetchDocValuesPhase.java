@@ -35,7 +35,9 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
@@ -49,7 +51,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
-        List<FieldAndFormat> docValueFields = new ArrayList<>();
+        Set<FieldAndFormat> docValueFields = new HashSet<>();
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
             docValueFields.add(new FieldAndFormat(context.collapse().getFieldName(), null));
@@ -58,12 +60,12 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             docValueFields.add(new FieldAndFormat("_ignored", null));
         }
 
-        context.docValuesContext(new FetchDocValuesContext(docValueFields));
+        context.docValuesContext(new FetchDocValuesContext(new ArrayList<>(docValueFields)));
         if (context.docValuesContext() == null) {
            return null;
         }
 
-        List<DocValueField> fields = new ArrayList<>();
+        Set<DocValueField> fields = new HashSet<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
             DocValueField f = buildField(context, fieldAndFormat);
             if (f != null) {

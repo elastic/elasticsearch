@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
@@ -149,7 +148,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        RewriteMethod method,
+        MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {
         throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));

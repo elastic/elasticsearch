@@ -37,7 +37,6 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 

@@ -5,10 +5,7 @@
         "lifecycle": {
           "name": "synthetics"
         },
-        "codec": "best_compression",
-        "query": {
-          "default_field": ["message"]
-        }
+        "codec": "best_compression"
       }
     }
   },

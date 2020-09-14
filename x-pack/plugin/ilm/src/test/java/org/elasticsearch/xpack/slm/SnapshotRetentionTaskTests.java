@@ -186,7 +186,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         deletedSnapshotsInHistory.add(historyItem.getSnapshotName());
                         historyLatch.countDown();
                     }),
-                    () -> {
+                () -> {
                     List<SnapshotInfo> snaps = new ArrayList<>(2);
                     snaps.add(eligibleSnapshot);
                     snaps.add(ineligibleSnapshot);
@@ -351,7 +351,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             SnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
                     (historyItem) -> fail("should never write history")),
-                    () -> {
+                () -> {
                     fail("should not retrieve snapshots");
                     return null;
                 },

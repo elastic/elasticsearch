@@ -518,18 +518,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         context.shutdown();
     }
 
-    protected void callAndResetSaveStateListeners() {
-        Collection<ActionListener<Void>> listeners = saveStateListeners.getAndSet(null);
-        if (listeners != null) {
-            for (ActionListener<Void> l : listeners) {
-                l.onResponse(null);
-            }
-        }
-    }
-
     void stopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         IndexerState indexerState = getState();
 
+        // in case shouldStopAtCheckpoint has already the desired value or the indexer isn't running, respond immediately
         if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
             || indexerState == IndexerState.STOPPED
             || indexerState == IndexerState.STOPPING) {

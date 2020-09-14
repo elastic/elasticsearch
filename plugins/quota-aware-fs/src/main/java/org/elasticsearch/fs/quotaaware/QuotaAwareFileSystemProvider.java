@@ -77,8 +77,7 @@ import java.util.stream.StreamSupport;
  * <code>-Djava.nio.file.spi.DefaultFileSystemProvider=co.elastic.cloud.quotaawarefs.QuotaAwareFileSystemProvider</code>
  * </li>
  * <li>Have some external system check the quota usage and
- * write it to this path: {@value #DEFAULT_QUOTA_PATH}, optionally this path may
- * be changed by specifying system property {@value #QUOTA_PATH_KEY}.</li>
+ * write it to the path specified by the system property {@value #QUOTA_PATH_KEY}.</li>
  * </ol>
  *
  * In any case the quota file must be a {@link Properties} file with the
@@ -115,8 +114,7 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
 
     }
 
-    private static final String QUOTA_PATH_KEY = "found.fs.quota.file";
-    private static final String DEFAULT_QUOTA_PATH = "file:///app/config/fsquota.properties";
+    static final String QUOTA_PATH_KEY = "es.fs.quota.file";
 
     private final FileSystemProvider delegate;
     private final Path configPath;
@@ -136,12 +134,27 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
     private final Thread timerThread;
 
     public QuotaAwareFileSystemProvider(FileSystemProvider delegate) throws Exception {
-        this(delegate, URI.create(System.getProperty(QUOTA_PATH_KEY, DEFAULT_QUOTA_PATH)));
+        this(delegate, URI.create(getUri()));
+    }
+
+    private static String getUri() {
+        final String property = System.getProperty(QUOTA_PATH_KEY);
+        if (property == null) {
+            throw new IllegalArgumentException(
+                "Property "
+                    + QUOTA_PATH_KEY
+                    + " must be set to a URI in order to use the quota filesystem provider, e.g. using -D"
+                    + QUOTA_PATH_KEY
+                    + "=file://path/to/fsquota.properties"
+            );
+        }
+
+        return property;
     }
 
     public QuotaAwareFileSystemProvider(FileSystemProvider delegate, URI config) throws Exception {
         if (delegate instanceof QuotaAwareFileSystemProvider) {
-            throw new IllegalArgumentException("delegate provider instance of QuotaAwareFileSystemProvider");
+            throw new IllegalArgumentException("Delegate provider cannot be an instance of QuotaAwareFileSystemProvider");
         }
         this.delegate = delegate;
         configPath = delegate.getPath(config);
@@ -226,7 +239,7 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
     }
 
     private QuotaAwareFileSystem getFS(FileSystem fileSystem) {
-        return systemsCache.computeIfAbsent(fileSystem, (delegate) -> { return new QuotaAwareFileSystem(this, delegate); });
+        return systemsCache.computeIfAbsent(fileSystem, (delegate) -> new QuotaAwareFileSystem(this, delegate));
     }
 
     @Override

@@ -57,10 +57,22 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
+import static org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider.QUOTA_PATH_KEY;
+import static org.hamcrest.Matchers.startsWith;
 
 @Limit(bytes = 10000)
 @SuppressForbidden(reason = "accesses the default filesystem by design")
 public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
+
+    public void testSystemPropertyShouldBeSet() {
+        FileSystemProvider systemProvider = FileSystems.getDefault().provider();
+        System.clearProperty(QUOTA_PATH_KEY);
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new QuotaAwareFileSystemProvider(systemProvider));
+
+        assertThat(exception.getMessage(), startsWith("Property " + QUOTA_PATH_KEY + " must be set to a URI"));
+    }
 
     public void testInitiallyNoQuotaFile() throws Exception {
         Path quotaFile = createTempDir().resolve("quota.properties");

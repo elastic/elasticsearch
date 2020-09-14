@@ -717,7 +717,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             EsExecutors.allocatedProcessors(settings));
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
-                threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
+                threadPool.generic(), threadPool.executor(UTILITY_THREAD_POOL_NAME), memoryEstimationProcessFactory);
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client, xContentRegistry,
             dataFrameAnalyticsAuditor);
         assert client instanceof NodeClient;
@@ -970,11 +970,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         // number of jobs per node.
 
         // 4 threads per job process: for input, c++ logger output, result processing and state processing.
+        // Only use this thread pool for the main long-running process associated with an anomaly detection
+        // job or a data frame analytics job.  (Using it for some other purpose could mean that an unrelated
+        // job fails to start or that whatever needed the thread for another purpose has to queue for a very
+        // long time.)
         ScalingExecutorBuilder jobComms = new ScalingExecutorBuilder(JOB_COMMS_THREAD_POOL_NAME,
             4, MAX_MAX_OPEN_JOBS_PER_NODE * 4, TimeValue.timeValueMinutes(1), "xpack.ml.job_comms_thread_pool");
 
-        // This pool is used by renormalization, plus some other parts of ML that
-        // need to kick off non-trivial activities that mustn't block other threads.
+        // This pool is used by renormalization, data frame analytics memory estimation, plus some other parts
+        // of ML that need to kick off non-trivial activities that mustn't block other threads.
         ScalingExecutorBuilder utility = new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME,
             1, MAX_MAX_OPEN_JOBS_PER_NODE * 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool");
 

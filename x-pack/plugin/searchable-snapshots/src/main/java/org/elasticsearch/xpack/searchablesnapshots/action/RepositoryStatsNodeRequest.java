@@ -12,6 +12,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+@Deprecated
 public class RepositoryStatsNodeRequest extends TransportRequest {
 
     private final String repository;

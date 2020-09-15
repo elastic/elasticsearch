@@ -1841,10 +1841,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(".ml-meta");
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder(".ml-meta"));
         }
 
@@ -1852,10 +1849,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(".ml-*");
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder(".ml-meta", ".ml-stuff"));
         }
 
@@ -1863,10 +1857,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(".w*");
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder(".watches"));
         }
 
@@ -1874,10 +1865,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
         }
     }
@@ -1898,10 +1886,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(".ml-*");
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder(".ml-meta", ".ml-stuff"));
             assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff], but in a future major version, direct access " +
                 "to system indices will be prevented by default");
@@ -1911,10 +1896,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(".w*");
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder(".watches"));
             assertWarnings("this request accesses system indices: [.watches], but in a future major version, direct access " +
                 "to system indices will be prevented by default");
@@ -1924,10 +1906,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(".ml-meta");
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder(".ml-meta"));
             assertWarnings("this request accesses system indices: [.ml-meta], but in a future major version, direct access " +
                 "to system indices will be prevented by default");
@@ -1937,10 +1916,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
-            List<String> indexNames = Arrays
-                .stream(indexNameExpressionResolver.concreteIndices(state, request))
-                .map(i -> i.getName())
-                .collect(Collectors.toList());
+            List<String> indexNames = getConcreteIndexNames(state, request);
             assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
             assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff, .watches], but in a future major version, direct " +
                 "access to system indices will be prevented by default");
@@ -2179,5 +2155,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
+    }
+
+    private List<String> getConcreteIndexNames(ClusterState state, SearchRequest request) {
+        return Arrays
+            .stream(indexNameExpressionResolver.concreteIndices(state, request))
+            .map(i -> i.getName())
+            .collect(Collectors.toList());
     }
 }

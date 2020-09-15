@@ -1,2 +1,5 @@
 [[runtime]]
 === Runtime
+Typically, you must index fields before they can be retrieved, aggregated, or
+searched. Runtime fields provide flexibility in determining which fields to
+index over time, rather than indexing all of your data up front.

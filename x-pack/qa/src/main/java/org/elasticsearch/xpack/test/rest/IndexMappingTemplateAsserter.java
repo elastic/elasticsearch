@@ -51,10 +51,9 @@ public class IndexMappingTemplateAsserter {
      * effect of a different test running in the cluster.
      *
      * @param client The rest client
-     * @param allowSystemIndexWarnings Whether deprecation warnings for system index access should be allowed/expected.
      * @throws IOException On error
      */
-    public static void assertMlMappingsMatchTemplates(RestClient client, boolean allowSystemIndexWarnings) throws IOException {
+    public static void assertMlMappingsMatchTemplates(RestClient client) throws IOException {
         // Keys that have been dynamically mapped in the .ml-config index
         // but are not in the template. These can only be fixed with
         // re-index and should be addressed at the next major upgrade.
@@ -83,15 +82,14 @@ public class IndexMappingTemplateAsserter {
         statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_tolerance.type");
         statsIndexException.add("properties.hyperparameters.properties.regularization_tree_size_penalty_multiplier.type");
 
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions,
-            allowSystemIndexWarnings);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions, true);
         // the true parameter means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), allowSystemIndexWarnings);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-notifications-000001", ".ml-notifications-000001");
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(),
-            allowSystemIndexWarnings);
+            true);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
     }

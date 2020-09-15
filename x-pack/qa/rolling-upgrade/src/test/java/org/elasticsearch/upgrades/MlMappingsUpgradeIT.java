@@ -55,7 +55,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedAnnotationsMappings();
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
-                IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client(), false);
+                IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

@@ -65,7 +65,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
 
             // assert that the mappings are updated
-            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client(), true);
+            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
         }
     }
 

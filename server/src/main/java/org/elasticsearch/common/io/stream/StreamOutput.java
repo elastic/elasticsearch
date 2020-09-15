@@ -226,77 +226,18 @@ public abstract class StreamOutput extends OutputStream {
          * together this saves quite a bit of time compared to a naive
          * implementation.
          */
-        switch (Integer.numberOfLeadingZeros(i)) {
-            case 32:
-            case 31:
-            case 30:
-            case 29:
-            case 28:
-            case 27:
-            case 26:
-            case 25:
-                writeByte((byte) i);
-                return;
-            case 24:
-            case 23:
-            case 22:
-            case 21:
-            case 20:
-            case 19:
-            case 18:
-                byte[] buffer = scratch.get();
-                buffer[0] = (byte) (i & 0x7f | 0x80);
-                buffer[1] = (byte) (i >>> 7);
-                assert buffer[1] <= 0x7f;
-                writeBytes(buffer, 0, 2);
-                return;
-            case 17:
-            case 16:
-            case 15:
-            case 14:
-            case 13:
-            case 12:
-            case 11:
-                buffer = scratch.get();
-                buffer[0] = (byte) (i & 0x7f | 0x80);
-                buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
-                buffer[2] = (byte) (i >>> 14);
-                assert buffer[2] <= 0x7f;
-                writeBytes(buffer, 0, 3);
-                return;
-            case 10:
-            case 9:
-            case 8:
-            case 7:
-            case 6:
-            case 5:
-            case 4:
-                buffer = scratch.get();
-                buffer[0] = (byte) (i & 0x7f | 0x80);
-                buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
-                buffer[2] = (byte) ((i >>> 14) & 0x7f | 0x80);
-                buffer[3] = (byte) (i >>> 21);
-                assert buffer[3] <= 0x7f;
-                writeBytes(buffer, 0, 4);
-                return;
-            case 3:
-            case 2:
-            case 1:
-            case 0:
-                buffer = scratch.get();
-                buffer[0] = (byte) (i & 0x7f | 0x80);
-                buffer[1] = (byte) ((i >>> 7) & 0x7f | 0x80);
-                buffer[2] = (byte) ((i >>> 14) & 0x7f | 0x80);
-                buffer[3] = (byte) ((i >>> 21) & 0x7f | 0x80);
-                buffer[4] = (byte) (i >>> 28);
-                assert buffer[4] <= 0x7f;
-                writeBytes(buffer, 0, 5);
-                return;
-            default:
-                throw new UnsupportedOperationException(
-                    "Can't encode [" + i + "]. Missing case for [" + Integer.numberOfLeadingZeros(i) + "]?"
-                );
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            writeByte((byte) i);
+            return;
         }
+        byte[] buffer = scratch.get();
+        int index = 0;
+        do {
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
+            i >>>= 7;
+        } while ((i & ~0x7F) != 0);
+        buffer[index++] = ((byte) i);
+        writeBytes(buffer, 0, index);
     }
 
     /**

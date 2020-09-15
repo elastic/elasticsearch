@@ -99,7 +99,7 @@ public class StringTermsSerializationBenchmark {
         try (BytesStreamOutput buffer = new BytesStreamOutput()) {
             buffer.setVersion(Version.CURRENT);
             for (int i = 0; i < 1000000; i++) {
-                buffer.writeVInt(i * 31);
+                buffer.writeVInt(i);
                 buffer.reset();
             }
             return buffer.bytes();

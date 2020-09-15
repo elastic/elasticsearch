@@ -170,7 +170,7 @@ If you use a hot-warm architecture, you can use
 <<shard-allocation-awareness,shard allocation awareness>> to assign shards to
 nodes based on physical hardware. However, if too many shards are allocated to a
 specific node, the node can become a hotspot. For example, if a single node
-contains too many of the shards for an index with a high indexing volume, the
+contains too many shards for an index with a high indexing volume, the
 node is likely to have issues.
 
 To prevent hotspots, use the

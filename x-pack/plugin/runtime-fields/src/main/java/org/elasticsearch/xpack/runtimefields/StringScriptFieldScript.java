@@ -13,7 +13,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +30,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -38,7 +38,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        StringScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        StringScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final List<String> results = new ArrayList<>();
@@ -62,7 +62,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         return results;
     }
 
-    protected final void emitValue(String v) {
+    protected final void emit(String v) {
         checkMaxSize(results.size());
         chars += v.length();
         if (chars > MAX_CHARS) {
@@ -79,15 +79,15 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         results.add(v);
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final StringScriptFieldScript script;
 
-        public EmitValue(StringScriptFieldScript script) {
+        public Emit(StringScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(String v) {
-            script.emitValue(v);
+        public void emit(String v) {
+            script.emit(v);
         }
     }
 }

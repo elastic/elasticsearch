@@ -1157,3 +1157,30 @@ See <<constant-keyword-field-type>>.
 === Wildcard field type
 
 See <<wildcard-field-type>>.
+
+[role="exclude",id="searchable-snapshots-api-clear-cache"]
+=== Clear cache API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="searchable-snapshots-api-stats"]
+=== Searchable snapshot statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="searchable-snapshots-repository-stats"]
+=== Searchable snapshot repository statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.

@@ -125,7 +125,7 @@ public class FetchContext {
      * Should the response include `explain` output
      */
     public boolean explain() {
-        return searchContext.explain();
+        return searchContext.explain() && searchContext.query() != null;
     }
 
     /**

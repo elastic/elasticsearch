@@ -1221,7 +1221,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
-        createIndexWithContent("test-index");
+        createSingleShardIndexWithContent("test-index");
 
         final ActionFuture<CreateSnapshotResponse> createSnapshot1Future =
             startFullSnapshotBlockedOnDataNode("first-snapshot", repoName, dataNode);

@@ -34,22 +34,18 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String HOT_PHASE = "hot";
     static final String WARM_PHASE = "warm";
     static final String COLD_PHASE = "cold";
-    static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
-    static final List<String> VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
+    static final List<String> VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, DELETE_PHASE);
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
         ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
         FreezeAction.NAME, SearchableSnapshotAction.NAME);
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
     static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
-    static final Set<String> VALID_FROZEN_ACTIONS = Sets.newHashSet(ORDERED_VALID_FROZEN_ACTIONS);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
     private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
 
@@ -57,7 +53,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
         ALLOWED_ACTIONS.put(WARM_PHASE, VALID_WARM_ACTIONS);
         ALLOWED_ACTIONS.put(COLD_PHASE, VALID_COLD_ACTIONS);
-        ALLOWED_ACTIONS.put(FROZEN_PHASE, VALID_FROZEN_ACTIONS);
         ALLOWED_ACTIONS.put(DELETE_PHASE, VALID_DELETE_ACTIONS);
     }
 
@@ -146,9 +141,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case COLD_PHASE:
                 return ORDERED_VALID_COLD_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(Collectors.toList());
-            case FROZEN_PHASE:
-                return ORDERED_VALID_FROZEN_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
-                    .filter(Objects::nonNull).collect(Collectors.toList());
             case DELETE_PHASE:
                 return ORDERED_VALID_DELETE_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(Collectors.toList());
@@ -169,9 +161,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
             break;
         case COLD_PHASE:
             orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
-            break;
-        case FROZEN_PHASE:
-            orderedActionNames = ORDERED_VALID_FROZEN_ACTIONS;
             break;
         case DELETE_PHASE:
             orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;

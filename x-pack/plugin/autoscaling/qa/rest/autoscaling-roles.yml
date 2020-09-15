@@ -1,6 +1,7 @@
 autoscaling:
   cluster:
     - manage_autoscaling
+    - cluster:admin/settings/update
   indices:
     - names: [ 'ilm-history-*' ]
       privileges: [ 'delete_index' ]

@@ -2,6 +2,7 @@
 cat_test_role:
   cluster:
     - monitor
+    - cluster:admin/settings/update
   indices:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "monitor" ]

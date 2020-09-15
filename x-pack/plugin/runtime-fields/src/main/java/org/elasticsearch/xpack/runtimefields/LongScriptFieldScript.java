@@ -13,7 +13,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -24,29 +23,30 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
-        LongScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        LongScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public LongScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public LongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final LongScriptFieldScript script;
 
-        public EmitValue(LongScriptFieldScript script) {
+        public Emit(LongScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(long v) {
-            script.emitValue(v);
+        public void emit(long v) {
+            script.emit(v);
         }
     }
 }

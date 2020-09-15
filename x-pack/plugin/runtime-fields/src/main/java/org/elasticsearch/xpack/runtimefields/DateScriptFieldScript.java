@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.List;
@@ -27,20 +26,27 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "date_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
     }
 
     public interface LeafFactory {
-        DateScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        DateScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final DateFormatter formatter;
 
-    public DateScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public DateScriptFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        DateFormatter formatter,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx);
         this.formatter = formatter;
     }
 
@@ -51,15 +57,15 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
         return millis;
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final DateScriptFieldScript script;
 
-        public EmitValue(DateScriptFieldScript script) {
+        public Emit(DateScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(long v) {
-            script.emitValue(v);
+        public void emit(long v) {
+            script.emit(v);
         }
     }
 

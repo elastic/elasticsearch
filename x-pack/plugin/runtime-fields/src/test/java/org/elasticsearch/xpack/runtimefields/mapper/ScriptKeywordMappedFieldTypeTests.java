@@ -249,7 +249,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().regexpQuery("ca.+", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+                        simpleMappedFieldType().regexpQuery("ca.+", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
                     ),
                     equalTo(2)
                 );
@@ -258,7 +258,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     public void testRegexpQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), randomInt(), null, ctx));
+        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, randomInt(), null, ctx));
     }
 
     @Override
@@ -371,20 +371,20 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                     private StringScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new StringScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> ctx -> new StringScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString());
+                                            emit(foo.toString());
                                         }
                                     }
                                 };
                             case "append_param":
-                                return (params, lookup) -> (ctx) -> new StringScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> ctx -> new StringScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(foo.toString() + getParams().get("param").toString());
+                                            emit(foo.toString() + getParams().get("param").toString());
                                         }
                                     }
                                 };
@@ -407,7 +407,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 }

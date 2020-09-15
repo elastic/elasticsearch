@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -35,12 +36,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -224,8 +227,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
         try {
             configureWriteDeprecationLogsToIndex(true);
 
-            Request request = new Request("GET", "/_test_cluster/deprecated_settings");
-            request.setEntity(buildSettingsRequest(List.of(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), true));
+            final Request request = new Request("GET", "/_test_cluster/deprecated_settings");
+            final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();
+            request.setOptions(options);
+            request.setEntity(
+                buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), true)
+            );
             assertOK(client().performRequest(request));
 
             assertBusy(() -> {
@@ -263,8 +270,38 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 assertThat(
                     documents,
                     hasItems(
-                        hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
-                        hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                        allOf(
+                            hasKey("@timestamp"),
+                            hasKey("cluster.name"),
+                            hasKey("cluster.uuid"),
+                            hasKey("log.logger"),
+                            hasEntry("data_stream.datatype", "deprecation"),
+                            hasEntry("data_stream.namespace", "elasticsearch"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("ecs.version", "1.6"),
+                            hasEntry("key", "deprecated_settings"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
+                            hasKey("node.id"),
+                            hasKey("node.name"),
+                            hasEntry("x-opaque-id", "some xid")
+                        ),
+                        allOf(
+                            hasKey("@timestamp"),
+                            hasKey("cluster.name"),
+                            hasKey("cluster.uuid"),
+                            hasKey("log.logger"),
+                            hasEntry("data_stream.datatype", "deprecation"),
+                            hasEntry("data_stream.namespace", "elasticsearch"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("ecs.version", "1.6"),
+                            hasEntry("key", "deprecated_route"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"),
+                            hasKey("node.id"),
+                            hasKey("node.name"),
+                            hasEntry("x-opaque-id", "some xid")
+                        )
                     )
                 );
             });

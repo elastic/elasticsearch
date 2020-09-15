@@ -113,6 +113,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
@@ -3549,6 +3550,28 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final long repoGenInIndexLatest3 =
                 Numbers.bytesToLong(new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB))));
         assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest3);
+    }
+
+    public void testForbidDisableSoftDeletesDuringRestore() throws Exception {
+        createRepository("test-repo", "fs");
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        }
+        createIndex("test-index", settings.build());
+        ensureGreen();
+        if (randomBoolean()) {
+            indexRandomDocs("test-index", between(0, 100));
+            flush("test-index");
+        }
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "snapshot-0")
+            .setIndices("test-index").setWaitForCompletion(true).get();
+        final SnapshotRestoreException restoreError = expectThrows(SnapshotRestoreException.class,
+            () -> client().admin().cluster().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setIndexSettings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false))
+                .setRenamePattern("test-index").setRenameReplacement("new-index")
+                .get());
+        assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
     }
 
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {

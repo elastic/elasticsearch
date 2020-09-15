@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -36,18 +36,15 @@ public interface FetchSubPhase {
 
     class HitContext {
         private final SearchHit hit;
-        private final IndexSearcher searcher;
         private final LeafReaderContext readerContext;
         private final int docId;
         private final SourceLookup sourceLookup = new SourceLookup();
         private final Map<String, Object> cache;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher,
-                          Map<String, Object> cache) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Map<String, Object> cache) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.searcher = searcher;
             this.sourceLookup.setSegmentAndDocument(context, docId);
             this.cache = cache;
         }
@@ -83,7 +80,7 @@ public interface FetchSubPhase {
         }
 
         public IndexReader topLevelReader() {
-            return searcher.getIndexReader();
+            return ReaderUtil.getTopLevelContext(readerContext).reader();
         }
 
         // TODO move this into Highlighter

@@ -72,7 +72,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:linux-tar:buildTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:linux-tar:buildExploded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated(distroVersion, "build/distro", 'current-marker.txt')
     }
@@ -183,14 +183,29 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "linux-tar")
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
+            import org.gradle.api.internal.artifacts.ArtifactAttributes;
+
             apply plugin:'distribution'
-            tasks.register("buildTar", Tar) {
+
+            def buildTar = tasks.register("buildTar", Tar) {
                 from('current-marker.txt')
                 archiveExtension = "tar.gz"
                 compression = Compression.GZIP
             }
+            def buildExploded = tasks.register("buildExploded", Copy) {
+                from('current-marker.txt')
+                into("build/local")
+            }
+            configurations {
+                extracted {
+                    attributes {
+                          attribute(ArtifactAttributes.ARTIFACT_FORMAT, "directory")
+                    }
+                }
+            }
             artifacts {
                 it.add("default", buildTar)
+                it.add("extracted", buildExploded)
             }
         """
         buildFile << """

@@ -25,6 +25,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * @deprecated This API is superseded by the Repositories Metering API
+ */
+@Deprecated
 public class TransportRepositoryStatsAction extends TransportNodesAction<
     RepositoryStatsRequest,
     RepositoryStatsResponse,

@@ -34,11 +34,11 @@ public final class BitArray implements Releasable {
 
     /**
      * Create the {@linkplain BitArray}.
-     * @param initialSize the initial size of underlying storage.
+     * @param initialSize the initial size of underlying storage expressed in bits.
      */
     public BitArray(long initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bits = bigArrays.newLongArray(initialSize, true);
+        this.bits = bigArrays.newLongArray(wordNum(initialSize) + 1, true);
     }
 
     /**

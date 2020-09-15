@@ -117,5 +117,11 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         double[] actual = InternalBoxplot.whiskers(state);
         assertEquals(57.0, actual[0], epsilon);
         assertEquals(79.0, actual[1], epsilon);
+
+        // Test null state
+        actual = InternalBoxplot.whiskers(null);
+        assertNotNull(actual);
+        assertTrue(Double.isNaN(actual[0]));
+        assertTrue(Double.isNaN(actual[1]));
     }
 }

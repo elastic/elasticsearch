@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.boxplot;
 
 import com.tdunning.math.stats.Centroid;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,71 +25,83 @@ import java.util.Objects;
 public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot {
 
     enum Metrics {
-
-        MIN
-            {
-                @Override
-                double value(InternalBoxplot boxplot) {
-                    return boxplot.getMin();
-                }
-
-                @Override
-                double value(TDigestState state) {
-                    return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
-                }
-            },
-        MAX
-            {
-                @Override
-                double value(InternalBoxplot boxplot) {
-                    return boxplot.getMax();
-                }
-
-                @Override
-                double value(TDigestState state) {
-                    return state == null ? Double.POSITIVE_INFINITY : state.getMax();
-                }
-            },
-
-        Q1
-            {
-                @Override
-                double value(InternalBoxplot boxplot) {
-                    return boxplot.getQ1();
-                }
-
-                @Override
-                double value(TDigestState state) {
-                    return state == null ? Double.NaN : state.quantile(0.25);
-                }
-            },
-
-        Q2
-            {
-                @Override
-                double value(InternalBoxplot boxplot) {
-                    return boxplot.getQ2();
-                }
-
-                @Override
-                double value(TDigestState state) {
-                    return state == null ? Double.NaN : state.quantile(0.5);
-                }
-            },
-
-        Q3
-            {
-                @Override
-                double value(InternalBoxplot boxplot) {
-                    return boxplot.getQ3();
-                }
-
-                @Override
-                double value(TDigestState state) {
-                    return state == null ? Double.NaN : state.quantile(0.75);
-                }
+        MIN {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getMin();
             }
-        ;
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
+            }
+        },
+        MAX {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getMax();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.POSITIVE_INFINITY : state.getMax();
+            }
+        },
+        Q1 {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getQ1();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NaN : state.quantile(0.25);
+            }
+        },
+        Q2 {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getQ2();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NaN : state.quantile(0.5);
+            }
+        },
+        Q3 {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getQ3();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NaN : state.quantile(0.75);
+            }
+        },
+        LOWER {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return whiskers(boxplot.state)[0];
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return whiskers(state)[0];
+            }
+        },
+        UPPER {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return whiskers(boxplot.state)[1];
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return whiskers(state)[1];
+            }
+        };
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
@@ -112,15 +125,19 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
      * @return - two doubles in an array, where whiskers[0] is the lower whisker and whiskers[1] is the upper whisker.
      */
     public static double[] whiskers(TDigestState state) {
+        double[] results = new double[2];
+        results[0] = Double.NaN;
+        results[1] = Double.NaN;
+        if (state == null) {
+            return results;
+        }
+
         double q3 = state.quantile(0.75);
         double q1 = state.quantile(0.25);
         double iqr = q3 - q1;
         double upper = q3 + (1.5 * iqr);
         double lower = q1 - (1.5 * iqr);
         Centroid prev = null;
-        double[] results = new double[2];
-        results[0] = Double.NaN;
-        results[1] = Double.NaN;
         // Does this iterate in ascending order? if not, we might need to sort...
         for (Centroid c : state.centroids()) {
             if (Double.isNaN(results[0]) && c.mean() > lower) {

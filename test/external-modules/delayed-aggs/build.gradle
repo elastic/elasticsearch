@@ -16,18 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
-import java.io.IOException;
+esplugin {
+  description 'A test module that allows to delay aggregations on shards with a configurable time'
+  classname 'org.elasticsearch.search.aggregations.DelayedShardAggregationPlugin'
+}
 
-/**
- * Highlights a search result.
- */
-public interface Highlighter {
-
-    HighlightField highlight(FieldHighlightContext fieldContext) throws IOException;
-
-    boolean canHighlight(MappedFieldType fieldType);
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'search'
+  }
 }

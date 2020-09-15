@@ -1,4 +1,4 @@
-= Java API
+= Java API (deprecated)
 
 include::{elasticsearch-root}/docs/Versions.asciidoc[]
 

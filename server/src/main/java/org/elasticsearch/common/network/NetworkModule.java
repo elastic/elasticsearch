@@ -102,7 +102,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -218,7 +218,7 @@ public final class NetworkModule {
      * Registers a new {@link TransportInterceptor}
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+        this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**
@@ -226,7 +226,7 @@ public final class NetworkModule {
      * @see #registerTransportInterceptor(TransportInterceptor)
      */
     public TransportInterceptor getTransportInterceptor() {
-        return new CompositeTransportInterceptor(this.transportIntercetors);
+        return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
     static final class CompositeTransportInterceptor implements TransportInterceptor {

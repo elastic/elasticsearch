@@ -35,6 +35,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -177,12 +178,41 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
     public StoredContext newStoredContext(boolean preserveResponseHeaders) {
-        final ThreadContextStruct context = threadLocal.get();
-        return ()  -> {
-            if (preserveResponseHeaders && threadLocal.get() != context) {
-                threadLocal.set(context.putResponseHeaders(threadLocal.get().responseHeaders));
+        return newStoredContext(preserveResponseHeaders, Collections.emptyList());
+    }
+
+    /**
+     * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
+     * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
+     * restored by closing the returned {@link StoredContext}.
+     *
+     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
+     */
+    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        // clear specific transient headers from the current context
+        Map<String, Object> newTransientHeaders = null;
+        for (String transientHeaderToClear : transientHeadersToClear) {
+            if (originalContext.transientHeaders.containsKey(transientHeaderToClear)) {
+                if (newTransientHeaders == null) {
+                    newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
+                }
+                newTransientHeaders.remove(transientHeaderToClear);
+            }
+        }
+        if (newTransientHeaders != null) {
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(originalContext.requestHeaders,
+                    originalContext.responseHeaders, newTransientHeaders, originalContext.isSystemContext,
+                    originalContext.warningHeadersSize);
+            threadLocal.set(threadContextStruct);
+        }
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = threadLocal.get();
+        return () -> {
+            if (preserveResponseHeaders && threadLocal.get() != newContext) {
+                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
             } else {
-                threadLocal.set(context);
+                threadLocal.set(originalContext);
             }
         };
     }
@@ -483,7 +513,7 @@ public final class ThreadContext implements Closeable, Writeable {
             return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, isSystemContext);
         }
 
-        private void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
+        private <T> void putSingleHeader(String key, T value, Map<String, T> newHeaders) {
             if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
@@ -571,12 +601,9 @@ public final class ThreadContext implements Closeable, Writeable {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
 
-
         private ThreadContextStruct putTransient(String key, Object value) {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
-            if (newTransient.putIfAbsent(key, value) != null) {
-                throw new IllegalArgumentException("value for key [" + key + "] already present");
-            }
+            putSingleHeader(key, value, newTransient);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 

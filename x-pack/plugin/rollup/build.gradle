@@ -9,8 +9,6 @@ esplugin {
 }
 
 archivesBaseName = 'x-pack-rollup'
-integTest.enabled = false
-
 
 dependencies {
   compileOnly project(":server")

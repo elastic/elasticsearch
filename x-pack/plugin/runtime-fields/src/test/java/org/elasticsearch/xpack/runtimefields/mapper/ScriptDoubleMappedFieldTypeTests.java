@@ -277,20 +277,20 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                     private DoubleScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(((Number) foo).doubleValue());
+                                            emit(((Number) foo).doubleValue());
                                         }
                                     }
                                 };
                             case "add_param":
-                                return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
+                                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                                         }
                                     }
                                 };

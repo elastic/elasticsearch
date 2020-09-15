@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -152,7 +153,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
-                assertLegacyTemplateMatchesIndexMappings(".transform-internal-005", ".transform-internal-005");
+                IndexMappingTemplateAsserter.assertLegacyTemplateMatchesIndexMappings(client(),
+                    ".transform-internal-005", ".transform-internal-005");
                 cleanUpTransforms();
                 break;
             default:

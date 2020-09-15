@@ -61,7 +61,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         }
     }
@@ -115,7 +115,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
         }
     }

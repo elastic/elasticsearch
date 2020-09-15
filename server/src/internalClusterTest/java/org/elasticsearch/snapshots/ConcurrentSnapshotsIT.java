@@ -548,7 +548,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // Second delete works out cleanly since the repo is unblocked now
         assertThat(secondDeleteFuture.get().isAcknowledged(), is(true));
         // Snapshot should have been aborted
-        assertThat(snapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
+        assertThat(snapshotException.getMessage(), containsString(SnapshotsInProgress.ABORTED_FAILURE_TEXT));
 
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
     }
@@ -574,7 +575,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // Second delete works out cleanly since the repo is unblocked now
         assertThat(secondDeleteFuture.get().isAcknowledged(), is(true));
         // Snapshot should have been aborted
-        assertThat(snapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
+        assertThat(snapshotException.getMessage(), containsString(SnapshotsInProgress.ABORTED_FAILURE_TEXT));
 
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
     }
@@ -1213,6 +1215,30 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(deleteFuture.get());
         final SnapshotException sne = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
         assertThat(sne.getCause().getMessage(), containsString("exception after block"));
+    }
+
+    public void testAbortNotStartedSnapshotWithoutIO() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        createIndexWithContent("test-index");
+
+        final ActionFuture<CreateSnapshotResponse> createSnapshot1Future =
+            startFullSnapshotBlockedOnDataNode("first-snapshot", repoName, dataNode);
+
+        final String snapshotTwo = "second-snapshot";
+        final ActionFuture<CreateSnapshotResponse> createSnapshot2Future = startFullSnapshot(repoName, snapshotTwo);
+
+        awaitNSnapshotsInProgress(2);
+
+        assertAcked(startDelete(repoName, snapshotTwo).get());
+        final SnapshotException sne = expectThrows(SnapshotException.class, createSnapshot2Future::actionGet);
+
+        assertFalse(createSnapshot1Future.isDone());
+        unblockNode(repoName, dataNode);
+        assertSuccessful(createSnapshot1Future);
+        assertThat(getRepositoryData(repoName).getGenId(), is(0L));
     }
 
     private static String startDataNodeWithLargeSnapshotPool() {

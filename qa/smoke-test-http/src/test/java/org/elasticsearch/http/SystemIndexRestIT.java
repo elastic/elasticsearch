@@ -117,7 +117,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             .build();
         Request searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search"));
         searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
-        // Disallow no indices to cause an exception if this resolves to zero indices (as we expect)
+        // Disallow no indices to cause an exception if this resolves to zero indices, so that we're sure it resolved the index
         searchRequest.addParameter("allow_no_indices", "false");
         searchRequest.setOptions(expectWarningOptions);
 

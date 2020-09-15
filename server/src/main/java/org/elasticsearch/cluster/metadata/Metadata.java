@@ -1150,6 +1150,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public DataStream dataStream(String dataStreamName) {
+            return ((DataStreamMetadata) customs.get(DataStreamMetadata.TYPE)).dataStreams().get(dataStreamName);
+        }
+
         public Builder dataStreams(Map<String, DataStream> dataStreams) {
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams));
             return this;

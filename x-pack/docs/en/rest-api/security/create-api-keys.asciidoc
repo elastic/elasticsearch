@@ -60,12 +60,15 @@ would be an intersection of API keys permissions and authenticated user's permis
 thereby limiting the access scope for API keys.
 The structure of role descriptor is the same as the request for create role API.
 For more details, see <<security-api-put-role, create or update roles API>>.
-
++
+--
 NOTE: Due to the way in which this permission intersection is calculated, it is not
 possible to create an API key that is a child of another API key, unless the derived
 key is created without any privileges. In this case, you must explicitly specify a
 role descriptor with no privileges, and the derived API key can be used for
 authentication only, but will not have access to call {es} APIs.
+
+--
 
 `expiration`::
 (Optional, string) Expiration time for the API key. By default, API keys never

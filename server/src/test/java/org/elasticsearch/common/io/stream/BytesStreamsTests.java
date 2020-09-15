@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
@@ -823,12 +825,11 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
+    @Repeat(iterations=1000)
     public void testVInt() throws IOException {
         final int value = randomInt();
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeVInt(value);
-        StreamInput input = output.bytes().streamInput();
-        assertEquals(value, input.readVInt());
 
         BytesStreamOutput simple = new BytesStreamOutput();
         int i = value;
@@ -838,6 +839,9 @@ public class BytesStreamsTests extends ESTestCase {
         }
         simple.writeByte((byte) i);
         assertEquals(simple.bytes().toBytesRef().toString(), output.bytes().toBytesRef().toString());
+
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readVInt());
     }
 
     public void testVLong() throws IOException {

@@ -20,6 +20,9 @@
 package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.DocValueFormat;
@@ -39,6 +42,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -89,4 +93,17 @@ public class StringTermsSerializationBenchmark {
     public DelayableWriteable<InternalAggregations> serialize() {
         return results.asSerialized(InternalAggregations::readFrom, REGISTRY);
     }
+
+    @Benchmark
+    public BytesReference serializeVint() throws IOException {
+        try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+            buffer.setVersion(Version.CURRENT);
+            for (int i = 0; i < 1000000; i++) {
+                buffer.writeVInt(i * 31);
+                buffer.reset();
+            }
+            return buffer.bytes();
+        }
+    }
+
 }

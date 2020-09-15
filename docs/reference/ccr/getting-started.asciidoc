@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-=== Set up {ccr}
+=== Tutorial: Set up {ccr}
+++++
+<titleabbrev>Set up {ccr}</titleabbrev>
+++++
 Bringing data closer to your users or application server can reduce latency
 and response time. This guide explains how to set up {ccr} (CCR) between clusters in two datacenters to ensure that users can access data from the
 cluster that is geographically closest, ensuring optimal performance.

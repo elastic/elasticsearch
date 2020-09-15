@@ -31,10 +31,10 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -59,8 +60,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
@@ -193,7 +196,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
 
         private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null);
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Resolution resolution;
@@ -209,10 +212,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        protected DateFieldType setupFieldType(BuilderContext context) {
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-            return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
-                dateTimeFormatter, resolution, meta.getValue());
+        private DateFormatter buildFormatter() {
+            try {
+                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+            }
         }
 
         @Override
@@ -220,11 +225,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
+        private Long parseNullValue(DateFieldType fieldType) {
+            if (nullValue.getValue() == null) {
+                return null;
+            }
+            try {
+                return fieldType.parse(nullValue.getValue());
+            }
+            catch (Exception e) {
+                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+            }
+        }
+
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = setupFieldType(context);
+            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
+                buildFormatter(), resolution, meta.getValue());
             ft.setBoost(boost.getValue());
-            Long nullTimestamp = nullValue.getValue() == null ? null : ft.dateTimeFormatter.parseMillis(nullValue.getValue());
+            Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
         }
@@ -316,60 +334,83 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
+            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                Query query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+
+                    if (context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
+                }
+                return query;
+            });
+        }
+
+        public static Query dateRangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            @Nullable ZoneId timeZone,
+            DateMathParser parser,
+            QueryShardContext context,
+            Resolution resolution,
+            BiFunction<Long, Long, Query> builder
+        ) {
+            return handleNow(context, nowSupplier -> {
+                long l, u;
+                if (lowerTerm == null) {
+                    l = Long.MIN_VALUE;
+                } else {
+                    l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                    if (includeLower == false) {
+                        ++l;
+                    }
+                }
+                if (upperTerm == null) {
+                    u = Long.MAX_VALUE;
+                } else {
+                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                    if (includeUpper == false) {
+                        --u;
+                    }
+                }
+                return builder.apply(l, u);
+            });
+        }
+
+        /**
+         * Handle {@code now} in queries.
+         * @param context context from which to read the current time
+         * @param builder build the query
+         * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
+         */
+        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
             boolean[] nowUsed = new boolean[1];
             LongSupplier nowSupplier = () -> {
                 nowUsed[0] = true;
                 return context.nowInMillis();
             };
-            long l, u;
-            if (lowerTerm == null) {
-                l = Long.MIN_VALUE;
-            } else {
-                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier);
-                if (includeLower == false) {
-                    ++l;
-                }
-            }
-            if (upperTerm == null) {
-                u = Long.MAX_VALUE;
-            } else {
-                u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier);
-                if (includeUpper == false) {
-                    --u;
-                }
-            }
-
-            Query query = LongPoint.newRangeQuery(name(), l, u);
-            if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                query = new IndexOrDocValuesQuery(query, dvQuery);
-
-                if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                }
-            }
-
-            if (nowUsed[0]) {
-                query = new DateRangeIncludingNowQuery(query);
-            }
-            return query;
+            Query query = builder.apply(nowSupplier);
+            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
         }
 
-        public long parseToLong(Object value, boolean roundUp,
-                                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, LongSupplier now) {
-            DateMathParser dateParser = dateMathParser();
-            if (forcedDateParser != null) {
-                dateParser = forcedDateParser;
-            }
+        public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
+            dateParser = dateParser == null ? dateMathParser() : dateParser;
+            return parseToLong(value, roundUp, zone, dateParser, now, resolution);
+        }
 
-            String strValue;
-            if (value instanceof BytesRef) {
-                strValue = ((BytesRef) value).utf8ToString();
-            } else {
-                strValue = value.toString();
-            }
-            Instant instant = dateParser.parse(strValue, now, roundUp, zone);
-            return resolution.convert(instant);
+        public static long parseToLong(
+            Object value,
+            boolean roundUp,
+            @Nullable ZoneId zone,
+            DateMathParser dateParser,
+            LongSupplier now,
+            Resolution resolution
+        ) {
+            return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
         }
 
         @Override
@@ -389,7 +430,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis);
+                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -400,7 +441,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis);
+                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
@@ -435,7 +476,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType());
         }

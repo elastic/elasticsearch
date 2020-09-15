@@ -17,18 +17,24 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
@@ -37,8 +43,18 @@ public class DataLoader {
 
     private static final String TEST_DATA = "/test_data.json";
     private static final String MAPPING = "/mapping-default.json";
+    private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
     static final String indexPrefix = "endgame";
     public static final String testIndexName = indexPrefix + "-1.4.0";
+
+    private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
+    private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
+
+    private static Map<String, String[]> getReplacementPatterns() {
+        final Map<String, String[]> map = new HashMap<>(1);
+        map.put("[runtime_random_keyword_type]", new String[] {"keyword", "wildcard"});
+        return map;
+    }
 
     public static void main(String[] args) throws IOException {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
@@ -59,10 +75,26 @@ public class DataLoader {
     }
 
     private static void createTestIndex(RestHighLevelClient client) throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest(testIndexName)
-            .mapping(Streams.readFully(DataLoader.class.getResourceAsStream(MAPPING)), XContentType.JSON);
-
+        CreateIndexRequest request = new CreateIndexRequest(testIndexName).mapping(getMapping(MAPPING), XContentType.JSON);
         client.indices().create(request, RequestOptions.DEFAULT);
+    }
+
+    private static String getMapping(String mappingPath) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(DataLoader.class.getResourceAsStream(mappingPath), StandardCharsets.UTF_8)))
+        {
+            StringBuilder b = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("#") == false) {
+                    for (Entry<String, String[]> entry : replacementPatterns.entrySet()) {
+                        line = line.replace(entry.getKey(), ESRestTestCase.randomFrom(entry.getValue()));
+                    }
+                    b.append(line);
+                }
+            }
+            return b.toString();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -98,10 +130,6 @@ public class DataLoader {
         // currently this is windows filetime
         entry.put("@timestamp", winFileTimeToUnix(ts));
     }
-
-
-    private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
-    private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
 
     public static long winFileTimeToUnix(final long filetime) {
         long ts = (filetime / FILETIME_ONE_MILLISECOND);

@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference]]
-= Get {infer} trained model API
+= Get trained model API
 [subs="attributes"]
 ++++
-<titleabbrev>Get {infer} trained model</titleabbrev>
+<titleabbrev>Get trained model</titleabbrev>
 ++++
 
-Retrieves configuration information for a trained {infer} model.
+Retrieves configuration information for a trained model.
 
 experimental[]
 
@@ -34,7 +34,8 @@ privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+For more information, see <<security-privileges>> and 
+{ml-docs-setup-privileges}.
 
 
 [[ml-get-inference-desc]]
@@ -57,36 +58,36 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `allow_no_match`::
 (Optional, boolean) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 
 `decompress_definition`::
 (Optional, boolean)
 Specifies whether the included model definition should be returned as a JSON map 
 (`true`) or in a custom compressed format (`false`). Defaults to `true`.
 
-`from`::
-(Optional, integer) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
-
-`include_model_definition`::
-(Optional, boolean)
-Specifies whether the model definition is returned in the response. Defaults 
-to `false`. When `true`, only a single model must match the ID patterns 
-provided. Otherwise, a bad request is returned.
-
-`size`::
-(Optional, integer) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
-
-`tags`::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
-
 `for_export`::
 (Optional, boolean)
 Indicates if certain fields should be removed from the model configuration on
 retrieval. This allows the model to be in an acceptable format to be retrieved
 and then added to another cluster. Default is false.
+
+`from`::
+(Optional, integer) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
+
+`include_model_definition`::
+(Optional, boolean)
+Specifies whether the model definition is returned in the response. Defaults to 
+`false`. When `true`, only a single model must match the ID patterns provided. 
+Otherwise, a bad request is returned.
+
+`size`::
+(Optional, integer) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size-models]
+
+`tags`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
 
 [role="child_attributes"]
 [[ml-get-inference-results]]
@@ -141,7 +142,7 @@ Identifier for the trained model.
 
 `tags`:::
 (string)
-A comma delimited string of tags. A {infer} model can have many tags, or none.
+A comma delimited string of tags. A trained model can have many tags, or none.
 
 `version`:::
 (string)

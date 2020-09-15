@@ -12,8 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -185,8 +187,17 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         private static ConstructingObjectParser<ClassImportance, Void> createParser(boolean ignoreUnknownFields) {
             ConstructingObjectParser<ClassImportance, Void> parser = new ConstructingObjectParser<>(NAME,
                 ignoreUnknownFields,
-                a -> new ClassImportance((String)a[0], (Importance)a[1]));
-            parser.declareString(ConstructingObjectParser.constructorArg(), CLASS_NAME);
+                a -> new ClassImportance(a[0], (Importance)a[1]));
+            parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return p.text();
+                } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    return p.numberValue();
+                } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                    return p.booleanValue();
+                }
+                throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+            }, CLASS_NAME, ObjectParser.ValueType.VALUE);
             parser.declareObject(ConstructingObjectParser.constructorArg(),
                 ignoreUnknownFields ? Importance.LENIENT_PARSER : Importance.STRICT_PARSER,
                 IMPORTANCE);
@@ -197,22 +208,22 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
         }
 
-        public final String className;
+        public final Object className;
         public final Importance importance;
 
         public ClassImportance(StreamInput in) throws IOException {
-            this.className = in.readString();
+            this.className = in.readGenericValue();
             this.importance = new Importance(in);
         }
 
-        ClassImportance(String className, Importance importance) {
+        ClassImportance(Object className, Importance importance) {
             this.className = className;
             this.importance = importance;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(className);
+            out.writeGenericValue(className);
             importance.writeTo(out);
         }
 

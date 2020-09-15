@@ -131,7 +131,6 @@ public class RestoreService implements ClusterStateApplier {
             SETTING_VERSION_CREATED,
             SETTING_INDEX_UUID,
             SETTING_CREATION_DATE,
-            IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
             SETTING_HISTORY_UUID));
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
@@ -524,6 +523,12 @@ public class RestoreService implements ClusterStateApplier {
                             .put(changeSettings)
                             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
                             .build();
+                        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings()) &&
+                            IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(changeSettings) &&
+                            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(changeSettings) == false) {
+                            throw new SnapshotRestoreException(snapshot,
+                                "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore");
+                        }
                         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                         Settings settings = indexMetadata.getSettings();
                         Set<String> keyFilters = new HashSet<>();

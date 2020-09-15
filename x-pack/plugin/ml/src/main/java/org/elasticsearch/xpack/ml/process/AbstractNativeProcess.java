@@ -192,10 +192,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 logTailFuture.get(5, TimeUnit.SECONDS);
             }
 
-            if (cppLogHandler().seenFatalError()) {
-                throw ExceptionsHelper.serverError(cppLogHandler().getErrors());
+            if (cppLogHandler() != null) {
+                if (cppLogHandler().seenFatalError()) {
+                    throw ExceptionsHelper.serverError(cppLogHandler().getErrors());
+                }
+                LOGGER.debug("[{}] {} process exited", jobId, getName());
             }
-            LOGGER.debug("[{}] {} process exited", jobId, getName());
         } catch (ExecutionException | TimeoutException e) {
             LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
         } catch (InterruptedException e) {
@@ -260,18 +262,20 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     @Override
     public boolean isProcessAlive() {
         // Sanity check: make sure the process hasn't terminated already
-        return cppLogHandler().hasLogStreamEnded() == false;
+        return cppLogHandler() != null && cppLogHandler().hasLogStreamEnded() == false;
     }
 
     @Override
     public boolean isProcessAliveAfterWaiting() {
-        cppLogHandler().waitForLogStreamClose(Duration.ofMillis(45));
+        if (cppLogHandler() != null) {
+            cppLogHandler().waitForLogStreamClose(Duration.ofMillis(45));
+        }
         return isProcessAlive();
     }
 
     @Override
     public String readError() {
-        return cppLogHandler().getErrors();
+        return (cppLogHandler() == null) ? "" : cppLogHandler().getErrors();
     }
 
     protected String jobId() {

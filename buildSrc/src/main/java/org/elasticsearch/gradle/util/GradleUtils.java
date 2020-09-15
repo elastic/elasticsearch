@@ -155,7 +155,7 @@ public abstract class GradleUtils {
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
             idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
-            idea.getModule().getScopes().put("TEST", Map.of("plus", List.of(runtimeClasspathConfiguration)));
+            idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
             EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
@@ -194,6 +194,19 @@ public abstract class GradleUtils {
         // tie this new test source set to the main and test source sets
         child.setCompileClasspath(project.getObjects().fileCollection().from(child.getCompileClasspath(), parent.getOutput()));
         child.setRuntimeClasspath(project.getObjects().fileCollection().from(child.getRuntimeClasspath(), parent.getOutput()));
+    }
+
+    /**
+     * Extends one configuration from another and refreshes the classpath of a provided Test.
+     * The Test parameter is only needed for eagerly defined test tasks.
+     */
+    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, Test test) {
+        extendSourceSet(project, parentSourceSetName, childSourceSetName);
+        if (test != null) {
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet child = sourceSets.getByName(childSourceSetName);
+            test.setClasspath(child.getRuntimeClasspath());
+        }
     }
 
     public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {

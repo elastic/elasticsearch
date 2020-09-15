@@ -168,7 +168,7 @@ public class FetchPhase {
             if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            boolean loadSource = sourceRequired(context);
             return new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -198,7 +198,7 @@ public class FetchPhase {
                     }
                 }
             }
-            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            boolean loadSource = sourceRequired(context);
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource);
@@ -206,6 +206,10 @@ public class FetchPhase {
                 return new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
             }
         }
+    }
+
+    private boolean sourceRequired(SearchContext context) {
+        return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
@@ -287,7 +291,7 @@ public class FetchPhase {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
-        boolean needSource = context.sourceRequested() || context.highlight() != null;
+        boolean needSource = sourceRequired(context) || context.highlight() != null;
 
         String rootId;
         Map<String, Object> rootSourceAsMap = null;

@@ -28,7 +28,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
     public void testRegexpQueryIsError() throws IOException {
         assertQueryOnlyOnTextAndKeyword(
             "regexp",
-            () -> simpleMappedFieldType().regexpQuery("cat", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+            () -> simpleMappedFieldType().regexpQuery("cat", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
         );
     }
 

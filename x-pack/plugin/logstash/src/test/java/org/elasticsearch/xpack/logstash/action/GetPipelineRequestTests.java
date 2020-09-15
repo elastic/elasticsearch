@@ -28,10 +28,11 @@ public class GetPipelineRequestTests extends AbstractWireSerializingTestCase<Get
     @Override
     protected GetPipelineRequest mutateInstance(GetPipelineRequest instance) {
         List<String> ids = new ArrayList<>(instance.ids());
-        if (randomBoolean()) {
+        if (randomBoolean() || ids.size() == 0) {
             // append another ID
             ids.add(randomAlphaOfLengthBetween(2, 10));
         } else {
+            // change the strings in the request
             ids = ids.stream().map(id -> id + randomAlphaOfLength(1)).collect(Collectors.toList());
         }
         return new GetPipelineRequest(ids);

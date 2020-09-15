@@ -43,7 +43,7 @@ class VersionEncoder {
     private static final char PRERELEASE_SEPARATOR = '-';
     private static final char DOT_SEPARATOR = '.';
     private static final char BUILD_SEPARATOR = '+';
-    private static final String ENCODED_EMPTY_STRING = new String(new String(new byte[] { NO_PRERELEASE_SEPARATOR_BYTE }, Charsets.UTF_8));
+    private static final String ENCODED_EMPTY_STRING = new String(new byte[] { NO_PRERELEASE_SEPARATOR_BYTE }, Charsets.UTF_8);
 
     // Regex to test relaxed Semver Main Version validity. Allows for more or less than three main version parts
     private static Pattern LEGAL_MAIN_VERSION_SEMVER = Pattern.compile("(0|[1-9]\\d*)(\\.(0|[1-9]\\d*))*");

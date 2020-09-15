@@ -22,6 +22,17 @@ import java.util.List;
  */
 class VersionFieldWildcardQuery extends AutomatonQuery {
 
+    private static final Automaton OPTIONAL_NUMERIC_CHARPREFIX = Operations.optional(
+        Operations.concatenate(Automata.makeChar(VersionEncoder.NUMERIC_MARKER_BYTE), Automata.makeCharRange(0x80, 0xFF))
+    );
+
+    private static final Automaton OPTIONAL_RELEASE_SEPARATOR = Operations.optional(
+        Operations.union(
+            Automata.makeChar(VersionEncoder.PRERELEASE_SEPARATOR_BYTE),
+            Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)
+        )
+    );
+
     private static final byte WILDCARD_STRING = '*';
 
     private static final byte WILDCARD_CHAR = '?';
@@ -46,7 +57,8 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     break;
                 case WILDCARD_CHAR:
                     // this should also match leading digits, which have optional leading numeric marker and length bytes
-                    automata.add(optionalNumericCharPrefix());
+                    automata.add(OPTIONAL_NUMERIC_CHARPREFIX);
+                    automata.add(OPTIONAL_RELEASE_SEPARATOR);
                     automata.add(Automata.makeAnyChar());
                     break;
 
@@ -79,7 +91,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                         firstDigitInGroup = false;
                     }
                     if (firstDigitInGroup) {
-                        automata.add(optionalNumericCharPrefix());
+                        automata.add(OPTIONAL_NUMERIC_CHARPREFIX);
                     }
                     automata.add(Automata.makeChar(c));
                     break;
@@ -93,12 +105,6 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
             automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)));
         }
         return Operations.concatenate(automata);
-    }
-
-    private static Automaton optionalNumericCharPrefix() {
-        return Operations.optional(
-            Operations.concatenate(Automata.makeChar(VersionEncoder.NUMERIC_MARKER_BYTE), Automata.makeCharRange(0x80, 0xFF))
-        );
     }
 
     @Override

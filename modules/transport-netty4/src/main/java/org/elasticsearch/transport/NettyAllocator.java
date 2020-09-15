@@ -36,6 +36,7 @@ public class NettyAllocator {
 
     private static final String USE_UNPOOLED = "es.use_unpooled_allocator";
     private static final String USE_NETTY_DEFAULT = "es.unsafe.use_netty_default_allocator";
+    private static final String USE_NETTY_DEFAULT_CHUNK = "es.unsafe.use_netty_default_chunk_size";
 
     static {
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
@@ -47,7 +48,12 @@ public class NettyAllocator {
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize = PooledByteBufAllocator.defaultPageSize();
-                int maxOrder = PooledByteBufAllocator.defaultMaxOrder();
+                int maxOrder;
+                if (useDefaultChunkSize()) {
+                    maxOrder = PooledByteBufAllocator.defaultMaxOrder();
+                } else {
+                    maxOrder = 7;
+                }
                 int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
                 int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
                 int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
@@ -85,6 +91,14 @@ public class NettyAllocator {
         } else {
             long heapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
             return heapSize <= 1 << 30;
+        }
+    }
+
+    private static boolean useDefaultChunkSize() {
+        if (System.getProperty(USE_NETTY_DEFAULT_CHUNK) != null) {
+            return Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT_CHUNK));
+        } else {
+            return false;
         }
     }
 

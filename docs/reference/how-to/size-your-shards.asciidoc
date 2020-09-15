@@ -8,13 +8,13 @@ To protect against hardware failure and increase capacity, {es} stores copies of
 an index’s data across multiple shards on multiple nodes. The number and size of
 these shards can have a significant impact on your cluster's health. One common
 problem is _oversharding_, a situation in which a cluster with a large number of
-shards has degraded performance.
+shards has degraded stability.
 
 [discrete]
 [[create-a-sharding-strategy]]
 === Create a sharding strategy
 
-The best way to prevent oversharding and other shard-related performance issues
+The best way to prevent oversharding and other shard-related issues
 is to create a sharding strategy. A sharding strategy helps you determine and
 maintain the optimal number of shards for your cluster while limiting the size
 of those shards.
@@ -29,7 +29,7 @@ production. For our recommended methodology, watch the
 https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[quantitative
 cluster sizing video]. As you test different shard configurations, use {kib}'s
 {kibana-ref}/elasticsearch-metrics.html[{es} monitoring] to track your cluster's
-performance.
+stability and performance.
 
 The following sections provide some reminders and guidelines you should consider
 when designing your sharding strategy. If your cluster has shard-related
@@ -102,7 +102,7 @@ deleted indices directly from the file system and free up resources.
 
 <<data-streams,Data streams>> let you store time series data across multiple,
 time-based backing indices. You can use <<index-lifecycle-management,{ilm}
-({ilm-init})>> lifecycle policies to automatically manage these backing indices.
+({ilm-init})>> policies to automatically manage these backing indices.
 
 [role="screenshot"]
 image:images/ilm/index-lifecycle-policies.png[]
@@ -170,8 +170,8 @@ If you use a hot-warm architecture, you can use
 <<shard-allocation-awareness,shard allocation awareness>> to assign shards to
 nodes based on physical hardware. However, if too many shards are allocated to a
 specific node, the node can become a hotspot. For example, if a single node
-contains all the primary shards for an index with a high indexing volume, the
-node is likely to have performance issues.
+contains too many of the shards for an index with a high indexing volume, the
+node is likely to have issues.
 
 To prevent hotspots, use the
 <<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> index
@@ -184,7 +184,7 @@ configure `index.routing.allocation.total_shards_per_node` using the
 PUT /my-index-000001/_settings
 {
   "index" : {
-    "routing.allocation.total_shards_per_node" : 400
+    "routing.allocation.total_shards_per_node" : 5
   }
 }
 --------------------------------------------------
@@ -195,7 +195,7 @@ PUT /my-index-000001/_settings
 [[fix-an-oversharded-cluster]]
 === Fix an oversharded cluster
 
-If your cluster is experiencing performance issues due to oversharded indices,
+If your cluster is experiencing stability issues due to oversharded indices,
 you can use one or more of the following methods to fix them.
 
 [discrete]
@@ -265,28 +265,6 @@ POST /my-index-000001/_shrink/my-shrunken-index-000001
 
 {ilm-init} also has a <<ilm-shrink-action,shrink action>> for indices in the
 warm phase.
-
-[discrete]
-[[reindex-an-existing-index-to-fewer-shards]]
-==== Reindex to an index with fewer shards
-
-You can use the <<docs-reindex,reindex API>> to reindex data from an oversharded
-index to an index with fewer shards. After the reindex, delete the oversharded
-index.
-
-[source,console]
-----
-POST /_reindex
-{
-  "source": {
-    "index": "my-oversharded-index-000001"
-  },
-  "dest": {
-    "index": "my-new-index-000001"
-  }
-}
-----
-// TEST[s/^/PUT my-oversharded-index-000001\n/]
 
 [discrete]
 [[combine-smaller-indices]]

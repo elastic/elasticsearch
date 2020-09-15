@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
 import org.elasticsearch.common.time.DateFormatter;
@@ -252,9 +253,12 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertKnownMovesBacktoPreviousDay("America/Moncton", "2005-10-29T03:01:00");
         assertKnownMovesBacktoPreviousDay("America/St_Johns", "2010-11-07T02:31:00");
         assertKnownMovesBacktoPreviousDay("Canada/Newfoundland", "2010-11-07T02:31:00");
-        assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
-        assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");
         assertKnownMovesBacktoPreviousDay("Europe/Paris", "1911-03-1T00:01:00");
+        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) > 0) {
+            // Added in java 12
+            assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
+            assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");
+        }
     }
 
     private void assertKnownMovesBacktoPreviousDay(String zone, String time) {

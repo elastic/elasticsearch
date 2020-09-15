@@ -24,7 +24,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
@@ -61,7 +60,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -171,10 +169,6 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
     }
 
     @Override
-    public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(ScriptBooleanMappedFieldType::existsQuery);
-    }
-
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
@@ -213,11 +207,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
         }
     }
 
-    public void testRangeQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.rangeQuery(true, true, true, true, null, null, null, ctx));
-        checkExpensiveQuery((ft, ctx) -> ft.rangeQuery(false, true, true, true, null, null, null, ctx));
-        checkExpensiveQuery((ft, ctx) -> ft.rangeQuery(false, true, false, true, null, null, null, ctx));
-        // These are not expensive queries
+    public void testRangeQueryDegeneratesIntoNotExpensive() throws IOException {
         assertThat(
             simpleMappedFieldType().rangeQuery(true, true, false, false, null, null, null, mockContext()),
             instanceOf(MatchNoDocsQuery.class)
@@ -226,6 +216,30 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
             simpleMappedFieldType().rangeQuery(false, false, false, false, null, null, null, mockContext()),
             instanceOf(MatchNoDocsQuery.class)
         );
+        // Even if the running the field would blow up because it loops the query *still* just returns none.
+        assertThat(
+            loopFieldType().rangeQuery(true, true, false, false, null, null, null, mockContext()),
+            instanceOf(MatchNoDocsQuery.class)
+        );
+        assertThat(
+            loopFieldType().rangeQuery(false, false, false, false, null, null, null, mockContext()),
+            instanceOf(MatchNoDocsQuery.class)
+        );
+    }
+
+    @Override
+    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        // Builds a random range query that doesn't degenerate into match none
+        switch (randomInt(2)) {
+            case 0:
+                return ft.rangeQuery(true, true, true, true, null, null, null, ctx);
+            case 1:
+                return ft.rangeQuery(false, true, true, true, null, null, null, ctx);
+            case 2:
+                return ft.rangeQuery(false, true, false, true, null, null, null, ctx);
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -254,8 +268,8 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
     }
 
     @Override
-    public void testTermQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomBoolean(), ctx));
+    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termQuery(randomBoolean(), ctx);
     }
 
     @Override
@@ -283,13 +297,22 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
         }
     }
 
-    @Override
-    public void testTermsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(true), ctx));
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(false), ctx));
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(false, true), ctx));
-        // This is not an expensive query
+    public void randomTermsQueryDegeneratesIntoMatchNone() throws IOException {
         assertThat(simpleMappedFieldType().termsQuery(List.of(), mockContext()), instanceOf(MatchNoDocsQuery.class));
+    }
+
+    @Override
+    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+        switch (randomInt(2)) {
+            case 0:
+                return ft.termsQuery(List.of(true), ctx);
+            case 1:
+                return ft.termsQuery(List.of(false), ctx);
+            case 2:
+                return ft.termsQuery(List.of(false, true), ctx);
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 
     public void testDualingQueries() throws IOException {
@@ -371,6 +394,11 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
     }
 
     @Override
+    protected MappedFieldType loopFieldType() throws IOException {
+        return build("loop", Map.of());
+    }
+
+    @Override
     protected String runtimeType() {
         return "boolean";
     }
@@ -436,6 +464,12 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                                         }
                                     }
                                 };
+                            case "loop":
+                                return (fieldName, params, lookup) -> {
+                                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                                    lookup.forkAndTrackFieldReferences("test");
+                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");
                         }
@@ -448,14 +482,5 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
             BooleanScriptFieldScript.Factory factory = scriptService.compile(script, BooleanScriptFieldScript.CONTEXT);
             return new ScriptBooleanMappedFieldType("test", script, factory, emptyMap());
         }
-    }
-
-    private void checkExpensiveQuery(BiConsumer<ScriptBooleanMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptBooleanMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
     }
 }

@@ -29,12 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
-    private final DoubleScriptFieldScript.Factory scriptFactory;
-
+public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType<DoubleScriptFieldScript.LeafFactory> {
     ScriptDoubleMappedFieldType(String name, Script script, DoubleScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, meta);
-        this.scriptFactory = scriptFactory;
+        super(name, script, scriptFactory::newFactory, meta);
     }
 
     @Override
@@ -63,14 +60,10 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
         return new ScriptDoubleFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private DoubleScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(name(), script.getParams(), searchLookup);
-    }
-
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new DoubleScriptFieldExistsQuery(script, leafFactory(context.lookup()), name());
+        return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -89,14 +82,14 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context.lookup()), name(), l, u)
+            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
         );
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new DoubleScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), NumberType.objectToDouble(value));
+        return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
     }
 
     @Override
@@ -109,6 +102,6 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
         checkAllowExpensiveQueries(context);
-        return new DoubleScriptFieldTermsQuery(script, leafFactory(context.lookup()), name(), terms);
+        return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 }

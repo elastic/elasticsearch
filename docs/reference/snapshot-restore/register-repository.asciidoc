@@ -240,8 +240,28 @@ When you restore a source only snapshot:
 
  * Queries other than `match_all` and `_get` requests are not supported.
 
- * The mapping of the restored index is empty, but the original mapping is available from the types top
-   level `meta` element.
+ * The mapping of the restored index is empty, but the original mapping is available from the top
+   level `_meta` element.
+   
+[source,console-result]
+--------------------------------------------------
+{
+  "restored_index" : {
+    "mappings" : {
+      "enabled" : false,
+      "_meta" : {
+        "_doc" : {
+          "properties" : {
+            "field" : {
+              "type" : "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 ==================================================
 

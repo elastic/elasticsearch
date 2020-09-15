@@ -143,8 +143,8 @@ setup:
 ---
 "field collapsing, inner_hits, and fields":
   - skip:
-      version: " - 7.99.99"
-      reason: the enhancement is not yet backported to 7.x
+      version: " - 7.9.99"
+      reason: the 'fields' option was added in 7.10
   - do:
       search:
         rest_total_hits_as_int: true

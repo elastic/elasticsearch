@@ -54,7 +54,6 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +85,6 @@ public class TermVectorsService  {
         final Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
 
         Fields termVectorsByField = null;
-        AggregatedDfs dfs = null;
         TermVectorsFilter termVectorsFilter = null;
 
         /* handle potential wildcards in fields */
@@ -102,10 +100,6 @@ public class TermVectorsService  {
             /* from an artificial document */
             if (request.doc() != null) {
                 termVectorsByField = generateTermVectorsFromDoc(indexShard, request);
-                // if no document indexed in shard, take the queried document itself for stats
-                if (topLevelFields == null) {
-                    topLevelFields = termVectorsByField;
-                }
                 termVectorsResponse.setArtificial(true);
                 termVectorsResponse.setExists(true);
             }
@@ -132,7 +126,7 @@ public class TermVectorsService  {
             /* if there are term vectors, optional compute dfs and/or terms filtering */
             if (termVectorsByField != null) {
                 if (request.filterSettings() != null) {
-                    termVectorsFilter = new TermVectorsFilter(termVectorsByField, topLevelFields, request.selectedFields(), dfs);
+                    termVectorsFilter = new TermVectorsFilter(termVectorsByField, topLevelFields, request.selectedFields());
                     termVectorsFilter.setSettings(request.filterSettings());
                     try {
                         termVectorsFilter.selectBestTerms();
@@ -141,7 +135,7 @@ public class TermVectorsService  {
                     }
                 }
                 // write term vectors
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs,
+                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields,
                         termVectorsFilter);
             }
             termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(nanoTimeSupplier.getAsLong() - startTime));
@@ -230,7 +224,7 @@ public class TermVectorsService  {
         MapperService mapperService = indexShard.mapperService();
         Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
-            analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
+            analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
         } else {
             MappedFieldType fieldType = mapperService.fieldType(field);
             analyzer = fieldType.indexAnalyzer();

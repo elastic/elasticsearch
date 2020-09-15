@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.esplugin'
 
@@ -17,7 +19,6 @@ dependencies {
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 
 }
-
 
 javaRestTest {
   systemProperty 'tests.security.manager', 'false'

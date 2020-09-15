@@ -12,9 +12,11 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 archivesBaseName = 'x-pack'
 
 dependencies {
-  yamlRestTestImplementation project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // let the yamlRestTest see the classpath of test
+  yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
 }
 
 subprojects {
@@ -61,16 +63,11 @@ subprojects {
 configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
-  testArtifacts.extendsFrom yamlRestTestImplementation
-  testArtifacts.extendsFrom javaRestTestImplementation
 }
 
 restResources {
   restApi {
     includeCore '*'
-    includeXpack '*'
-  }
-  restTests {
     includeXpack '*'
   }
 }
@@ -83,10 +80,8 @@ artifacts {
 
 def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
-  duplicatesStrategy = DuplicatesStrategy.INCLUDE
   from sourceSets.test.output
-  from sourceSets.yamlRestTest.output
-  from sourceSets.javaRestTest.output
+
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid

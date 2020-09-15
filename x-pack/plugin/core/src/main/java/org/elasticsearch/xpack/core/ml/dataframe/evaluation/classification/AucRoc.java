@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,8 +57,6 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
  * curve of each class versus the rest.
  */
 public class AucRoc extends AbstractAucRoc {
-
-    public static final ParseField NAME = new ParseField("auc_roc");
 
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
     public static final ParseField CLASS_NAME = new ParseField("class_name");
@@ -117,13 +116,8 @@ public class AucRoc extends AbstractAucRoc {
     }
 
     @Override
-    public String getName() {
-        return NAME.getPreferredName();
-    }
-
-    @Override
     public Set<String> getRequiredFields() {
-        return Set.of(
+        return Sets.newHashSet(
             EvaluationFields.ACTUAL_FIELD.getPreferredName(),
             EvaluationFields.RESULTS_NESTED_FIELD.getPreferredName(),
             EvaluationFields.PREDICTED_CLASS_NAME_FIELD.getPreferredName(),

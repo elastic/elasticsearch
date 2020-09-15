@@ -9,7 +9,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
@@ -180,8 +179,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME),
                 ConfusionMatrix.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(Classification.NAME, AbstractAucRoc.NAME),
-                AbstractAucRoc.Result::new),
+                registeredMetricName(Classification.NAME, AucRoc.NAME),
+                AucRoc.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME),
                 MulticlassConfusionMatrix.Result::new),

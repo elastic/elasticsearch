@@ -365,7 +365,10 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
         Map<String, Object> expectedTopClassesMapping = new HashMap<>() {{
             put("type", "nested");
-            put("properties", Collections.singletonMap("class_name", Collections.singletonMap("bar", "baz")));
+            put("properties", new HashMap<>() {{
+                put("class_name", Collections.singletonMap("bar", "baz"));
+                put("class_probability", "double");
+            }});
         }};
         Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
             Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
@@ -376,7 +379,10 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
 
         expectedTopClassesMapping = new HashMap<>() {{
             put("type", "nested");
-            put("properties", Collections.singletonMap("class_name", Collections.singletonMap("type", "long")));
+            put("properties", new HashMap<>() {{
+                put("class_name", Collections.singletonMap("type", "long"));
+                put("class_probability", "double");
+            }});
         }};
         explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
             new HashMap<>() {{

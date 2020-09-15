@@ -154,8 +154,20 @@ belongs.
   The data type of this field must be categorical.
   
 `predicted_field`::
-  (Required, string) The field in the `index` that contains the predicted value, 
+  (Optional, string) The field in the `index` which contains the predicted value,
   in other words the results of the {classanalysis}.
+
+`results_nested_field`::
+  (Optional, string) The field of the `index` which is a nested array of results.
+
+`predicted_class_name_field`::
+  (Optional, string) The field of the `index` which contains the predicted class name.
+  Must be nested under `results_nested_field`.
+
+`predicted_probability_field`::
+  (Optional, string) The field of the `index` which contains the probability of
+  whether the item belongs to the class in question or not.
+  Must be nested under `results_nested_field`.
 
 `metrics`::
   (Optional, object) Specifies the metrics that are used for the evaluation.
@@ -166,8 +178,11 @@ belongs.
 
   `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver
-    operating characteristic) score and optionally the curve. Default value is
-    {"include_curve": false}.
+    operating characteristic) score and optionally the curve.
+    It is calculated for a particular class X (provided as "class_name")
+    treated as positive while the rest of the classes are treated as negative
+    ("one-vs-all" strategy).
+    Default value is {"include_curve": false}.
 
   `multiclass_confusion_matrix`:::
     (Optional, object) Multiclass confusion matrix.

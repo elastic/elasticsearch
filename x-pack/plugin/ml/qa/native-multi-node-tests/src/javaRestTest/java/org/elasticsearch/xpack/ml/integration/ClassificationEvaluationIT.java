@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recal
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -682,7 +683,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     List<?> topClasses =
                         IntStream
                             .range(0, 5)
-                            .mapToObj(ix -> Map.of("class_name", animalNames.get(ix), "class_probability", 0.4 - 0.1 * ix))
+                            .mapToObj(ix -> new HashMap<>() {{
+                                put("class_name", animalNames.get(ix));
+                                put("class_probability", 0.4 - 0.1 * ix);
+                            }})
                             .collect(toList());
                     bulkRequestBuilder.add(
                         new IndexRequest(indexName)

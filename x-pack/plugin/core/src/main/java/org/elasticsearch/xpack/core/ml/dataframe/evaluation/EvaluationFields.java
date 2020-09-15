@@ -9,6 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -97,7 +98,7 @@ public final class EvaluationFields {
     }
 
     public List<Tuple<String, String>> listAll() {
-        return List.of(
+        return Arrays.asList(
             Tuple.tuple(ACTUAL_FIELD.getPreferredName(), actualField),
             Tuple.tuple(PREDICTED_FIELD.getPreferredName(), predictedField),
             Tuple.tuple(RESULTS_NESTED_FIELD.getPreferredName(), resultsNestedField),

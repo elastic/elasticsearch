@@ -80,31 +80,22 @@ public class Classification implements Evaluation {
                           @Nullable String predictedClassNameField,
                           @Nullable String predictedProbabilityField,
                           @Nullable List<EvaluationMetric> metrics) {
-        // If any of these fields is specified, all of them must be specified.
-        if (resultsNestedField != null || predictedClassNameField != null || predictedProbabilityField != null) {
-            if (resultsNestedField != null && predictedClassNameField != null && predictedProbabilityField != null) {
-                if (predictedClassNameField.startsWith(resultsNestedField) == false) {
-                    throw ExceptionsHelper.badRequestException(
-                        "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
-                        PREDICTED_CLASS_NAME_FIELD.getPreferredName(),
-                        RESULTS_NESTED_FIELD.getPreferredName(),
-                        predictedClassNameField,
-                        resultsNestedField);
-                }
-                if (predictedProbabilityField.startsWith(resultsNestedField) == false) {
-                    throw ExceptionsHelper.badRequestException(
-                        "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
-                        PREDICTED_PROBABILITY_FIELD.getPreferredName(),
-                        RESULTS_NESTED_FIELD.getPreferredName(),
-                        predictedProbabilityField,
-                        resultsNestedField);
-                }
-            } else {
+        if (resultsNestedField != null) {
+            if (predictedClassNameField != null && predictedClassNameField.startsWith(resultsNestedField) == false) {
                 throw ExceptionsHelper.badRequestException(
-                    "Either all or none of [{}, {}, {}] must be specified",
-                    RESULTS_NESTED_FIELD.getPreferredName(),
+                    "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
                     PREDICTED_CLASS_NAME_FIELD.getPreferredName(),
-                    PREDICTED_PROBABILITY_FIELD.getPreferredName());
+                    RESULTS_NESTED_FIELD.getPreferredName(),
+                    predictedClassNameField,
+                    resultsNestedField);
+            }
+            if (predictedProbabilityField != null && predictedProbabilityField.startsWith(resultsNestedField) == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
+                    PREDICTED_PROBABILITY_FIELD.getPreferredName(),
+                    RESULTS_NESTED_FIELD.getPreferredName(),
+                    predictedProbabilityField,
+                    resultsNestedField);
             }
         }
         this.fields =
@@ -122,7 +113,7 @@ public class Classification implements Evaluation {
     }
 
     public Classification(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.fields =
                 new EvaluationFields(
                     in.readString(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
@@ -155,7 +146,7 @@ public class Classification implements Evaluation {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalString(fields.getPredictedField());
             out.writeOptionalString(fields.getResultsNestedField());
             out.writeOptionalString(fields.getPredictedClassNameField());

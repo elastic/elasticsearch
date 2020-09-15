@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -96,23 +97,14 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testConstructor_GivenMissingField() {
-        String expectedErrorMessage =
-            "Either all or none of [results_nested_field, predicted_class_name_field, predicted_probability_field] must be specified";
-        {
-            ElasticsearchStatusException e =
-                expectThrows(ElasticsearchStatusException.class, () -> new Classification("foo", "bar", "baz", null, null, null));
-            assertThat(e.getMessage(), is(equalTo(expectedErrorMessage)));
-        }
-        {
-            ElasticsearchStatusException e =
-                expectThrows(ElasticsearchStatusException.class, () -> new Classification("foo", "bar", null, "baz", null, null));
-            assertThat(e.getMessage(), is(equalTo(expectedErrorMessage)));
-        }
-        {
-            ElasticsearchStatusException e =
-                expectThrows(ElasticsearchStatusException.class, () -> new Classification("foo", "bar", null, null, "baz", null));
-            assertThat(e.getMessage(), is(equalTo(expectedErrorMessage)));
-        }
+        FakeClassificationMetric metric = new FakeClassificationMetric("fake");
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> new Classification("foo", null, null, null, null, Collections.singletonList(metric)));
+        assertThat(
+            e.getMessage(),
+            is(equalTo("[classification] must define [predicted_field] as required by the following metrics [fake]")));
     }
 
     public void testConstructor_GivenBadField() {
@@ -270,6 +262,10 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         private int currentStepIndex;
         private EvaluationMetricResult result;
 
+        FakeClassificationMetric(String name) {
+            this(name, 1);
+        }
+
         FakeClassificationMetric(String name, int numSteps) {
             this.name = name;
             this.numSteps = numSteps;
@@ -287,7 +283,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
         @Override
         public Set<String> getRequiredFields() {
-            return Set.of(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
+            return Sets.newHashSet(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
         }
 
         @Override

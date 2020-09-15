@@ -666,7 +666,7 @@ setup:
 ---
 "Test classification auc_roc with missing predicted_class_name_field":
   - do:
-      catch: /Either all or none of \[results_nested_field, predicted_class_name_field, predicted_probability_field\] must be specified/
+      catch: /\[classification\] must define \[predicted_class_name_field\] as required by the following metrics \[auc_roc\]/
       ml.evaluate_data_frame:
         body: >
           {
@@ -688,7 +688,7 @@ setup:
 ---
 "Test classification auc_roc with missing predicted_probability_field":
   - do:
-      catch: /Either all or none of \[results_nested_field, predicted_class_name_field, predicted_probability_field\] must be specified/
+      catch: /\[classification\] must define \[predicted_probability_field\] as required by the following metrics \[auc_roc\]/
       ml.evaluate_data_frame:
         body: >
           {

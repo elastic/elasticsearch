@@ -57,6 +57,12 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             throw ExceptionsHelper.badRequestException("[{}] must have one or more metrics", getName());
         }
         Collections.sort(metrics, Comparator.comparing(EvaluationMetric::getName));
+        checkRequiredFieldsAreSet(metrics);
+        return metrics;
+    }
+
+    private <T extends EvaluationMetric> void checkRequiredFieldsAreSet(List<T> metrics) {
+        assert (metrics == null || metrics.isEmpty()) == false;
         for (Tuple<String, String> requiredField : getFields().listAll()) {
             String fieldDescriptor = requiredField.v1();
             String field = requiredField.v2();
@@ -73,7 +79,6 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
                 }
             }
         }
-        return metrics;
     }
 
     /**

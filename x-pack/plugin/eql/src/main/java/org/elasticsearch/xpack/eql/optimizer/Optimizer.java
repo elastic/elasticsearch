@@ -16,10 +16,14 @@ import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -51,6 +55,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -74,10 +79,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new PushDownAndCombineFilters(),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
                 new CombineLimits());
+
+        Batch constraints = new Batch("Infer constraints", Limiter.ONCE,
+                new PropagateJoinKeyConstraints());
 
         Batch ordering = new Batch("Implicit Order",
                 new SortByLimit(),
@@ -91,9 +100,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(substitutions, operators, ordering, local, label);
+        return Arrays.asList(substitutions, operators, constraints, operators, ordering, local, label);
     }
-    
+
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
@@ -149,6 +158,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 return e;
             });
+        }
+    }
+
+    static class PushDownAndCombineFilters extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            LogicalPlan child = filter.child();
+            LogicalPlan plan = filter;
+
+            if (child instanceof Filter) {
+                Filter f = (Filter) child;
+                plan = new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filter.condition()));
+            } else if (child instanceof UnaryPlan) {
+                UnaryPlan up = (UnaryPlan) child;
+                plan = child.replaceChildren(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
+            }
+
+            return plan;
         }
     }
 
@@ -237,6 +265,101 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+
+    /**
+     * Any condition applied on a join/sequence key, gets propagated to all rules.
+     */
+    static class PropagateJoinKeyConstraints extends OptimizerRule<Join> {
+
+        class Constraint {
+            private final Expression condition;
+            private final KeyedFilter keyedFilter;
+            private final int keyPosition;
+
+            Constraint(Expression condition, KeyedFilter filter, int keyPosition) {
+                this.condition = condition;
+                this.keyedFilter = filter;
+                this.keyPosition = keyPosition;
+            }
+
+            Expression constraintFor(KeyedFilter keyed) {
+                if (keyed == keyedFilter) {
+                    return null;
+                }
+
+                Expression localKey = keyed.keys().get(keyPosition);
+                Expression key = keyedFilter.keys().get(keyPosition);
+
+                Expression newCond = condition.transformDown(e -> key.semanticEquals(e) ? localKey : e);
+                return newCond;
+            }
+
+            @Override
+            public String toString() {
+                return condition.toString();
+            }
+        }
+
+        @Override
+        protected LogicalPlan rule(Join join) {
+            List<Constraint> constraints = new ArrayList<>();
+
+            // collect constraints for each filter
+            join.queries().forEach(k ->
+                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                                  , Filter.class));
+
+            if (constraints.isEmpty() == false) {
+                List<KeyedFilter> queries = join.queries().stream()
+                        .map(k -> addConstraint(k, constraints))
+                        .collect(toList());
+
+                join = join.with(queries, join.until(), join.direction());
+            }
+
+            return join;
+        }
+
+        private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
+            List<Constraint> constraints = new ArrayList<>();
+            List<? extends NamedExpression> keys = filter.keys();
+
+            List<Expression> and = Predicates.splitAnd(condition);
+            for (Expression exp : and) {
+                // if there are no conjunction and at least one key matches, save the expression along with the key
+                // and its ordinal so it can be replaced
+                if (exp.anyMatch(Or.class::isInstance) == false) {
+                    // comparisons against variables are not done
+                    // hence why on the first key match, the expression is picked up
+                    exp.anyMatch(e -> {
+                        for (int i = 0; i < keys.size(); i++) {
+                            Expression key = keys.get(i);
+                            if (e.semanticEquals(key)) {
+                                constraints.add(new Constraint(exp, filter, i));
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                }
+            }
+            return constraints;
+        }
+
+        // adapt constraint to the given filter by replacing the keys accordingly in the expressions
+        private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
+            Expression constraint = Predicates.combineAnd(constraints.stream()
+                .map(c -> c.constraintFor(k))
+                .filter(c -> c != null)
+                .collect(toList()));
+
+            return constraint != null
+                    ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
+                    : k;
+        }
+    }
+
+
     /**
      * Align the implicit order with the limit (head means ASC or tail means DESC).
      */
@@ -256,7 +379,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             }
-            
+
             return limit;
         }
     }

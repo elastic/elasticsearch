@@ -18,45 +18,45 @@ setup:
               node:
                 type: keyword
               voltage_times_ten:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
                     for (double v : doc['voltage']) {
-                      emitValue((long)(v * params.multiplier));
+                      emit((long)(v * params.multiplier));
                     }
                   params:
                     multiplier: 10
               # Test fetching from _source
               voltage_times_ten_from_source:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
-                    emitValue((long)(params._source.voltage * params.multiplier));
+                    emit((long)(params._source.voltage * params.multiplier));
                   params:
                     multiplier: 10
               # Test fetching many values
               temperature_digits:
-                type: runtime_script
+                type: runtime
                 runtime_type: long
                 script:
                   source: |
                     for (long temperature : doc['temperature']) {
                       long t = temperature;
                       while (t != 0) {
-                        emitValue(t % 10);
+                        emit(t % 10);
                         t /= 10;
                       }
                     }
               # Test now
               millis_ago:
-                type: runtime_script
+                type: runtime
                 runtime_type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
-                      emitValue(System.currentTimeMillis() - dt.toInstant().toEpochMilli());
+                      emit(System.currentTimeMillis() - dt.toInstant().toEpochMilli());
                     }
 
   - do:
@@ -82,15 +82,41 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.voltage_times_ten.type: runtime_script }
+  - match: {sensor.mappings.properties.voltage_times_ten.type: runtime }
   - match: {sensor.mappings.properties.voltage_times_ten.runtime_type: long }
   - match:
       sensor.mappings.properties.voltage_times_ten.script.source: |
         for (double v : doc['voltage']) {
-          emitValue((long)(v * params.multiplier));
+          emit((long)(v * params.multiplier));
         }
   - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
   - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - voltage_times_ten
+            - voltage_times_ten_from_source
+            - temperature_digits
+            - field: millis_ago
+              format: epoch_millis
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.voltage_times_ten_from_source: [40] }
+  - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.1.fields.voltage_times_ten: [42] }
+  - match: {hits.hits.2.fields.voltage_times_ten: [56] }
+  - match: {hits.hits.3.fields.voltage_times_ten: [51] }
+  - match: {hits.hits.4.fields.voltage_times_ten: [58] }
+  - match: {hits.hits.5.fields.voltage_times_ten: [52] }
+  # We can't check the value because it is constantly increasing. If `gt` worked on strings we could do it, but it doens't.
+  - is_true: hits.hits.0.fields.millis_ago.0
 
 ---
 "docvalue_fields":
@@ -165,13 +191,13 @@ setup:
                   last:
                     type: keyword
                   first_script:
-                    type: runtime_script
+                    type: runtime
                     runtime_type: long
-                    script: emitValue(doc['users.first'].value.length())
+                    script: emit(doc['users.first'].value.length())
                   last_script:
-                    type: runtime_script
+                    type: runtime
                     runtime_type: long
-                    script: emitValue(doc['users.last'].value.length())
+                    script: emit(doc['users.last'].value.length())
   - do:
       bulk:
         index: test

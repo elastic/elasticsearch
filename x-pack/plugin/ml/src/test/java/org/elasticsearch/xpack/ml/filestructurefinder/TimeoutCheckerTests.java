@@ -61,10 +61,11 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
     }
 
     public void testWatchdog() throws Exception {
-        TimeValue timeout = TimeValue.timeValueMillis(10);
-        Matcher matcher = mock(Matcher.class);
-        try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler, matcher)) {
+        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(10, 500));
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
             final TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
+            Matcher matcher = mock(Matcher.class);
+            watchdog.register(matcher);
             assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(1));
             try {
                 assertBusy(() -> {

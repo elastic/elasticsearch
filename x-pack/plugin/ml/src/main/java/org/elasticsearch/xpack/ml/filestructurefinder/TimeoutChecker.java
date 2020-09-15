@@ -58,18 +58,10 @@ public class TimeoutChecker implements Closeable {
      *                  in the case where {@code timeout} is also <code>null</code>.
      */
     public TimeoutChecker(String operation, TimeValue timeout, ScheduledExecutorService scheduler) {
-        this(operation, timeout, scheduler, null);
-    }
-
-    // For more reliable matcher signalling testing, registers matcher before scheduling timeout
-    TimeoutChecker(String operation, TimeValue timeout, ScheduledExecutorService scheduler, Matcher matcher) {
         this.operation = operation;
         this.timeout = timeout;
         this.checkedThread = Thread.currentThread();
         timeoutCheckerWatchdog.add(checkedThread, timeout);
-        if (matcher != null) {
-            timeoutCheckerWatchdog.register(matcher);
-        }
         this.future = (timeout != null) ? scheduler.schedule(this::setTimeoutExceeded, timeout.nanos(), TimeUnit.NANOSECONDS) : null;
     }
 
@@ -92,7 +84,6 @@ public class TimeoutChecker implements Closeable {
      * @throws ElasticsearchTimeoutException If the operation is found to have taken longer than the permitted time.
      */
     public void check(String where) {
-
         if (timeoutExceeded) {
             throw new ElasticsearchTimeoutException("Aborting " + operation + " during [" + where +
                 "] as it has taken longer than the timeout of [" + timeout + "]");
@@ -109,7 +100,6 @@ public class TimeoutChecker implements Closeable {
      * @throws ElasticsearchTimeoutException If the operation is found to have taken longer than the permitted time.
      */
     public Map<String, Object> grokCaptures(Grok grok, String text, String where) {
-
         try {
             return grok.captures(text);
         } finally {
@@ -151,6 +141,9 @@ public class TimeoutChecker implements Closeable {
                 boolean wasFalse = value.registered.compareAndSet(false, true);
                 assert wasFalse;
                 value.matchers.add(matcher);
+                if (value.isTimedOut()) {
+                    matcher.interrupt();
+                }
             }
         }
 
@@ -177,6 +170,7 @@ public class TimeoutChecker implements Closeable {
 
         void interruptLongRunningThreadIfRegistered(Thread thread) {
             WatchDogEntry value = registry.get(thread);
+            value.timedOut();
             if (value.registered.get()) {
                 for (Matcher matcher : value.matchers) {
                     matcher.interrupt();
@@ -189,11 +183,20 @@ public class TimeoutChecker implements Closeable {
             final TimeValue timeout;
             final AtomicBoolean registered;
             final Collection<Matcher> matchers;
+            volatile boolean timedOut;
 
             WatchDogEntry(TimeValue timeout) {
                 this.timeout = timeout;
                 this.registered = new AtomicBoolean(false);
                 this.matchers = new CopyOnWriteArrayList<>();
+            }
+
+            private void timedOut() {
+                timedOut = true;
+            }
+
+            private boolean isTimedOut() {
+                return timedOut;
             }
         }
     }

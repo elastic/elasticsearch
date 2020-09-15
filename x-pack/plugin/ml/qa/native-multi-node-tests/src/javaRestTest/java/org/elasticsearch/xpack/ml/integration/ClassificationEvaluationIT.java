@@ -683,7 +683,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     List<?> topClasses =
                         IntStream
                             .range(0, 5)
-                            .mapToObj(ix -> new HashMap<>() {{
+                            .mapToObj(ix -> new HashMap<String, Object>() {{
                                 put("class_name", animalNames.get(ix));
                                 put("class_probability", 0.4 - 0.1 * ix);
                             }})

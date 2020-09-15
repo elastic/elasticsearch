@@ -224,7 +224,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
         Map<String, String> historyUUIDs = new HashMap<>();
-        Map<String, Long> globalCheckpoints = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

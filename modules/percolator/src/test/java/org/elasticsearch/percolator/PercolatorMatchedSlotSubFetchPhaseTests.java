@@ -67,7 +67,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, null, new SourceLookup(), new HashMap<>());
+                    HitContext hit = new HitContext(new SearchHit(0), context, 0, new SourceLookup(), new HashMap<>());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -88,7 +88,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, null, new SourceLookup(), new HashMap<>());
+                    HitContext hit = new HitContext(new SearchHit(0), context, 0, new SourceLookup(), new HashMap<>());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -108,7 +108,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No query:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, null, new SourceLookup(), new HashMap<>());
+                    HitContext hit = new HitContext(new SearchHit(0), context, 0, new SourceLookup(), new HashMap<>());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());

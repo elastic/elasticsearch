@@ -27,12 +27,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Objects;
-import java.util.Random;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexAbstractionTests extends ESTestCase {
+
+    public static final String SYSTEM_ALIAS_NAME = "system_alias";
 
     public void testHiddenAliasValidation() {
         final String hiddenAliasName = "hidden_alias";
@@ -118,71 +119,86 @@ public class IndexAbstractionTests extends ESTestCase {
         }
     }
 
-    public void testSystemAliasValidation() {
-        final Random random = random();
-        final String systemAlias = "system_alias";
-        final Version random7xVersion = VersionUtils.randomVersionBetween(random, Version.V_7_0_0,
+    public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
             VersionUtils.getPreviousVersion(Version.V_8_0_0));
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(systemAlias).build();
+        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
 
-        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", systemAlias, null, Version.CURRENT, true);
-        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", systemAlias, null, Version.CURRENT, true);
-        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", systemAlias, null, random7xVersion, true);
+        IndexAbstraction.Alias mixedVersionSystemAndRegular = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
+        mixedVersionSystemAndRegular.addIndex(oldVersionSystem);
+        mixedVersionSystemAndRegular.addIndex(regularIndex);
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> mixedVersionSystemAndRegular.computeAndValidateAliasProperties());
+        assertThat(exception.getMessage(), containsString("alias [" + SYSTEM_ALIAS_NAME +
+            "] refers to both system indices [" + currentVersionSystem.getIndex().getName() + "] and non-system indices: [" +
+            regularIndex.getIndex().getName() + "], but aliases must refer to either system or non-system indices, not both"));
+    }
 
-        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", systemAlias, false, Version.CURRENT, false);
+    public void testSystemAliasValidationNewSystemAndRegularFails() {
+        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
 
-        // All system on 8.0+
-        {
-            IndexAbstraction.Alias allSystemCurrent = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
-            allSystemCurrent.addIndex(currentVersionSystem2);
-            allSystemCurrent.computeAndValidateAliasProperties(); // Should be ok
-        }
+        IndexAbstraction.Alias systemAndRegular = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
+        systemAndRegular.addIndex(regularIndex);
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> systemAndRegular.computeAndValidateAliasProperties());
+        assertThat(exception.getMessage(), containsString("alias [" + SYSTEM_ALIAS_NAME +
+            "] refers to both system indices [" + currentVersionSystem.getIndex().getName() + "] and non-system indices: [" +
+            regularIndex.getIndex().getName() + "], but aliases must refer to either system or non-system indices, not both"));
+    }
 
-        // All system, some from an older version
-        {
-            IndexAbstraction.Alias allSystemMixed = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
-            allSystemMixed.addIndex(currentVersionSystem2);
-            allSystemMixed.addIndex(oldVersionSystem);
-            allSystemMixed.computeAndValidateAliasProperties(); // Should be ok
-        }
+    public void testSystemAliasOldSystemAndNewRegular() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
 
-        // All regular
-        {
-            IndexAbstraction.Alias allRegular = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
-            allRegular.addIndex(currentVersionSystem2);
-            allRegular.addIndex(oldVersionSystem);
-            allRegular.computeAndValidateAliasProperties(); // Should be ok
-        }
+        IndexAbstraction.Alias oldAndRegular = new IndexAbstraction.Alias(aliasMetadata, oldVersionSystem);
+        oldAndRegular.addIndex(regularIndex);
+        oldAndRegular.computeAndValidateAliasProperties(); // Should be ok
+    }
 
-        // System index from pre-8.0 + regular index should be fine
-        {
-            IndexAbstraction.Alias oldAndRegular = new IndexAbstraction.Alias(aliasMetadata, oldVersionSystem);
-            oldAndRegular.addIndex(regularIndex);
-            oldAndRegular.computeAndValidateAliasProperties(); // Should be ok
-        }
+    public void testSystemIndexValidationAllRegular() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
 
-        // Current version system index + regular index should fail
-        {
-            IndexAbstraction.Alias systemAndRegular = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
-            systemAndRegular.addIndex(regularIndex);
-            IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> systemAndRegular.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + systemAlias +
-                "] refers to both system indices [" + currentVersionSystem.getIndex().getName() + "] and non-system indices: [" +
-                regularIndex.getIndex().getName() + "], but aliases must refer to either system or non-system indices, not both"));
-        }
+        IndexAbstraction.Alias allRegular = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
+        allRegular.addIndex(currentVersionSystem2);
+        allRegular.addIndex(oldVersionSystem);
+        allRegular.computeAndValidateAliasProperties(); // Should be ok
+    }
 
-        // Mixed version system indices + regular index should fail
-        {
-            IndexAbstraction.Alias mixedVersionSystemAndRegular = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
-            mixedVersionSystemAndRegular.addIndex(oldVersionSystem);
-            mixedVersionSystemAndRegular.addIndex(regularIndex);
-            IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> mixedVersionSystemAndRegular.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + systemAlias +
-                "] refers to both system indices [" + currentVersionSystem.getIndex().getName() + "] and non-system indices: [" +
-                regularIndex.getIndex().getName() + "], but aliases must refer to either system or non-system indices, not both"));
-        }
+    public void testSystemAliasValidationAllSystemSomeOld() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+
+        IndexAbstraction.Alias allSystemMixed = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
+        allSystemMixed.addIndex(currentVersionSystem2);
+        allSystemMixed.addIndex(oldVersionSystem);
+        allSystemMixed.computeAndValidateAliasProperties(); // Should be ok
+    }
+
+    public void testSystemAliasValidationAll8x() {
+        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+
+        IndexAbstraction.Alias allSystemCurrent = new IndexAbstraction.Alias(aliasMetadata, currentVersionSystem);
+        allSystemCurrent.addIndex(currentVersionSystem2);
+        allSystemCurrent.computeAndValidateAliasProperties(); // Should be ok
     }
 
     private IndexMetadata buildIndexWithAlias(String indexName, String aliasName, @Nullable Boolean aliasIsHidden,

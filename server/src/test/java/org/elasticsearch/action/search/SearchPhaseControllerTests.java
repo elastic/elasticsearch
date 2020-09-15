@@ -36,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -875,7 +874,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
                 @Override
                 public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                        DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
+                                            InternalAggregations aggs, int reducePhase) {
                     assertEquals(numReduceListener.incrementAndGet(), reducePhase);
                 }
 

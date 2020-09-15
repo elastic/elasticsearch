@@ -25,7 +25,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -144,7 +143,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
         @Override
         protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                                       DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
+                                       InternalAggregations aggs, int reducePhase) {
             onPartialReduce.incrementAndGet();
             throw new UnsupportedOperationException();
         }

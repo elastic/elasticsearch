@@ -23,10 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -135,15 +133,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         final TopDocsStats topDocsStats = pendingMerges.consumeTopDocsStats();
         final List<TopDocs> topDocsList = pendingMerges.consumeTopDocs();
         final List<InternalAggregations> aggsList = pendingMerges.consumeAggs();
-        final long breakerSize = pendingMerges.circuitBreakerBytes;
-        // we add an estimate of the final reduce but we cannot correct this estimation
-        // when the final reduce finishes. That's ok since we don't keep the final reduce
-        // too long before sending the response but we could also serialize it eagerly
-        // to update the circuit breaker with a more accurate size.
-        // In any case the circuit breaker memory is freed when the consumer is closed.
-        pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+        long breakerSize = pendingMerges.circuitBreakerBytes;
+        if (hasAggs) {
+            // Add an estimate of the final reduce size
+            breakerSize = pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+        }
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
+        if (hasAggs) {
+            // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
+            long finalSize = reducePhase.aggregations.getBinarySize() - breakerSize;
+            pendingMerges.addWithoutBreaking(finalSize);
+        }
+        logger.trace("aggs final reduction [{}] max [{}]",
+            pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
             reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
         return reducePhase;
@@ -179,18 +182,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             newTopDocs = null;
         }
 
-        final DelayableWriteable.Serialized<InternalAggregations> newAggs;
+        final InternalAggregations newAggs;
         if (hasAggs) {
             List<InternalAggregations> aggsList = new ArrayList<>();
             if (lastMerge != null) {
-                aggsList.add(lastMerge.reducedAggs.expand());
+                aggsList.add(lastMerge.reducedAggs);
             }
             for (QuerySearchResult result : toConsume) {
                 aggsList.add(result.consumeAggs().expand());
             }
             InternalAggregations result = InternalAggregations.topLevelReduce(aggsList,
                 aggReduceContextBuilder.forPartialReduction());
-            newAggs = DelayableWriteable.referencing(result).asSerialized(InternalAggregations::readFrom, namedWriteableRegistry);
+            newAggs = result;
         } else {
             newAggs = null;
         }
@@ -203,7 +206,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
         progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
-        return new MergeResult(processedShards, newTopDocs, newAggs);
+        return new MergeResult(processedShards, newTopDocs, newAggs, hasAggs ? newAggs.getBinarySize() : 0);
     }
 
     public int getNumReducePhases() {
@@ -218,6 +221,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private volatile long circuitBreakerBytes;
         // the memory that is currently used in the buffer
         private volatile long aggsCurrentBufferSize;
+        private volatile long maxAggsCurrentBufferSize = 0;
 
         private final ArrayDeque<MergeTask> queue = new ArrayDeque<>();
         private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
@@ -263,14 +267,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
-        synchronized void addWithoutBreaking(long size) {
+        synchronized long addWithoutBreaking(long size) {
             circuitBreaker.addWithoutBreaking(size);
             circuitBreakerBytes += size;
+            maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
+            return circuitBreakerBytes;
         }
 
-        synchronized void addEstimateAndMaybeBreak(long estimatedSize) {
+        synchronized long addEstimateAndMaybeBreak(long estimatedSize) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedSize, "<reduce_aggs>");
             circuitBreakerBytes += estimatedSize;
+            maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
+            return circuitBreakerBytes;
         }
 
         /**
@@ -284,19 +292,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return result.aggregations()
                 .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
                 .ramBytesUsed();
-        }
-
-        /**
-         * Returns an estimation of the size that the reduce of the provided {@link MergeTask}
-         * and the previous {@link MergeResult} would take on memory.
-         */
-        long estimateRamBytesUsedForReduce(MergeTask mergeTask, @Nullable MergeResult mergeResult) {
-            if (hasAggs == false) {
-                return 0;
-            }
-            long size = mergeResult != null ? mergeResult.reducedAggs.ramBytesUsed() : 0;
-            size += mergeTask.aggsBufferSize;
-            return estimateRamBytesUsedForReduce(size);
         }
 
         /**
@@ -382,8 +377,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 if (hasAggs) {
                     // Update the circuit breaker to remove the size of the source aggregations
                     // and replace the estimation with the serialized size of the newly reduced result.
-                    long correctSize = mergeResult.reducedAggs.ramBytesUsed() - estimatedSize;
-                    addWithoutBreaking(correctSize);
+                    long newSize = mergeResult.estimatedSize - estimatedSize;
+                    addWithoutBreaking(newSize);
+                    logger.trace("aggs partial reduction [{}->{}] max [{}]",
+                        estimatedSize, mergeResult.estimatedSize, maxAggsCurrentBufferSize);
                 }
                 task.consumeListener();
             }
@@ -405,22 +402,23 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 @Override
                 protected void doRun() {
                     final MergeResult newMerge;
-                    final long estimatedSize;
+                    long estimatedTotalSize = (mergeResult != null ? mergeResult.estimatedSize : 0) + task.aggsBufferSize;
                     try {
                         final MergeResult thisMergeResult = mergeResult;
                         final QuerySearchResult[] toConsume = task.consumeBuffer();
                         if (toConsume == null) {
                             return;
                         }
-                        estimatedSize = estimateRamBytesUsedForReduce(task, thisMergeResult);
-                        addEstimateAndMaybeBreak(estimatedSize);
+                        long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
+                        addEstimateAndMaybeBreak(estimatedMergeSize);
+                        estimatedTotalSize += estimatedMergeSize;
                         ++ numReducePhases;
                         newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
                     } catch (Exception t) {
                         onMergeFailure(t);
                         return;
                     }
-                    onAfterMerge(task, newMerge, estimatedSize);
+                    onAfterMerge(task, newMerge, estimatedTotalSize);
                     tryExecuteNext();
                 }
 
@@ -460,7 +458,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             List<InternalAggregations> aggsList = new ArrayList<>();
             if (mergeResult != null) {
-                aggsList.add(mergeResult.reducedAggs.expand());
+                aggsList.add(mergeResult.reducedAggs);
             }
             for (QuerySearchResult result : buffer) {
                 aggsList.add(result.consumeAggs().expand());
@@ -472,13 +470,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private static class MergeResult {
         private final List<SearchShard> processedShards;
         private final TopDocs reducedTopDocs;
-        private final DelayableWriteable.Serialized<InternalAggregations> reducedAggs;
+        private final InternalAggregations reducedAggs;
+        private final long estimatedSize;
 
         private MergeResult(List<SearchShard> processedShards, TopDocs reducedTopDocs,
-                            DelayableWriteable.Serialized<InternalAggregations> reducedAggs) {
+                            InternalAggregations reducedAggs, long estimatedSize) {
             this.processedShards = processedShards;
             this.reducedTopDocs = reducedTopDocs;
             this.reducedAggs = reducedAggs;
+            this.estimatedSize = estimatedSize;
         }
     }
 

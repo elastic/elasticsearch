@@ -16,8 +16,6 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -161,12 +159,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY, false);
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true),
             BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
-        //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
-        //causing an exception when executing getResponse as part of the completion listener callback
-        DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
-            .asSerialized(InternalAggregations::readFrom, new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            serializedAggs, 1);
+            aggs, 1);
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         task.addCompletionListener(new ActionListener<>() {
@@ -199,12 +193,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY, false);
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true),
             BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
-        //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
-        //causing an exception when executing getResponse as part of the completion listener callback
-        DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
-            .asSerialized(InternalAggregations::readFrom    , new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            serializedAggs, 1);
+            aggs, 1);
         task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

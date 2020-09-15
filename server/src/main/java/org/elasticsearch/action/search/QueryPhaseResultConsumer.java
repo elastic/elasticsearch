@@ -144,9 +144,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
             long finalSize = reducePhase.aggregations.getBinarySize() - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
+            logger.trace("aggs final reduction [{}] max [{}]",
+                pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
-        logger.trace("aggs final reduction [{}] max [{}]",
-            pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
             reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
         return reducePhase;
@@ -329,9 +329,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         queue.add(task);
                         tryExecuteNext();
                     }
-                    long aggsSize = ramBytesUsedQueryResult(result);
-                    addWithoutBreaking(aggsSize);
-                    aggsCurrentBufferSize += aggsSize;
+                    if (hasAggs) {
+                        long aggsSize = ramBytesUsedQueryResult(result);
+                        addWithoutBreaking(aggsSize);
+                        aggsCurrentBufferSize += aggsSize;
+                    }
                     buffer.add(result);
                 }
             }
@@ -401,10 +403,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             executor.execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
+                    final MergeResult thisMergeResult = mergeResult;
+                    long estimatedTotalSize = (thisMergeResult != null ? thisMergeResult.estimatedSize : 0) + task.aggsBufferSize;
                     final MergeResult newMerge;
-                    long estimatedTotalSize = (mergeResult != null ? mergeResult.estimatedSize : 0) + task.aggsBufferSize;
                     try {
-                        final MergeResult thisMergeResult = mergeResult;
                         final QuerySearchResult[] toConsume = task.consumeBuffer();
                         if (toConsume == null) {
                             return;

@@ -406,44 +406,40 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             ByteBuffer ioBuffer = ByteBuffer.allocateDirect(1024);
             ArrayList<ReleasableBytesReference> operations = new ArrayList<>();
 
-            try {
-                for (ReleasableBytesReference operation : operations) {
+            for (ReleasableBytesReference operation : operations) {
 //                    long seqNo = operation.seqNo;
 //                    minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
 //                    maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
 //                    ++numOps;
 
-                    try (Releasable toClose = operation) {
-                        BytesRefIterator iterator = operation.iterator();
-                        BytesRef current;
-                        while ((current = iterator.next()) != null) {
-                            int currentBytesConsumed = 0;
-                            while (currentBytesConsumed != current.length) {
-                                int nBytesToWrite = Math.min(current.length - currentBytesConsumed, ioBuffer.remaining());
-                                ioBuffer.put(current.bytes, current.offset + currentBytesConsumed, nBytesToWrite);
-                                currentBytesConsumed += nBytesToWrite;
-                                if (ioBuffer.hasRemaining() == false) {
-                                    ioBuffer.flip();
-                                    final int bytesToWrite = ioBuffer.remaining();
-                                    writeToFile(ioBuffer);
+                try (Releasable toClose = operation) {
+                    BytesRefIterator iterator = operation.iterator();
+                    BytesRef current;
+                    while ((current = iterator.next()) != null) {
+                        int currentBytesConsumed = 0;
+                        while (currentBytesConsumed != current.length) {
+                            int nBytesToWrite = Math.min(current.length - currentBytesConsumed, ioBuffer.remaining());
+                            ioBuffer.put(current.bytes, current.offset + currentBytesConsumed, nBytesToWrite);
+                            currentBytesConsumed += nBytesToWrite;
+                            if (ioBuffer.hasRemaining() == false) {
+                                ioBuffer.flip();
+                                final int bytesToWrite = ioBuffer.remaining();
+                                writeToFile(ioBuffer);
 //                                    writtenOffset.getAndAdd(bytesToWrite);
-                                    ioBuffer.clear();
-                                }
+                                ioBuffer.clear();
                             }
                         }
                     }
                 }
+            }
 
-                ioBuffer.flip();
-                final int bytesToWrite = ioBuffer.remaining();
-                writeToFile(ioBuffer);
+            ioBuffer.flip();
+            final int bytesToWrite = ioBuffer.remaining();
+            writeToFile(ioBuffer);
 //                writtenOffset.getAndAdd(bytesToWrite);
 //                lastWrittenCheckpoint = new Checkpoint(writtenOffset.get(), numOps, generation, minSeqNo, maxSeqNo,
 //                    globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
 //                    SequenceNumbers.UNASSIGNED_SEQ_NO);
-
-            } finally {
-            }
         }
     }
 

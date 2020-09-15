@@ -9,8 +9,8 @@
 You can use <<enable-audit-logging,audit logging>> to record security-related
 events, such as authentication failures, refused connections and data-access events.
 
-IMPORTANT: Static auditing settings, such as `xpack.security.audit.enabled` must
-be configured on all nodes in the cluster.
+IMPORTANT: Static auditing settings, such as `xpack.security.audit.enabled`,
+must be configured on all nodes in the cluster.
 
 [[general-audit-settings]]
 ==== General Auditing Settings
@@ -22,7 +22,7 @@ Set to `true` to enable auditing on the node. The default value is `false`. This
 puts the auditing events in a dedicated file named `<clustername>_audit.json` on
 each node.
 +
-This setting must be configured on all nodes in the cluster.
+If enabled, this setting must be configured on all nodes in the cluster.
 // end::xpack-security-audit-enabled-tag[]
 
 [[event-audit-settings]]

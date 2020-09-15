@@ -46,6 +46,7 @@ yamlRestTest {
       // Runtime fields don't have global ords
       'search.aggregation/20_terms/string profiler via global ordinals',
       'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
+      'search.aggregation/170_cardinality_metric/profiler string',
       /////// NOT SUPPORTED ///////
     ].join(',')
 }

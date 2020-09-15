@@ -68,10 +68,24 @@ public class IndexMappingTemplateAsserter {
         configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
 
+        // renamed to max_trees in 7.7.
+        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
+        configIndexExceptions.add("properties.analysis.properties.classification.properties.maximum_number_trees.type");
+        configIndexExceptions.add("properties.analysis.properties.regression.properties.maximum_number_trees.type");
+
+        // Excluding those from stats index as some have been renamed and other removed.
+        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
+        Set<String> statsIndexException = new HashSet<>();
+        statsIndexException.add("properties.hyperparameters.properties.regularization_depth_penalty_multiplier.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_leaf_weight_penalty_multiplier.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_limit.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_tolerance.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_tree_size_penalty_multiplier.type");
+
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions);
         // the true parameter means the index may not have been created
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet());
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet());
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-notifications-000001", ".ml-notifications-000001");
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());

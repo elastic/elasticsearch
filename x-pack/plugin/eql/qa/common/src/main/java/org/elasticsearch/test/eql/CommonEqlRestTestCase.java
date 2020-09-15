@@ -6,7 +6,6 @@
 package org.elasticsearch.test.eql;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -14,13 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.BeforeClass;
+import org.junit.After;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -30,6 +30,11 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
     private static final String defaultValidationIndexName = "eql_search_validation_test";
     private static final String validQuery = "process where user = 'SYSTEM'";
+
+    @After
+    public void checkSearchContent() throws Exception {
+        assertNoSearchContexts(client());
+    }
 
     private static final String[][] testBadRequests = {
             {null, "request body or source parameter is required"},
@@ -43,14 +48,9 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
     };
 
-    @BeforeClass
-    public static void checkForSnapshot() {
-        assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
-    }
-
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, Settings.EMPTY);
-        
+
         final String contentType = "application/json";
         for (String[] test : testBadRequests) {
             final String endpoint = "/" + defaultValidationIndexName + "/_eql/search";
@@ -64,7 +64,7 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
             assertThat(response.getStatusLine().getStatusCode(), is(400));
         }
-        
+
         deleteIndex(defaultValidationIndexName);
     }
 

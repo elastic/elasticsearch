@@ -69,14 +69,16 @@ public class IndexMappingTemplateAsserter {
         configIndexExceptions.add("properties.deleting.type");
         configIndexExceptions.add("properties.model_memory_limit.type");
 
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions, true);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions,
+            allowSystemIndexWarnings);
         // the true parameter means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(),
+            allowSystemIndexWarnings);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, Collections.emptySet(), false);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-notifications-000001", ".ml-notifications-000001");
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(),
-            true);
+            allowSystemIndexWarnings);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
     }

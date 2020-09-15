@@ -95,7 +95,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             BytesReference document = percolateQuery.getDocuments().get(slot);
                             HitContext subContext = new HitContext(
                                 new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
-                                percolatorLeafReaderContext, slot, percolatorIndexSearcher, new HashMap<>()
+                                percolatorLeafReaderContext, slot, new HashMap<>()
                             );
                             subContext.sourceLookup().setSource(document);
                             // force source because MemoryIndex does not store fields

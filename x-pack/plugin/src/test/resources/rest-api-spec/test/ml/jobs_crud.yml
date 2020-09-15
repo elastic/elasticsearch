@@ -14,9 +14,21 @@
   - match: { jobs: [] }
 
 ---
-"Test get jobs with expression that does not match and allow_no_jobs":
+"Test get jobs with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
+      ml.get_jobs:
+        job_id: "missing-*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { jobs: [] }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.get_jobs:
         job_id: "missing-*"
         allow_no_jobs: true
@@ -24,9 +36,20 @@
   - match: { jobs: [] }
 
 ---
-"Test get jobs with expression that does not match and not allow_no_jobs":
+"Test get jobs with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: "missing-*"
+        allow_no_match: false
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.get_jobs:
         job_id: "missing-*"
@@ -173,6 +196,44 @@
         job_id: "non-existing"
 
 ---
+"Test put job with inconsistent model snapshot settings":
+  - do:
+      catch: /The value of daily_model_snapshot_retention_after_days \[4\] cannot be greater than model_snapshot_retention_days \[3\]/
+      ml.put_job:
+        job_id: inconsistent-snapshot-settings-1
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"@timestamp"
+            },
+            "model_snapshot_retention_days": 3,
+            "daily_model_snapshot_retention_after_days": 4
+          }
+
+  - do:
+      catch: /daily_model_snapshot_retention_after_days cannot be less than 0. Value = -1/
+      ml.put_job:
+        job_id: inconsistent-snapshot-settings-2
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"@timestamp"
+            },
+            "model_snapshot_retention_days": 3,
+            "daily_model_snapshot_retention_after_days": -1
+          }
+
+---
 "Test put job with inconsistent body/param ids":
   - do:
       catch: /illegal_argument_exception/
@@ -297,6 +358,7 @@
             "renormalization_window_days": 1,
             "background_persist_interval": "2h",
             "model_snapshot_retention_days": 3,
+            "daily_model_snapshot_retention_after_days": 2,
             "results_retention_days": 4,
             "custom_settings": {
               "setting1": "custom1",
@@ -354,6 +416,7 @@
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
+  - match: { model_plot_config.annotations_enabled: false }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.custom_rules.0.actions: ["skip_result"] }
   - length: { analysis_config.detectors.0.custom_rules.0.conditions: 1 }
@@ -363,6 +426,7 @@
   - match: { renormalization_window_days: 10 }
   - match: { background_persist_interval: "3h" }
   - match: { model_snapshot_retention_days: 30 }
+  - match: { daily_model_snapshot_retention_after_days: 2 }
   - match: { results_retention_days: 40 }
 
   - do:
@@ -402,6 +466,24 @@
             }
           }
   - match: { analysis_limits.model_memory_limit: "15mb" }
+
+  - do:
+      catch: /The value of daily_model_snapshot_retention_after_days \[31\] cannot be greater than model_snapshot_retention_days \[30\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "daily_model_snapshot_retention_after_days": 31
+          }
+
+  - do:
+      catch: /The value of daily_model_snapshot_retention_after_days \[2\] cannot be greater than model_snapshot_retention_days \[1\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "model_snapshot_retention_days": 1
+          }
 
   - do:
       catch: bad_request
@@ -790,18 +872,40 @@
   - match: { jobs.0.state: opened }
 
 ---
-"Test close jobs with expression that does not match and allow_no_jobs":
+"Test close jobs with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
+      ml.close_job:
+        job_id: "missing-*"
+        allow_no_match: true
+  - match: { closed: true }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.close_job:
         job_id: "missing-*"
         allow_no_jobs: true
   - match: { closed: true }
 
 ---
-"Test close jobs with expression that does not match and not allow_no_jobs":
+"Test close jobs with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
+      catch: missing
+      ml.close_job:
+        job_id: "missing-*"
+        allow_no_match: false
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.close_job:
         job_id: "missing-*"
@@ -1494,7 +1598,30 @@
 
 ---
 "Test close job with body params":
+  - skip:
+      features:
+       - "warnings"
+
   - do:
+      catch: missing
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_match" : false
+          }
+
+  - do:
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_match" : true
+          }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.close_job:
         job_id: job-that-doesnot-exist*
@@ -1504,6 +1631,8 @@
           }
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.close_job:
         job_id: job-that-doesnot-exist*
         body:  >

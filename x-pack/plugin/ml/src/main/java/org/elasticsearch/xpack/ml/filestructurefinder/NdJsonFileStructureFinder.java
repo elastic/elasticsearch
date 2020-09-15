@@ -64,15 +64,16 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
                 .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
                     // Note: no convert processors are added based on mappings for NDJSON input
                     // because it's reasonable that _source matches the supplied JSON precisely
-                    Collections.emptyMap(), timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone));
+                    Collections.emptyMap(), timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone,
+                    timeField.v2().needNanosecondPrecision()));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
             FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
-        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
+        Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
-            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
+            fieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
         if (mappingsAndFieldStats.v2() != null) {
@@ -80,7 +81,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
         }
 
         FileStructure structure = structureBuilder
-            .setMappings(mappings)
+            .setMappings(Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
             .setExplanation(explanation)
             .build();
 

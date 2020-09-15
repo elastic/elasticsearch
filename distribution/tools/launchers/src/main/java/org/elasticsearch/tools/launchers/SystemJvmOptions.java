@@ -22,6 +22,7 @@ package org.elasticsearch.tools.launchers;
 import org.elasticsearch.tools.java_version_checker.JavaVersion;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 final class SystemJvmOptions {
 
@@ -67,7 +68,7 @@ final class SystemJvmOptions {
              * parsing will break in an incompatible way for some date patterns and locales.
              */
             "-Djava.locale.providers=SPI,COMPAT"
-        );
+        ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
     private static String maybeShowCodeDetailsInExceptionMessages() {

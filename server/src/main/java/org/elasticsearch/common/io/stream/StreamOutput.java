@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
@@ -60,9 +62,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -70,7 +70,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
@@ -88,25 +87,7 @@ import static java.util.Map.entry;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
-
-    static {
-        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
-        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
-        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
-        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
-        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
-        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
-        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
-        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
-
-        for (TimeUnit value : TimeUnit.values()) {
-            assert timeUnitByteMap.containsKey(value) : value;
-        }
-
-        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
-    }
 
     private Version version = Version.CURRENT;
 
@@ -598,6 +579,28 @@ public abstract class StreamOutput extends OutputStream {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
         }
+    }
+
+    /**
+     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+            throws IOException {
+        writeVInt(map.size());
+        for (final ObjectObjectCursor<K, V> entry : map) {
+            keyWriter.write(this, entry.key);
+            valueWriter.write(this, entry.value);
+        }
+    }
+
+    /**
+     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
+     */
+    public final <K extends Writeable, V extends Writeable> void writeMap(final ImmutableOpenMap<K, V> map) throws IOException {
+        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
     }
 
     /**
@@ -1256,7 +1259,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeTimeValue(TimeValue timeValue) throws IOException {
         writeZLong(timeValue.duration());
-        writeByte(TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit()));
+        writeByte((byte) timeValue.timeUnit().ordinal());
     }
 
     /**

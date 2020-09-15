@@ -60,7 +60,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
                 byteArray.set(i, (byte) random().nextInt(1 << 8));
             }
             assertThat(byteArray.size(), Matchers.equalTo((long) length));
-            BytesReference ref = new PagedBytesReference(byteArray, length);
+            BytesReference ref = BytesReference.fromByteArray(byteArray, length);
             assertThat(ref.length(), Matchers.equalTo(length));
             delegate = ref;
         } else {
@@ -77,7 +77,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
                 referenceList.add(out.bytes());
                 i += sliceLength;
             }
-            BytesReference ref = new CompositeBytesReference(referenceList.toArray(new BytesReference[0]));
+            BytesReference ref = CompositeBytesReference.of(referenceList.toArray(new BytesReference[0]));
             assertThat(length, equalTo(ref.length()));
             delegate = ref;
         }

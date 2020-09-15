@@ -12,6 +12,8 @@ control flow statements] except the `switch` statement.
 ---------------------------------------------------------
 if (doc[item].size() == 0) {
   // do something if "item" is missing
+} else if (doc[item].value == 'something') {
+  // do something if "item" value is: something
 } else {
   // do something else
 }
@@ -21,11 +23,35 @@ if (doc[item].size() == 0) {
 
 ===== For
 
-Painless also supports the `for in` syntax from Groovy:
+Painless also supports the `for in` syntax:
 
 [source,painless]
 ---------------------------------------------------------
 for (def item : list) {
-  ...
+  // do something
 }
+---------------------------------------------------------
+
+[source,painless]
+---------------------------------------------------------
+for (item in list) {
+  // do something
+}
+---------------------------------------------------------
+
+===== While
+[source,painless]
+---------------------------------------------------------
+while (ctx._source.item < condition) {
+  // do something
+}
+---------------------------------------------------------
+
+===== Do-While
+[source,painless]
+---------------------------------------------------------
+do {
+  // do something
+}
+while (ctx._source.item < condition)
 ---------------------------------------------------------

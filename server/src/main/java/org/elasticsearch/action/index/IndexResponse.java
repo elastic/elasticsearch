@@ -38,6 +38,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class IndexResponse extends DocWriteResponse {
 
+    public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+    }
+
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
     }

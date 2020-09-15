@@ -45,7 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestSyncedFlushAction.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
 
     @Override
     public List<Route> routes() {
@@ -63,7 +63,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush",
+        DEPRECATION_LOGGER.deprecate("synced_flush",
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
         final FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));

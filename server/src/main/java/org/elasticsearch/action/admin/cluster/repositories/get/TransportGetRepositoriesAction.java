@@ -76,18 +76,29 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     @Override
     protected void masterOperation(Task task, final GetRepositoriesRequest request, ClusterState state,
                                    final ActionListener<GetRepositoriesResponse> listener) {
+        listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(getRepositories(state, request.repositories()))));
+    }
+
+    /**
+     * Get repository metadata for given repository names from given cluster state.
+     *
+     * @param state     Cluster state
+     * @param repoNames Repository names or patterns to get metadata for
+     * @return list of repository metadata
+     */
+    public static List<RepositoryMetadata> getRepositories(ClusterState state, String[] repoNames) {
         Metadata metadata = state.metadata();
         RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
-        if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
+        if (repoNames.length == 0 || (repoNames.length == 1 && "_all".equals(repoNames[0]))) {
             if (repositories != null) {
-                listener.onResponse(new GetRepositoriesResponse(repositories));
+                return repositories.repositories();
             } else {
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(Collections.emptyList())));
+                return Collections.emptyList();
             }
         } else {
             if (repositories != null) {
                 Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
-                for (String repositoryOrPattern : request.repositories()) {
+                for (String repositoryOrPattern : repoNames) {
                     if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
                         repositoriesToGet.add(repositoryOrPattern);
                     } else {
@@ -102,14 +113,13 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                 for (String repository : repositoriesToGet) {
                     RepositoryMetadata repositoryMetadata = repositories.repository(repository);
                     if (repositoryMetadata == null) {
-                        listener.onFailure(new RepositoryMissingException(repository));
-                        return;
+                        throw new RepositoryMissingException(repository);
                     }
                     repositoryListBuilder.add(repositoryMetadata);
                 }
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(repositoryListBuilder)));
+                return repositoryListBuilder;
             } else {
-                listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
+                throw new RepositoryMissingException(repoNames[0]);
             }
         }
     }

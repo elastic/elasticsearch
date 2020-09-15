@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregati
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,18 +56,18 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public void testNonFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
+        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
             10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
-        List<InternalAggregations> aggs = singletonList(new InternalAggregations(Collections.singletonList(terms)));
+        List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
         assertEquals(1, reducedAggs.aggregations.size());
     }
 
     public void testFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
+        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
             10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
 
-        InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms));
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs),
                 maxBucketReduceContext().forFinalReduction());
         assertEquals(2, reducedAggs.aggregations.size());
@@ -98,25 +97,24 @@ public class InternalAggregationsTests extends ESTestCase {
             InternalSimpleValueTests simpleValueTests = new InternalSimpleValueTests();
             aggsList.add(simpleValueTests.createTestInstance());
         }
-        return new InternalAggregations(aggsList);
+        return InternalAggregations.from(aggsList);
     }
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, 0);
+        writeToAndReadFrom(aggregations, Version.CURRENT, 0);
     }
 
-    private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+    private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             aggregations.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
                 in.setVersion(version);
-                InternalAggregations deserialized = new InternalAggregations(in);
+                InternalAggregations deserialized = InternalAggregations.readFrom(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (iteration < 2) {
-                    writeToAndReadFrom(deserialized, iteration + 1);
+                    writeToAndReadFrom(deserialized, version, iteration + 1);
                 }
             }
         }

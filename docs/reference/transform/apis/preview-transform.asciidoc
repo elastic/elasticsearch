@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[preview-transform]]
-=== Preview {transform} API
+= Preview {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Previews a {transform}.
 
 [[preview-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/_preview`
 
 [[preview-transform-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 privileges:
@@ -30,7 +30,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[preview-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API generates a preview of the results that you will get when you run the
 <<put-transform,create {transforms} API>> with the same
@@ -49,7 +49,7 @@ or an index template with your preferred mappings before you start the
 
 [role="child_attributes"]
 [[preview-transform-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 
 `description`::
@@ -58,29 +58,29 @@ or an index template with your preferred mappings before you start the
 //Begin dest
 `dest`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
 +
 .Properties of `dest`
 [%collapsible%open]
 ====
 `index`:::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
 `pipeline`:::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 ====
 //End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
 //Begin pivot
 `pivot`::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot]
 +
 .Properties of `pivot`
 [%collapsible%open]
@@ -88,22 +88,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
 
 `aggregations` or `aggs`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 
 `group_by`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
-
-`max_page_search_size`:::
-(Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 ====
 //End pivot
 
 //Begin source
 `source`::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 +
 .Properties of `source`
 [%collapsible%open]
@@ -111,18 +107,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 
 `index`:::
 (Required, string or array)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
 
 `query`:::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
 ====
 //End source
 
 //Begin sync
 `sync`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 +
 .Properties of `sync`
 [%collapsible%open]
@@ -131,7 +127,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
 
 `time`:::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
 .Properties of `analysis_config`
 [%collapsible%open]
@@ -139,19 +135,36 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
 
 `delay`::::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
     
 `field`::::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 =====
 //End sync.time
 ====
 //End sync
 
+//Begin settings
+`settings`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
+
 [role="child_attributes"]
 [[preview-transform-response]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `preview`::
 (array) An array of documents. In particular, they are the JSON representation 
@@ -177,7 +190,7 @@ of the documents that would be created in the destination index by the
 ====
 //End generated_dest_index
 
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

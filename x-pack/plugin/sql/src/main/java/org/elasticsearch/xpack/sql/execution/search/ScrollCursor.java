@@ -21,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 
@@ -90,7 +90,7 @@ public class ScrollCursor implements Cursor {
         return limit;
     }
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
             log.trace("About to execute scroll query {}", scrollId);
         }
@@ -105,7 +105,7 @@ public class ScrollCursor implements Cursor {
     }
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         cleanCursor(client, scrollId, wrap(
                         clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
                         listener::onFailure));

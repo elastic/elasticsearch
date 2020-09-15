@@ -19,12 +19,20 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class InternalFilterTests extends InternalSingleBucketAggregationTestCase<InternalFilter> {
     @Override
@@ -41,5 +49,31 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
         return ParsedFilter.class;
+    }
+
+    public void testReducePipelinesReturnsSameInstanceWithoutPipelines() {
+        InternalFilter test = createTestInstance();
+        assertThat(test.reducePipelines(test, emptyReduceContextBuilder().forFinalReduction(), PipelineTree.EMPTY), sameInstance(test));
+    }
+
+    public void testReducePipelinesReducesBucketPipelines() {
+        /*
+         * Tests that a pipeline buckets by creating a mock pipeline that
+         * replaces "inner" with "dummy".
+         */
+        InternalFilter dummy = createTestInstance();
+        InternalFilter inner = createTestInstance();
+
+        InternalAggregations sub = InternalAggregations.from(List.of(inner));
+        InternalFilter test = createTestInstance("test", randomNonNegativeLong(), sub, emptyMap());
+        PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
+            @Override
+            public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+                return dummy;
+            }
+        };
+        PipelineTree tree = new PipelineTree(Map.of(inner.getName(), new PipelineTree(emptyMap(), List.of(mockPipeline))), emptyList());
+        InternalFilter reduced = (InternalFilter) test.reducePipelines(test, emptyReduceContextBuilder().forFinalReduction(), tree);
+        assertThat(reduced.getAggregations().get(dummy.getName()), sameInstance(dummy));
     }
 }

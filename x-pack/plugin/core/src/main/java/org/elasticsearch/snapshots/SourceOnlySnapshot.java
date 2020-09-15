@@ -6,7 +6,6 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -39,6 +38,7 @@ import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -61,14 +61,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
-import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION_PREFIX;
-import static org.apache.lucene.codecs.compressing.FieldsIndexWriter.FIELDS_INDEX_EXTENSION_SUFFIX;
-import static org.apache.lucene.codecs.compressing.FieldsIndexWriter.FIELDS_META_EXTENSION_SUFFIX;
+import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION;
+import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.META_EXTENSION;
 
 public class SourceOnlySnapshot {
 
-    private static final String FIELDS_INDEX_EXTENSION = INDEX_EXTENSION_PREFIX + FIELDS_INDEX_EXTENSION_SUFFIX;
-    private static final String FIELDS_META_EXTENSION = INDEX_EXTENSION_PREFIX + FIELDS_META_EXTENSION_SUFFIX;
+    private static final String FIELDS_INDEX_EXTENSION = INDEX_EXTENSION;
+    private static final String FIELDS_META_EXTENSION = META_EXTENSION;
     private final LinkedFilesDirectory targetDirectory;
     private final Supplier<Query> deleteByQuerySupplier;
 
@@ -96,8 +95,7 @@ public class SourceOnlySnapshot {
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
-             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit,
-                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()))) {
+             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
             SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
             DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
@@ -116,7 +114,7 @@ public class SourceOnlySnapshot {
             String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
                 "", segmentInfos.getGeneration());
             try (IndexOutput segnOutput = targetDirectory.createOutput(pendingSegmentFileName, IOContext.DEFAULT)) {
-                segmentInfos.write(targetDirectory, segnOutput);
+                segmentInfos.write(segnOutput);
             }
             targetDirectory.sync(Collections.singleton(pendingSegmentFileName));
             targetDirectory.sync(createdFiles);
@@ -219,7 +217,7 @@ public class SourceOnlySnapshot {
                 SegmentInfo newSegmentInfo = new SegmentInfo(targetDirectory, si.getVersion(), si.getMinVersion(), si.name, si.maxDoc(),
                     false, si.getCodec(), si.getDiagnostics(), si.getId(), si.getAttributes(), null);
                 // we drop the sort on purpose since the field we sorted on doesn't exist in the target index anymore.
-                newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1);
+                newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1, StringHelper.randomId());
                 List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
                 for (FieldInfo fieldInfo : fieldInfos) {
                     fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
@@ -254,7 +252,8 @@ public class SourceOnlySnapshot {
                 assert newInfo.getDelCount() == 0 || assertLiveDocs(liveDocs.bits, liveDocs.numDeletes);
                 codec.liveDocsFormat().writeLiveDocs(liveDocs.bits, trackingDir, newInfo, liveDocs.numDeletes - newInfo.getDelCount(),
                     IOContext.DEFAULT);
-                SegmentCommitInfo info = new SegmentCommitInfo(newInfo.info, liveDocs.numDeletes, 0, newInfo.getNextDelGen(), -1, -1);
+                SegmentCommitInfo info = new SegmentCommitInfo(newInfo.info, liveDocs.numDeletes, 0, newInfo.getNextDelGen(),
+                    -1, -1, StringHelper.randomId());
                 info.setFieldInfosFiles(newInfo.getFieldInfosFiles());
                 info.info.setFiles(trackingDir.getCreatedFiles());
                 newInfo = info;

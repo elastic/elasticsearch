@@ -24,16 +24,20 @@ public class ProgressTracker {
     public static final String REINDEXING = "reindexing";
     public static final String LOADING_DATA = "loading_data";
     public static final String WRITING_RESULTS = "writing_results";
+    public static final String INFERENCE = "inference";
 
     private final String[] phasesInOrder;
     private final Map<String, Integer> progressPercentPerPhase;
 
-    public static ProgressTracker fromZeroes(List<String> analysisProgressPhases) {
-        List<PhaseProgress> phases = new ArrayList<>(3 + analysisProgressPhases.size());
+    public static ProgressTracker fromZeroes(List<String> analysisProgressPhases, boolean hasInferencePhase) {
+        List<PhaseProgress> phases = new ArrayList<>(3 + analysisProgressPhases.size() + (hasInferencePhase ? 1 : 0));
         phases.add(new PhaseProgress(REINDEXING, 0));
         phases.add(new PhaseProgress(LOADING_DATA, 0));
         analysisProgressPhases.forEach(analysisPhase -> phases.add(new PhaseProgress(analysisPhase, 0)));
         phases.add(new PhaseProgress(WRITING_RESULTS, 0));
+        if (hasInferencePhase) {
+            phases.add(new PhaseProgress(INFERENCE, 0));
+        }
         return new ProgressTracker(phases);
     }
 
@@ -53,7 +57,7 @@ public class ProgressTracker {
     }
 
     public void updateReindexingProgress(int progressPercent) {
-        progressPercentPerPhase.put(REINDEXING, progressPercent);
+        updatePhase(REINDEXING, progressPercent);
     }
 
     public int getReindexingProgressPercent() {
@@ -61,19 +65,35 @@ public class ProgressTracker {
     }
 
     public void updateLoadingDataProgress(int progressPercent) {
-        progressPercentPerPhase.put(LOADING_DATA, progressPercent);
+        updatePhase(LOADING_DATA, progressPercent);
+    }
+
+    public int getLoadingDataProgressPercent() {
+        return progressPercentPerPhase.get(LOADING_DATA);
     }
 
     public void updateWritingResultsProgress(int progressPercent) {
-        progressPercentPerPhase.put(WRITING_RESULTS, progressPercent);
+        updatePhase(WRITING_RESULTS, progressPercent);
     }
 
     public int getWritingResultsProgressPercent() {
         return progressPercentPerPhase.get(WRITING_RESULTS);
     }
 
+    public void updateInferenceProgress(int progressPercent) {
+        updatePhase(INFERENCE, progressPercent);
+    }
+
+    public int getInferenceProgressPercent() {
+        return progressPercentPerPhase.getOrDefault(INFERENCE, 0);
+    }
+
     public void updatePhase(PhaseProgress phase) {
-        progressPercentPerPhase.computeIfPresent(phase.getPhase(), (k, v) -> phase.getProgressPercent());
+        updatePhase(phase.getPhase(), phase.getProgressPercent());
+    }
+
+    private void updatePhase(String phase, int progress) {
+        progressPercentPerPhase.computeIfPresent(phase, (k, v) -> Math.max(v, progress));
     }
 
     public List<PhaseProgress> report() {

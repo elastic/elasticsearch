@@ -55,22 +55,24 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         // in quick succession for the same job the job ID alone is not sufficient to guarantee that the normalizer process pipe names
         // are unique.  Therefore an increasing counter value is appended to the job ID to ensure uniqueness between calls.
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, NormalizerBuilder.NORMALIZE,
-            jobId + "_" + counter.incrementAndGet(), true, false, true, true, false, false);
+            jobId + "_" + counter.incrementAndGet(), false, true, true, false, false);
         createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
-        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, nativeController, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), processConnectTimeout);
+        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, nativeController, processPipes,
+            processConnectTimeout);
 
         try {
             normalizerProcess.start(executorService);
             return normalizerProcess;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to normalizer for job " + jobId;
+            LOGGER.error(msg);
             try {
                 IOUtils.close(normalizerProcess);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close normalizer", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
@@ -80,7 +82,6 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan).build();
             processPipes.addArgs(command);
             nativeController.startProcess(command);
-            processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch normalizer for job " + jobId;
             LOGGER.error(msg);

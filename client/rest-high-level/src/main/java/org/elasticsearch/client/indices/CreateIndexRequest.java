@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -63,7 +62,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     private BytesReference mappings;
     private XContentType mappingsXContentType;
-    private Boolean preferV2Templates;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -129,13 +127,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(Map<String, ?> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -265,16 +257,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
     public CreateIndexRequest aliases(Collection<Alias> aliases) {
         this.aliases.addAll(aliases);
         return this;
-    }
-
-    public CreateIndexRequest preferV2Templates(Boolean preferV2Templates) {
-        this.preferV2Templates = preferV2Templates;
-        return this;
-    }
-
-    @Nullable
-    public Boolean preferV2Templates() {
-        return this.preferV2Templates;
     }
 
     /**

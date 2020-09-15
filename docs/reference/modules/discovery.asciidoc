@@ -1,11 +1,13 @@
 [[modules-discovery]]
 == Discovery and cluster formation
 
-The discovery and cluster formation module is responsible for discovering
+The discovery and cluster formation processes are responsible for discovering
 nodes, electing a master, forming a cluster, and publishing the cluster state
-each time it changes. It is integrated with other modules. For example, all
-communication between nodes is done using the <<modules-transport,transport>>
-module. This module is divided into the following sections:
+each time it changes. All communication between nodes is done using the
+<<modules-transport,transport>> layer.
+
+The following processes and settings are part of discovery and cluster
+formation:
 
 <<modules-discovery-hosts-providers>>::
 
@@ -15,17 +17,17 @@ module. This module is divided into the following sections:
 
 <<modules-discovery-quorums>>::
 
-    This section describes how {es} uses a quorum-based voting mechanism to
+    How {es} uses a quorum-based voting mechanism to
     make decisions even if some nodes are unavailable.
 
 <<modules-discovery-voting>>::
 
-    This section describes the concept of voting configurations, which {es}
-    automatically updates as nodes leave and join the cluster.
+    How {es} automatically updates voting configurations as nodes leave and join
+    a cluster.
 
 <<modules-discovery-bootstrap-cluster>>::
 
-    Bootstrapping a cluster is required when an Elasticsearch cluster starts up
+    Bootstrapping a cluster is required when an {es} cluster starts up
     for the very first time. In <<dev-vs-prod-mode,development mode>>, with no
     discovery settings configured, this is automatically performed by the nodes
     themselves. As this auto-bootstrapping is
@@ -57,7 +59,7 @@ module. This module is divided into the following sections:
 <<modules-discovery-settings,Settings>>::
 
     There are settings that enable users to influence the discovery, cluster
-    formation, master election and fault detection processes.    
+    formation, master election and fault detection processes.
 
 include::discovery/discovery.asciidoc[]
 
@@ -67,10 +69,6 @@ include::discovery/voting.asciidoc[]
 
 include::discovery/bootstrapping.asciidoc[]
 
-include::discovery/adding-removing-nodes.asciidoc[]
-
 include::discovery/publishing.asciidoc[]
 
 include::discovery/fault-detection.asciidoc[]
-
-include::discovery/discovery-settings.asciidoc[]

@@ -11,6 +11,7 @@ Creates an API key for access without requiring basic authentication.
 ==== {api-request-title}
 
 `POST /_security/api_key`
+
 `PUT /_security/api_key`
 
 [[security-api-create-api-key-prereqs]]
@@ -44,7 +45,7 @@ service.
 The following parameters can be specified in the body of a POST or PUT request:
 
 `name`::
-(Optional, string) Specifies the name for this API key.
+(Required, string) Specifies the name for this API key.
 
 `role_descriptors`::
 (Optional, array-of-role-descriptor) An array of role descriptors for this API
@@ -121,6 +122,8 @@ API key information.
 The API key returned by this API can then be used by sending a request with an
 `Authorization` header with a value having the prefix `ApiKey` followed
 by the _credentials_, where _credentials_ are the base64 encoding of `id` and `api_key` joined by a colon.
+
+NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` when creating your API key.
 
 [source,shell]
 --------------------------------------------------

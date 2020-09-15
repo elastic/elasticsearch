@@ -1,6 +1,6 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'spatial'
@@ -11,26 +11,24 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  compile project(path: ':modules:geo', configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  api project(path: ':modules:geo', configuration: 'default')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }
 
 restResources {
   restApi {
     includeCore '_common', 'bulk', 'indices', 'index', 'search'
+    includeXpack 'xpack'
   }
   restTests {
     includeCore 'geo_shape'
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.breaker.request.limit', '25kb'
   testDistribution = 'DEFAULT'
-}
-
-licenseHeaders {
-  // This class was sourced from apache lucene's sandbox module tests
-  excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
 }

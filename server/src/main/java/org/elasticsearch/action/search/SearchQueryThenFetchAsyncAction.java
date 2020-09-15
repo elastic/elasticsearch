@@ -24,7 +24,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -38,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
@@ -59,11 +59,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                                     final SearchRequest request, final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
+                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters,
+                                    Consumer<Exception> onPartialMergeFailure) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
-                searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
-                request.getMaxConcurrentShardRequests(), clusters);
+                searchPhaseController.newSearchPhaseResults(executor, task.getProgressListener(),
+                    request, shardsIts.size(), onPartialMergeFailure), request.getMaxConcurrentShardRequests(), clusters);
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
@@ -73,11 +74,11 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
-    protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
+    protected void executePhaseOnShard(final SearchShardIterator shardIt,
+                                       final SearchShardTarget shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
-        getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
-            request, getTask(), listener);
+        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
     }
 
     @Override
@@ -91,7 +92,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         if (queryResult.isNull() == false
                 // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
                 && getRequest().scroll() == null
-                && queryResult.topDocs().topDocs instanceof TopFieldDocs) {
+                && queryResult.topDocs() != null
+                && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
             TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
             if (bottomSortCollector == null) {
                 synchronized (this) {
@@ -107,7 +109,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, context, clusterState());
+        return new FetchSearchPhase(results, searchPhaseController, null, context);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

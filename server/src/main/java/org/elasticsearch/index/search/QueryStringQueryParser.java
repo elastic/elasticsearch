@@ -43,14 +43,17 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -323,6 +326,10 @@ public class QueryStringQueryParser extends XQueryParser {
                     }
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
+                // if we are querying a single date field, we also create a range query that leverages the time zone setting
+                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                    return getRangeQuery(field, queryText, queryText, true, true);
+                }
             }
         }
 
@@ -512,12 +519,12 @@ public class QueryStringQueryParser extends XQueryParser {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = context.fieldMapper(field);
-            if (currentFieldType == null) {
+            if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
             setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
             Query query = null;
-            if (currentFieldType.tokenized() == false) {
+            if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
                 query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr, currentFieldType);
@@ -626,7 +633,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return new WildcardQuery(new Term(fieldName, "*"));
         }
 
-        return ExistsQueryBuilder.newFilter(context, fieldName);
+        return ExistsQueryBuilder.newFilter(context, fieldName, false);
     }
 
     @Override
@@ -663,15 +670,21 @@ public class QueryStringQueryParser extends XQueryParser {
             // effectively, we check if a field exists or not
             return existsQuery(field);
         }
-        String indexedNameField = field;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
-            if (currentFieldType != null) {
-                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-                indexedNameField = currentFieldType.name();
+            if (currentFieldType == null) {
+                return newUnmappedFieldQuery(field);
             }
-            return super.getWildcardQuery(indexedNameField, termStr);
+            if (forceAnalyzer != null &&
+                (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
+                setAnalyzer(forceAnalyzer);
+                return super.getWildcardQuery(currentFieldType.name(), termStr);
+            }
+            if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
+                throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
+            }
+            return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -716,9 +729,12 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-            Query query = super.getRegexpQuery(field, termStr);
-            return query;
+            if (forceAnalyzer != null) {
+                setAnalyzer(forceAnalyzer);
+                return super.getRegexpQuery(field, termStr);
+            }
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getMaxDeterminizedStates(),
+                getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

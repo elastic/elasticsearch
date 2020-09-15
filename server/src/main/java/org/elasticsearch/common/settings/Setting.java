@@ -405,8 +405,15 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        SecureSettings secureSettings = settings.getSecureSettings();
-        return settings.keySet().contains(getKey()) &&
+        return exists(settings.keySet(), settings.getSecureSettings());
+    }
+
+    public boolean exists(final Settings.Builder builder) {
+        return exists(builder.keys(), builder.getSecureSettings());
+    }
+
+    private boolean exists(final Set<String> keys, final SecureSettings secureSettings) {
+        return keys.contains(getKey()) &&
             (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
     }
 
@@ -515,11 +522,9 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            Settings.DeprecationLoggerHolder.deprecationLogger.deprecatedAndMaybeLog(
-                    key,
-                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version.",
-                    key);
+            Settings.DeprecationLoggerHolder.deprecationLogger
+                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version.", key);
         }
     }
 
@@ -741,6 +746,15 @@ public class Setting<T> implements ToXContentObject {
 
         private Stream<String> matchStream(Settings settings) {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
+        }
+
+        /**
+         * Get the raw list of dependencies. This method is exposed for testing purposes and {@link #getSettingsDependencies(String)}
+         * should be preferred for most all cases.
+         * @return the raw list of dependencies for this setting
+         */
+        public Set<AffixSettingDependency> getDependencies() {
+            return Collections.unmodifiableSet(dependencies);
         }
 
         @Override
@@ -1166,6 +1180,11 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key, isFiltered(properties)), properties);
     }
 
+    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, int maxValue,
+                                              Property... properties) {
+        return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)), properties);
+    }
+
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Validator<Integer> validator,
                                               Property... properties) {
         return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw,
@@ -1226,7 +1245,7 @@ public class Setting<T> implements ToXContentObject {
         return parseInt(s, minValue, maxValue, key, false);
     }
 
-    static int parseInt(String s, int minValue, int maxValue, String key, boolean isFiltered) {
+    public static int parseInt(String s, int minValue, int maxValue, String key, boolean isFiltered) {
         int value = Integer.parseInt(s);
         if (value < minValue) {
             String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;

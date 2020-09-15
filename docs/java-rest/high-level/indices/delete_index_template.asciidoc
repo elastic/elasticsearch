@@ -1,0 +1,41 @@
+--
+:api: delete-index-template-v2
+:request: DeleteIndexTemplateV2Request
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete Composable Index Template API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Delete Composable Index Template API allows you to delete an index template.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of an index template to delete.
+
+=== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the delete template request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the delete template request was acknowledged.
+
+include::../execution.asciidoc[]

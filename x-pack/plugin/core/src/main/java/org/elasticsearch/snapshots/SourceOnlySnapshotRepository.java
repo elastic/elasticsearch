@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -22,7 +21,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +44,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -81,24 +78,18 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata metadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<RepositoryData> listener) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
-        try {
-            super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
-                    stateTransformer, listener);
-        } catch (IOException ex) {
-            listener.onFailure(ex);
-        }
+        super.finalizeSnapshot(shardGenerations, repositoryStateId, metadataToSnapshot(shardGenerations.indices(), metadata),
+            snapshotInfo, repositoryMetaVersion, stateTransformer, listener);
     }
 
-    private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) throws IOException {
+    private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (IndexId indexId : indices) {
             IndexMetadata index = metadata.index(indexId.getName());
@@ -161,8 +152,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
             toClose.add(store::decRef);
-            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
-                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,

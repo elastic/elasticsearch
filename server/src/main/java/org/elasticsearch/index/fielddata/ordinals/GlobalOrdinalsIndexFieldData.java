@@ -27,15 +27,14 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -54,23 +53,24 @@ import java.util.function.Function;
  * this is done to avoid creating all segment's {@link TermsEnum} each time we want to access the values of a single
  * segment.
  */
-public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
+public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable {
 
     private final String fieldName;
+    private final ValuesSourceType valuesSourceType;
     private final long memorySizeInBytes;
 
     private final OrdinalMap ordinalMap;
     private final LeafOrdinalsFieldData[] segmentAfd;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
-    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings,
-                                           String fieldName,
+    protected GlobalOrdinalsIndexFieldData(String fieldName,
+                                           ValuesSourceType valuesSourceType,
                                            LeafOrdinalsFieldData[] segmentAfd,
                                            OrdinalMap ordinalMap,
                                            long memorySizeInBytes,
                                            Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
-        super(indexSettings);
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
@@ -78,7 +78,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
-        return new Consumer(source, indexSettings);
+        return new Consumer(source);
     }
 
     @Override
@@ -92,13 +92,18 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return this;
     }
 
     @Override
     public String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -111,9 +116,6 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
             SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
-
-    @Override
-    public void clear() {}
 
     @Override
     public long ramBytesUsed() {
@@ -145,12 +147,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
      * A non-thread safe {@link IndexOrdinalsFieldData} for global ordinals that creates the {@link TermsEnum} of each
      * segment once and use them to provide a single lookup per segment.
      */
-    public class Consumer extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
+    public class Consumer implements IndexOrdinalsFieldData, Accountable {
         private final DirectoryReader source;
         private TermsEnum[] lookups;
 
-        Consumer(DirectoryReader source, IndexSettings settings) {
-            super(settings);
+        Consumer(DirectoryReader source) {
             this.source = source;
         }
 
@@ -182,13 +183,18 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
-        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             return this;
         }
 
         @Override
         public String getFieldName() {
             return fieldName;
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return valuesSourceType;
         }
 
         @Override
@@ -201,9 +207,6 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
                 SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new IllegalArgumentException("only supported on numeric fields");
         }
-
-        @Override
-        public void clear() {}
 
         @Override
         public long ramBytesUsed() {

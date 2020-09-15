@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -29,7 +30,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -55,7 +55,6 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
-        updateRequest.preferV2Templates(RestCreateIndexAction.preferV2Templates(request));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             updateRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
@@ -76,6 +75,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
         updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
+        updateRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, updateRequest.isRequireAlias()));
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);

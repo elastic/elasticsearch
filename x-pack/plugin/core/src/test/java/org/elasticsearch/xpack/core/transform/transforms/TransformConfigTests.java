@@ -39,11 +39,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static TransformConfig randomTransformConfig() {
-        return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
+    public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
+        return randomTransformConfigWithoutHeaders(Version.CURRENT, id);
     }
 
-    public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
+    public static TransformConfig randomTransformConfigWithoutHeaders(Version version, String id) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -51,14 +51,23 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
-            PivotConfigTests.randomPivotConfig(),
+            PivotConfigTests.randomPivotConfig(version),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            SettingsConfigTests.randomSettingsConfig(),
             null,
             null
         );
     }
 
+    public static TransformConfig randomTransformConfig() {
+        return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
+    }
+
     public static TransformConfig randomTransformConfig(String id) {
+        return randomTransformConfig(Version.CURRENT, id);
+    }
+
+    public static TransformConfig randomTransformConfig(Version version, String id) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -66,8 +75,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
-            PivotConfigTests.randomPivotConfig(),
+            PivotConfigTests.randomPivotConfig(version),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -83,7 +93,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 randomBoolean() ? randomSyncConfig() : null,
                 randomHeaders(),
                 PivotConfigTests.randomPivotConfig(),
-                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+                null
             );
         } // else
         return new TransformConfig(
@@ -94,7 +105,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? randomSyncConfig() : null,
             randomHeaders(),
             PivotConfigTests.randomInvalidPivotConfig(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000)
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null
         );
     }
 
@@ -258,7 +270,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 null,
                 PivotConfigTests.randomPivotConfig(),
-                randomAlphaOfLength(1001)
+                randomAlphaOfLength(1001),
+                null
             )
         );
         assertThat(exception.getMessage(), equalTo("[description] must be less than 1000 characters in length."));
@@ -271,7 +284,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             null,
             PivotConfigTests.randomPivotConfig(),
-            description
+            description,
+            null
         );
         assertThat(description, equalTo(config.getDescription()));
     }
@@ -307,9 +321,81 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
+    public void testRewriteForUpdate() throws IOException {
+        String pivotTransform = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } },"
+            + " \"max_page_search_size\" : 111"
+            + "},"
+            + " \"version\" : \""
+            + Version.V_7_6_0.toString()
+            + "\""
+            + "}";
+
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
+        TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
+
+        assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
+        assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
+        assertEquals(111L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+    }
+
+    public void testRewriteForUpdateConflicting() throws IOException {
+        String pivotTransform = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } },"
+            + " \"max_page_search_size\": 111"
+            + "},"
+            + " \"settings\" : { \"max_page_search_size\": 555"
+            + "},"
+            + " \"version\" : \""
+            + Version.V_7_5_0.toString()
+            + "\""
+            + "}";
+
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
+        TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
+
+        assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
+        assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
+        assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+    }
+
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
+        return createTransformConfigFromString(json, id, false);
+    }
+
+    private TransformConfig createTransformConfigFromString(String json, String id, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        return TransformConfig.fromXContent(parser, id, false);
+        return TransformConfig.fromXContent(parser, id, lenient);
     }
 }

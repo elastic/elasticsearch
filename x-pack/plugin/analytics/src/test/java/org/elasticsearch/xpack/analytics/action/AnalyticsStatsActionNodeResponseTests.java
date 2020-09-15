@@ -10,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.analytics.EnumCounters;
+import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,6 +43,9 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
         assertThat(AnalyticsStatsAction.Item.STRING_STATS.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.TOP_METRICS.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.T_TEST.ordinal(), equalTo(i++));
+        assertThat(AnalyticsStatsAction.Item.MOVING_PERCENTILES.ordinal(), equalTo(i++));
+        assertThat(AnalyticsStatsAction.Item.NORMALIZE.ordinal(), equalTo(i++));
+        assertThat(AnalyticsStatsAction.Item.RATE.ordinal(), equalTo(i++));
         // Please add tests for newly added items here
         assertThat(AnalyticsStatsAction.Item.values().length, equalTo(i));
     }

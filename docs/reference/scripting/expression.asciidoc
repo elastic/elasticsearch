@@ -5,7 +5,7 @@ Lucene's expressions compile a `javascript` expression to bytecode. They are
 designed for high-performance custom ranking and sorting functions and are
 enabled for `inline` and `stored` scripting by default.
 
-[float]
+[discrete]
 === Performance
 
 Expressions were designed to have competitive performance with custom Lucene code.
@@ -14,12 +14,12 @@ scripting engines: expressions do more "up-front".
 
 This allows for very fast execution, even faster than if you had written a `native` script.
 
-[float]
+[discrete]
 === Syntax
 
 Expressions support a subset of javascript syntax: a single expression.
 
-See the link:http://lucene.apache.org/core/6_0_0/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
+See the https://lucene.apache.org/core/{lucene_version_path}/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
 for details on what operators and functions are available.
 
 Variables in `expression` scripts are available to access:
@@ -32,7 +32,7 @@ Variables in `expression` scripts are available to access:
 You can use Expressions scripts for `script_score`, `script_fields`, sort scripts, and numeric aggregation
 scripts, simply set the `lang` parameter to `expression`.
 
-[float]
+[discrete]
 === Numeric field API
 [cols="<,<",options="header",]
 |=======================================================================
@@ -66,7 +66,7 @@ When a document is missing the field completely, by default the value will be tr
 Boolean fields are exposed as numerics, with `true` mapped to `1` and `false` mapped to `0`.
 For example: `doc['on_sale'].value ? doc['price'].value * 0.5 : doc['price'].value`
 
-[float]
+[discrete]
 === Date field API
 Date fields are treated as the number of milliseconds since January 1, 1970 and
 support the Numeric Fields API above, plus access to some date-specific fields:
@@ -111,7 +111,7 @@ The following example shows the difference in years between the `date` fields da
 
 `doc['date1'].date.year - doc['date0'].date.year`
 
-[float]
+[discrete]
 [[geo-point-field-api]]
 === `geo_point` field API
 [cols="<,<",options="header",]
@@ -132,7 +132,7 @@ The following example computes distance in kilometers from Washington, DC:
 In this example the coordinates could have been passed as parameters to the script,
 e.g. based on geolocation of the user.
 
-[float]
+[discrete]
 === Limitations
 
 There are a few limitations relative to other script languages:

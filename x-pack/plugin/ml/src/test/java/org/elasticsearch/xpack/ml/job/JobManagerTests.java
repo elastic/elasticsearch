@@ -42,6 +42,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -54,7 +55,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
@@ -219,7 +219,7 @@ public class JobManagerTests extends ESTestCase {
         docsAsBytes.add(toBytesReference(indexJobFoo.build()));
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        mockClientBuilder.prepareSearch(MlConfigIndex.indexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
 
@@ -366,7 +366,7 @@ public class JobManagerTests extends ESTestCase {
         }).when(updateJobProcessNotifier).submitJobUpdate(any(), any());
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        mockClientBuilder.prepareSearch(MlConfigIndex.indexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         MlFilter filter = MlFilter.builder("foo_filter").setItems("a", "b").build();
@@ -417,7 +417,7 @@ public class JobManagerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        mockClientBuilder.prepareSearch(MlConfigIndex.indexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         MlFilter filter = MlFilter.builder("foo_filter").build();
@@ -453,7 +453,7 @@ public class JobManagerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        mockClientBuilder.prepareSearch(MlConfigIndex.indexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         MlFilter filter = MlFilter.builder("foo_filter").build();
@@ -474,14 +474,14 @@ public class JobManagerTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(AnomalyDetectorsIndex.configIndexName());
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
         indexMetadata.settings(Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         metadata.put(indexMetadata);
-        Index index = new Index(AnomalyDetectorsIndex.configIndexName(), "_uuid");
+        Index index = new Index(MlConfigIndex.indexName(), "_uuid");
         ShardId shardId = new ShardId(index, 0);
         ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
@@ -521,7 +521,7 @@ public class JobManagerTests extends ESTestCase {
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
         // For the JobConfigProvider expand groups search.
         // The search will not return any results
-        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), Collections.emptyList());
+        mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), Collections.emptyList());
 
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
@@ -564,7 +564,7 @@ public class JobManagerTests extends ESTestCase {
                 new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-2"))));
 
 
-        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);
+        mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), fieldHits);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"),

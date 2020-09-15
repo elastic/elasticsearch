@@ -50,7 +50,7 @@ calling the provided `ActionListener` when the response is ready.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-async]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-execute-async]
 --------------------------------------------------
 <1> The `MultiSearchRequest` to execute and the `ActionListener` to use when
 the execution completes

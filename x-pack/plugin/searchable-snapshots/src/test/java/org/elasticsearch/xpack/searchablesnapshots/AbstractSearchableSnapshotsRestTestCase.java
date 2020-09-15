@@ -8,20 +8,14 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,7 +25,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,7 +32,6 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
@@ -68,7 +60,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         );
         ensureGreen(indexName);
 
-        final int numDocs = randomIntBetween(1, 10_000);
+        final int numDocs = randomIntBetween(1, 500);
         logger.info("indexing [{}] documents", numDocs);
 
         final StringBuilder bulkBody = new StringBuilder();
@@ -203,8 +195,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
 
-            final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            assertBusy(() -> {
+                final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            });
         });
     }
 
@@ -248,39 +242,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
-        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).verify(verify).settings(settings)));
-
-        final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create repository [" + repository + "] of type [" + type + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
-    }
-
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
-        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-
-        final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
-    }
-
     protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         try {
             final Response response = client().performRequest(request);
-            assertThat(
-                "Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-                response.getStatusLine().getStatusCode(),
-                equalTo(RestStatus.OK.getStatus())
-            );
+            assertAcked("Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response, response);
         } catch (IOException e) {
             if (ignoreMissing && e instanceof ResponseException) {
                 Response response = ((ResponseException) e).getResponse();
@@ -320,6 +286,22 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteIndex(String index) throws IOException {
+        final Response response = client().performRequest(new Request("DELETE", "/" + index));
+        assertAcked("Fail to delete index [" + index + ']', response);
+    }
+
+    private static void assertAcked(String message, Response response) throws IOException {
+        final int responseStatusCode = response.getStatusLine().getStatusCode();
+        assertThat(
+            message + ": expecting response code [200] but got [" + responseStatusCode + ']',
+            responseStatusCode,
+            equalTo(RestStatus.OK.getStatus())
+        );
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        assertThat(message + ": response is not acknowledged", extractValue(responseAsMap, "acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {
@@ -396,19 +378,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         return extractValue(responseAsMap(response), index + ".settings");
     }
 
-    protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        final XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        assertThat("Unknown XContentType", xContentType, notNullValue());
-
-        BytesReference bytesReference = Streams.readFully(response.getEntity().getContent());
-
-        try (InputStream responseBody = bytesReference.streamInput()) {
-            return XContentHelper.convertToMap(xContentType.xContent(), responseBody, true);
-        } catch (Exception e) {
-            throw new IOException(bytesReference.utf8ToString(), e);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     protected static <T> T extractValue(Map<String, Object> map, String path) {
         return (T) XContentMapValues.extractValue(path, map);
@@ -419,6 +388,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
      */
     @FunctionalInterface
     interface SearchableSnapshotsTestCaseBody {
-        void runTest(String indexName, int numDocs) throws IOException;
+        void runTest(String indexName, int numDocs) throws Exception;
     }
 }

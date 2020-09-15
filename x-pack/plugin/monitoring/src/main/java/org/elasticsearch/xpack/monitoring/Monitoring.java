@@ -116,7 +116,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
-        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client, settings));
+        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 

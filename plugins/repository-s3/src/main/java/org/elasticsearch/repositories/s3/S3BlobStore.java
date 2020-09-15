@@ -25,6 +25,8 @@ import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -39,6 +41,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 class S3BlobStore implements BlobStore {
+
+    private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
 
@@ -58,7 +62,8 @@ class S3BlobStore implements BlobStore {
 
     final RequestMetricCollector getMetricCollector;
     final RequestMetricCollector listMetricCollector;
-
+    final RequestMetricCollector putMetricCollector;
+    final RequestMetricCollector multiPartUploadMetricCollector;
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
@@ -74,22 +79,41 @@ class S3BlobStore implements BlobStore {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 assert request.getHttpMethod().name().equals("GET");
-                final Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-                    .getCounter(AWSRequestMetrics.Field.RequestCount.name());
-                assert requestCount != null;
-                stats.getCount.addAndGet(requestCount.longValue());
+                stats.getCount.addAndGet(getRequestCount(request));
             }
         };
         this.listMetricCollector = new RequestMetricCollector() {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 assert request.getHttpMethod().name().equals("GET");
-                final Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-                    .getCounter(AWSRequestMetrics.Field.RequestCount.name());
-                assert requestCount != null;
-                stats.listCount.addAndGet(requestCount.longValue());
+                stats.listCount.addAndGet(getRequestCount(request));
             }
         };
+        this.putMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT");
+                stats.putCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT")
+                    || request.getHttpMethod().name().equals("POST");
+                stats.postCount.addAndGet(getRequestCount(request));
+            }
+        };
+    }
+
+    private long getRequestCount(Request<?> request) {
+        Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
+            .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+        if (requestCount == null) {
+            logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
+            return 0L;
+        }
+        return requestCount.longValue();
     }
 
     @Override
@@ -180,10 +204,16 @@ class S3BlobStore implements BlobStore {
 
         final AtomicLong getCount = new AtomicLong();
 
+        final AtomicLong putCount = new AtomicLong();
+
+        final AtomicLong postCount = new AtomicLong();
+
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
-            results.put("GET", getCount.get());
-            results.put("LIST", listCount.get());
+            results.put("GetObject", getCount.get());
+            results.put("ListObjects", listCount.get());
+            results.put("PutObject", putCount.get());
+            results.put("PutMultipartObject", postCount.get());
             return results;
         }
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RegressionTests;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
@@ -77,6 +79,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
@@ -85,6 +88,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
@@ -144,12 +148,18 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 bwcRegression.getBoostedTreeParams(),
                 bwcRegression.getPredictionFieldName(),
                 bwcRegression.getTrainingPercent(),
-                42L);
+                42L,
+                bwcRegression.getLossFunction(),
+                bwcRegression.getLossFunctionParameter(),
+                bwcRegression.getFeatureProcessors());
             testAnalysis = new Regression(testRegression.getDependentVariable(),
                 testRegression.getBoostedTreeParams(),
                 testRegression.getPredictionFieldName(),
                 testRegression.getTrainingPercent(),
-                42L);
+                42L,
+                testRegression.getLossFunction(),
+                testRegression.getLossFunctionParameter(),
+                bwcRegression.getFeatureProcessors());
         } else {
             Classification testClassification = (Classification)testInstance.getAnalysis();
             Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
@@ -159,14 +169,16 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 bwcClassification.getClassAssignmentObjective(),
                 bwcClassification.getNumTopClasses(),
                 bwcClassification.getTrainingPercent(),
-                42L);
+                42L,
+                bwcClassification.getFeatureProcessors());
             testAnalysis = new Classification(testClassification.getDependentVariable(),
                 testClassification.getBoostedTreeParams(),
                 testClassification.getPredictionFieldName(),
                 testClassification.getClassAssignmentObjective(),
                 testClassification.getNumTopClasses(),
                 testClassification.getTrainingPercent(),
-                42L);
+                42L,
+                testClassification.getFeatureProcessors());
         }
         super.assertOnBWCObject(new DataFrameAnalyticsConfig.Builder(bwcSerializedObject)
             .setAnalysis(bwcAnalysis)
@@ -228,6 +240,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
         }
         return builder;
     }
@@ -484,6 +499,32 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-data_frame_analytics_config-foo"),
             equalTo("data_frame_analytics_config-foo"));
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("foo"), is(nullValue()));
+    }
+
+    public void testCtor_GivenMaxNumThreadsIsZero() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(new Regression("foo"))
+            .setMaxNumThreads(0)
+            .build());
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
+    }
+
+    public void testCtor_GivenMaxNumThreadsIsNegative() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(new Regression("foo"))
+            .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))
+            .build());
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
     }
 
     private static void assertTooSmall(ElasticsearchStatusException e) {

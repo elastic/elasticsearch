@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ElvisNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import static java.util.Objects.requireNonNull;
 
@@ -34,84 +30,32 @@ import static java.util.Objects.requireNonNull;
  */
 public class EElvis extends AExpression {
 
-    protected AExpression lhs;
-    protected AExpression rhs;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
 
-    public EElvis(Location location, AExpression lhs, AExpression rhs) {
-        super(location);
+    public EElvis(int identifier, Location location, AExpression leftNode, AExpression rightNode) {
+        super(identifier, location);
 
-        this.lhs = requireNonNull(lhs);
-        this.rhs = requireNonNull(rhs);
+        this.leftNode = requireNonNull(leftNode);
+        this.rightNode = requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]"));
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitElvis(this, scope);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
-        }
-
-        Output output = new Output();
-
-        if (input.expected != null && input.expected.isPrimitive()) {
-            throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
-        }
-
-        Input leftInput = new Input();
-        leftInput.expected = input.expected;
-        leftInput.explicit = input.explicit;
-        leftInput.internal = input.internal;
-        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
-
-        Input rightInput = new Input();
-        rightInput.expected = input.expected;
-        rightInput.explicit = input.explicit;
-        rightInput.internal = input.internal;
-        Output rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
-
-        output.actual = input.expected;
-
-        if (lhs instanceof ENull) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
-        }
-        if (lhs instanceof EBoolean
-                || lhs instanceof ENumeric
-                || lhs instanceof EDecimal
-                || lhs instanceof EString
-                || lhs instanceof EConstant) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
-        }
-        if (leftOutput.actual.isPrimitive()) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
-        }
-        if (rhs instanceof ENull) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
-        }
-
-        if (input.expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
-
-            leftInput.expected = promote;
-            rightInput.expected = promote;
-            output.actual = promote;
-        }
-
-        lhs.cast(leftInput, leftOutput);
-        rhs.cast(rightInput, rightOutput);
-
-        ElvisNode elvisNode = new ElvisNode();
-
-        elvisNode.setLeftNode(lhs.cast(leftOutput));
-        elvisNode.setRightNode(rhs.cast(rightOutput));
-
-        elvisNode.setLocation(location);
-        elvisNode.setExpressionType(output.actual);
-
-        output.expressionNode = elvisNode;
-
-        return output;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        leftNode.visit(userTreeVisitor, scope);
+        rightNode.visit(userTreeVisitor, scope);
     }
 }

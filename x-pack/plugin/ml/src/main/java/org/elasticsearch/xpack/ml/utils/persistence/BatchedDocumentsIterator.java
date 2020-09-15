@@ -28,7 +28,7 @@ import java.util.Objects;
  * An iterator useful to fetch a big number of documents of type T
  * and iterate through them in batches.
  */
-public abstract class BatchedDocumentsIterator<T>  {
+public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T>  {
     private static final Logger LOGGER = LogManager.getLogger(BatchedDocumentsIterator.class);
 
     private static final String CONTEXT_ALIVE_DURATION = "5m";
@@ -56,6 +56,7 @@ public abstract class BatchedDocumentsIterator<T>  {
      *
      * @return {@code true} if the iteration has more elements
      */
+    @Override
     public boolean hasNext() {
         return !isScrollInitialised || count != totalHits;
     }
@@ -70,6 +71,7 @@ public abstract class BatchedDocumentsIterator<T>  {
      * @return a {@code Deque} with the next batch of documents
      * @throws NoSuchElementException if the iteration has no more elements
      */
+    @Override
     public Deque<T> next() {
         if (!hasNext()) {
             throw new NoSuchElementException();

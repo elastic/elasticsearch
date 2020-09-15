@@ -37,6 +37,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class DeleteResponse extends DocWriteResponse {
 
+    public DeleteResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+    }
+
     public DeleteResponse(StreamInput in) throws IOException {
         super(in);
     }

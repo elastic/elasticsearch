@@ -38,8 +38,8 @@ public final class FailProcessor extends AbstractProcessor {
 
     private final TemplateScript.Factory message;
 
-    FailProcessor(String tag, TemplateScript.Factory message) {
-        super(tag);
+    FailProcessor(String tag, String description, TemplateScript.Factory message) {
+        super(tag, description);
         this.message = message;
     }
 
@@ -67,11 +67,11 @@ public final class FailProcessor extends AbstractProcessor {
 
         @Override
         public FailProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String message = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "message");
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
                 "message", message, scriptService);
-            return new FailProcessor(processorTag, compiledTemplate);
+            return new FailProcessor(processorTag, description, compiledTemplate);
         }
     }
 }

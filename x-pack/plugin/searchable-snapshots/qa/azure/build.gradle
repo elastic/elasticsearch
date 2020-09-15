@@ -1,33 +1,16 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
 import org.elasticsearch.gradle.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testCompile repositoryPlugin
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -60,20 +43,13 @@ if (useFixture) {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
-  runner {
-    systemProperty 'test.azure.container', azureContainer
-    systemProperty 'test.azure.base_path', azureBasePath + "/searchable_snapshots_tests"
-  }
+  systemProperty 'test.azure.container', azureContainer
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
+  plugin repositoryPlugin.path
 
   keystore 'azure.client.searchable_snapshots.account', azureAccount
   if (azureKey != null && azureKey.isEmpty() == false) {
@@ -98,5 +74,9 @@ testClusters.integTest {
   } else {
     println "Using an external service to test " + project.name
   }
+}
+
+tasks.register("azureThirdPartyTest") {
+  dependsOn "integTest"
 }
 

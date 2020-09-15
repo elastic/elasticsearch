@@ -194,6 +194,8 @@ public class ILMHistoryStore implements Closeable {
             byte[] templateBytes = TEMPLATE_ILM_HISTORY.loadBytes();
             Map<String, Object> templateAsMap = XContentHelper.convertToMap(new BytesArray(templateBytes, 0, templateBytes.length),
                 false, XContentType.JSON).v2();
+            templateAsMap = (Map<String, Object>) templateAsMap.get("template");
+
 
             client.admin().indices().prepareCreate(initialHistoryIndexName)
                 .setSettings((Map<String, ?>) templateAsMap.get("settings"))

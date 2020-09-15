@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,15 +25,8 @@ public class RestForecastJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast")
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast")
         );
     }
 
@@ -55,6 +49,13 @@ public class RestForecastJobAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(ForecastJobAction.Request.EXPIRES_IN.getPreferredName())) {
                 request.setExpiresIn(restRequest.param(ForecastJobAction.Request.EXPIRES_IN.getPreferredName()));
+            }
+            if (restRequest.hasParam(ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName())) {
+                long limit = ByteSizeValue.parseBytesSizeValue(
+                    restRequest.param(ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName()),
+                    ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName()
+                ).getBytes();
+                request.setMaxModelMemory(limit);
             }
         }
 

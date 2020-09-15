@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.analytics.EnumCounters;
+import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +43,10 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         CUMULATIVE_CARDINALITY,
         STRING_STATS,
         TOP_METRICS,
-        T_TEST;
+        T_TEST,
+        MOVING_PERCENTILES,
+        NORMALIZE,
+        RATE;
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {

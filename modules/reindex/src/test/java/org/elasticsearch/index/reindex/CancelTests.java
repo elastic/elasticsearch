@@ -177,7 +177,7 @@ public class CancelTests extends ReindexTestCase {
         try {
             response = future.get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
-            if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+            if (ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isPresent()) {
                 return; // the scroll request was cancelled
             }
             String tasks = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())

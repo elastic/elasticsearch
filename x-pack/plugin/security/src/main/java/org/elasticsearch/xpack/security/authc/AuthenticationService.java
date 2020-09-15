@@ -49,14 +49,11 @@ import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -349,10 +346,9 @@ public class AuthenticationService {
         private void checkForApiKey() {
             apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated()) {
-                        final User user = authResult.getUser();
-                        authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
-                        writeAuthToContext(new Authentication(user, authenticatedBy, null, Version.CURRENT,
-                            Authentication.AuthenticationType.API_KEY, authResult.getMetadata()));
+                        final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
+                        this.authenticatedBy = authentication.getAuthenticatedBy();
+                        writeAuthToContext(authentication);
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         Exception e = (authResult.getException() != null) ? authResult.getException()
                             : Exceptions.authenticationError(authResult.getMessage());
@@ -465,11 +461,15 @@ public class AuthenticationService {
                                 // the user was not authenticated, call this so we can audit the correct event
                                 request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                                    logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
-                                        authenticationToken.principal(), realm.name(), result.getMessage());
-                                    Exception e = (result.getException() != null) ? result.getException()
-                                        : Exceptions.authenticationError(result.getMessage());
-                                    userListener.onFailure(e);
+                                    if (result.getException() != null) {
+                                        logger.info(new ParameterizedMessage(
+                                                "Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage()), result.getException());
+                                    } else {
+                                        logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage());
+                                    }
+                                    userListener.onFailure(result.getException());
                                 } else {
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
@@ -491,7 +491,13 @@ public class AuthenticationService {
                 final IteratingActionListener<User, Realm> authenticatingListener =
                     new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
                         (user) -> consumeUser(user, messages),
-                        (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))), threadContext),
+                        (e) -> {
+                            if (e != null) {
+                                listener.onFailure(request.exceptionProcessingRequest(e, token));
+                            } else {
+                                listener.onFailure(request.authenticationFailed(token));
+                            }
+                        }), threadContext),
                         realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
                     authenticatingListener.run();
@@ -548,6 +554,13 @@ public class AuthenticationService {
          */
         // pkg-private for tests
         void handleNullToken() {
+            List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
+            if (unlicensedRealms.isEmpty() == false) {
+                logger.warn("No authentication credential could be extracted using realms [{}]." +
+                                " Realms [{}] were skipped because they are not permitted on the current license",
+                            Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
+                            Strings.collectionToCommaDelimitedString(unlicensedRealms));
+            }
             final Authentication authentication;
             if (fallbackUser != null) {
                 logger.trace("No valid credentials found in request [{}], using fallback [{}]", request, fallbackUser.principal());
@@ -659,8 +672,7 @@ public class AuthenticationService {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                final Authentication finalAuth = new Authentication(
-                    maybeConsolidateRolesForUser(finalUser), authenticatedBy, lookedupBy);
+                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -670,13 +682,13 @@ public class AuthenticationService {
          * successful
          */
         void writeAuthToContext(Authentication authentication) {
-            request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
             Runnable action = () -> {
                 logger.trace("Established authentication [{}] for request [{}]", authentication, request);
                 listener.onResponse(authentication);
             };
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
+                request.authenticationSuccess(authentication);
             } catch (Exception e) {
                 action = () -> {
                     logger.debug(
@@ -692,33 +704,6 @@ public class AuthenticationService {
 
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
-        }
-
-        private User maybeConsolidateRolesForUser(User user) {
-            if (User.isInternal(user)) {
-                return user;
-            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                User userWithMergedRoles = user.withRoles(mergeRoles(user.roles(), anonymousUser.roles()));
-                if (user.isRunAs()) {
-                    final User authUserWithMergedRoles = user.authenticatedUser().withRoles(
-                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
-                    userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
-                }
-                return userWithMergedRoles;
-            } else {
-                return user;
-            }
-        }
-
-        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
-            Set<String> roles = new LinkedHashSet<>(Arrays.asList(existingRoles));
-            if (otherRoles != null) {
-                Collections.addAll(roles, otherRoles);
-            }
-            return roles.toArray(new String[0]);
         }
     }
 
@@ -746,7 +731,7 @@ public class AuthenticationService {
 
         abstract ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token);
 
-        abstract void authenticationSuccess(String realm, User user);
+        abstract void authenticationSuccess(Authentication authentication);
 
     }
 
@@ -766,8 +751,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
         }
 
         @Override
@@ -830,8 +815,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, request);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, request);
         }
 
         @Override

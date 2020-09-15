@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -18,6 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -31,17 +30,24 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     static final String NAME = "cancel";
     static final int SLEEP_TIME = 10;
 
-    public CancellingAggregationBuilder(String name) {
+    private final long randomUID;
+
+    /**
+     * Creates a {@link CancellingAggregationBuilder} with the provided <code>randomUID</code>.
+     */
+    public CancellingAggregationBuilder(String name, long randomUID) {
         super(name);
+        this.randomUID = randomUID;
     }
 
     public CancellingAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        this.randomUID = in.readLong();
     }
 
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new CancellingAggregationBuilder(name);
+        return new CancellingAggregationBuilder(name, randomUID);
     }
 
     @Override
@@ -51,6 +57,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeLong(randomUID);
     }
 
     @Override
@@ -61,19 +68,10 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     }
 
     static final ConstructingObjectParser<CancellingAggregationBuilder, String> PARSER =
-        new ConstructingObjectParser<>(NAME, false, (args, name) -> new CancellingAggregationBuilder(name));
+        new ConstructingObjectParser<>(NAME, false, (args, name) -> new CancellingAggregationBuilder(name, 0L));
 
-
-    static CancellingAggregationBuilder fromXContent(String aggName, XContentParser parser) {
-        try {
-            return PARSER.apply(parser, aggName);
-        } catch (IllegalArgumentException e) {
-            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
-        }
-    }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                         AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
         final FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(name, QueryBuilders.matchAllQuery());
@@ -83,7 +81,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
             @Override
             protected Aggregator createInternal(SearchContext searchContext,
                                                 Aggregator parent,
-                                                boolean collectsFromSingleBucket,
+                                                CardinalityUpperBound cardinality,
                                                 Map<String, Object> metadata) throws IOException {
                 while (searchContext.isCancelled() == false) {
                     try {
@@ -92,7 +90,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
                         throw new IOException(e);
                     }
                 }
-                return factory.create(searchContext, parent, collectsFromSingleBucket);
+                return factory.create(searchContext, parent, cardinality);
             }
         };
     }

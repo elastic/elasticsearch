@@ -214,6 +214,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return (T) customs.get(type);
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends Custom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
+    }
+
     public ClusterName getClusterName() {
         return this.clusterName;
     }
@@ -620,7 +625,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         builder.metadata = Metadata.readFrom(in);
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
-        builder.blocks = new ClusterBlocks(in);
+        builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);

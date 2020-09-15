@@ -365,10 +365,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting, DiffableUtils.getStringKeySerializer());
         }
 
+        private static final DiffableUtils.DiffableValueReader<String, IndexRoutingTable> DIFF_VALUE_READER =
+                new DiffableUtils.DiffableValueReader<>(IndexRoutingTable::readFrom, IndexRoutingTable::readDiffFrom);
+
         RoutingTableDiff(StreamInput in) throws IOException {
             version = in.readLong();
-            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexRoutingTable::readFrom,
-                IndexRoutingTable::readDiffFrom);
+            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), DIFF_VALUE_READER);
         }
 
         @Override
@@ -478,13 +480,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                         builder.addReplica();
                     }
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
-                    int delta = currentNumberOfReplicas - numberOfReplicas;
-                    if (delta <= 0) {
-                        // ignore, can't remove below the current one...
-                    } else {
-                        for (int i = 0; i < delta; i++) {
-                            builder.removeReplica();
-                        }
+                    for (int i = 0; i < (currentNumberOfReplicas - numberOfReplicas); i++) {
+                        builder.removeReplica();
                     }
                 }
                 indicesRouting.put(index, builder.build());

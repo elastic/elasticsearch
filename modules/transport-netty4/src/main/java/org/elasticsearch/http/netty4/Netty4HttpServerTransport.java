@@ -29,7 +29,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -60,16 +59,15 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -126,9 +124,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             // Netty's CompositeByteBuf implementation does not allow less than two components.
         }, s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS), Property.NodeScope);
 
-    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s) * 2),
-        (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
@@ -137,21 +133,23 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final ByteSizeValue maxHeaderSize;
     private final ByteSizeValue maxChunkSize;
 
-    private final int workerCount;
-
     private final int pipeliningMaxEvents;
 
+    private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
 
     private volatile ServerBootstrap serverBootstrap;
+    private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
+                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings,
+                                     SharedGroupFactory sharedGroupFactory) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        this.sharedGroupFactory = sharedGroupFactory;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -159,7 +157,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
-        this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
@@ -180,10 +177,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected void doStart() {
         boolean success = false;
         try {
+            sharedGroup = sharedGroupFactory.getHttpGroup();
             serverBootstrap = new ServerBootstrap();
 
-            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
-                HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
+            serverBootstrap.group(sharedGroup.getLowLevelGroup());
 
             // NettyAllocator will return the channel type designed to work with the configuredAllocator
             serverBootstrap.channel(NettyAllocator.getServerChannelType());
@@ -260,9 +257,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected void stopInternal() {
-        if (serverBootstrap != null) {
-            serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
-            serverBootstrap = null;
+        if (sharedGroup != null) {
+            sharedGroup.shutdown();
+            sharedGroup = null;
         }
     }
 
@@ -285,12 +282,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
+        private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
+            this.requestCreator =  new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
         }
 
@@ -313,9 +312,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCompression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
-            if (handlingSettings.isCorsEnabled()) {
-                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
-            }
+            ch.pipeline().addLast("request_creator", requestCreator);
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);

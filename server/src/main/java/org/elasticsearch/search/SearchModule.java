@@ -119,6 +119,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.VariableWidthHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
@@ -137,27 +139,27 @@ import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregati
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTextAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedRareTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
@@ -218,6 +220,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.FetchScorePhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.fetch.subphase.FetchVersionPhase;
@@ -385,7 +388,7 @@ public class SearchModule {
                     .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
             builder);
         registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder.NAME, DiversifiedAggregationBuilder::new,
-                DiversifiedAggregationBuilder.PARSER)
+                DiversifiedAggregationBuilder.PARSER).setAggregatorRegistrar(DiversifiedAggregationBuilder::registerAggregators)
                     /* Reuses result readers from SamplerAggregator*/, builder);
         registerAggregation(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
                 TermsAggregationBuilder.PARSER)
@@ -432,6 +435,11 @@ public class SearchModule {
                 AutoDateHistogramAggregationBuilder.PARSER)
                     .addResultReader(InternalAutoDateHistogram::new)
                     .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
+        registerAggregation(new AggregationSpec(VariableWidthHistogramAggregationBuilder.NAME,
+                VariableWidthHistogramAggregationBuilder::new,
+                VariableWidthHistogramAggregationBuilder.PARSER)
+                    .addResultReader(InternalVariableWidthHistogram::new)
+                    .setAggregatorRegistrar(VariableWidthHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse)
                     .addResultReader(InternalGeoDistance::new)
@@ -460,8 +468,12 @@ public class SearchModule {
                     .setAggregatorRegistrar(GeoCentroidAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
                 ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new), builder);
-        registerAggregation((new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new,
-                CompositeAggregationBuilder.PARSER).addResultReader(InternalComposite::new)), builder);
+        registerAggregation(
+            new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
+                .addResultReader(InternalComposite::new)
+                .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
+            builder
+        );
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
 
         // after aggs have been registered, see if there are any new VSTypes that need to be linked to core fields
@@ -539,7 +551,7 @@ public class SearchModule {
         registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
                 CumulativeSumPipelineAggregationBuilder::new,
-                CumulativeSumPipelineAggregationBuilder::parse));
+                CumulativeSumPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 BucketScriptPipelineAggregationBuilder.NAME,
                 BucketScriptPipelineAggregationBuilder::new,
@@ -724,6 +736,7 @@ public class SearchModule {
         registerFetchSubPhase(new FetchDocValuesPhase());
         registerFetchSubPhase(new ScriptFieldsPhase());
         registerFetchSubPhase(new FetchSourcePhase());
+        registerFetchSubPhase(new FetchFieldsPhase());
         registerFetchSubPhase(new FetchVersionPhase());
         registerFetchSubPhase(new SeqNoPrimaryTermPhase());
         registerFetchSubPhase(new MatchedQueriesPhase());

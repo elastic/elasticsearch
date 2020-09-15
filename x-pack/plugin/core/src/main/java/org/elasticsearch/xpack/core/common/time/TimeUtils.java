@@ -47,6 +47,36 @@ public final class TimeUtils {
     }
 
     /**
+     * Safely parses a string epoch representation to a Long
+     *
+     * Commonly this function is used for parsing Date fields from doc values
+     * requested with the format "epoch_millis".
+     *
+     * Since nanosecond support was added epoch_millis timestamps may have a fractional component.
+     * We discard this, taking just whole milliseconds.  Arguably it would be better to retain the
+     * precision here and let the downstream component decide whether it wants the accuracy, but
+     * that makes it hard to pass around the value as a number.  The double type doesn't have
+     * enough digits of accuracy, and obviously long cannot store the fraction.  BigDecimal would
+     * work, but that isn't supported by the JSON parser if the number gets round-tripped through
+     * JSON.  So String is really the only format that could be used, but the consumers of time
+     * are expecting a number.
+     *
+     * @param epoch The epoch value as a string. This may contain a fractional component.
+     * @return The epoch value.
+     */
+    public static long parseToEpochMs(String epoch) {
+        int dotPos = epoch.indexOf('.');
+        if (dotPos == -1) {
+            return Long.parseLong(epoch);
+        } else if (dotPos > 0) {
+            return Long.parseLong(epoch.substring(0, dotPos));
+        } else {
+            // The first character is '.' so round down to 0
+            return 0L;
+        }
+    }
+
+    /**
      * First tries to parse the date first as a Long and convert that to an
      * epoch time. If the long number has more than 10 digits it is considered a
      * time in milliseconds else if 10 or less digits it is in seconds. If that

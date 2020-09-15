@@ -128,7 +128,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(processor.isFailed()).thenReturn(true);
         when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(null);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor);
-        expectThrows(ElasticsearchException.class, () -> communicator.waitFlushToCompletion("foo"));
+        expectThrows(ElasticsearchException.class, () -> communicator.waitFlushToCompletion("foo", true));
     }
 
     public void testFlushJob_throwsIfProcessIsDead() throws IOException {

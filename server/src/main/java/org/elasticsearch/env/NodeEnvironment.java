@@ -35,11 +35,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
@@ -60,7 +62,6 @@ import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -786,6 +787,11 @@ public final class NodeEnvironment  implements Closeable {
                 shardLock.release();
                 logger.trace("released shard lock for [{}]", shardId);
             }
+
+            @Override
+            public void setDetails(String details) {
+                shardLock.setDetails(details);
+            }
         };
     }
 
@@ -817,13 +823,13 @@ public final class NodeEnvironment  implements Closeable {
          */
         private final Semaphore mutex = new Semaphore(1);
         private int waitCount = 1; // guarded by shardLocks
-        private String lockDetails;
         private final ShardId shardId;
+        private volatile Tuple<Long, String> lockDetails;
 
         InternalShardLock(final ShardId shardId, final String details) {
             this.shardId = shardId;
             mutex.acquireUninterruptibly();
-            lockDetails = details;
+            lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
 
         protected void release() {
@@ -854,16 +860,22 @@ public final class NodeEnvironment  implements Closeable {
         void acquire(long timeoutInMillis, final String details) throws ShardLockObtainFailedException {
             try {
                 if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS)) {
-                    lockDetails = details;
+                    setDetails(details);
                 } else {
+                    final Tuple<Long, String> lockDetails = this.lockDetails; // single volatile read
                     throw new ShardLockObtainFailedException(shardId,
-                        "obtaining shard lock timed out after " + timeoutInMillis + "ms, previous lock details: [" + lockDetails +
-                            "] trying to lock for [" + details + "]");
+                        "obtaining shard lock for [" + details + "] timed out after [" + timeoutInMillis +
+                        "ms], lock already held for [" + lockDetails.v2() + "] with age [" +
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1()) + "ms]");
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new ShardLockObtainFailedException(shardId, "thread interrupted while trying to obtain shard lock", e);
             }
+        }
+
+        public void setDetails(String details) {
+            lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
     }
 
@@ -1044,16 +1056,7 @@ public final class NodeEnvironment  implements Closeable {
         final Set<ShardId> shardIds = new HashSet<>();
         final String indexUniquePathId = index.getUUID();
         for (final NodePath nodePath : nodePaths) {
-            Path location = nodePath.indicesPath;
-            if (Files.isDirectory(location)) {
-                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
-                    for (Path indexPath : indexStream) {
-                        if (indexUniquePathId.equals(indexPath.getFileName().toString())) {
-                            shardIds.addAll(findAllShardsForIndex(indexPath, index));
-                        }
-                    }
-                }
-            }
+            shardIds.addAll(findAllShardsForIndex(nodePath.indicesPath.resolve(indexUniquePathId), index));
         }
         return shardIds;
     }
@@ -1159,26 +1162,27 @@ public final class NodeEnvironment  implements Closeable {
     private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
         List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
         if (shardDataPaths.isEmpty() == false) {
-            throw new IllegalStateException("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false, but has shard data: "
-                + shardDataPaths
-                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            final String message = String.format(
+                Locale.ROOT,
+                "node does not have the %s role but has shard data: %s. Use 'elasticsearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.DATA_ROLE.roleName(),
+                shardDataPaths
             );
+            throw new IllegalStateException(message);
         }
     }
 
     private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
         if (indexMetadataPaths.isEmpty() == false) {
-            throw new IllegalStateException("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false and "
-                + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has index metadata: "
-                + indexMetadataPaths
-                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            final String message = String.format(
+                Locale.ROOT,
+                "node does not have the %s and %s roles but has index metadata: %s. Use 'elasticsearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.DATA_ROLE.roleName(),
+                DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                indexMetadataPaths
             );
+            throw new IllegalStateException(message);
         }
     }
 

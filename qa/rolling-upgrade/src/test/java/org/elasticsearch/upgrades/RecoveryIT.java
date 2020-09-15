@@ -224,6 +224,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                     // before timing out
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put("index.routing.allocation.include._tier", "")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
@@ -240,6 +241,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
                     .put("index.routing.allocation.include._id", oldNode)
+                    .putNull("index.routing.allocation.include._tier")
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
@@ -262,6 +264,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     .put("index.routing.allocation.include._id", (String)null)
+                    .putNull("index.routing.allocation.include._tier")
                 );
                 asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
@@ -277,6 +280,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+        }
+        if (randomBoolean()) {
+            syncedFlush(index);
         }
     }
 
@@ -730,11 +736,5 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

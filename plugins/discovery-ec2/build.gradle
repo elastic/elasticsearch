@@ -18,6 +18,8 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
@@ -29,15 +31,15 @@ versions << [
 ]
 
 dependencies {
-  compile "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 }
 
 restResources {
@@ -46,18 +48,18 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   from('config/discovery-ec2') {
     into 'config'
   }
 }
 
-task writeTestJavaPolicy {
+tasks.register("writeTestJavaPolicy") {
   doLast {
     final File tmp = file("${buildDir}/tmp")
     if (tmp.exists() == false && tmp.mkdirs() == false) {
@@ -95,8 +97,8 @@ task writeTestJavaPolicy {
   }
 }
 
-test {
-  dependsOn writeTestJavaPolicy
+tasks.named("test").configure {
+  dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 
@@ -109,41 +111,40 @@ test {
   }
 }
 
-check {
+tasks.named("check").configure {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:amazon-ec2:check'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
-  'com.amazonaws.jmespath.JmesPathExpression',
-  'com.amazonaws.jmespath.JmesPathField',
-  'com.amazonaws.jmespath.JmesPathFlatten',
-  'com.amazonaws.jmespath.JmesPathIdentity',
-  'com.amazonaws.jmespath.JmesPathLengthFunction',
-  'com.amazonaws.jmespath.JmesPathLiteral',
-  'com.amazonaws.jmespath.JmesPathProjection',
-  'com.amazonaws.jmespath.JmesPathSubExpression',
-  'com.amazonaws.jmespath.ObjectMapperSingleton',
-  'com.amazonaws.jmespath.OpGreaterThan',
-  'software.amazon.ion.IonReader',
-  'software.amazon.ion.IonSystem',
-  'software.amazon.ion.IonType',
-  'software.amazon.ion.IonWriter',
-  'software.amazon.ion.Timestamp',
-  'software.amazon.ion.system.IonBinaryWriterBuilder',
-  'software.amazon.ion.system.IonSystemBuilder',
-  'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger'
-)
-
-thirdPartyAudit.ignoreMissingClasses(
-  'javax.xml.bind.DatatypeConverter',
-  'javax.xml.bind.JAXBContext'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
+          'com.amazonaws.jmespath.JmesPathExpression',
+          'com.amazonaws.jmespath.JmesPathField',
+          'com.amazonaws.jmespath.JmesPathFlatten',
+          'com.amazonaws.jmespath.JmesPathIdentity',
+          'com.amazonaws.jmespath.JmesPathLengthFunction',
+          'com.amazonaws.jmespath.JmesPathLiteral',
+          'com.amazonaws.jmespath.JmesPathProjection',
+          'com.amazonaws.jmespath.JmesPathSubExpression',
+          'com.amazonaws.jmespath.ObjectMapperSingleton',
+          'com.amazonaws.jmespath.OpGreaterThan',
+          'software.amazon.ion.IonReader',
+          'software.amazon.ion.IonSystem',
+          'software.amazon.ion.IonType',
+          'software.amazon.ion.IonWriter',
+          'software.amazon.ion.Timestamp',
+          'software.amazon.ion.system.IonBinaryWriterBuilder',
+          'software.amazon.ion.system.IonSystemBuilder',
+          'software.amazon.ion.system.IonTextWriterBuilder',
+          'software.amazon.ion.system.IonWriterBuilder',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'javax.xml.bind.DatatypeConverter',
+          'javax.xml.bind.JAXBContext'
+  )
+}

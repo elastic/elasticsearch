@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -23,11 +24,27 @@ import static org.hamcrest.Matchers.empty;
 
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
-    public static PivotConfig randomPivotConfig() {
+    public static PivotConfig randomPivotConfigWithDeprecatedFields() {
+        return randomPivotConfigWithDeprecatedFields(Version.CURRENT);
+    }
+
+    public static PivotConfig randomPivotConfigWithDeprecatedFields(Version version) {
         return new PivotConfig(
-            GroupConfigTests.randomGroupConfig(),
+            GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
-            randomBoolean() ? null : randomIntBetween(10, 10_000)
+            randomIntBetween(10, 10_000) // deprecated
+        );
+    }
+
+    public static PivotConfig randomPivotConfig() {
+        return randomPivotConfig(Version.CURRENT);
+    }
+
+    public static PivotConfig randomPivotConfig(Version version) {
+        return new PivotConfig(
+            GroupConfigTests.randomGroupConfig(version),
+            AggregationConfigTests.randomAggregationConfig(),
+            null // deprecated
         );
     }
 
@@ -35,7 +52,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
         return new PivotConfig(
             GroupConfigTests.randomGroupConfig(),
             AggregationConfigTests.randomInvalidAggregationConfig(),
-            randomBoolean() ? null : randomIntBetween(10, 10_000)
+            null // deprecated
         );
     }
 
@@ -217,6 +234,11 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
                 "field [.start_and_end.] must not end with '.'"
             )
         );
+    }
+
+    public void testDeprecation() {
+        PivotConfig pivotConfig = randomPivotConfigWithDeprecatedFields();
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
     private static String dotJoin(String... fields) {

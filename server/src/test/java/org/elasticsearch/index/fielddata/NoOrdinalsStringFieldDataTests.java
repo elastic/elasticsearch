@@ -23,11 +23,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -37,15 +37,14 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
 
     public static IndexFieldData<LeafFieldData> hideOrdinals(final IndexFieldData<?> in) {
         return new IndexFieldData<LeafFieldData>() {
-
-            @Override
-            public Index index() {
-                return in.index();
-            }
-
             @Override
             public String getFieldName() {
                 return in.getFieldName();
+            }
+
+            @Override
+            public ValuesSourceType getValuesSourceType() {
+                return in.getValuesSourceType();
             }
 
             @Override
@@ -68,11 +67,6 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
                     SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
                 throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void clear() {
-                in.clear();
             }
 
         };

@@ -34,6 +34,9 @@
               "feature_bag_fraction" : {
                 "type" : "double"
               },
+              "feature_processors": {
+                "enabled": false
+              },
               "gamma" : {
                 "type" : "double"
               },
@@ -84,10 +87,19 @@
               "feature_bag_fraction" : {
                 "type" : "double"
               },
+              "feature_processors": {
+                "enabled": false
+              },
               "gamma" : {
                 "type" : "double"
               },
               "lambda" : {
+                "type" : "double"
+              },
+              "loss_function" : {
+                "type" : "keyword"
+              },
+              "loss_function_parameter" : {
                 "type" : "double"
               },
               "max_trees" : {
@@ -187,6 +199,16 @@
           "multivariate_by_fields" : {
             "type" : "boolean"
           },
+          "per_partition_categorization" : {
+            "properties" : {
+              "enabled" : {
+                "type" : "boolean"
+              },
+              "stop_on_warn" : {
+                "type" : "boolean"
+              }
+            }
+          },
           "summary_count_field_name" : {
             "type" : "keyword"
           }
@@ -228,6 +250,9 @@
       "custom_settings" : {
         "type" : "object",
         "enabled" : false
+      },
+      "daily_model_snapshot_retention_after_days" : {
+        "type" : "long"
       },
       "data_description" : {
         "properties" : {
@@ -306,6 +331,12 @@
       "job_version" : {
         "type" : "keyword"
       },
+      "max_num_threads" : {
+        "type" : "integer"
+      },
+      "model_memory_limit": {
+        "type" : "keyword"
+      },
       "model_plot_config" : {
         "properties" : {
           "enabled" : {
@@ -313,6 +344,9 @@
           },
           "terms" : {
             "type" : "keyword"
+          },
+          "annotations_enabled" : {
+            "type" : "boolean"
           }
         }
       },

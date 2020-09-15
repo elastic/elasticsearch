@@ -66,7 +66,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
 
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
@@ -129,8 +129,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (realmEnabled == false) {
             if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.settings())) {
                 listener.onResponse(anonymousUser);
+            } else {
+                listener.onResponse(null);
             }
-            listener.onResponse(null);
         } else if (ClientReservedRealm.isReserved(username, config.settings()) == false) {
             listener.onResponse(null);
         } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
@@ -235,9 +236,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void logDeprecatedUser(final User user){
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
-            deprecationLogger.deprecatedAndMaybeLog("deprecated_user-" + user.principal(), "The user [" + user.principal() +
-                "] is deprecated and will be removed in a future version of Elasticsearch. " +
-                metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
+            deprecationLogger.deprecate("deprecated_user-" + user.principal(), "The user [" + user.principal() +
+                    "] is deprecated and will be removed in a future version of Elasticsearch. " +
+                    metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
         }
     }
 

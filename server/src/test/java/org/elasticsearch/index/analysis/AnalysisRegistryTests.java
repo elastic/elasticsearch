@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -325,7 +324,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
-                        deprecationLogger.deprecatedAndMaybeLog("deprecated_token_filter", "Using deprecated token filter [deprecated]");
+                        deprecationLogger.deprecate("deprecated_token_filter", "Using deprecated token filter [deprecated]");
                     }
                     return tokenStream;
                 }
@@ -353,7 +352,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecatedAndMaybeLog("unused_token_filter", "Using deprecated token filter [unused]");
+                    deprecationLogger.deprecate("unused_token_filter", "Using deprecated token filter [unused]");
                     return tokenStream;
                 }
             }
@@ -366,8 +365,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecatedAndMaybeLog("deprecated_normalizer",
-                        "Using deprecated token filter [deprecated_normalizer]");
+                    deprecationLogger.deprecate("deprecated_normalizer", "Using deprecated token filter [deprecated_normalizer]");
                     return tokenStream;
                 }
 

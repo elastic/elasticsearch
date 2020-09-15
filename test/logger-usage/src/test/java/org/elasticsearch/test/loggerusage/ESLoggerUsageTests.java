@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
@@ -130,6 +131,7 @@ public class ESLoggerUsageTests extends ESTestCase {
             .field("field", "value")
             .with("field2", "value2"));
     }
+
 
     public void checkFailArraySizeForSubclasses(Object... arr) {
         logger.debug(new ESLogMessage("message {}", arr));
@@ -257,6 +259,11 @@ public class ESLoggerUsageTests extends ESTestCase {
             args = new Object[] { "world", 43, "another argument" };
         }
         logger.info(message, args);
+    }
+
+    public void checkDeprecationLogger() {
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
+        deprecationLogger.deprecate("key","message {}", 123);
     }
 
 }

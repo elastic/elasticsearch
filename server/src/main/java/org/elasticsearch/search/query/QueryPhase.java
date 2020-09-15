@@ -22,7 +22,6 @@ package org.elasticsearch.search.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -57,7 +56,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -93,7 +92,7 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTot
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
-public class QueryPhase implements SearchPhase {
+public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property in 8.0
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("es.search.rewrite_sort", "true"));
@@ -108,7 +107,6 @@ public class QueryPhase implements SearchPhase {
         this.rescorePhase = new RescorePhase();
     }
 
-    @Override
     public void preProcess(SearchContext context) {
         final Runnable cancellation;
         if (context.lowLevelCancellation()) {
@@ -130,7 +128,6 @@ public class QueryPhase implements SearchPhase {
         }
     }
 
-    @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
@@ -355,8 +352,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
             queryResult.terminatedEarly(false);
@@ -411,14 +406,13 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             searchContext.queryResult().searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         return false; // no rescoring when sorting by field
     }
 
     private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
                                             Query query, boolean hasFilterCollector) throws IOException {
+        if ((searchContext.from() + searchContext.size()) <= 0) return null;
         if (searchContext.searchAfter() != null) return null; //TODO: handle sort optimization with search after
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;
@@ -439,7 +433,7 @@ public class QueryPhase implements SearchPhase {
         final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
-        if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
+        if (fieldType.isSearchable() == false) return null;
         if (fieldType.hasDocValues() == false) return null;
 
 

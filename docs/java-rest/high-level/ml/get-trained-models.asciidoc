@@ -5,18 +5,18 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Get Trained Models API
+=== Get trained models API
 
 experimental[]
 
-Retrieves one or more Trained Models.
+Retrieves one or more trained models.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Trained Models request
+==== Get trained models request
 
-A +{request}+ requires either a Trained Model ID, a comma-separated list of
-IDs, or the special wildcard `_all` to get all Trained Models.
+A +{request}+ requires either a trained model ID, a comma-separated list of
+IDs, or the special wildcard `_all` to get all trained models.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -32,6 +32,9 @@ include-tagged::{doc-tests-file}[{api}-request]
 <6> An optional list of tags used to narrow the model search. A Trained Model
     can have many tags or none. The trained models in the response will
     contain all the provided tags.
+<7> Optional boolean value indicating if certain fields should be removed on
+    retrieval. This is useful for getting the trained model in a format that
+    can then be put into another cluster.
 
 include::../execution.asciidoc[]
 

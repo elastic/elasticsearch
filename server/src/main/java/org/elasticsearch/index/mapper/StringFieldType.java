@@ -26,7 +26,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -37,7 +36,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,20 +50,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType() {}
-
-    protected StringFieldType(MappedFieldType ref) {
-        super(ref);
-    }
-
-    @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
-        return new TermInSetQuery(name(), bytesRefs);
+    public StringFieldType(String name, boolean isSearchable, boolean hasDocValues,
+                           TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
@@ -122,8 +110,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
             sb.append(normalized);
         }
         return sb.toBytesRef().utf8ToString();
-    }    
-    
+    }
+
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         failIfNotIndexed();
@@ -133,8 +121,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         Term term;
-        if (searchAnalyzer() != null) {
-            value = normalizeWildcardPattern(name(), value, searchAnalyzer());
+        if (getTextSearchInfo().getSearchAnalyzer() != null) {
+            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
             term = new Term(name(), value);
         } else {
             term = new Term(name(), indexedValueForSearch(value));
@@ -146,14 +134,15 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags,
+            matchFlags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }

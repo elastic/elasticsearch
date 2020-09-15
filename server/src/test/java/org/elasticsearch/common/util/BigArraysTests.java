@@ -33,11 +33,14 @@ import org.junit.Before;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BigArraysTests extends ESTestCase {
 
@@ -357,6 +360,7 @@ public class BigArraysTests extends ESTestCase {
                             .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                             .build(),
+                    Collections.emptyList(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
@@ -385,6 +389,17 @@ public class BigArraysTests extends ESTestCase {
             final BigArray bigArray = bigArraysHelper.arrayAllocator.apply(size);
             assertEquals(bigArraysHelper.ramEstimator.apply(size).longValue(), bigArray.ramBytesUsed());
         }
+    }
+
+    public void testOverSizeUsesMinPageCount() {
+        final int pageSize = 1 << (randomIntBetween(2, 16));
+        final int minSize = randomIntBetween(1, pageSize) * randomIntBetween(1, 100);
+        final long size = BigArrays.overSize(minSize, pageSize, 1);
+        assertThat(size, greaterThanOrEqualTo((long)minSize));
+        if (size >= pageSize) {
+            assertThat(size + " is a multiple of " + pageSize, size % pageSize, equalTo(0L));
+        }
+        assertThat(size - minSize, lessThan((long) pageSize));
     }
 
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {
@@ -421,6 +436,7 @@ public class BigArraysTests extends ESTestCase {
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
         return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);

@@ -13,6 +13,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -41,12 +45,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     private static ObjectParser<Builder, Void> createParser(boolean lenient) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>(NAME.getPreferredName(), lenient, Builder::new);
         parser.declareInt(Builder::setNNeighbors, N_NEIGHBORS);
-        parser.declareField(Builder::setMethod, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Method.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, METHOD, ObjectParser.ValueType.STRING);
+        parser.declareString(Builder::setMethod, Method::fromString, METHOD);
         parser.declareDouble(Builder::setFeatureInfluenceThreshold, FEATURE_INFLUENCE_THRESHOLD);
         parser.declareBoolean(Builder::setComputeFeatureInfluence, COMPUTE_FEATURE_INFLUENCE);
         parser.declareDouble(Builder::setOutlierFraction, OUTLIER_FRACTION);
@@ -56,6 +55,22 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     public static OutlierDetection fromXContent(XContentParser parser, boolean ignoreUnknownFields) {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
+    }
+
+    private static final List<String> PROGRESS_PHASES = Collections.singletonList("computing_outliers");
+
+    static final Map<String, Object> FEATURE_INFLUENCE_MAPPING;
+    static {
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        properties.put("influence", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("dynamic", false);
+        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("properties", properties);
+
+        FEATURE_INFLUENCE_MAPPING = Collections.unmodifiableMap(mapping);
     }
 
     /**
@@ -231,7 +246,11 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
-        return Collections.emptyMap();
+        Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + ".outlier_score",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        additionalProperties.put(resultsFieldName + ".feature_influence", FEATURE_INFLUENCE_MAPPING);
+        return additionalProperties;
     }
 
     @Override
@@ -251,7 +270,17 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public List<String> getProgressPhases() {
-        return Collections.singletonList("analyzing");
+        return PROGRESS_PHASES;
+    }
+
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        return null;
+    }
+
+    @Override
+    public boolean supportsInference() {
+        return false;
     }
 
     public enum Method {

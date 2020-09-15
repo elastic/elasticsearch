@@ -6,16 +6,17 @@ clusters_. Once connected, you can search remote clusters using
 <<modules-cross-cluster-search,{ccs}>>. You can also sync data between clusters
 using <<xpack-ccr,{ccr}>>.
 
-To register a remote cluster, the local cluster must connect to  nodes in the
-remote cluster. You can do this using one of two connection modes:
+To register a remote cluster, connect the local cluster to nodes in the
+remote cluster using one of two connection modes:
 
-* <<sniff-mode,sniff mode>>
-* <<proxy-mode,proxy mode>>
+* <<sniff-mode,Sniff mode>>
+* <<proxy-mode,Proxy mode>>
 
-Communication with a remote cluster uses the <<modules-transport,transport
-layer>> to establish a number of <<long-lived-connections,long-lived>> TCP
-connections from the coordinating nodes of the local cluster to the chosen
-nodes in the remote cluster.
+Your local cluster uses the <<modules-transport,transport layer>> to establish
+communication with remote clusters. The coordinating nodes in the local cluster
+establish <<long-lived-connections,long-lived>> TCP connections with specific
+nodes in the remote cluster. {es} requires these connections to remain open,
+even if the connections are idle for an extended period.
 
 You can use the <<cluster-remote-info, remote cluster info API>> to get
 information about registered remote clusters.
@@ -245,7 +246,8 @@ as demonstrated by `cluster_two` and must be explicitly configured for
 
 These settings apply to both <<sniff-mode,sniff mode>> and
 <<proxy-mode,proxy mode>>. <<remote-cluster-sniff-settings,Sniff mode settings>>
-and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
+and <<remote-cluster-proxy-settings,proxy mode settings>> are described
+separately.
 
 `cluster.remote.<cluster_alias>.mode`::
   The mode used for a remote cluster connection. The only supported modes are

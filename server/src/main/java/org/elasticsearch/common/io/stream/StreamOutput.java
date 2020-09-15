@@ -225,6 +225,8 @@ public abstract class StreamOutput extends OutputStream {
          * the encoding loop blows out the method size so it can't be inlined.
          * In that case benchmarks of the method itself are faster but
          * benchmarks of methods that use this method are slower.
+         * This is philosophically in line with vint in general - it biases
+         * twoards being simple and fast for smaller numbers.
          */
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             writeByte((byte) i);

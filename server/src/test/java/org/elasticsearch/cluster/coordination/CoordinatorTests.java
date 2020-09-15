@@ -61,8 +61,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
-import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -1462,6 +1462,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62383")
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();

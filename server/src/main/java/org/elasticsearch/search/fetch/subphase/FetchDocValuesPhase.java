@@ -80,7 +80,8 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             if (ft == null) {
                 continue;
             }
-            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), lookup.doc().getForField(ft));
+            String format = USE_DEFAULT_FORMAT.equals(fieldAndFormat.format) ? null : fieldAndFormat.format;
+            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(format, null), lookup.doc().getForField(ft));
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 

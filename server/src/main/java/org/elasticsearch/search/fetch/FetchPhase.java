@@ -258,7 +258,7 @@ public class FetchPhase {
         int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
-            return new HitContext(hit, subReaderContext, subDocId, context.searcher(), sharedCache);
+            return new HitContext(hit, subReaderContext, subDocId, sharedCache);
         } else {
             SearchHit hit;
             loadStoredFields(context.mapperService(), subReaderContext, fieldsVisitor, subDocId);
@@ -271,7 +271,7 @@ public class FetchPhase {
                 hit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, context.searcher(), sharedCache);
+            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, sharedCache);
             if (fieldsVisitor.source() != null) {
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
             }
@@ -348,7 +348,7 @@ public class FetchPhase {
                 getInternalNestedIdentity(context, nestedDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
 
         SearchHit hit = new SearchHit(nestedTopDocId, rootId, nestedIdentity, docFields, metaFields);
-        HitContext hitContext = new HitContext(hit, subReaderContext, nestedDocId, context.searcher(), sharedCache);
+        HitContext hitContext = new HitContext(hit, subReaderContext, nestedDocId, sharedCache);
 
         if (rootSourceAsMap != null) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json

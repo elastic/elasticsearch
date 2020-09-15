@@ -18,7 +18,6 @@ testClusters.all {
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
   extraConfigFile 'roles.yml', file('roles.yml')
   user clusterCredentials
   user username: "test", password: "x-pack-test-password", role: "test"

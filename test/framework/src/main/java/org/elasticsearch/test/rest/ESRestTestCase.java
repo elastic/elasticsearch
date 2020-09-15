@@ -551,14 +551,24 @@ public abstract class ESRestTestCase extends ESTestCase {
             inProgressSnapshots.set(wipeSnapshots());
         }
 
-        // wipe data streams before indices so that the backing indices for data streams are handled properly
-        if (preserveDataStreamsUponCompletion() == false) {
-            wipeDataStreams();
-        }
+        try {
+            Request blockClusterRequest = new Request("PUT", "_cluster/settings");
+            blockClusterRequest.setJsonEntity("{\"transient\":{\"cluster.blocks.read_only_allow_delete\":\"true\"}}");
+            assertOK(client().performRequest(blockClusterRequest));
 
-        if (preserveIndicesUponCompletion() == false) {
-            // wipe indices
-            wipeAllIndices();
+            // wipe data streams before indices so that the backing indices for data streams are handled properly
+            if (preserveDataStreamsUponCompletion() == false) {
+                wipeDataStreams();
+            }
+
+            if (preserveIndicesUponCompletion() == false) {
+                // wipe indices
+                wipeAllIndices();
+            }
+        } finally {
+            Request unblockClusterRequest = new Request("PUT", "_cluster/settings");
+            unblockClusterRequest.setJsonEntity("{\"transient\":{\"cluster.blocks.read_only_allow_delete\":null}}");
+            assertOK(client().performRequest(unblockClusterRequest));
         }
 
         // wipe index templates

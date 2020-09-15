@@ -190,7 +190,7 @@ public final class ThreadContext implements Writeable {
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
     public StoredContext newStoredContext(boolean preserveResponseHeaders) {
-        return newStoredContext(preserveResponseHeaders, List.of());
+        return newStoredContext(preserveResponseHeaders, Collections.emptyList());
     }
 
     /**

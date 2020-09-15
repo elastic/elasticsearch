@@ -72,8 +72,8 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         // foo is the only existing transient header that is cleared
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(false, randomFrom(List.of("foo", "foo"),
-                List.of("foo"), List.of("foo", "acme")))) {
+        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(false, randomFrom(Arrays.asList("foo", "foo"),
+                Arrays.asList("foo"), Arrays.asList("foo", "acme")))) {
             // only the requested transient header is cleared
             assertNull(threadContext.getTransient("foo"));
             // missing header is still missing
@@ -117,8 +117,8 @@ public class ThreadContextTests extends ESTestCase {
         assertNull(threadContext.getTransient("acme"));
 
         // test preserved response headers
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(true, randomFrom(List.of("foo", "foo"),
-                List.of("foo"), List.of("foo", "acme")))) {
+        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(true, randomFrom(Arrays.asList("foo", "foo"),
+                Arrays.asList("foo"), Arrays.asList("foo", "acme")))) {
             threadContext.addResponseHeader("baz", "bar");
             threadContext.addResponseHeader("foo", "baz");
         }

@@ -1032,7 +1032,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         assertEquals(true, response.get("succeeded"));
 
-        assertEquals(0, getNumberOfSearchContexts(client(),"test"));
+        assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {

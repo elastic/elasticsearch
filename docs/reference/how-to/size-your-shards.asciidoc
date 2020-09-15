@@ -66,15 +66,12 @@ kept in heap memory.
 
 [discrete]
 [[shard-auto-balance]]
-==== {es} automatically balances shards across nodes
+==== {es} automatically balances shards across a data tier
 
-By default, {es} attempts to spread an index's shards across as many nodes as
-possible. When a node fails or you add a new node, {es} automatically rebalances
-shards across the remaining nodes. However, this behavior isn't always wanted.
-If you use hot-warm architecture, you likely want shards for older indices on
-nodes with less expensive hardware and vice versa. You can use
-<<shard-allocation-awareness,shard allocation awareness>> to ensure shards for
-particular indices only move to specified nodes.
+Each node in a cluster is assigned to a data tier. Within each tier, {es}
+attempts to spread an index's shards across as many nodes as possible. When you
+add a new node or a node fails, {es} automatically rebalances the index's shards
+across the tier's remaining nodes.
 
 [discrete]
 [[shard-size-guidelines]]
@@ -136,9 +133,9 @@ Every new backing index is an opportunity to further tune your strategy.
 ==== Aim for shard sizes between 10GB and 50GB
 
 Shards larger than 50GB may make a cluster less likely to recover from failure.
-When a node fails, {es} rebalances the cluster's shards across its remaining
-nodes. Shards larger than 50GB can be harder to move across a network and may
-tax node resources.
+When a node fails, {es} rebalances the node's shards across the data tier's
+remaining nodes. Shards larger than 50GB can be harder to move across a network
+and may tax node resources.
 
 [discrete]
 [[shard-count-recommendation]]
@@ -166,12 +163,9 @@ available memory, whichever is lower. See <<heap-size>>.
 [[avoid-node-hotspots]]
 ==== Avoid node hotspots
 
-If you use a hot-warm architecture, you can use
-<<shard-allocation-awareness,shard allocation awareness>> to assign shards to
-nodes based on physical hardware. However, if too many shards are allocated to a
-specific node, the node can become a hotspot. For example, if a single node
-contains too many shards for an index with a high indexing volume, the
-node is likely to have issues.
+If too many shards are allocated to a specific node, the node can become a
+hotspot. For example, if a single node contains too many shards for an index
+with a high indexing volume, the node is likely to have issues.
 
 To prevent hotspots, use the
 <<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> index

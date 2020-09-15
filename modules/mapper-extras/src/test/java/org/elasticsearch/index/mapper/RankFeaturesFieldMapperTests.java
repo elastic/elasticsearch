@@ -22,59 +22,43 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
-public class RankFeaturesFieldMapperTests extends FieldMapperTestCase<RankFeaturesFieldMapper.Builder> {
+public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeaturesFieldMapper.Builder> {
 
     @Override
     protected Set<String> unsupportedProperties() {
         return Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MapperExtrasPlugin());
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "rank_features");
+    }
+
+    @Override
+    protected boolean supportsMeta() {
+        return false;
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_features").endObject().endObject()
-                .endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                            .startObject("field")
-                                .field("foo", 10)
-                                .field("bar", 20)
-                             .endObject()
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc1 = mapper.parse(source(b -> b.startObject("field").field("foo", 10).field("bar", 20).endObject()));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -90,45 +74,30 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase<RankFeatur
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_features").endObject().startObject("foo")
-                .startObject("properties").startObject("field").field("type", "rank_features").endObject().endObject()
-                .endObject().endObject().endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "rank_features").endObject();
+            b.startObject("foo").startObject("properties");
+            {
+                b.startObject("field").field("type", "rank_features").endObject();
+            }
+            b.endObject().endObject();
+        }));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(new SourceToParse("test", "1", BytesReference
-                        .bytes(XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("field")
-                                    .field("foo", Arrays.asList(10, 20))
-                                 .endObject()
-                            .endObject()),
-                        XContentType.JSON)));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("foo", Arrays.asList(10, 20)).endObject()))
+        );
         assertEquals("[rank_features] fields take hashes that map a feature to a strictly positive float, but got unexpected token " +
                 "START_ARRAY", e.getCause().getMessage());
 
-        e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(new SourceToParse("test", "1", BytesReference
-                        .bytes(XContentFactory.jsonBuilder()
-                                .startObject()
-                                    .startArray("foo")
-                                        .startObject()
-                                            .startObject("field")
-                                                .field("bar", 10)
-                                            .endObject()
-                                        .endObject()
-                                        .startObject()
-                                            .startObject("field")
-                                                .field("bar", 20)
-                                            .endObject()
-                                        .endObject()
-                                    .endArray()
-                                .endObject()),
-                        XContentType.JSON)));
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("foo");
+            {
+                b.startObject().startObject("field").field("bar", 10).endObject().endObject();
+                b.startObject().startObject("field").field("bar", 20).endObject().endObject();
+            }
+            b.endArray();
+        })));
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
     }

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[histogram]]
-=== Histogram data type
+=== Histogram field type
 ++++
 <titleabbrev>Histogram</titleabbrev>
 ++++

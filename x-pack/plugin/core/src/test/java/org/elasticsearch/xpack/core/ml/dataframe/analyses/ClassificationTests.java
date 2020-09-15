@@ -93,7 +93,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         Classification.ClassAssignmentObjective classAssignmentObjective = randomBoolean() ?
             null : randomFrom(Classification.ClassAssignmentObjective.values());
         Integer numTopClasses = randomBoolean() ? null : randomIntBetween(0, 1000);
-        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
+        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, false);
         Long randomizeSeed = randomBoolean() ? null : randomLong();
         return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, classAssignmentObjective,
             numTopClasses, trainingPercent, randomizeSeed,
@@ -198,19 +198,25 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         }
     }
 
-
-    public void testConstructor_GivenTrainingPercentIsLessThanOne() {
+    public void testConstructor_GivenTrainingPercentIsZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 0.999, randomLong(), null));
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 0.0, randomLong(), null));
 
-        assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
+    }
+
+    public void testConstructor_GivenTrainingPercentIsLessThanZero() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, -1.0, randomLong(), null));
+
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 100.0001, randomLong(), null));
 
-        assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+        assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenNumTopClassesIsLessThanZero() {
@@ -352,12 +358,12 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
 
     public void testGetExplicitlyMappedFields() {
         assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.classificationFeatureImportanceMapping())));
+            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
         assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.classificationFeatureImportanceMapping())));
+            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(Collections.singletonMap("foo", "not_a_map"), "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.classificationFeatureImportanceMapping())));
+            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
         Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
             Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
             "results");
@@ -365,7 +371,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             allOf(
                 hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")),
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("bar", "baz"))));
-        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.classificationFeatureImportanceMapping()));
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
 
         explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
             new HashMap<>() {{
@@ -380,7 +386,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             allOf(
                 hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")),
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("type", "long"))));
-        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.classificationFeatureImportanceMapping()));
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
 
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(
@@ -389,7 +395,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     put("path", "missing");
                 }}),
                 "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.classificationFeatureImportanceMapping())));
+            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {

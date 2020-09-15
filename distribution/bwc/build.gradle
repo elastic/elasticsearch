@@ -316,7 +316,7 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
       File artifactFile = e.value
       String artifactFileName = artifactFile.name
       String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
-      String suffix = artifactFile.toString()[-3..-1]
+      String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName[-3..-1]
       int archIndex = artifactFileName.indexOf('x86_64')
       String classifier = ''
       if (archIndex != -1) {

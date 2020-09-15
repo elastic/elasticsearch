@@ -105,7 +105,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextId id() {
+    public ShardSearchContextId id() {
         return in.id();
     }
 
@@ -140,18 +140,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public long getOriginNanoTime() {
-        return in.getOriginNanoTime();
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return in.scrollContext();
-    }
-
-    @Override
-    public SearchContext scrollContext(ScrollContext scroll) {
-        return in.scrollContext(scroll);
     }
 
     @Override
@@ -192,11 +182,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public List<RescoreContext> rescore() {
         return in.rescore();
-    }
-
-    @Override
-    public void addRescore(RescoreContext rescore) {
-        in.addRescore(rescore);
     }
 
     @Override
@@ -451,26 +436,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void accessed(long accessTime) {
-        in.accessed(accessTime);
-    }
-
-    @Override
-    public long lastAccessTime() {
-        return in.lastAccessTime();
-    }
-
-    @Override
-    public long keepAlive() {
-        return in.keepAlive();
-    }
-
-    @Override
-    public void keepAlive(long keepAlive) {
-        in.keepAlive(keepAlive);
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return in.dfsResult();
     }
@@ -551,5 +516,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public CollapseContext collapse() {
         return in.collapse();
+    }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+        in.addRescore(rescore);
+    }
+
+    @Override
+    public ReaderContext readerContext() {
+        return in.readerContext();
     }
 }

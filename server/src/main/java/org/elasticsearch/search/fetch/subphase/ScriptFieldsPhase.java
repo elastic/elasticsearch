@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.FieldScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,51 +35,51 @@ import java.util.List;
 public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
         if (context.hasScriptFields() == false) {
-            return;
+            return null;
         }
-
-        int lastReaderId = -1;
-        FieldScript[] leafScripts = null;
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
-        final IndexReader reader = context.searcher().getIndexReader();
-        for (SearchHit hit : hits) {
-            int readerId = ReaderUtil.subIndex(hit.docId(), reader.leaves());
-            LeafReaderContext leafReaderContext = reader.leaves().get(readerId);
-            if (readerId != lastReaderId) {
-                leafScripts = createLeafScripts(leafReaderContext, scriptFields);
-                lastReaderId = readerId;
-            }
-            int docId = hit.docId() - leafReaderContext.docBase;
-            for (int i = 0; i < leafScripts.length; i++) {
-                leafScripts[i].setDocument(docId);
-                final Object value;
-                try {
-                    value = leafScripts[i].execute();
-                    CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsPhase leaf script " + i);
-                } catch (RuntimeException e) {
-                    if (scriptFields.get(i).ignoreException()) {
-                        continue;
-                    }
-                    throw e;
-                }
-                String scriptFieldName = scriptFields.get(i).name();
-                DocumentField hitField = hit.field(scriptFieldName);
-                if (hitField == null) {
-                    final List<Object> values;
-                    if (value instanceof Collection) {
-                        values = new ArrayList<>((Collection<?>) value);
-                    } else {
-                        values = Collections.singletonList(value);
-                    }
-                    hitField = new DocumentField(scriptFieldName, values);
-                    // script fields are never meta-fields
-                    hit.setDocumentField(scriptFieldName, hitField);
+        return new FetchSubPhaseProcessor() {
 
+            FieldScript[] leafScripts = null;
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
+                leafScripts = createLeafScripts(readerContext, scriptFields);
+            }
+
+            @Override
+            public void process(HitContext hitContext) {
+                int docId = hitContext.docId();
+                for (int i = 0; i < leafScripts.length; i++) {
+                    leafScripts[i].setDocument(docId);
+                    final Object value;
+                    try {
+                        value = leafScripts[i].execute();
+                        CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsPhase leaf script " + i);
+                    } catch (RuntimeException e) {
+                        if (scriptFields.get(i).ignoreException()) {
+                            continue;
+                        }
+                        throw e;
+                    }
+                    String scriptFieldName = scriptFields.get(i).name();
+                    DocumentField hitField = hitContext.hit().field(scriptFieldName);
+                    if (hitField == null) {
+                        final List<Object> values;
+                        if (value instanceof Collection) {
+                            values = new ArrayList<>((Collection<?>) value);
+                        } else {
+                            values = Collections.singletonList(value);
+                        }
+                        hitField = new DocumentField(scriptFieldName, values);
+                        // script fields are never meta-fields
+                        hitContext.hit().setDocumentField(scriptFieldName, hitField);
+                    }
                 }
             }
-        }
+        };
     }
 
     private FieldScript[] createLeafScripts(LeafReaderContext context,

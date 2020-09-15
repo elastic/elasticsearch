@@ -140,8 +140,11 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();
                 BytesRef term;
+                PostingsEnum pe = null;
                 while ((term = te.next()) != null) {
-                    tv.put(term.utf8ToString(), te.postings(null, PostingsEnum.ALL).freq());
+                    pe = te.postings(pe, PostingsEnum.FREQS);
+                    pe.nextDoc();
+                    tv.put(term.utf8ToString(), pe.freq());
                 }
                 hitField.getValues().add(tv);
             }

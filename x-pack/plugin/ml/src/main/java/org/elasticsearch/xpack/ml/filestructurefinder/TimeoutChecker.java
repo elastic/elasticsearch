@@ -58,10 +58,18 @@ public class TimeoutChecker implements Closeable {
      *                  in the case where {@code timeout} is also <code>null</code>.
      */
     public TimeoutChecker(String operation, TimeValue timeout, ScheduledExecutorService scheduler) {
+        this(operation, timeout, scheduler, null);
+    }
+
+    // For more reliable matcher signalling testing, registers matcher before scheduling timeout
+    TimeoutChecker(String operation, TimeValue timeout, ScheduledExecutorService scheduler, Matcher matcher) {
         this.operation = operation;
         this.timeout = timeout;
         this.checkedThread = Thread.currentThread();
         timeoutCheckerWatchdog.add(checkedThread, timeout);
+        if (matcher != null) {
+            timeoutCheckerWatchdog.register(matcher);
+        }
         this.future = (timeout != null) ? scheduler.schedule(this::setTimeoutExceeded, timeout.nanos(), TimeUnit.NANOSECONDS) : null;
     }
 

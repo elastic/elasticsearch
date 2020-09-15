@@ -16,6 +16,7 @@ import org.junit.Before;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -59,21 +60,18 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48861")
     public void testWatchdog() throws Exception {
-        TimeValue timeout = TimeValue.timeValueMillis(500);
-        try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
-            TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
-
-            Matcher matcher = mock(Matcher.class);
-            TimeoutChecker.watchdog.register(matcher);
+        TimeValue timeout = TimeValue.timeValueMillis(10);
+        Matcher matcher = mock(Matcher.class);
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler, matcher)) {
+            final TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
             assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(1));
             try {
                 assertBusy(() -> {
-                    verify(matcher).interrupt();
+                    verify(matcher, atLeastOnce()).interrupt();
                 });
             } finally {
-                TimeoutChecker.watchdog.unregister(matcher);
+                watchdog.unregister(matcher);
                 assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(0));
             }
         }

@@ -209,5 +209,8 @@ setup:
       search:
         body:
           docvalue_fields: [ "d" ]
-  - match: { hits.hits.0.fields.d: [3.140000104904175] }
+  # Doc values produce floating point errors.
+  # When this test is run during runtime-field's tests we *don't* get floating point errors. Thus the funny assertion here that matches both.
+  - lt: { hits.hits.0.fields.d.0: 3.141 }
+  - gte: { hits.hits.0.fields.d.0: 3.14 }
 

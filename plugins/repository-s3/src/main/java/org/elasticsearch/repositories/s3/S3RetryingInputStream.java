@@ -21,12 +21,13 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -53,12 +54,14 @@ class S3RetryingInputStream extends InputStream {
     private final long start;
     private final long end;
     private final int maxAttempts;
+    private final List<IOException> failures;
 
-    private InputStream currentStream;
+    private S3ObjectInputStream currentStream;
+    private long currentStreamLastOffset;
     private int attempt = 1;
-    private List<IOException> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
     private long currentOffset;
     private boolean closed;
+    private boolean eof;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
         this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
@@ -75,12 +78,13 @@ class S3RetryingInputStream extends InputStream {
         this.blobStore = blobStore;
         this.blobKey = blobKey;
         this.maxAttempts = blobStore.getMaxRetries() + 1;
+        this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;
-        currentStream = openStream();
+        openStream();
     }
 
-    private InputStream openStream() throws IOException {
+    private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
             getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
@@ -90,7 +94,8 @@ class S3RetryingInputStream extends InputStream {
                 getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
             }
             final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-            return s3Object.getObjectContent();
+            this.currentStreamLastOffset = Math.addExact(Math.addExact(start, currentOffset), getStreamLength(s3Object));
+            this.currentStream = s3Object.getObjectContent();
         } catch (final AmazonClientException e) {
             if (e instanceof AmazonS3Exception) {
                 if (404 == ((AmazonS3Exception) e).getStatusCode()) {
@@ -101,12 +106,35 @@ class S3RetryingInputStream extends InputStream {
         }
     }
 
+    private long getStreamLength(final S3Object object) {
+        final ObjectMetadata metadata = object.getObjectMetadata();
+        try {
+            // Returns the content range of the object if response contains the Content-Range header.
+            final Long[] range = metadata.getContentRange();
+            if (range != null) {
+                assert range[1] >= range[0] : range[1] + " vs " + range[0];
+                assert range[0] == start + currentOffset :
+                    "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
+                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
+                return range[1] - range[0] + 1L;
+            }
+            return metadata.getContentLength();
+        } catch (Exception e) {
+            assert false : e;
+            return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
+        }
+    }
+
     @Override
     public int read() throws IOException {
         ensureOpen();
         while (true) {
             try {
                 final int result = currentStream.read();
+                if (result == -1) {
+                    eof = true;
+                    return -1;
+                }
                 currentOffset += 1;
                 return result;
             } catch (IOException e) {
@@ -122,6 +150,7 @@ class S3RetryingInputStream extends InputStream {
             try {
                 final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead == -1) {
+                    eof = true;
                     return -1;
                 }
                 currentOffset += bytesRead;
@@ -151,24 +180,36 @@ class S3RetryingInputStream extends InputStream {
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
         }
-        try {
-            Streams.consumeFully(currentStream);
-        } catch (Exception e2) {
-            logger.trace("Failed to fully consume stream on close", e);
-        }
+        maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
-        currentStream = openStream();
+        openStream();
     }
 
     @Override
     public void close() throws IOException {
+        maybeAbort(currentStream);
         try {
-            Streams.consumeFully(currentStream);
-        } catch (Exception e) {
-            logger.trace("Failed to fully consume stream on close", e);
+            currentStream.close();
+        } finally {
+            closed = true;
         }
-        currentStream.close();
-        closed = true;
+    }
+
+    /**
+     * Abort the {@link S3ObjectInputStream} if it wasn't read completely at the time this method is called,
+     * suppressing all thrown exceptions.
+     */
+    private void maybeAbort(S3ObjectInputStream stream) {
+        if (eof) {
+            return;
+        }
+        try {
+            if (start + currentOffset < currentStreamLastOffset) {
+                stream.abort();
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to abort stream before closing", e);
+        }
     }
 
     @Override
@@ -186,5 +227,18 @@ class S3RetryingInputStream extends InputStream {
             e.addSuppressed(failure);
         }
         return e;
+    }
+
+    // package-private for tests
+    boolean isEof() {
+        return eof;
+    }
+
+    // package-private for tests
+    boolean isAborted() {
+        if (currentStream == null || currentStream.getHttpRequest() == null) {
+            return false;
+        }
+        return currentStream.getHttpRequest().isAborted();
     }
 }

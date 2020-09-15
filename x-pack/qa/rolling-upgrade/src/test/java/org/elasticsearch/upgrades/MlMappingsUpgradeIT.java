@@ -14,7 +14,6 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 
@@ -22,7 +21,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -229,23 +227,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         assertLegacyTemplateMatchesIndexMappings(".ml-meta", ".ml-meta", true, Collections.emptySet());
         assertLegacyTemplateMatchesIndexMappings(".ml-stats", ".ml-stats-000001", true, statsIndexException);
         assertLegacyTemplateMatchesIndexMappings(".ml-state", ".ml-state-000001");
-
-//         AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
-        logNotications(); // debugging for #61908
-        assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
+        // AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
+        // assertLegacyTemplateMatchesIndexMappings(".ml-notifications-000001", ".ml-notifications-000001");
         assertLegacyTemplateMatchesIndexMappings(".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
-    }
-
-    @SuppressWarnings("unchecked")
-    private void logNotications() throws IOException {
-        Request searchNotifications = new Request("GET", ".ml-notifications-000001/_search");
-        searchNotifications.addParameter("sort", "timestamp:asc");
-        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchNotifications));
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponse);
-        List<Map<String, Object>> sources =
-            hits.stream().map(hit -> (Map<String, Object>) hit.get("_source")).collect(Collectors.toList());
-        logger.info("ml notification messages: {}", sources);
     }
 }

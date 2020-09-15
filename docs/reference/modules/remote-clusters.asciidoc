@@ -1,22 +1,24 @@
 [[modules-remote-clusters]]
 == Remote clusters
 
-Set up _remote clusters_ to establish unidirectional
-connections required for
-<<xpack-ccr,{ccr}>> and <<modules-cross-cluster-search,{ccs}>>.
+You can connect a local cluster to other {es} clusters, known as _remote
+clusters_. Once connected, you can search remote clusters using
+<<modules-cross-cluster-search,{ccs}>>. You can also sync data between clusters
+using <<xpack-ccr,{ccr}>>.
 
-You configure a remote cluster and connect
-to a limited number of nodes in that remote cluster using either
-<<sniff-mode,sniff mode>> or <<proxy-mode,proxy mode>>.
+To register a remote cluster, the local cluster must connect to  nodes in the
+remote cluster. You can do this using one of two connection modes:
+
+* <<sniff-mode,sniff mode>>
+* <<proxy-mode,proxy mode>>
 
 Communication with a remote cluster uses the <<modules-transport,transport
 layer>> to establish a number of <<long-lived-connections,long-lived>> TCP
 connections from the coordinating nodes of the local cluster to the chosen
 nodes in the remote cluster.
 
-Use the <<cluster-remote-info, remote cluster info API>> to retrieve
-information about the configured remote clusters, as well as the remote nodes
-that the node is connected to.
+You can use the <<cluster-remote-info, remote cluster info API>> to get
+information about registered remote clusters.
 
 [[sniff-mode]]
 [discrete]
@@ -65,7 +67,7 @@ h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 // end::remote-cluster-compatibility-matrix[]
 ====
 
-* *role*: Dedicated master nodes never get selected.
+* *role*: Dedicated master nodes are never selected as gateway nodes.
 * *attributes*: You can tag which nodes should be selected
 (see <<remote-cluster-settings>>), though such tagged nodes still have
 to satisfy the two above requirements.

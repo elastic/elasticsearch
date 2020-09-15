@@ -160,11 +160,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
-    public void testMappingVersionAfterDynamicMappingUpdate() {
+    public void testMappingVersionAfterDynamicMappingUpdate() throws Exception {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
         final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
         client().prepareIndex("test").setId("1").setSource("field", "text").get();
-        assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -201,7 +202,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
             @Override
             protected Object parseSourceValue(Object value) {

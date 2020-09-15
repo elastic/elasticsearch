@@ -59,6 +59,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static final String TYPE = "snapshots";
 
+    public static final String ABORTED_FAILURE_TEXT = "Snapshot was aborted by deletion";
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -178,14 +180,19 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * data node or to {@link ShardState#FAILED} if not assigned to any data node.
          * If the instance had no in-progress shard snapshots assigned to data nodes it's moved to state {@link State#SUCCESS}, otherwise
          * it's moved to state {@link State#ABORTED}.
+         * In the special case where this instance has not yet made any progress on any shard this method just returns
+         * {@code null} since no abort is needed and the snapshot can simply be removed from the cluster state outright.
          *
-         * @return aborted snapshot entry
+         * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
+        @Nullable
         public Entry abort() {
             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
             boolean completed = true;
+            boolean allQueued = true;
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : shards) {
                 ShardSnapshotStatus status = shardEntry.value;
+                allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
                     status = new ShardSnapshotStatus(nodeId, nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
@@ -194,7 +201,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.key, status);
             }
-            return fail(shardsBuilder.build(), completed ? State.SUCCESS : State.ABORTED, "Snapshot was aborted by deletion");
+            if (allQueued) {
+                return null;
+            }
+            return fail(shardsBuilder.build(), completed ? State.SUCCESS : State.ABORTED, ABORTED_FAILURE_TEXT);
         }
 
         public Entry fail(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, State state, String failure) {

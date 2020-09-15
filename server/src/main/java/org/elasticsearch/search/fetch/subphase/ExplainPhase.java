@@ -20,7 +20,6 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.internal.SearchContext;
@@ -45,21 +44,15 @@ public final class ExplainPhase implements FetchSubPhase {
             }
 
             @Override
-            public void process(HitContext hitContext) {
-                try {
-                    final int topLevelDocId = hitContext.hit().docId();
-                    Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            public void process(HitContext hitContext) throws IOException {
+                final int topLevelDocId = hitContext.hit().docId();
+                Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
 
-                    for (RescoreContext rescore : context.rescore()) {
-                        explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
-                    }
-                    // we use the top level doc id, since we work with the top level searcher
-                    hitContext.hit().explanation(explanation);
+                for (RescoreContext rescore : context.rescore()) {
+                    explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
                 }
-                catch (IOException e) { // TODO move this try-catch up into FetchPhase
-                    throw new FetchPhaseExecutionException(context.shardTarget(),
-                        "Failed to explain doc [" + hitContext.hit().getId() + "]", e);
-                }
+                // we use the top level doc id, since we work with the top level searcher
+                hitContext.hit().explanation(explanation);
             }
         };
     }

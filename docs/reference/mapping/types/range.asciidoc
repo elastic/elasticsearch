@@ -4,11 +4,13 @@
 <titleabbrev>Range</titleabbrev>
 ++++
 
-A field that represents a relation between a lower and upper bound, using the
-relations `gt`, `gte`, `lt` and `lte`. They can be used for querying, and have
+Range field types represent a continuous range of values between an upper and lower
+bound. For example, a range can represent _any date in October_ or _any
+integer from 0 to 9_. They are defined using the operators
+`gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound.
+They can be used for querying, and have
 limited support for aggregations. The only supported aggregations are
 {ref}/search-aggregations-bucket-histogram-aggregation.html[histogram],
-{ref}/search-aggregations-bucket-range-aggregation.html[range] and
 {ref}/search-aggregations-metrics-cardinality-aggregation.html[cardinality].
 
 The following range types are supported:
@@ -18,8 +20,11 @@ The following range types are supported:
 `float_range`::     A range of single-precision 32-bit IEEE 754 floating point values.
 `long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
 `double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
-`date_range`::      A range of date values represented as unsigned 64-bit integer milliseconds elapsed since system epoch.
-                    Date ranges accept the same formats described in the <<date, `date`>> type, but `now` is not allowed.
+`date_range`::      A range of <<date,`date`>> values. Date ranges support various date formats
+                    through the <<mapping-date-format,`format`>> mapping parameter. Regardless of
+                    the format used, date values are parsed into an unsigned 64-bit integer
+                    representing milliseconds since the Unix epoch in UTC. Values containing the
+                    `now` <<date-math,date math>> expression are not supported.
 `ip_range` ::       A range of ip values supporting either {wikipedia}/IPv4[IPv4] or
                     {wikipedia}/IPv6[IPv6] (or mixed) addresses.
 

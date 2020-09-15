@@ -219,8 +219,10 @@ public class InboundHandler {
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
         } catch (Exception e) {
-            handleException(handler, new TransportSerializationException(
-                    "Failed to deserialize response from handler [" + handler + "]", e));
+            final Exception serializationException = new TransportSerializationException(
+                    "Failed to deserialize response from handler [" + handler + "]", e);
+            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            handleException(handler, serializationException);
             return;
         }
         final String executor = handler.executor();

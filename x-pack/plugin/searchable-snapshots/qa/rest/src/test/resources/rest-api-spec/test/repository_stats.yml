@@ -66,8 +66,9 @@ teardown:
 ---
 "Tests repository stats":
   - skip:
-      version: " - 7.99.99"
-      reason:  searchable snapshots introduced in 7.8.0 (8.0.0 currently, but adapt after backport to 7.x)
+      version: " - 7.9.99"
+      reason:  Deprecated in 7.10.0 and removed in 8.0.0, will not issue warnings before 7.10.0
+      features: "warnings"
 
   - do:
       snapshot.restore:
@@ -76,6 +77,8 @@ teardown:
         wait_for_completion: true
 
   - do:
+      warnings:
+        - "[/_snapshot/{repository}/_stats] is deprecated, use the Repositories Metering API [/_nodes/{nodeId}/_repositories_metering] in the future."
       searchable_snapshots.repository_stats:
         repository: repository-fs
 

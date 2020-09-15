@@ -29,8 +29,3 @@ artifacts {
   archives tasks.named("jar")
   testArtifacts testJar
 }
-
-// disable integration tests for now
-tasks.named("integTest").configure {
-  enabled = false
-}

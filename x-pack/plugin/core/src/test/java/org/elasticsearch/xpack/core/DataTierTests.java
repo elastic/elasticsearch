@@ -40,6 +40,13 @@ public class DataTierTests extends ESTestCase {
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
+        final String[] contentNodes =
+            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                .map(n -> n.value)
+                .filter(DataTier::isContentNode)
+                .map(DiscoveryNode::getId)
+                .toArray(String[]::new);
+
         final String[] hotNodes =
             StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                 .map(n -> n.value)
@@ -69,11 +76,13 @@ public class DataTierTests extends ESTestCase {
                 .toArray(String[]::new);
 
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(dataNodes));
+        assertThat(discoveryNodes.resolveNodes("data_content:true"), arrayContainingInAnyOrder(contentNodes));
         assertThat(discoveryNodes.resolveNodes("data_hot:true"), arrayContainingInAnyOrder(hotNodes));
         assertThat(discoveryNodes.resolveNodes("data_warm:true"), arrayContainingInAnyOrder(warmNodes));
         assertThat(discoveryNodes.resolveNodes("data_cold:true"), arrayContainingInAnyOrder(coldNodes));
         assertThat(discoveryNodes.resolveNodes("data_frozen:true"), arrayContainingInAnyOrder(frozenNodes));
-        Set<String> allTiers = new HashSet<>(Arrays.asList(hotNodes));
+        Set<String> allTiers = new HashSet<>(Arrays.asList(contentNodes));
+        allTiers.addAll(Arrays.asList(hotNodes));
         allTiers.addAll(Arrays.asList(warmNodes));
         allTiers.addAll(Arrays.asList(coldNodes));
         allTiers.addAll(Arrays.asList(frozenNodes));
@@ -100,6 +109,7 @@ public class DataTierTests extends ESTestCase {
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
         Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
+        allRoles.add(DataTier.DATA_CONTENT_NODE_ROLE);
         allRoles.add(DataTier.DATA_HOT_NODE_ROLE);
         allRoles.add(DataTier.DATA_WARM_NODE_ROLE);
         allRoles.add(DataTier.DATA_COLD_NODE_ROLE);

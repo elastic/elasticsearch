@@ -65,9 +65,15 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 Specifies whether the included model definition should be returned as a JSON map 
 (`true`) or in a custom compressed format (`false`). Defaults to `true`.
 
+`for_export`::
+(Optional, boolean)
+Indicates if certain fields should be removed from the model configuration on
+retrieval. This allows the model to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+
 `from`::
 (Optional, integer) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
 
 `include_model_definition`::
 (Optional, boolean)
@@ -77,17 +83,11 @@ Otherwise, a bad request is returned.
 
 `size`::
 (Optional, integer) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size-models]
 
 `tags`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
-
-`for_export`::
-(Optional, boolean)
-Indicates if certain fields should be removed from the model configuration on
-retrieval. This allows the model to be in an acceptable format to be retrieved
-and then added to another cluster. Default is false.
 
 [role="child_attributes"]
 [[ml-get-inference-results]]

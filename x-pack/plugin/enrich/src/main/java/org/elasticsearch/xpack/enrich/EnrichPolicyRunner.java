@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
@@ -352,8 +355,45 @@ public class EnrichPolicyRunner implements Runnable {
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
                 if (bulkByScrollResponse.getBulkFailures().size() > 0) {
+                    logger.warn(
+                        "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
+                        policyName,
+                        bulkByScrollResponse.getBulkFailures().size()
+                    );
+                    if (logger.isDebugEnabled()) {
+                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "Policy [{}]: bulk index failed for index [{}], id [{}]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getId()
+                                ),
+                                failure.getCause()
+                            );
+                        }
+                    }
                     listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
                 } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
+                    logger.warn(
+                        "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
+                        policyName,
+                        bulkByScrollResponse.getSearchFailures().size()
+                    );
+                    if (logger.isDebugEnabled()) {
+                        for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getShardId(),
+                                    failure.getNodeId()
+                                ),
+                                failure.getReason()
+                            );
+                        }
+                    }
                     listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
                 } else {
                     logger.info(

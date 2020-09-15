@@ -44,8 +44,8 @@ excluded.
 [[xpack-sa-lf-events-emit-request]]
 // tag::xpack-sa-lf-events-emit-request-tag[]
 `xpack.security.audit.logfile.events.emit_request_body`::
-Specifies whether to include the request body from REST requests on certain
-event types such as `authentication_failed`. The default value is `false`.
+Specifies whether to include the request body from https://www.elastic.co/guide/en/elasticsearch/reference/current/audit-event-types.html#_audit_event_attributes_of_the_rest_event_type[REST requests on certain
+event types] such as `authentication_failed`. The default value is `false`.
 +
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be

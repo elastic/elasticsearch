@@ -157,7 +157,7 @@ public class FetchPhase {
                 }
             }
             return processors;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
         }
     }

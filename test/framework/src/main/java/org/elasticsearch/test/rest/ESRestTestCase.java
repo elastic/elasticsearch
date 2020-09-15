@@ -551,9 +551,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             inProgressSnapshots.set(wipeSnapshots());
         }
 
-        Request ilmHistoryRequest = new Request("PUT", "_cluster/settings");
-        ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":\"false\"}}");
-        client().performRequest(ilmHistoryRequest);
+        //try to disable ILM history to stop failures in wipeAllIndices because of ILM history index created after wipeDataStreams
+        try {
+            Request ilmHistoryRequest = new Request("PUT", "_cluster/settings");
+            ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":\"false\"}}");
+            client().performRequest(ilmHistoryRequest);
+        } catch (Exception e){
+            //no ILM setting, either version is older or no ILM, either way ignore
+        }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
         if (preserveDataStreamsUponCompletion() == false) {
@@ -631,8 +636,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
 
-        ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":null}}");
-        client().performRequest(ilmHistoryRequest);
+        //reenable ILM history for next tests
+        try {
+            Request ilmHistoryRequest = new Request("PUT", "_cluster/settings");
+            ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":null}}");
+            client().performRequest(ilmHistoryRequest);
+        } catch (Exception e){
+            //no ILM setting, either version is older or no ILM, either way ignore
+        }
 
         // wipe cluster settings
         if (preserveClusterSettings() == false) {

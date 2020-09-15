@@ -108,6 +108,9 @@ public class TermsReduceBenchmark {
 
     @State(Scope.Benchmark)
     public static class TermsList extends AbstractList<InternalAggregations> {
+        @Param({ "1600172297" })
+        long seed;
+
         @Param({ "64", "128", "512" })
         int numShards;
 
@@ -122,7 +125,7 @@ public class TermsReduceBenchmark {
         @Setup
         public void setup() {
             this.aggsList = new ArrayList<>();
-            Random rand = new Random();
+            Random rand = new Random(seed);
             int cardinality = cardinalityFactor * topNSize;
             BytesRef[] dict = new BytesRef[cardinality];
             for (int i = 0; i < dict.length; i++) {

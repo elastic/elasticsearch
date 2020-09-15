@@ -154,7 +154,6 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                 }
 
                 lastConflict = e;
-                --retries;
                 Thread.sleep(5);
             }
         }

@@ -219,12 +219,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeVInt(int i) throws IOException {
         /*
-         * Pick the number of bytes that we need based on the value and then
-         * encode the int, unrolling the loops by hand. This allows writing
-         * small numbers to use `writeByte` which is simple and fast. The
-         * unrolling saves a few comparisons and bitwise operations. All
-         * together this saves quite a bit of time compared to a naive
-         * implementation.
+         * Shortcut writing single byte because it is very, very common and
+         * can skip grabbing the scratch buffer. This is marginally slower
+         * than hand unrolling the entire encoding loop but hand unrolling
+         * the encoding loop blows out the method size so it can't be inlined.
+         * In that case benchmarks of the method itself are faster but
+         * benchmarks of methods that use this method are slower.
          */
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             writeByte((byte) i);

@@ -179,10 +179,17 @@ belongs.
   `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver
     operating characteristic) score and optionally the curve.
-    It is calculated for a particular class X (provided as "class_name")
-    treated as positive while the rest of the classes are treated as negative
-    ("one-vs-all" strategy).
-    Default value is {"include_curve": false}.
+    It is calculated for a specific class (provided as "class_name")
+    treated as positive.
+
+    `class_name`::::
+      (Required, string) Name of the only class that will be treated as
+      positive during AUC ROC calculation. Other classes will be treated as
+      negative ("one-vs-all" strategy).
+
+    `include_curve`::::
+      (Optional, boolean) Whether or not the curve should be returned in
+      addition to the score. Default value is false.
 
   `multiclass_confusion_matrix`:::
     (Optional, object) Multiclass confusion matrix.

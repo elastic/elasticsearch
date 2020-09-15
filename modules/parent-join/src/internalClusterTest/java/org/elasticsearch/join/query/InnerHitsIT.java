@@ -171,7 +171,7 @@ public class InnerHitsIT extends ParentChildTestCase {
             .setQuery(
                 hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
                     new InnerHitBuilder()
-                        .addDocValueField("message")
+                        .addFetchField("message")
                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                         .setExplain(true).setSize(1)
                         .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5",
@@ -182,8 +182,18 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getHighlightFields().get("message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
         assertThat(innerHits.getAt(0).getExplanation().toString(), containsString("weight(message:fox"));
-        assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
+        assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("fox eat quick"));
         assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
+
+        response = client().prepareSearch("articles")
+            .setQuery(
+                hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
+                    new InnerHitBuilder().addDocValueField("message").setSize(1)
+                )).get();
+        assertNoFailures(response);
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+        assertThat(innerHits.getHits().length, equalTo(1));
+        assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
     }
 
     public void testRandomParentChild() throws Exception {

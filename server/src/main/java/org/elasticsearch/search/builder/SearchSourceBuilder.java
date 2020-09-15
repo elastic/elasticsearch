@@ -250,8 +250,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
     }
@@ -313,8 +311,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
     }
@@ -1379,7 +1375,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
         if (pointInTimeBuilder != null) {
-            builder.field(POINT_IN_TIME.getPreferredName(), pointInTimeBuilder);
+            pointInTimeBuilder.toXContent(builder, params);
         }
         return builder;
     }
@@ -1676,31 +1672,35 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         public PointInTimeBuilder(String id, TimeValue keepAlive) {
             this.id = Objects.requireNonNull(id);
-            this.keepAlive = Objects.requireNonNull(keepAlive);
+            this.keepAlive = keepAlive;
         }
 
         public PointInTimeBuilder(StreamInput in) throws IOException {
             id = in.readString();
-            keepAlive = in.readTimeValue();
+            keepAlive = in.readOptionalTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
-            out.writeTimeValue(keepAlive);
+            out.writeOptionalTimeValue(keepAlive);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(POINT_IN_TIME.getPreferredName());
             builder.field(ID_FIELD.getPreferredName(), id);
-            builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
+            if (keepAlive != null) {
+                builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
+            }
+            builder.endObject();
             return builder;
         }
 
         public static PointInTimeBuilder fromXContent(XContentParser parser) throws IOException {
             final XContentParams params = PARSER.parse(parser, null);
-            if (params.id == null || params.keepAlive == null) {
-                throw new IllegalArgumentException("id and keep_alive must be specified");
+            if (params.id == null) {
+                throw new IllegalArgumentException("point int time id is not provided");
             }
             return new PointInTimeBuilder(params.id, params.keepAlive);
         }

@@ -299,31 +299,31 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     private LongScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new LongScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new LongScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(((Number) foo).longValue());
+                                            emit(((Number) foo).longValue());
                                         }
                                     }
                                 };
                             case "add_param":
-                                return (params, lookup) -> (ctx) -> new LongScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new LongScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
+                                            emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
                                         }
                                     }
                                 };
                             case "millis_ago":
                                 // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
                                 long now = System.currentTimeMillis();
-                                return (params, lookup) -> (ctx) -> new LongScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new LongScriptFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            emitValue(now - ((Number) timestamp).longValue());
+                                            emit(now - ((Number) timestamp).longValue());
                                         }
                                     }
                                 };

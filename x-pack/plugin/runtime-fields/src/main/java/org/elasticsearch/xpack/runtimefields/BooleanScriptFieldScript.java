@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -25,21 +24,22 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "boolean_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
-        BooleanScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        BooleanScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private int trues;
     private int falses;
 
-    public BooleanScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public BooleanScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**
@@ -66,7 +66,7 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         return falses;
     }
 
-    protected final void emitValue(boolean v) {
+    protected final void emit(boolean v) {
         if (v) {
             trues++;
         } else {
@@ -78,15 +78,15 @@ public abstract class BooleanScriptFieldScript extends AbstractScriptFieldScript
         return Booleans.parseBoolean(str.toString());
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final BooleanScriptFieldScript script;
 
-        public EmitValue(BooleanScriptFieldScript script) {
+        public Emit(BooleanScriptFieldScript script) {
             this.script = script;
         }
 
         public void value(boolean v) {
-            script.emitValue(v);
+            script.emit(v);
         }
     }
 }

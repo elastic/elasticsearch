@@ -7,12 +7,11 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
-import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
     private final long lowerValue;
@@ -20,7 +19,7 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
 
     public LongScriptFieldRangeQuery(
         Script script,
-        CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory,
+        Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory,
         String fieldName,
         long lowerValue,
         long upperValue

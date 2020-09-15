@@ -179,7 +179,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         @SuppressWarnings("unused")
         ILMHistoryTemplateRegistry ilmTemplateRegistry =
             new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
-        ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+        ilmHistoryStore.set(new ILMHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService, threadPool));
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
             getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));

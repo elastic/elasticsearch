@@ -56,28 +56,29 @@ public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
+    private final ClusterService clusterService;
 
-    private final boolean ilmHistoryEnabled;
     private final BulkProcessor processor;
     private final ThreadPool threadPool;
 
-    public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+    public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
 
         this.processor = BulkProcessor.builder(
             new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk,
             new BulkProcessor.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    if (ilmHistoryEnabled == false) {
+                    ClusterState state = clusterService.state();
+                    if (LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(state.getMetadata().settings()) == false) {
                         throw new ElasticsearchException("can not index ILM history items when ILM history is disabled");
                     }
                     // Prior to actually performing the bulk, we should ensure the data stream exists, and
                     // if we were unable to create it we should not attempt to index documents.
                     try {
                         final CompletableFuture<Boolean> dsCreated = new CompletableFuture<>();
-                        ensureHistoryDataStream(client, clusterService.state(), ActionListener.wrap(dsCreated::complete,
+                        ensureHistoryDataStream(client, state, ActionListener.wrap(dsCreated::complete,
                             ex -> {
                                 logger.warn("failed to create ILM history store data stream prior to issuing bulk request", ex);
                                 dsCreated.completeExceptionally(ex);
@@ -142,7 +143,7 @@ public class ILMHistoryStore implements Closeable {
      * Attempts to asynchronously index an ILM history entry
      */
     public void putAsync(ILMHistoryItem item) {
-        if (ilmHistoryEnabled == false) {
+        if (LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.state().getMetadata().settings()) == false) {
             logger.trace("not recording ILM history item because [{}] is [false]: [{}]",
                 LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
             return;

@@ -551,91 +551,88 @@ public abstract class ESRestTestCase extends ESTestCase {
             inProgressSnapshots.set(wipeSnapshots());
         }
 
-        try {
-            Request blockClusterRequest = new Request("PUT", "_cluster/settings");
-            blockClusterRequest.setJsonEntity("{\"transient\":{\"cluster.blocks.read_only_allow_delete\":\"true\"}}");
-            assertOK(client().performRequest(blockClusterRequest));
+        Request ilmHistoryRequest = new Request("PUT", "_cluster/settings");
+        ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":\"false\"}}");
+        client().performRequest(ilmHistoryRequest);
 
-            // wipe data streams before indices so that the backing indices for data streams are handled properly
-            if (preserveDataStreamsUponCompletion() == false) {
-                wipeDataStreams();
-            }
+        // wipe data streams before indices so that the backing indices for data streams are handled properly
+        if (preserveDataStreamsUponCompletion() == false) {
+            wipeDataStreams();
+        }
 
-            if (preserveIndicesUponCompletion() == false) {
-                // wipe indices
-                wipeAllIndices();
-            }
+        if (preserveIndicesUponCompletion() == false) {
+            // wipe indices
+            wipeAllIndices();
+        }
 
-            // wipe index templates
-            if (preserveTemplatesUponCompletion() == false) {
-                if (hasXPack) {
-                    /*
-                     * Delete only templates that xpack doesn't automatically
-                     * recreate. Deleting them doesn't hurt anything, but it
-                     * slows down the test because xpack will just recreate
-                     * them.
-                     */
-                    Request request = new Request("GET", "_cat/templates");
-                    request.addParameter("h", "name");
-                    String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                    if (false == "".equals(templates)) {
-                        for (String template : templates.split("\n")) {
-                            if (isXPackTemplate(template)) continue;
-                            if ("".equals(template)) {
-                                throw new IllegalStateException("empty template in templates list:\n" + templates);
-                            }
-                            logger.info("Clearing template [{}]", template);
+        // wipe index templates
+        if (preserveTemplatesUponCompletion() == false) {
+            if (hasXPack) {
+                /*
+                 * Delete only templates that xpack doesn't automatically
+                 * recreate. Deleting them doesn't hurt anything, but it
+                 * slows down the test because xpack will just recreate
+                 * them.
+                 */
+                Request request = new Request("GET", "_cat/templates");
+                request.addParameter("h", "name");
+                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+                if (false == "".equals(templates)) {
+                    for (String template : templates.split("\n")) {
+                        if (isXPackTemplate(template)) continue;
+                        if ("".equals(template)) {
+                            throw new IllegalStateException("empty template in templates list:\n" + templates);
+                        }
+                        logger.info("Clearing template [{}]", template);
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                        } catch (ResponseException e) {
+                            // This is fine, it could be a V2 template
+                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
                             try {
-                                adminClient().performRequest(new Request("DELETE", "_template/" + template));
-                            } catch (ResponseException e) {
-                                // This is fine, it could be a V2 template
-                                assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
-                                try {
-                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
-                                } catch (ResponseException e2) {
-                                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
-                                }
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
+                            } catch (ResponseException e2) {
+                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                             }
                         }
-                    }
-                    try {
-                        Request compReq = new Request("GET", "_component_template");
-                        String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                        Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                        @SuppressWarnings("unchecked")
-                        List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                            .map(ct -> (String) ct.get("name"))
-                            .collect(Collectors.toList());
-                        for (String componentTemplate : names) {
-                            try {
-                                if (isXPackTemplate(componentTemplate)) {
-                                    continue;
-                                }
-                                adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                            } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.info("ignoring exception removing all component templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
-                    }
-                } else {
-                    logger.debug("Clearing all templates");
-                    adminClient().performRequest(new Request("DELETE", "_template/*"));
-                    try {
-                        adminClient().performRequest(new Request("DELETE", "_index_template/*"));
-                        adminClient().performRequest(new Request("DELETE", "_component_template/*"));
-                    } catch (ResponseException e) {
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
                 }
+                try {
+                    Request compReq = new Request("GET", "_component_template");
+                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                    @SuppressWarnings("unchecked")
+                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ct.get("name"))
+                        .collect(Collectors.toList());
+                    for (String componentTemplate : names) {
+                        try {
+                            if (isXPackTemplate(componentTemplate)) {
+                                continue;
+                            }
+                            adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                        } catch (ResponseException e) {
+                            logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.info("ignoring exception removing all component templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
+            } else {
+                logger.debug("Clearing all templates");
+                adminClient().performRequest(new Request("DELETE", "_template/*"));
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
             }
-        } finally {
-            Request unblockClusterRequest = new Request("PUT", "_cluster/settings");
-            unblockClusterRequest.setJsonEntity("{\"transient\":{\"cluster.blocks.read_only_allow_delete\":null}}");
-            assertOK(client().performRequest(unblockClusterRequest));
         }
+
+        ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":null}}");
+        client().performRequest(ilmHistoryRequest);
 
         // wipe cluster settings
         if (preserveClusterSettings() == false) {

@@ -25,7 +25,70 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     enum Metrics {
 
-        MIN, MAX, Q1, Q2, Q3;
+        MIN
+            {
+                @Override
+                double value(InternalBoxplot boxplot) {
+                    return boxplot.getMin();
+                }
+
+                @Override
+                double value(TDigestState state) {
+                    return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
+                }
+            },
+        MAX
+            {
+                @Override
+                double value(InternalBoxplot boxplot) {
+                    return boxplot.getMax();
+                }
+
+                @Override
+                double value(TDigestState state) {
+                    return state == null ? Double.POSITIVE_INFINITY : state.getMax();
+                }
+            },
+
+        Q1
+            {
+                @Override
+                double value(InternalBoxplot boxplot) {
+                    return boxplot.getQ1();
+                }
+
+                @Override
+                double value(TDigestState state) {
+                    return state == null ? Double.NaN : state.quantile(0.25);
+                }
+            },
+
+        Q2
+            {
+                @Override
+                double value(InternalBoxplot boxplot) {
+                    return boxplot.getQ2();
+                }
+
+                @Override
+                double value(TDigestState state) {
+                    return state == null ? Double.NaN : state.quantile(0.5);
+                }
+            },
+
+        Q3
+            {
+                @Override
+                double value(InternalBoxplot boxplot) {
+                    return boxplot.getQ3();
+                }
+
+                @Override
+                double value(TDigestState state) {
+                    return state == null ? Double.NaN : state.quantile(0.75);
+                }
+            }
+        ;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
@@ -35,39 +98,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             return name().toLowerCase(Locale.ROOT);
         }
 
-        double value(InternalBoxplot boxplot) {
-            switch (this) {
-                case MIN:
-                    return boxplot.getMin();
-                case MAX:
-                    return boxplot.getMax();
-                case Q1:
-                    return boxplot.getQ1();
-                case Q2:
-                    return boxplot.getQ2();
-                case Q3:
-                    return boxplot.getQ3();
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + this.value() + "] in the boxplot aggregation");
-            }
-        }
+        abstract double value(InternalBoxplot boxplot);
 
-        double value(TDigestState state) {
-            switch (this) {
-                case MIN:
-                    return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
-                case MAX:
-                    return state == null ? Double.POSITIVE_INFINITY : state.getMax();
-                case Q1:
-                    return state == null ? Double.NaN : state.quantile(0.25);
-                case Q2:
-                    return state == null ? Double.NaN : state.quantile(0.5);
-                case Q3:
-                    return state == null ? Double.NaN : state.quantile(0.75);
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + this.value() + "] in the boxplot aggregation");
-            }
-        }
+        abstract double value(TDigestState state);
     }
 
     /**

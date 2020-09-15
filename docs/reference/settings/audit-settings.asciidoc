@@ -6,12 +6,11 @@
 ++++
 
 [[auditing-settings-description]]
-// tag::auditing-settings-description-tag[]
 You can use <<enable-audit-logging,audit logging>> to record security-related
-events, such as authentication failures and refused connections, You can use
-these logs to monitor your cluster for suspicious activity. Audit logging also
-provides forensic evidence in the event of an attack.
-// end::auditing-settings-description-tag[]
+events, such as authentication failures, refused connections and data-access events.
+
+IMPORTANT: Static auditing settings, such as `xpack.security.audit.enabled` must
+be configured on all nodes in the cluster.
 
 [[general-audit-settings]]
 ==== General Auditing Settings
@@ -19,9 +18,11 @@ provides forensic evidence in the event of an attack.
 // tag::xpack-security-audit-enabled-tag[]
 `xpack.security.audit.enabled`::
 (<<static-cluster-setting,Static>>)
-Set to `true` to enable auditing on the node. The default value is `false`.
-This puts the auditing events in a dedicated file named `<clustername>_audit.json`
-on each node.
+Set to `true` to enable auditing on the node. The default value is `false`. This
+puts the auditing events in a dedicated file named `<clustername>_audit.json` on
+each node.
++
+This setting must be configured on all nodes in the cluster.
 // end::xpack-security-audit-enabled-tag[]
 
 [[event-audit-settings]]

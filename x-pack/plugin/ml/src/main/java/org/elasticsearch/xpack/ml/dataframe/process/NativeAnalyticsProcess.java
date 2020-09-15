@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -56,10 +59,23 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
-    public void restoreState(BytesReference state) throws IOException {
-        Objects.requireNonNull(state);
+    public void restoreState(Client client, String stateDocIdPrefix) throws IOException {
+        Objects.requireNonNull(stateDocIdPrefix);
         try (OutputStream restoreStream = processRestoreStream()) {
-            StateToProcessWriterHelper.writeStateToStream(state, restoreStream);
+            int docNum = 0;
+            while (true) {
+                if (isProcessKilled()) {
+                    return;
+                }
+
+                SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+                    .setSize(1)
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum)).get();
+                if (stateResponse.getHits().getHits().length == 0) {
+                    break;
+                }
+                StateToProcessWriterHelper.writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
+            }
         }
     }
 }

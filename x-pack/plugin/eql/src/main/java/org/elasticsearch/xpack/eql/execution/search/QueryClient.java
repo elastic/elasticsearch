@@ -20,4 +20,6 @@ public interface QueryClient {
     void query(QueryRequest request, ActionListener<SearchResponse> listener);
 
     void get(Iterable<List<HitReference>> refs, ActionListener<List<List<GetResponse>>> listener);
+
+    default void close(ActionListener<Boolean> closed) {}
 }

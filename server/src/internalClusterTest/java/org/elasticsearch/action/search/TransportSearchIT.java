@@ -98,7 +98,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             /**
              * Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
              */
-            return Collections.singletonList(searchContext -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList((searchContext, lookup) -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {}
 

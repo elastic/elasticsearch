@@ -85,7 +85,7 @@ POST my-index-000001/_search
         {
           "script": {
             "script": {
-              "source": "doc['my_version'].isPreRelease() == false"
+              "source": "doc['my_version'].isRelease() == true"
             }
           }
         }
@@ -114,8 +114,8 @@ Functions available on via doc values in scripting are:
 isValid()::
     Returns `true` if the field contains a version thats legal according to the Semantic Versioning rules
 
-isPreRelease()::
-    Returns `true` if the field contains a pre-release version
+isRelease()::
+    Returns `true` if the field contains a valid release version, `false` if it is a pre-release version or invalid.
 
 getMajor()::
     Returns an Integer value of the Major version if the version is valid, or null otherwise

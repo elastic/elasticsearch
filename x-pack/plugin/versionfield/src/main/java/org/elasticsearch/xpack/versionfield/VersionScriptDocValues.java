@@ -61,9 +61,9 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
         return VersionEncoder.legalVersionString(VersionParts.ofVersion(getValue()));
     }
 
-    public boolean isPreRelease() {
+    public boolean isRelease() {
         VersionParts parts = VersionParts.ofVersion(getValue());
-        return (parts.preRelease != null) && VersionEncoder.legalVersionString(parts);
+        return VersionEncoder.legalVersionString(parts) && parts.preRelease == null;
     }
 
     public Integer getMajor() {

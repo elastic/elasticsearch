@@ -3,7 +3,7 @@ class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
     String get(int)
     String getValue()
     boolean isValid()
-    boolean isPreRelease()
+    boolean isRelease()
     Integer getMajor()
     Integer getMinor()
     Integer getPatch()

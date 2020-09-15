@@ -198,14 +198,21 @@ public class AppendProcessorTests extends ESTestCase {
         String originalField = RandomDocumentPicks.addRandomField(random(), ingestDocument, list);
         List<String> expectedValues = new ArrayList<>(list);
         List<String> existingValues = randomSubsetOf(list);
-        int uniqueValuesSize = randomIntBetween(0, 10);
-        List<String> uniqueValues = new ArrayList<>();
-        for (int i = 0; i < uniqueValuesSize; i++) {
-            uniqueValues.add(randomAlphaOfLengthBetween(1, 10));
+        int nonexistingValuesSize = randomIntBetween(0, 10);
+        List<String> nonexistingValues = new ArrayList<>();
+        for (int i = 0; i < nonexistingValuesSize; i++) {
+            boolean valueExists = true;
+            while (valueExists) {
+                String value = randomAlphaOfLengthBetween(1, 10);
+                valueExists = existingValues.contains(value);
+                if (valueExists == false) {
+                    nonexistingValues.add(value);
+                }
+            }
         }
         List<String> valuesToAppend = new ArrayList<>(existingValues);
-        valuesToAppend.addAll(uniqueValues);
-        expectedValues.addAll(uniqueValues);
+        valuesToAppend.addAll(nonexistingValues);
+        expectedValues.addAll(nonexistingValues);
         Collections.sort(valuesToAppend);
         Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false);
         appendProcessor.execute(ingestDocument);

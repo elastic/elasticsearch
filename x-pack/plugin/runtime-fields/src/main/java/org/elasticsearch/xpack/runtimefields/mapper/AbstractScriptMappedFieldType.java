@@ -178,8 +178,15 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     }
 
     private String unsupported(String query, String supported) {
-        String thisField = "[" + name() + "] which is of type [runtime] with runtime_type [" + runtimeType() + "]";
-        return "Can only use " + query + " queries on " + supported + " fields - not on " + thisField;
+        return String.format(
+            Locale.ROOT,
+            "Can only use %s queries on %s fields - not on [%s] which is of type [%s] with runtime_type [%s]",
+            query,
+            supported,
+            name(),
+            RuntimeFieldMapper.CONTENT_TYPE,
+            runtimeType()
+        );
     }
 
     protected final void checkAllowExpensiveQueries(QueryShardContext context) {

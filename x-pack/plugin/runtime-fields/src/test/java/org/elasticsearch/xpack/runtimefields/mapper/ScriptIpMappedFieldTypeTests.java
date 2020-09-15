@@ -14,6 +14,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -21,11 +22,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -50,7 +51,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -195,11 +195,6 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     }
 
     @Override
-    public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(ScriptIpMappedFieldType::existsQuery);
-    }
-
-    @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
@@ -222,8 +217,8 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     }
 
     @Override
-    public void testRangeQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.rangeQuery("192.0.0.0", "200.0.0.0", randomBoolean(), randomBoolean(), null, null, null, ctx));
+    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.rangeQuery("192.0.0.0", "200.0.0.0", randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -248,8 +243,8 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     }
 
     @Override
-    public void testTermQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomIp(randomBoolean()), ctx));
+    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termQuery(randomIp(randomBoolean()), ctx);
     }
 
     @Override
@@ -290,13 +285,18 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     }
 
     @Override
-    public void testTermsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx));
+    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termsQuery(randomList(100, () -> randomIp(randomBoolean())), ctx);
     }
 
     @Override
     protected ScriptIpMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", org.elasticsearch.common.collect.Map.of());
+    }
+
+    @Override
+    protected MappedFieldType loopFieldType() throws IOException {
+        return build("loop", org.elasticsearch.common.collect.Map.of());
     }
 
     @Override
@@ -355,6 +355,12 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                                         }
                                     }
                                 };
+                            case "loop":
+                                return (fieldName, params, lookup) -> {
+                                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                                    lookup.forkAndTrackFieldReferences("test");
+                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");
                         }
@@ -370,14 +376,5 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
             IpScriptFieldScript.Factory factory = scriptService.compile(script, IpScriptFieldScript.CONTEXT);
             return new ScriptIpMappedFieldType("test", script, factory, emptyMap());
         }
-    }
-
-    private void checkExpensiveQuery(BiConsumer<ScriptIpMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptIpMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
     }
 }

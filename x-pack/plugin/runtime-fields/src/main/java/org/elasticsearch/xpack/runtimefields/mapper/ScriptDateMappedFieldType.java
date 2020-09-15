@@ -37,8 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
-    private final DateScriptFieldScript.Factory scriptFactory;
+public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<DateScriptFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
 
     ScriptDateMappedFieldType(
@@ -48,8 +47,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
         DateFormatter dateTimeFormatter,
         Map<String, String> meta
     ) {
-        super(name, script, meta);
-        this.scriptFactory = scriptFactory;
+        super(name, script, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), meta);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 
@@ -84,10 +82,6 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
         return new ScriptDateFieldData.Builder(name(), leafFactory(lookup.get()));
     }
 
-    private DateScriptFieldScript.LeafFactory leafFactory(SearchLookup lookup) {
-        return scriptFactory.newFactory(name(), script.getParams(), lookup, dateTimeFormatter);
-    }
-
     @Override
     public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
@@ -103,7 +97,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return new LongScriptFieldDistanceFeatureQuery(
                 script,
-                leafFactory(context.lookup())::newInstance,
+                leafFactory(context)::newInstance,
                 name(),
                 originLong,
                 pivotTime.getMillis(),
@@ -115,7 +109,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context.lookup())::newInstance, name());
+        return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
 
     @Override
@@ -139,7 +133,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context.lookup())::newInstance, name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
         );
     }
 
@@ -155,7 +149,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
                 DateFieldMapper.Resolution.MILLISECONDS
             );
             checkAllowExpensiveQueries(context);
-            return new LongScriptFieldTermQuery(script, leafFactory(context.lookup())::newInstance, name(), l);
+            return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
     }
 
@@ -179,7 +173,7 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType {
                 );
             }
             checkAllowExpensiveQueries(context);
-            return new LongScriptFieldTermsQuery(script, leafFactory(context.lookup())::newInstance, name(), terms);
+            return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
         });
     }
 

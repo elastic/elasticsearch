@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Value fetcher that loads from doc values.
  */
@@ -48,7 +50,7 @@ public final class DocValueFetcher implements ValueFetcher {
     @Override
     public List<Object> fetchValues(SourceLookup lookup) throws IOException {
         if (false == leaf.advanceExact(lookup.docId())) {
-            return List.of();
+            return emptyList();
         }
         List<Object> result = new ArrayList<Object>(leaf.docValueCount());
         for (int i = 0, count = leaf.docValueCount(); i < count; ++i) {

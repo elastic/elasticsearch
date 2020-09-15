@@ -77,6 +77,25 @@ setup:
   - match: {http_logs.mappings.properties.ip.script.lang: painless }
 
 ---
+"fetch fields":
+  - do:
+      search:
+        index: http_logs
+        body:
+          sort: timestamp
+          fields: [ip, ip_from_source, ip_many]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.ip: ["40.135.0.0"] }
+  - match: {hits.hits.0.fields.ip_from_source: ["40.135.0.0"] }
+  - match:
+      hits.hits.0.fields.ip_many:
+        - 40.135.0.0
+        - 40.135.0.1
+        - 40.135.0.2
+        - 40.135.0.3
+        - 40.135.0.4
+
+---
 "docvalue_fields":
   - do:
       search:

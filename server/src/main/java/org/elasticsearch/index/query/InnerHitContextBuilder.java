@@ -95,8 +95,7 @@ public abstract class InnerHitContextBuilder {
         }
         if (innerHitBuilder.getFetchFields() != null) {
             String indexName = queryShardContext.index().getName();
-            FetchFieldsContext fieldsContext = FetchFieldsContext.create(
-                indexName, queryShardContext.getMapperService(), innerHitBuilder.getFetchFields());
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields());
             innerHitsContext.fetchFieldsContext(fieldsContext);
         }
         if (innerHitBuilder.getScriptFields() != null) {

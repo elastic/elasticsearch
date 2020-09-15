@@ -35,7 +35,7 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
     @Override
     protected DelegatePkiAuthenticationResponse createTestInstance() {
         return new DelegatePkiAuthenticationResponse(randomAlphaOfLengthBetween(0, 10),
-                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"));
+                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"), null);
     }
 
     @Override

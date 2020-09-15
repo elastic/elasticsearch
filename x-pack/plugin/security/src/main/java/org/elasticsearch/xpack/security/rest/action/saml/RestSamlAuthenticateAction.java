@@ -95,13 +95,16 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject()
-                                .field("username", response.getPrincipal())
-                                .field("realm", response.getRealm())
-                                .field("access_token", response.getTokenString())
-                                .field("refresh_token", response.getRefreshToken())
-                                .field("expires_in", response.getExpiresIn().seconds())
-                                .endObject();
+                        builder.startObject();
+                        builder.field("username", response.getPrincipal());
+                        builder.field("realm", response.getRealm());
+                        builder.field("access_token", response.getTokenString());
+                        builder.field("refresh_token", response.getRefreshToken());
+                        builder.field("expires_in", response.getExpiresIn().seconds());
+                        if (response.getAuthentication() != null){
+                            builder.field("authentication", response.getAuthentication());
+                        }
+                        builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });

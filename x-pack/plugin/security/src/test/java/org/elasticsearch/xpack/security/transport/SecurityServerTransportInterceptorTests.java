@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -180,7 +181,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final User user = new User("test", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
@@ -247,7 +248,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final User user = new User("joe", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
@@ -288,7 +289,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final User user = new User("joe", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),

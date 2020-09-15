@@ -202,7 +202,9 @@ setup:
 
 ---
 "docvalue_fields - double":
-
+  - skip:
+      version: " - 6.99.99"
+      reason: Triggered a deprecation warning before 7.0
   - do:
       search:
         body:

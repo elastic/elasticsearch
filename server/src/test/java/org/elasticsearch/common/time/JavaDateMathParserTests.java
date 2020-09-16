@@ -42,23 +42,16 @@ public class JavaDateMathParserTests extends ESTestCase {
     private final DateMathParser parser = formatter.toDateMathParser();
 
 
-    public void testRoundUpParserBasedOnList(){
-        DateFormatter formatter = new JavaDateFormatter("date_time",
-            DateFormatters.STRICT_DATE_OPTIONAL_TIME_PRINTER,
-            new DateTimeFormatterBuilder().append(DateFormatters.DATE_TIME_FORMATTER).appendOffset("+HH:MM", "Z")
-                .toFormatter(Locale.ROOT)
+    public void testRoundUpParserBasedOnList() {
+        DateFormatter formatter = new JavaDateFormatter("test", new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd").toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .appendPattern("uuuu-MM-dd'T'HH:mm:ss.S").appendZoneOrOffsetId().toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT),
-            new DateTimeFormatterBuilder().append(DateFormatters.DATE_TIME_FORMATTER).append(DateFormatters.TIME_ZONE_FORMATTER_NO_COLON)
-                .toFormatter(Locale.ROOT)
+            new DateTimeFormatterBuilder()
+                .appendPattern("uuuu-MM-dd'T'HH:mm:ss.S").appendOffset("+HHmm", "Z").toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         );
-//        Instant parsed = formatter.toDateMathParser().parse("2020-01-01T22:59:59.000+02:00", () -> 0L, false, (ZoneId) null);
-//        System.out.println(parsed.toEpochMilli()); // <-- 1577908799000
-//        parsed = formatter.toDateMathParser().parse("2020-01-01T22:59:59.000+02:00", () -> 0L, true, (ZoneId) null);
-//        System.out.println(parsed.toEpochMilli());  //<-- 1577908799000
-//        parsed = formatter.toDateMathParser().parse("2020-01-01T22:59:59.000+0200", () -> 0L, false, (ZoneId) null);
-//        System.out.println(parsed.toEpochMilli()); // <-- 1577908799000
-        Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.000+0000", () -> 0L, true, (ZoneId) null);
+        Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
         assertThat(parsed.toEpochMilli(), equalTo(0L));
     }
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {

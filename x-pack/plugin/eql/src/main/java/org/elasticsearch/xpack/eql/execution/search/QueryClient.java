@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHit;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ public interface QueryClient {
 
     void query(QueryRequest request, ActionListener<SearchResponse> listener);
 
-    void get(Iterable<List<HitReference>> refs, ActionListener<List<List<GetResponse>>> listener);
-
     default void close(ActionListener<Boolean> closed) {}
+
+    void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
 }

@@ -948,11 +948,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testDocumentContainsAllowedMetadataField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
 
-        // A metadata field that is allowed in source must always be a value. Objects/arrays are not allowed
+        // A metadata field that parses a value fails to parse a null value
+        MapperParsingException e2 = expectThrows(MapperParsingException.class, () ->
+            mapper.parse(source(b -> b.nullField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE))));
+        assertTrue(e2.getMessage(), e2.getMessage().contains("failed to parse field [_mock_metadata]"));
+
+        // A metadata field that parses a value fails to parse an object
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapper.parse(source(b -> b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE)
                 .startObject().field("sub-field", "true").endObject())));
-        assertTrue(e.getMessage(), e.getMessage().contains("Field [_mock_metadata] is a metadata field and must have a concrete value."));
+        assertTrue(e.getMessage(), e.getMessage().contains("failed to parse field [_mock_metadata]"));
 
         ParsedDocument doc = mapper.parse(source(b ->
             b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")

@@ -40,7 +40,7 @@ To complete this tutorial, you'll need:
 awareness. 
 
 ** {ess}: 
-Choose the {cloud}/ec-getting-started-templates-hot-warm.html[hot-warm architecture] deployment template.
+Choose the Elastic Stack and then the {cloud}/ec-getting-started-profiles-hot-warm.html[hot-warm architecture] hardware profile.
 
 ** Self-managed cluster: 
 Add node attributes as described for {ref}/shard-allocation-filtering.html[shard allocation filtering].

@@ -38,7 +38,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
 
@@ -258,7 +258,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DoubleScriptFieldScript.CONTEXT);
+                        return Set.of(DoubleScript.CONTEXT);
                     }
 
                     @Override
@@ -273,10 +273,10 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                         return factory;
                     }
 
-                    private DoubleScriptFieldScript.Factory factory(String code) {
+                    private DoubleScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new DoubleScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -285,7 +285,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                                     }
                                 };
                             case "add_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new DoubleScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -308,7 +308,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DoubleScriptFieldScript.Factory factory = scriptService.compile(script, DoubleScriptFieldScript.CONTEXT);
+            DoubleScript.Factory factory = scriptService.compile(script, DoubleScript.CONTEXT);
             return new ScriptDoubleMappedFieldType("test", script, factory, emptyMap());
         }
     }

@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Script producing IP addresses. Unlike the other {@linkplain AbstractScriptFieldScript}s
+ * Script producing IP addresses. Unlike the other {@linkplain AbstractScript}s
  * which deal with their native java objects this converts its values to the same format
  * that Lucene uses to store its fields, {@link InetAddressPoint}. There are a few compelling
  * reasons to do this:
@@ -38,7 +38,7 @@ import java.util.Map;
  * so it saves us a lot of trouble to use the same representation.
  * </ul>
  */
-public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class IpScript extends AbstractScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("ip_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -53,13 +53,13 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
     }
 
     public interface LeafFactory {
-        IpScriptFieldScript newInstance(LeafReaderContext ctx);
+        IpScript newInstance(LeafReaderContext ctx);
     }
 
     private BytesRef[] values = new BytesRef[1];
     private int count;
 
-    public IpScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public IpScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -101,9 +101,9 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
     }
 
     public static class Emit {
-        private final IpScriptFieldScript script;
+        private final IpScript script;
 
-        public Emit(IpScriptFieldScript script) {
+        public Emit(IpScript script) {
             this.script = script;
         }
 

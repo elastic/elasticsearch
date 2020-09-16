@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.BooleanScript;
 
 import java.io.IOException;
 
 public final class ScriptBooleanDocValues extends AbstractSortedNumericDocValues {
-    private final BooleanScriptFieldScript script;
+    private final BooleanScript script;
     private int cursor;
 
-    ScriptBooleanDocValues(BooleanScriptFieldScript script) {
+    ScriptBooleanDocValues(BooleanScript script) {
         this.script = script;
     }
 

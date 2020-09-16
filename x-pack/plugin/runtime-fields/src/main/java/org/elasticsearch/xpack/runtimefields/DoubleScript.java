@@ -17,7 +17,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.List;
 import java.util.Map;
 
-public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class DoubleScript extends AbstractScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -32,13 +32,13 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        DoubleScriptFieldScript newInstance(LeafReaderContext ctx);
+        DoubleScript newInstance(LeafReaderContext ctx);
     }
 
     private double[] values = new double[1];
     private int count;
 
-    public DoubleScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public DoubleScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -77,9 +77,9 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public static class Emit {
-        private final DoubleScriptFieldScript script;
+        private final DoubleScript script;
 
-        public Emit(DoubleScriptFieldScript script) {
+        public Emit(DoubleScript script) {
             this.script = script;
         }
 

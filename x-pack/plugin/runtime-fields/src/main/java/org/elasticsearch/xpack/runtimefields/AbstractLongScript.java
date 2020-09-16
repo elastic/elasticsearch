@@ -15,11 +15,11 @@ import java.util.Map;
 /**
  * Common base class for script field scripts that return long values.
  */
-public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class AbstractLongScript extends AbstractScript {
     private long[] values = new long[1];
     private int count;
 
-    public AbstractLongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractLongScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 

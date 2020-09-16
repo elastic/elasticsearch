@@ -27,7 +27,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Abstract base for scripts to execute to build scripted fields. Inspired by
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
-public abstract class AbstractScriptFieldScript {
+public abstract class AbstractScript {
     /**
      * The maximum number of values a script should be allowed to emit.
      */
@@ -64,7 +64,7 @@ public abstract class AbstractScriptFieldScript {
     private final Map<String, Object> params;
     private final LeafSearchLookup leafSearchLookup;
 
-    public AbstractScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.fieldName = fieldName;
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
         params = new HashMap<>(params);

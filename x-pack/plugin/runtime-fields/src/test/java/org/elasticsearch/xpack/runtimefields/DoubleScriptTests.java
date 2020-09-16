@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<DoubleScriptFieldScript.Factory> {
-    public static final DoubleScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleScriptFieldScript(
+public class DoubleScriptTests extends ScriptFieldScriptTestCase<DoubleScript.Factory> {
+    public static final DoubleScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleScript(
         fieldName,
         params,
         lookup,
@@ -36,12 +36,12 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
     };
 
     @Override
-    protected ScriptContext<DoubleScriptFieldScript.Factory> context() {
-        return DoubleScriptFieldScript.CONTEXT;
+    protected ScriptContext<DoubleScript.Factory> context() {
+        return DoubleScript.CONTEXT;
     }
 
     @Override
-    protected DoubleScriptFieldScript.Factory dummyScript() {
+    protected DoubleScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                DoubleScriptFieldScript script = new DoubleScriptFieldScript(
+                DoubleScript script = new DoubleScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -57,7 +57,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<Doub
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
+                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
                             emit(1.0);
                         }
                     }

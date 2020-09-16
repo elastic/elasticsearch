@@ -22,26 +22,21 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScriptFieldScript.Factory> {
-    public static final IpScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpScriptFieldScript(
-        fieldName,
-        params,
-        lookup,
-        ctx
-    ) {
+public class LongScriptTests extends ScriptFieldScriptTestCase<LongScript.Factory> {
+    public static final LongScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongScript(fieldName, params, lookup, ctx) {
         @Override
         public void execute() {
-            emit("192.168.0.1");
+            emit(1);
         }
     };
 
     @Override
-    protected ScriptContext<IpScriptFieldScript.Factory> context() {
-        return IpScriptFieldScript.CONTEXT;
+    protected ScriptContext<LongScript.Factory> context() {
+        return LongScript.CONTEXT;
     }
 
     @Override
-    protected IpScriptFieldScript.Factory dummyScript() {
+    protected LongScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +44,7 @@ public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScript
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IpScriptFieldScript script = new IpScriptFieldScript(
+                LongScript script = new LongScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -57,8 +52,8 @@ public class IpScriptFieldScriptTests extends ScriptFieldScriptTestCase<IpScript
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emit("192.168.0.1");
+                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
+                            emit(0);
                         }
                     }
                 };

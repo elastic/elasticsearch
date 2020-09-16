@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<StringScriptFieldScript.Factory> {
-    public static final StringScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringScriptFieldScript(
+public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<StringScript.Factory> {
+    public static final StringScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringScript(
         fieldName,
         params,
         lookup,
@@ -36,12 +36,12 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
     };
 
     @Override
-    protected ScriptContext<StringScriptFieldScript.Factory> context() {
-        return StringScriptFieldScript.CONTEXT;
+    protected ScriptContext<StringScript.Factory> context() {
+        return StringScript.CONTEXT;
     }
 
     @Override
-    protected StringScriptFieldScript.Factory dummyScript() {
+    protected StringScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                StringScriptFieldScript script = new StringScriptFieldScript(
+                StringScript script = new StringScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -57,7 +57,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
+                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
                             emit("test");
                         }
                     }
@@ -75,7 +75,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                StringScriptFieldScript script = new StringScriptFieldScript(
+                StringScript script = new StringScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -84,7 +84,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                     @Override
                     public void execute() {
                         StringBuilder big = new StringBuilder();
-                        while (big.length() < StringScriptFieldScript.MAX_CHARS / 4) {
+                        while (big.length() < StringScript.MAX_CHARS / 4) {
                             big.append("test");
                         }
                         String bigString = big.toString();

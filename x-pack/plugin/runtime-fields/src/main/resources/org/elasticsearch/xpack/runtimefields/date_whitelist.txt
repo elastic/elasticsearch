@@ -7,18 +7,18 @@
 # The whitelist for date-valued runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript @no_import {
+class org.elasticsearch.xpack.runtimefields.DateScript @no_import {
 }
-class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Factory @no_import {
+class org.elasticsearch.xpack.runtimefields.DateScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Emit
+    void emit(org.elasticsearch.xpack.runtimefields.DateScript, long) bound_to org.elasticsearch.xpack.runtimefields.DateScript$Emit
     # Parse a value from the source to millis since epoch
-    long parse(org.elasticsearch.xpack.runtimefields.DateScriptFieldScript, def) bound_to org.elasticsearch.xpack.runtimefields.DateScriptFieldScript$Parse
+    long parse(org.elasticsearch.xpack.runtimefields.DateScript, def) bound_to org.elasticsearch.xpack.runtimefields.DateScript$Parse
     # Add an easy method to convert temporalAccessors to millis since epoch.
-    long toEpochMilli(java.time.temporal.TemporalAccessor) from_class org.elasticsearch.xpack.runtimefields.DateScriptFieldScript
+    long toEpochMilli(java.time.temporal.TemporalAccessor) from_class org.elasticsearch.xpack.runtimefields.DateScript
 }
 
 

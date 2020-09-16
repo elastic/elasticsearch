@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.BooleanScript;
 
 public class BooleanScriptFieldExistsQuery extends AbstractBooleanScriptFieldQuery {
-    public BooleanScriptFieldExistsQuery(Script script, BooleanScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    public BooleanScriptFieldExistsQuery(Script script, BooleanScript.LeafFactory leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 

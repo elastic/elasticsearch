@@ -16,7 +16,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.List;
 import java.util.Map;
 
-public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScript {
+public abstract class LongScript extends AbstractLongScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("long_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -31,17 +31,17 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public interface LeafFactory {
-        LongScriptFieldScript newInstance(LeafReaderContext ctx);
+        LongScript newInstance(LeafReaderContext ctx);
     }
 
-    public LongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public LongScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
     public static class Emit {
-        private final LongScriptFieldScript script;
+        private final LongScript script;
 
-        public Emit(LongScriptFieldScript script) {
+        public Emit(LongScript script) {
             this.script = script;
         }
 

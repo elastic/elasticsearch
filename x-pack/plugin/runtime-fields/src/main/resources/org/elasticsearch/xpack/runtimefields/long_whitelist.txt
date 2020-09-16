@@ -7,12 +7,12 @@
 # The whitelist for long-valued runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript @no_import {
+class org.elasticsearch.xpack.runtimefields.LongScript @no_import {
 }
-class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Factory @no_import {
+class org.elasticsearch.xpack.runtimefields.LongScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.xpack.runtimefields.LongScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Emit
+    void emit(org.elasticsearch.xpack.runtimefields.LongScript, long) bound_to org.elasticsearch.xpack.runtimefields.LongScript$Emit
 }

@@ -11,6 +11,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -22,26 +23,27 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongScriptFieldScript.Factory> {
-    public static final LongScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongScriptFieldScript(
+public class DateScriptTests extends ScriptFieldScriptTestCase<DateScript.Factory> {
+    public static final DateScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateScript(
         fieldName,
         params,
         lookup,
+        formatter,
         ctx
     ) {
         @Override
         public void execute() {
-            emit(1);
+            emit(1595431354874L);
         }
     };
 
     @Override
-    protected ScriptContext<LongScriptFieldScript.Factory> context() {
-        return LongScriptFieldScript.CONTEXT;
+    protected ScriptContext<DateScript.Factory> context() {
+        return DateScript.CONTEXT;
     }
 
     @Override
-    protected LongScriptFieldScript.Factory dummyScript() {
+    protected DateScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,15 +51,16 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                LongScriptFieldScript script = new LongScriptFieldScript(
+                DateScript script = new DateScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
+                    DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
+                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
                             emit(0);
                         }
                     }

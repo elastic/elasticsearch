@@ -11,22 +11,22 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.IpScript;
+import org.elasticsearch.xpack.runtimefields.StringScript;
 
 import java.net.InetAddress;
 
 /**
- * Abstract base class for building queries based on {@link StringScriptFieldScript}.
+ * Abstract base class for building queries based on {@link StringScript}.
  */
-abstract class AbstractIpScriptFieldQuery extends AbstractScriptFieldQuery<IpScriptFieldScript> {
+abstract class AbstractIpScriptFieldQuery extends AbstractScriptFieldQuery<IpScript> {
 
-    AbstractIpScriptFieldQuery(Script script, IpScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    AbstractIpScriptFieldQuery(Script script, IpScript.LeafFactory leafFactory, String fieldName) {
         super(script, fieldName, leafFactory::newInstance);
     }
 
     @Override
-    protected boolean matches(IpScriptFieldScript scriptContext, int docId) {
+    protected boolean matches(IpScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return matches(scriptContext.values(), scriptContext.count());
     }

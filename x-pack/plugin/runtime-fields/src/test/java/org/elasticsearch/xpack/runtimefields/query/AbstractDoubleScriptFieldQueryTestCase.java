@@ -6,14 +6,14 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleScript;
 
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractDoubleScriptFieldQueryTestCase<T extends AbstractDoubleScriptFieldQuery> extends
     AbstractScriptFieldQueryTestCase<T> {
 
-    protected final DoubleScriptFieldScript.LeafFactory leafFactory = mock(DoubleScriptFieldScript.LeafFactory.class);
+    protected final DoubleScript.LeafFactory leafFactory = mock(DoubleScript.LeafFactory.class);
 
     @Override
     public final void testVisit() {

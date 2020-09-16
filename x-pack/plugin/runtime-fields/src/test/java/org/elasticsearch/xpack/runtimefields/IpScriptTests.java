@@ -11,7 +11,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -23,27 +22,21 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateScriptFieldScript.Factory> {
-    public static final DateScriptFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
-        fieldName,
-        params,
-        lookup,
-        formatter,
-        ctx
-    ) {
+public class IpScriptTests extends ScriptFieldScriptTestCase<IpScript.Factory> {
+    public static final IpScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpScript(fieldName, params, lookup, ctx) {
         @Override
         public void execute() {
-            emit(1595431354874L);
+            emit("192.168.0.1");
         }
     };
 
     @Override
-    protected ScriptContext<DateScriptFieldScript.Factory> context() {
-        return DateScriptFieldScript.CONTEXT;
+    protected ScriptContext<IpScript.Factory> context() {
+        return IpScript.CONTEXT;
     }
 
     @Override
-    protected DateScriptFieldScript.Factory dummyScript() {
+    protected IpScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -51,17 +44,16 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                DateScriptFieldScript script = new DateScriptFieldScript(
+                IpScript script = new IpScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
-                    DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emit(0);
+                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
+                            emit("192.168.0.1");
                         }
                     }
                 };

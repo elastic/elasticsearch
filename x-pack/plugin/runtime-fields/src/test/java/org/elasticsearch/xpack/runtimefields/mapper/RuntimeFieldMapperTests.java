@@ -29,18 +29,18 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScriptTests;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScriptTests;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScriptTests;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScriptTests;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScriptTests;
+import org.elasticsearch.xpack.runtimefields.BooleanScript;
+import org.elasticsearch.xpack.runtimefields.BooleanScriptTests;
+import org.elasticsearch.xpack.runtimefields.DateScript;
+import org.elasticsearch.xpack.runtimefields.DateScriptTests;
+import org.elasticsearch.xpack.runtimefields.DoubleScript;
+import org.elasticsearch.xpack.runtimefields.DoubleScriptTests;
+import org.elasticsearch.xpack.runtimefields.IpScript;
+import org.elasticsearch.xpack.runtimefields.IpScriptTests;
+import org.elasticsearch.xpack.runtimefields.LongScript;
+import org.elasticsearch.xpack.runtimefields.LongScriptTests;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.StringScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScriptTests;
 import org.elasticsearch.xpack.runtimefields.TestScriptEngine;
 
@@ -312,12 +312,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> config.buildIndexSort(
-                field -> new ScriptKeywordMappedFieldType(
-                    field,
-                    new Script(""),
-                    mock(StringScriptFieldScript.Factory.class),
-                    Collections.emptyMap()
-                ),
+                field -> new ScriptKeywordMappedFieldType(field, new Script(""), mock(StringScript.Factory.class), Collections.emptyMap()),
                 (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
             )
         );
@@ -367,22 +362,22 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
             return new TestScriptEngine() {
                 @Override
                 protected Object buildScriptFactory(ScriptContext<?> context) {
-                    if (context == BooleanScriptFieldScript.CONTEXT) {
-                        return BooleanScriptFieldScriptTests.DUMMY;
+                    if (context == BooleanScript.CONTEXT) {
+                        return BooleanScriptTests.DUMMY;
                     }
-                    if (context == DateScriptFieldScript.CONTEXT) {
-                        return DateScriptFieldScriptTests.DUMMY;
+                    if (context == DateScript.CONTEXT) {
+                        return DateScriptTests.DUMMY;
                     }
-                    if (context == DoubleScriptFieldScript.CONTEXT) {
-                        return DoubleScriptFieldScriptTests.DUMMY;
+                    if (context == DoubleScript.CONTEXT) {
+                        return DoubleScriptTests.DUMMY;
                     }
-                    if (context == IpScriptFieldScript.CONTEXT) {
-                        return IpScriptFieldScriptTests.DUMMY;
+                    if (context == IpScript.CONTEXT) {
+                        return IpScriptTests.DUMMY;
                     }
-                    if (context == LongScriptFieldScript.CONTEXT) {
-                        return LongScriptFieldScriptTests.DUMMY;
+                    if (context == LongScript.CONTEXT) {
+                        return LongScriptTests.DUMMY;
                     }
-                    if (context == StringScriptFieldScript.CONTEXT) {
+                    if (context == StringScript.CONTEXT) {
                         return StringScriptFieldScriptTests.DUMMY;
                     }
                     throw new IllegalArgumentException("Unsupported context: " + context);
@@ -390,12 +385,12 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
                     return Set.of(
-                        BooleanScriptFieldScript.CONTEXT,
-                        DateScriptFieldScript.CONTEXT,
-                        DoubleScriptFieldScript.CONTEXT,
-                        IpScriptFieldScript.CONTEXT,
-                        StringScriptFieldScript.CONTEXT,
-                        LongScriptFieldScript.CONTEXT
+                        BooleanScript.CONTEXT,
+                        DateScript.CONTEXT,
+                        DoubleScript.CONTEXT,
+                        IpScript.CONTEXT,
+                        StringScript.CONTEXT,
+                        LongScript.CONTEXT
                     );
                 }
             };

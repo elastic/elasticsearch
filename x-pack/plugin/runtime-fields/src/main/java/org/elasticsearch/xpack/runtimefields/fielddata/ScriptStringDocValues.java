@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.StringScript;
 
 import java.util.List;
 
 public final class ScriptStringDocValues extends SortingBinaryDocValues {
-    private final StringScriptFieldScript script;
+    private final StringScript script;
 
-    ScriptStringDocValues(StringScriptFieldScript script) {
+    ScriptStringDocValues(StringScript script) {
         this.script = script;
     }
 

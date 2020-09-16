@@ -21,8 +21,8 @@ import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
-public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<BooleanScriptFieldScript.Factory> {
-    public static final BooleanScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanScriptFieldScript(
+public class BooleanScriptTests extends ScriptFieldScriptTestCase<BooleanScript.Factory> {
+    public static final BooleanScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanScript(
         fieldName,
         params,
         lookup,
@@ -35,12 +35,12 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
     };
 
     @Override
-    protected ScriptContext<BooleanScriptFieldScript.Factory> context() {
-        return BooleanScriptFieldScript.CONTEXT;
+    protected ScriptContext<BooleanScript.Factory> context() {
+        return BooleanScript.CONTEXT;
     }
 
     @Override
-    protected BooleanScriptFieldScript.Factory dummyScript() {
+    protected BooleanScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -48,7 +48,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                BooleanScriptFieldScript script = new BooleanScriptFieldScript(
+                BooleanScript script = new BooleanScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -56,7 +56,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES * 1000; i++) {
+                        for (int i = 0; i <= AbstractScript.MAX_VALUES * 1000; i++) {
                             emit(i % 2 == 0);
                         }
                     }

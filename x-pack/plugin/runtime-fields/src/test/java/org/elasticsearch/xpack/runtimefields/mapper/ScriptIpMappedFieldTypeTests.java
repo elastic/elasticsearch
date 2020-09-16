@@ -38,9 +38,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.IpScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.StringScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptIpFieldData;
 
@@ -276,7 +276,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(StringScriptFieldScript.CONTEXT);
+                        return Set.of(StringScript.CONTEXT);
                     }
 
                     @Override
@@ -291,10 +291,10 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                         return factory;
                     }
 
-                    private IpScriptFieldScript.Factory factory(String code) {
+                    private IpScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new IpScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -303,7 +303,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
                                     }
                                 };
                             case "append_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new IpScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -326,7 +326,7 @@ public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            IpScriptFieldScript.Factory factory = scriptService.compile(script, IpScriptFieldScript.CONTEXT);
+            IpScript.Factory factory = scriptService.compile(script, IpScript.CONTEXT);
             return new ScriptIpMappedFieldType("test", script, factory, emptyMap());
         }
     }

@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class StringScript extends AbstractScript {
     /**
      * The maximum number of chars a script should be allowed to emit.
      */
@@ -38,13 +38,13 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        StringScriptFieldScript newInstance(LeafReaderContext ctx);
+        StringScript newInstance(LeafReaderContext ctx);
     }
 
     private final List<String> results = new ArrayList<>();
     private long chars;
 
-    public StringScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public StringScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -80,9 +80,9 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public static class Emit {
-        private final StringScriptFieldScript script;
+        private final StringScript script;
 
-        public Emit(StringScriptFieldScript script) {
+        public Emit(StringScript script) {
             this.script = script;
         }
 

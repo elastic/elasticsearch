@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.runtimefields.query;
 
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.BooleanScript;
+import org.elasticsearch.xpack.runtimefields.DoubleScript;
 
 /**
- * Abstract base class for building queries based on {@link DoubleScriptFieldScript}.
+ * Abstract base class for building queries based on {@link DoubleScript}.
  */
-abstract class AbstractBooleanScriptFieldQuery extends AbstractScriptFieldQuery<BooleanScriptFieldScript> {
+abstract class AbstractBooleanScriptFieldQuery extends AbstractScriptFieldQuery<BooleanScript> {
 
-    AbstractBooleanScriptFieldQuery(Script script, BooleanScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    AbstractBooleanScriptFieldQuery(Script script, BooleanScript.LeafFactory leafFactory, String fieldName) {
         super(script, fieldName, leafFactory::newInstance);
     }
 
     @Override
-    protected boolean matches(BooleanScriptFieldScript scriptContext, int docId) {
+    protected boolean matches(BooleanScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return matches(scriptContext.trues(), scriptContext.falses());
     }

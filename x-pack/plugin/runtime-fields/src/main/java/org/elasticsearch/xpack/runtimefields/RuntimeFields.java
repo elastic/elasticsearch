@@ -27,12 +27,12 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
     @Override
     public List<ScriptContext<?>> getContexts() {
         return List.of(
-            BooleanScriptFieldScript.CONTEXT,
-            DateScriptFieldScript.CONTEXT,
-            DoubleScriptFieldScript.CONTEXT,
-            IpScriptFieldScript.CONTEXT,
-            LongScriptFieldScript.CONTEXT,
-            StringScriptFieldScript.CONTEXT
+            BooleanScript.CONTEXT,
+            DateScript.CONTEXT,
+            DoubleScript.CONTEXT,
+            IpScript.CONTEXT,
+            LongScript.CONTEXT,
+            StringScript.CONTEXT
         );
     }
 }

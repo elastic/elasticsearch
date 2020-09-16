@@ -19,7 +19,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Map;
 
-public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScript {
+public abstract class DateScript extends AbstractLongScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -34,12 +34,12 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public interface LeafFactory {
-        DateScriptFieldScript newInstance(LeafReaderContext ctx);
+        DateScript newInstance(LeafReaderContext ctx);
     }
 
     private final DateFormatter formatter;
 
-    public DateScriptFieldScript(
+    public DateScript(
         String fieldName,
         Map<String, Object> params,
         SearchLookup searchLookup,
@@ -58,9 +58,9 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public static class Emit {
-        private final DateScriptFieldScript script;
+        private final DateScript script;
 
-        public Emit(DateScriptFieldScript script) {
+        public Emit(DateScript script) {
             this.script = script;
         }
 
@@ -70,9 +70,9 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public static class Parse {
-        private final DateScriptFieldScript script;
+        private final DateScript script;
 
-        public Parse(DateScriptFieldScript script) {
+        public Parse(DateScript script) {
             this.script = script;
         }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
+import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  * Since queries can return different number of results, to avoid creating incorrect sequences,
  * all searches are 'boxed' to a base query.
  * The base query is initially the first query - when no results are found, the next query gets promoted.
- * 
+ *
  * This allows the window to find any follow-up results even if they are found outside the initial window
  * of a base query.
  */
@@ -296,14 +297,20 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
-            matcher.clear();
+            close(listener);
             return;
         }
 
-        client.get(hits(completed), wrap(hits -> {
-            listener.onResponse(new SequencePayload(completed, hits, false, timeTook()));
-            matcher.clear();
-        }, listener::onFailure));
+        client.get(hits(completed), ActionListeners.map(listener, hits -> {
+            SequencePayload payload = new SequencePayload(completed, hits, false, timeTook());
+            close(listener);
+            return payload;
+        }));
+    }
+
+    private void close(ActionListener<Payload> listener) {
+        matcher.clear();
+        client.close(ActionListener.delegateFailure(listener, (l, r) -> {}));
     }
 
     private TimeValue timeTook() {
@@ -315,7 +322,7 @@ public class TumblingWindow implements Executable {
             final Iterator<Sequence> delegate = criteria.get(0).reverse() != criteria.get(1).reverse() ?
                     new ReversedIterator<>(sequences) :
                     sequences.iterator();
-            
+
             return new Iterator<>() {
 
                 @Override

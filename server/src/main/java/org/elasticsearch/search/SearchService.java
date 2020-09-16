@@ -967,9 +967,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
-            String indexName = context.indexShard().shardId().getIndexName();
-            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
-                indexName, context.mapperService(), source.fetchFields());
+            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {

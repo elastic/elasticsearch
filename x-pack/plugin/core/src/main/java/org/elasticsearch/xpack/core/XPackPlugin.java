@@ -379,6 +379,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
         return new HashSet<>(Arrays.asList(
+            DataTier.DATA_CONTENT_NODE_ROLE,
             DataTier.DATA_HOT_NODE_ROLE,
             DataTier.DATA_WARM_NODE_ROLE,
             DataTier.DATA_COLD_NODE_ROLE,

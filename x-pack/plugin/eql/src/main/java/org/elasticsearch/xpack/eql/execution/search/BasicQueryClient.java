@@ -33,8 +33,8 @@ public class BasicQueryClient implements QueryClient {
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
     private final EqlConfiguration cfg;
-    private final Client client;
-    private final String[] indices;
+    final Client client;
+    final String[] indices;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
@@ -56,7 +56,11 @@ public class BasicQueryClient implements QueryClient {
         }
 
         SearchRequest search = prepareRequest(client, searchSource, false, indices);
-        client.search(search, new BasicListener(listener));
+        search(search, new BasicListener(listener));
+    }
+
+    protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
+        client.search(search, listener);
     }
 
     @Override
@@ -77,11 +81,11 @@ public class BasicQueryClient implements QueryClient {
                 requestBuilder.add(item);
             }
         }
-        
+
         final int listSize = sz;
         client.multiGet(requestBuilder.request(), wrap(r -> {
             List<List<GetResponse>> hits = new ArrayList<>(r.getResponses().length / listSize);
-            
+
             List<GetResponse> sequence = new ArrayList<>(listSize);
 
             int counter = 0;

@@ -75,6 +75,7 @@ public class AucRoc extends AbstractAucRoc {
     }
 
     private final boolean includeCurve;
+    private final SetOnce<EvaluationFields> fields = new SetOnce<>();
     private final SetOnce<EvaluationMetricResult> result = new SetOnce<>();
 
     public AucRoc(Boolean includeCurve) {
@@ -128,6 +129,9 @@ public class AucRoc extends AbstractAucRoc {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
+        // Store given {@code fields} for the purpose of generating error messages in {@code process}.
+        this.fields.trySet(fields);
+
         String actualField = fields.getActualField();
         String predictedProbabilityField = fields.getPredictedProbabilityField();
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
@@ -157,13 +161,13 @@ public class AucRoc extends AbstractAucRoc {
         Filter classAgg = aggs.get(TRUE_AGG_NAME);
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one actual_field to have the value [{}]", getName(), "true");
+                "[{}] requires at least one [{}] to have the value [{}]", getName(), fields.get().getActualField(), "true");
         }
         double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES_AGG_NAME));
         Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one actual_field to have a different value than [{}]", getName(), "true");
+                "[{}] requires at least one [{}] to have a different value than [{}]", getName(), fields.get().getActualField(), "true");
         }
         double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES_AGG_NAME));
 

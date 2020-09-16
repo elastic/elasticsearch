@@ -252,7 +252,7 @@ setup:
 ---
 "Test outlier_detection auc_roc given actual_field is always true":
   - do:
-      catch: /\[auc_roc\] requires at least one actual_field to have a different value than \[true\]/
+      catch: /\[auc_roc\] requires at least one \[all_true_field\] to have a different value than \[true\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -271,7 +271,7 @@ setup:
 ---
 "Test outlier_detection auc_roc given actual_field is always false":
   - do:
-      catch: /\[auc_roc\] requires at least one actual_field to have the value \[true\]/
+      catch: /\[auc_roc\] requires at least one \[all_false_field\] to have the value \[true\]/
       ml.evaluate_data_frame:
         body:  >
           {

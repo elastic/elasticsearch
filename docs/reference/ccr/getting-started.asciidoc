@@ -49,7 +49,7 @@ To configure a remote cluster from Stack Management in {kib}:
 . Select *Remote Clusters* from the side navigation.
 . Specify the IP address or host name of the remote cluster (ClusterB),
 followed by the transport port of the remote cluster (defaults to `9300`). For
-example, specify `127.0.0.1:9300` for a remote cluster running locally.
+example, `192.168.1.1:9300`.
 
 [role="screenshot"]
 image::images/ccr-add-remote-cluster.png["The Add remote clusters page in {kib}"]
@@ -125,58 +125,6 @@ To follow an index, it must have been created with
 soft deletes enabled, you must reindex it and use the new index as the leader
 index. Soft deletes are enabled by default on new indices
 created with {es} 7.0.0 and later.
-
-If you want to create a new index as your leader index, access {kib} on
-your _remote_ cluster and go to *Management > Dev Tools*. Use the
-<<indices-create-index,create index API>> in the Console to create an index,
-or use the following API example.
-
-[%collapsible]
-.API example
-====
-To create a new index using the API, copy the following example into the
-{kib} Console to create a leader index named `server-metrics` in your
-remote cluster:
-
-[source,console]
---------------------------------------------------
-PUT /server-metrics
-{
-  "settings" : {
-    "index" : {
-      "number_of_shards" : 1,
-      "number_of_replicas" : 0
-    }
-  },
-  "mappings" : {
-    "properties" : {
-      "@timestamp" : {
-        "type" : "date"
-      },
-      "accept" : {
-        "type" : "long"
-      },
-      "deny" : {
-        "type" : "long"
-      },
-      "host" : {
-        "type" : "keyword"
-      },
-      "response" : {
-        "type" : "float"
-      },
-      "service" : {
-        "type" : "keyword"
-      },
-      "total" : {
-        "type" : "long"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-====
 
 [[ccr-getting-started-follower-index]]
 ==== Create a follower index to replicate a specific index
@@ -264,12 +212,15 @@ POST /server-metrics-follower/_ccr/unfollow
 
 [[ccr-getting-started-auto-follow]]
 ==== Create an auto-follow pattern to replicate time series indices
-Create <<ccr-auto-follow,auto-follow patterns>> to automatically follow time
-series indices that are created in a remote cluster. Whenever the name of a new index on the remote cluster matches the auto-follow pattern, a corresponding follower index is added to the local cluster.
+You use <<ccr-auto-follow,auto-follow patterns>> to automatically create new
+followers for rolling time series indices. Whenever the name of a new index on
+the remote cluster matches the auto-follow pattern, a corresponding follower
+index is added to the local cluster.
 
-An auto-follow pattern specifies the remote cluster you want to replicate from, 
-and one or more index patterns that specify the rolling time series indices you want
-replicate.
+An auto-follow pattern specifies the remote cluster you want to replicate from,
+and one or more index patterns that specify the rolling time series indices you
+want to replicate. When the auto-follow pattern matches the specified index
+pattern, {es} creates new time series indices on the remote cluster.
 
 // tag::ccr-create-auto-follow-pattern-tag[]
 To create an auto-follow pattern from Stack Management in {kib}:
@@ -278,10 +229,10 @@ To create an auto-follow pattern from Stack Management in {kib}:
 *Auto-follow patterns* tab.
 . Enter a name for the auto-follow pattern, such as `beats`.
 . Choose the remote cluster that contains the index you want to replicate,
-which in the example scenario is Cluster A. 
+which in the example scenario is Cluster A.
 . Enter one or more index patterns that identify the indices you want to
 replicate from the remote cluster. For example, enter
-`metricbeat-* packetbeat-*` to automatically create followers for metric beat and packet beat indices.
+`metricbeat-* packetbeat-*` to automatically create followers for {metricbeat} and {packetbeat} indices.
 . Enter *follower-* as the prefix to apply to the names of the follower indices so
 you can more easily identify replicated indices.
 

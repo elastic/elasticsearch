@@ -21,9 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.packed.PackedInts;
 
-import java.util.HashSet;
-import java.util.Set;
-
 /**
  * Linear counter, implemented based on pseudo code from
  * http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf and its appendix

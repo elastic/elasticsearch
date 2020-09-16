@@ -20,76 +20,28 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
+public class ExternalFieldMapperTests extends MapperServiceTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
-
-    @Override
-    protected boolean forbidPrivateIndexSettings() {
-        return false;
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singletonList(new ExternalMapperPlugin());
     }
 
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        IndexService indexService = createIndex("test", settings);
-        MapperRegistry mapperRegistry = new MapperRegistry(
-                singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
-                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, ExternalMetadataMapper.PARSER), MapperPlugin.NOOP_FIELD_FILTER);
 
-        Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
-        };
-        DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext, null);
-        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
-                Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(ExternalMetadataMapper.CONTENT_TYPE)
-                .endObject()
-                .startObject("properties")
-                    .startObject("field").field("type", "external").endObject()
-                .endObject()
-            .endObject().endObject())
-        ));
+        DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "external")));
 
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                            .field("field", "1234")
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "1234")));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
@@ -109,39 +61,22 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        IndexService indexService = createIndex("test");
-        Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
-        mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
-        mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
-        mapperParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
-        MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
 
-        Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
-        };
-        DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext, null);
+        DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", ExternalMapperPlugin.EXTERNAL);
+            b.startObject("fields");
+            {
+                b.startObject("text");
+                {
+                    b.field("type", "text");
+                    b.field("store", true);
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
 
-        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
-                Strings
-                .toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("field")
-                    .field("type", ExternalMapperPlugin.EXTERNAL)
-                    .startObject("fields")
-                        .startObject("text")
-                            .field("type", "text")
-                            .field("store", true)
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject().endObject().endObject())));
-
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                            .field("field", "1234")
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "1234")));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));

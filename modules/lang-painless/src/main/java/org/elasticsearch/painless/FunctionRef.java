@@ -30,6 +30,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -57,7 +58,7 @@ public class FunctionRef {
      * @param numberOfCaptures number of captured arguments
      */
     public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
-            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures) {
+            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> compilerSettings) {
 
         Objects.requireNonNull(painlessLookup);
         Objects.requireNonNull(targetClass);
@@ -86,6 +87,7 @@ public class FunctionRef {
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
             int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
+            Object[] constants = new Object[0];
 
             if ("this".equals(typeName)) {
                 Objects.requireNonNull(functionTable);
@@ -152,6 +154,7 @@ public class FunctionRef {
                                 "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
                                 "not found");
                     }
+                    constants = Def.getInjections(painlessMethod, compilerSettings);
                 } else if (captured) {
                     throw new IllegalStateException("internal error");
                 }
@@ -198,9 +201,11 @@ public class FunctionRef {
                     delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
+            // TODO(stu): fetch injected constants Weds 09/26
+
             return new FunctionRef(interfaceMethodName, interfaceMethodType,
                     delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType,
-                    factoryMethodType
+                    factoryMethodType, constants
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -227,12 +232,14 @@ public class FunctionRef {
     public final MethodType delegateMethodType;
     /** factory (CallSite) method signature */
     public final MethodType factoryMethodType;
+    /** injected constants */
+    public final Object[] injections;
 
     private FunctionRef(
             String interfaceMethodName, MethodType interfaceMethodType,
             String delegateClassName, boolean isDelegateInterface,
             int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType,
-            MethodType factoryMethodType) {
+            MethodType factoryMethodType, Object[] injections) {
 
         this.interfaceMethodName = interfaceMethodName;
         this.interfaceMethodType = interfaceMethodType;
@@ -242,5 +249,6 @@ public class FunctionRef {
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType;
         this.factoryMethodType = factoryMethodType;
+        this.injections = injections;
     }
 }

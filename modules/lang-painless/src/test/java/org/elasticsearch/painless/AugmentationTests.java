@@ -254,16 +254,17 @@ public class AugmentationTests extends ScriptTestCase {
     public void testInjectionOnMethodReference() {
         assertEquals(30,
             exec(
-                "org.elasticsearch.painless.FeatureTestObject ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
+                "def ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
                     "org.elasticsearch.painless.FeatureTestObject ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
                     "ft1.timesSupplier(ft0::injectTimesX, 3, 5)"));
     }
 
-    // TODO(stu): just make sure this works inside a lambda, it should
-    // TODO(stu): fix
-    public void testInjectionOnLambda() {
-        assertEquals(24600,
-            exec("def d = org.elasticsearch.painless.FeatureTestObject.staticNumberArgument; d(100)"));
+    public void testInjectionOnMethodReference2() {
+        assertEquals(30,
+            exec(
+                "org.elasticsearch.painless.FeatureTestObject ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
+                    "def ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
+                    "ft1.timesSupplier(ft0::injectTimesX, 3, 5)"));
     }
 
     private static class SplitCase {

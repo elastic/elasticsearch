@@ -279,6 +279,7 @@ public final class Def {
                                                       numCaptures,
                                                       getInjections(
                                                           painlessLookup.lookupRuntimePainlessMethod(
+                                                              // TODO(stu): the number of arguments is wrong here. - Weds 9/16
                                                               receiverClass, name, numArguments - 1
                                                           ),
                                                           compilerSettings
@@ -346,7 +347,7 @@ public final class Def {
             implMethod.javaMethod.getName(), 1, getInjections(implMethod, compilerSettings));
      }
 
-     private static Object[] getInjections(PainlessMethod painlessMethod, Map<String, Object> compilerSettings) {
+     static Object[] getInjections(PainlessMethod painlessMethod, Map<String, Object> compilerSettings) {
         if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
             return new Object[0];
         }
@@ -361,8 +362,8 @@ public final class Def {
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, FunctionTable functions,
             MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures,
-            Object[] constants) throws Throwable {
-        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures);
+            Map<String, Object> compilerSettings) throws Throwable {
+        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures, compilerSettings);
         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
             methodHandlesLookup,
             ref.interfaceMethodName,
@@ -372,8 +373,7 @@ public final class Def {
             ref.delegateInvokeType,
             ref.delegateMethodName,
             ref.delegateMethodType,
-            ref.isDelegateInterface ? 1 : 0,
-            constants
+            ref.isDelegateInterface ? 1 : 0
         );
         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
      }

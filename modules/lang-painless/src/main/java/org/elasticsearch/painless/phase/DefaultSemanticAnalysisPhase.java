@@ -2229,7 +2229,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             semanticScope.putDecoration(userLambdaNode, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    location, targetType.getTargetType(), "this", name, capturedVariables.size());
+                    location, targetType.getTargetType(), "this", name, capturedVariables.size(),
+                    scriptScope.getCompilerSettings().asMap());
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));
         }
@@ -2277,7 +2278,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                        location, targetType.getTargetType(), symbol, methodName, 0);
+                        location, targetType.getTargetType(), symbol, methodName, 0,
+                        scriptScope.getCompilerSettings().asMap());
                 valueType = targetType.getTargetType();
                 semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
             }
@@ -2310,7 +2312,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 // static case
                 if (captured.getType() != def.class) {
                     FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), location,
-                            targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1);
+                            targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1,
+                            scriptScope.getCompilerSettings().asMap());
                     semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
                 }
             }
@@ -2359,7 +2362,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             scriptScope.putDecoration(userNewArrayFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0);
+                    userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0,
+                    scriptScope.getCompilerSettings().asMap());
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReferenceDecoration(ref));
         }

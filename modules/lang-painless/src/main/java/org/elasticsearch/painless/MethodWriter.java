@@ -525,6 +525,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 functionRef.delegateMethodName,
                 Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString()),
                 functionRef.isDelegateInterface ? 1 : 0
+                // TODO(stu): handle this in functionref
         );
     }
 }

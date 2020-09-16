@@ -36,9 +36,11 @@ public interface LocalNodeMasterListener extends ClusterStateListener {
 
     @Override
     default void clusterChanged(ClusterChangedEvent event) {
-        if (!event.previousState().nodes().isLocalNodeElectedMaster() && event.localNodeMaster()) {
+        final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
+        final boolean isMaster = event.localNodeMaster();
+        if (wasMaster == false && isMaster) {
             onMaster();
-        } else if (event.previousState().nodes().isLocalNodeElectedMaster() && !event.localNodeMaster()) {
+        } else if (wasMaster && isMaster == false) {
             offMaster();
         }
     }

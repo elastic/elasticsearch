@@ -59,31 +59,6 @@ public class DataTierIT extends ESIntegTestCase {
         ensureYellow(index);
     }
 
-    public void testDefaultDataStreamAllocateToHot() {
-        startWarmOnlyNode();
-        startColdOnlyNode();
-        ensureGreen();
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(index),
-            null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate());
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)).actionGet();
-        client().prepareIndex(index).setWaitForActiveShards(0).get();
-
-        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
-
-        // index should be red
-        assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
-            equalTo(ClusterHealthStatus.RED));
-
-        logger.info("--> starting hot node");
-        startHotOnlyNode();
-
-        logger.info("--> waiting for {} to be yellow", index);
-        ensureYellow(index);
-    }
-
     public void testOverrideDefaultAllocation() {
         startWarmOnlyNode();
         startColdOnlyNode();

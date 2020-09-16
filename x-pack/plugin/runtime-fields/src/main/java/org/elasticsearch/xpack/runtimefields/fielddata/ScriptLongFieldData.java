@@ -17,7 +17,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
 
 import java.io.IOException;
 
@@ -25,9 +25,9 @@ public final class ScriptLongFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final LongScriptFieldScript.LeafFactory leafFactory;
+        private final LongFieldScript.LeafFactory leafFactory;
 
-        public Builder(String name, LongScriptFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, LongFieldScript.LeafFactory leafFactory) {
             this.name = name;
             this.leafFactory = leafFactory;
         }
@@ -39,9 +39,9 @@ public final class ScriptLongFieldData extends IndexNumericFieldData {
     }
 
     private final String fieldName;
-    private final LongScriptFieldScript.LeafFactory leafFactory;
+    private final LongFieldScript.LeafFactory leafFactory;
 
-    private ScriptLongFieldData(String fieldName, LongScriptFieldScript.LeafFactory leafFactory) {
+    private ScriptLongFieldData(String fieldName, LongFieldScript.LeafFactory leafFactory) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
     }

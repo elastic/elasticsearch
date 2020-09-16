@@ -81,6 +81,7 @@ public class AucRoc extends AbstractAucRoc {
 
     private final boolean includeCurve;
     private final String className;
+    private final SetOnce<EvaluationFields> fields = new SetOnce<>();
     private final SetOnce<EvaluationMetricResult> result = new SetOnce<>();
 
     public AucRoc(Boolean includeCurve, String className) {
@@ -144,6 +145,9 @@ public class AucRoc extends AbstractAucRoc {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
+        // Store given {@code fields} for the purpose of generating error messages in {@code process}.
+        this.fields.trySet(fields);
+
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         AggregationBuilder percentilesAgg =
             AggregationBuilders
@@ -177,33 +181,44 @@ public class AucRoc extends AbstractAucRoc {
             return;
         }
         Filter classAgg = aggs.get(TRUE_AGG_NAME);
+        Nested classNested = classAgg.getAggregations().get(NESTED_AGG_NAME);
+        Filter classNestedFilter = classNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
+        if (classAgg.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one [{}] to have the value [{}]",
+                getName(), fields.get().getActualField(), className);
+        }
+        if (classNestedFilter.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one [{}] to have the value [{}]",
+                getName(), fields.get().getPredictedClassNameField(), className);
+        }
+        Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        double[] tpPercentiles = percentilesArray(classPercentiles);
+
         Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
-
-        Percentiles classPercentiles;
-        {
-            Nested nested = classAgg.getAggregations().get(NESTED_AGG_NAME);
-            Filter nestedFilter = nested.getAggregations().get(NESTED_FILTER_AGG_NAME);
-            classPercentiles = nestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        Nested restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
+        Filter restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
+        if (restAgg.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one [{}] to have a different value than [{}]",
+                getName(), fields.get().getActualField(), className);
         }
-        Percentiles restPercentiles;
-        {
-            Nested nested = restAgg.getAggregations().get(NESTED_AGG_NAME);
-            Filter nestedFilter = nested.getAggregations().get(NESTED_FILTER_AGG_NAME);
-            restPercentiles = nestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        if (restNestedFilter.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one [{}] to have a different value than [{}]",
+                getName(), fields.get().getPredictedClassNameField(), className);
         }
+        Percentiles restPercentiles = restNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        double[] fpPercentiles = percentilesArray(restPercentiles);
 
-        double[] tpPercentiles =
-            percentilesArray(
-                classPercentiles,
-                "[" + getName() + "] requires at least one actual_field to have the value [" + className + "]");
-        double[] fpPercentiles =
-            percentilesArray(
-                restPercentiles,
-                "[" + getName() + "] requires at least one actual_field to have a different value than [" + className + "]");
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
-
         double aucRocScore = calculateAucScore(aucRocCurve);
-        result.set(new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList()));
+        result.set(
+            new Result(
+                aucRocScore,
+                classNestedFilter.getDocCount() + restNestedFilter.getDocCount(),
+                includeCurve ? aucRocCurve : Collections.emptyList()));
     }
 
     @Override

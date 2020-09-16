@@ -180,12 +180,14 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_AucRoc_DoNotIncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_PROB_FIELD, false);
         assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
+        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
         assertThat(aucrocResult.getCurve(), hasSize(0));
     }
 
     public void testEvaluate_AucRoc_IncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_PROB_FIELD, true);
         assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
+        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
         assertThat(aucrocResult.getCurve(), hasSize(greaterThan(0)));
     }
 

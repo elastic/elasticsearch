@@ -731,7 +731,7 @@ setup:
 ---
 "Test classification auc_roc given actual_field is never equal to fish":
   - do:
-      catch: /\[auc_roc\] requires at least one actual_field to have the value \[fish\]/
+      catch: /\[auc_roc\] requires at least one \[classification_field_act.keyword\] to have the value \[fish\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -745,6 +745,28 @@ setup:
                 "metrics": {
                   "auc_roc": {
                     "class_name": "fish"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc given predicted_class_name_field is never equal to mouse":
+  - do:
+      catch: /\[auc_roc\] requires at least one \[ml.top_classes.class_name\] to have the value \[mouse\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "results_nested_field": "ml.top_classes",
+                "predicted_class_name_field": "ml.top_classes.class_name",
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "mouse"
                   }
                 }
               }

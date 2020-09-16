@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -154,19 +155,25 @@ public class AucRoc extends AbstractAucRoc {
             return;
         }
         Filter classAgg = aggs.get(TRUE_AGG_NAME);
+        if (classAgg.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one actual_field to have the value [{}]", getName(), "true");
+        }
+        double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES_AGG_NAME));
         Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
-        double[] tpPercentiles =
-            percentilesArray(
-                classAgg.getAggregations().get(PERCENTILES_AGG_NAME),
-                "[" + getName() + "] requires at least one actual_field to have the value [true]");
-        double[] fpPercentiles =
-            percentilesArray(
-                restAgg.getAggregations().get(PERCENTILES_AGG_NAME),
-                "[" + getName() + "] requires at least one actual_field to have a different value than [true]");
-        List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
+        if (restAgg.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one actual_field to have a different value than [{}]", getName(), "true");
+        }
+        double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES_AGG_NAME));
 
+        List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
-        result.set(new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList()));
+        result.set(
+            new Result(
+                aucRocScore,
+                classAgg.getDocCount() + restAgg.getDocCount(),
+                includeCurve ? aucRocCurve : Collections.emptyList()));
     }
 
     @Override

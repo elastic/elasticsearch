@@ -856,7 +856,7 @@ setup:
       ml.get_trained_models:
         model_id: "a-regression-model-1"
         for_export: true
-        include_model_definition: true
+        include: "definition"
         decompress_definition: false
 
   - match: { trained_model_configs.0.description: "empty model for tests" }

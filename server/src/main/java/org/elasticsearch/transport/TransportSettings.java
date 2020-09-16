@@ -134,7 +134,7 @@ public final class TransportSettings {
 
     // Time that processing an inbound message on a transport thread may take at the most before a warning is logged
     public static final Setting<TimeValue> SLOW_OPERATION_THRESHOLD_SETTING =
-            Setting.positiveTimeSetting("transport.slow_operation_logging_threshold", TimeValue.timeValueMillis(300),
+            Setting.positiveTimeSetting("transport.slow_operation_logging_threshold", TimeValue.timeValueSeconds(5),
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
 

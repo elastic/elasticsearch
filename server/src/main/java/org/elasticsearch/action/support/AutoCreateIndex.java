@@ -65,7 +65,7 @@ public final class AutoCreateIndex {
 
         // Templates can override the AUTO_CREATE_INDEX_SETTING setting
         final ComposableIndexTemplate template = findTemplate(index, state.metadata());
-        if (template != null && template.getAllowAutoCreate()) {
+        if (template != null && template.getAllowAutoCreate() != null && template.getAllowAutoCreate()) {
             return true;
         }
 

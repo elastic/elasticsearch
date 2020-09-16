@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DateFieldScriptTests extends ScriptFieldTestCase<DateFieldScript.Factory> {
+public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
     public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
         fieldName,
         params,

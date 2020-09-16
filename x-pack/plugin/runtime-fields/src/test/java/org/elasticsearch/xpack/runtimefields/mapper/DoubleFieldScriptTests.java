@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DoubleFieldScriptTests extends ScriptFieldTestCase<DoubleFieldScript.Factory> {
+public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScript.Factory> {
     public static final DoubleFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleFieldScript(
         fieldName,
         params,

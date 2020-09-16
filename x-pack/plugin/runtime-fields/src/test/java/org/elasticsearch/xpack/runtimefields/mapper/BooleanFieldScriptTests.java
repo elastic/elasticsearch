@@ -21,7 +21,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
-public class BooleanFieldScriptTests extends ScriptFieldTestCase<BooleanFieldScript.Factory> {
+public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScript.Factory> {
     public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
         fieldName,
         params,

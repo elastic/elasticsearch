@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-public abstract class ScriptFieldTestCase<T> extends ESTestCase {
+public abstract class FieldScriptTestCase<T> extends ESTestCase {
     protected abstract ScriptContext<T> context();
 
     protected abstract T dummyScript();

@@ -113,7 +113,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
     public void testFetchValue() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
         FieldMapper fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        ValueFetcher fetcher = fieldMapper.valueFetcher(mapperService, null);
+        ValueFetcher fetcher = fieldMapper.valueFetcher(mapperService, null, null);
 
         SourceLookup missingValueLookup = new SourceLookup();
         SourceLookup nullValueLookup = new SourceLookup();
@@ -124,7 +124,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<Consta
 
         merge(mapperService, fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        fetcher = fieldMapper.valueFetcher(mapperService, null);
+        fetcher = fieldMapper.valueFetcher(mapperService, null, null);
 
         assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
         assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));

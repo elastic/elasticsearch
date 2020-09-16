@@ -10,6 +10,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
@@ -51,7 +53,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
 
     protected RuntimeFieldMapper(
         String simpleName,
-        AbstractScriptMappedFieldType mappedFieldType,
+        AbstractScriptMappedFieldType<?> mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
         String runtimeType,
@@ -75,8 +77,8 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
-        throw new UnsupportedOperationException();
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        return new DocValueFetcher(fieldType().docValueFormat(format, null), lookup.doc().getForField(fieldType()));
     }
 
     @Override
@@ -86,7 +88,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
             BooleanFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
@@ -211,7 +213,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<String> format = Parameter.stringParam(
             "format",
             true,
-            mapper -> ((AbstractScriptMappedFieldType) mapper.fieldType()).format(),
+            mapper -> ((AbstractScriptMappedFieldType<?>) mapper.fieldType()).format(),
             null
         ).setSerializer((b, n, v) -> {
             if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
@@ -223,7 +225,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            mapper -> ((AbstractScriptMappedFieldType) mapper.fieldType()).formatLocale()
+            mapper -> ((AbstractScriptMappedFieldType<?>) mapper.fieldType()).formatLocale()
         ).setSerializer((b, n, v) -> {
             if (v != null && false == v.equals(Locale.ROOT)) {
                 b.field(n, v.toString());
@@ -244,7 +246,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public RuntimeFieldMapper build(BuilderContext context) {
-            BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+            BiFunction<Builder, BuilderContext, AbstractScriptMappedFieldType<?>> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
             if (fieldTypeResolver == null) {

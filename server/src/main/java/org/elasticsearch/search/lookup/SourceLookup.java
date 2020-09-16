@@ -55,6 +55,10 @@ public class SourceLookup implements Map<String, Object> {
         return sourceContentType;
     }
 
+    public int docId() {
+        return docId;
+    }
+
     // Scripting requires this method to be public. Using source()
     // is not possible because certain checks use source == null as
     // as a determination if source is enabled/disabled, but it should

@@ -136,6 +136,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         return clusterState;
                     } else {
                         String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                        indexNameRef.set(indexName);
 
                         // This will throw an exception if the index does not exist and creating it is prohibited
                         final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
@@ -145,7 +146,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             return currentState;
                         }
 
-                        indexNameRef.set(indexName);
                         CreateIndexClusterStateUpdateRequest updateRequest =
                             new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
                                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());

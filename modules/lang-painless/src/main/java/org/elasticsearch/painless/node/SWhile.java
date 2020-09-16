@@ -19,125 +19,45 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a while loop.
  */
-public final class SWhile extends AStatement {
+public class SWhile extends AStatement {
 
-    private AExpression condition;
-    private final SBlock block;
+    private final AExpression conditionNode;
+    private final SBlock blockNode;
 
-    private boolean continuous = false;
+    public SWhile(int identifier, Location location, AExpression conditionNode, SBlock blockNode) {
+        super(identifier, location);
 
-    public SWhile(Location location, AExpression condition, SBlock block) {
-        super(location);
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.blockNode = blockNode;
+    }
 
-        this.condition = Objects.requireNonNull(condition);
-        this.block = block;
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        if (block != null) {
-            block.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitWhile(this, scope);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        locals = Locals.newLocalScope(locals);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
 
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
-
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
-
-            if (!continuous) {
-                throw createError(new IllegalArgumentException("Extraneous while loop."));
-            }
-
-            if (block == null) {
-                throw createError(new IllegalArgumentException("While loop has no escape."));
-            }
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
-
-            block.analyze(scriptRoot, locals);
-
-            if (block.loopEscape && !block.anyContinue) {
-                throw createError(new IllegalArgumentException("Extraneous while loop."));
-            }
-
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
-            }
-
-            block.statementCount = Math.max(1, block.statementCount);
-        }
-
-        statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        if (!continuous) {
-            condition.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (block != null) {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-            }
-
-            block.continu = begin;
-            block.brake = end;
-            block.write(classWriter, methodWriter, globals);
-        } else {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
-            }
-        }
-
-        if (block == null || !block.allEscape) {
-            methodWriter.goTo(begin);
-        }
-
-        methodWriter.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, block);
     }
 }

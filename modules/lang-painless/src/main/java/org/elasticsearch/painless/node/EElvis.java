@@ -19,16 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import static java.util.Objects.requireNonNull;
 
@@ -37,78 +29,33 @@ import static java.util.Objects.requireNonNull;
  * non null. If the first expression is null then it evaluates the second expression and returns it.
  */
 public class EElvis extends AExpression {
-    private AExpression lhs;
-    private AExpression rhs;
 
-    public EElvis(Location location, AExpression lhs, AExpression rhs) {
-        super(location);
+    private final AExpression leftNode;
+    private final AExpression rightNode;
 
-        this.lhs = requireNonNull(lhs);
-        this.rhs = requireNonNull(rhs);
+    public EElvis(int identifier, Location location, AExpression leftNode, AExpression rightNode) {
+        super(identifier, location);
+
+        this.leftNode = requireNonNull(leftNode);
+        this.rightNode = requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        lhs.extractVariables(variables);
-        rhs.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitElvis(this, scope);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (expected != null && expected.isPrimitive()) {
-            throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
-        }
-        lhs.expected = expected;
-        lhs.explicit = explicit;
-        lhs.internal = internal;
-        rhs.expected = expected;
-        rhs.explicit = explicit;
-        rhs.internal = internal;
-        actual = expected;
-        lhs.analyze(scriptRoot, locals);
-        rhs.analyze(scriptRoot, locals);
-
-        if (lhs.isNull) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
-        }
-        if (lhs.constant != null) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
-        }
-        if (lhs.actual.isPrimitive()) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
-        }
-        if (rhs.isNull) {
-            throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
-        }
-
-        if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
-
-            lhs.expected = promote;
-            rhs.expected = promote;
-            actual = promote;
-        }
-
-        lhs = lhs.cast(scriptRoot, locals);
-        rhs = rhs.cast(scriptRoot, locals);
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Label end = new Label();
-
-        lhs.write(classWriter, methodWriter, globals);
-        methodWriter.dup();
-        methodWriter.ifNonNull(end);
-        methodWriter.pop();
-        rhs.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(lhs, rhs);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        leftNode.visit(userTreeVisitor, scope);
+        rightNode.visit(userTreeVisitor, scope);
     }
 }

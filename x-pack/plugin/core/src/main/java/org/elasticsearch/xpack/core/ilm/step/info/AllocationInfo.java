@@ -52,8 +52,8 @@ public class AllocationInfo implements ToXContentObject {
      * Builds the AllocationInfo representing a cluster state with a routing table that does not have enough shards active for a
      * particular index.
      */
-    public static AllocationInfo waitingForActiveShardsAllocationInfo(long actualReplicas) {
-        return new AllocationInfo(actualReplicas, -1, false,
+    public static AllocationInfo waitingForActiveShardsAllocationInfo(long numReplicas) {
+        return new AllocationInfo(numReplicas, -1, false,
             "Waiting for all shard copies to be active");
     }
 
@@ -61,8 +61,8 @@ public class AllocationInfo implements ToXContentObject {
      * Builds the AllocationInfo representing a cluster state with a routing table that has all the shards active for a particular index
      * but there are still {@link #numberShardsLeftToAllocate} left to be allocated.
      */
-    public static AllocationInfo allShardsActiveAllocationInfo(long actualReplicas, long numberShardsLeftToAllocate) {
-        return new AllocationInfo(actualReplicas, numberShardsLeftToAllocate, true, "Waiting for [" + numberShardsLeftToAllocate +
+    public static AllocationInfo allShardsActiveAllocationInfo(long numReplicas, long numberShardsLeftToAllocate) {
+        return new AllocationInfo(numReplicas, numberShardsLeftToAllocate, true, "Waiting for [" + numberShardsLeftToAllocate +
             "] shards to be allocated to nodes matching the given filters");
     }
 

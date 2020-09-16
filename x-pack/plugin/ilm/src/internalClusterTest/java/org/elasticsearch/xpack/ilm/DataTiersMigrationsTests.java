@@ -84,10 +84,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         return onlyRole(settings, DataTier.DATA_COLD_NODE_ROLE);
     }
 
-    public static Settings frozenNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_FROZEN_NODE_ROLE);
-    }
-
     public void testIndexDataTierMigration() throws Exception {
         internalCluster().startMasterOnlyNodes(1, Settings.EMPTY);
         logger.info("starting hot data node");
@@ -96,9 +92,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
-        Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Collections.emptyMap());
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase,
-            "frozen", frozenPhase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);

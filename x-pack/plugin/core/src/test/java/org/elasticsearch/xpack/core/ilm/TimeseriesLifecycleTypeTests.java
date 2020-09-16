@@ -202,8 +202,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         Exception validationException = expectThrows(IllegalArgumentException.class,
             () -> TimeseriesLifecycleType.INSTANCE.validate(phases));
-        assertThat(validationException.getMessage(), equalTo("phases [warm,cold] specify an enabled migrate action and the allocate" +
-            " action. specify only one data migration action in these phases"));
+        assertThat(validationException.getMessage(), equalTo("phases [warm,cold] specify an enabled migrate action and an allocate " +
+            "action with allocation rules. specify only a single data migration in each phase"));
 
         // disabling the migrate action makes the phases definition valid as only the allocate action will perform data migration
         actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));

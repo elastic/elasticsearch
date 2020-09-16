@@ -71,20 +71,20 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
+        String destinationTier = INDEX_ROUTING_INCLUDE_SETTING.get(idxMeta.getSettings());
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                    getKey().getAction(), index.getName());
+            logger.debug("[{}] migration of index [{}] to the [{}] tier cannot progress, as not all shards are active",
+                    getKey().getAction(), index.getName(), destinationTier);
             return new Result(false, AllocationInfo.waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
         }
 
         int allocationPendingAllShards = getPendingAllocations(index, ALLOCATION_DECIDERS, clusterState);
 
         if (allocationPendingAllShards > 0) {
-            String tier = INDEX_ROUTING_INCLUDE_SETTING.get(idxMeta.getSettings());
             boolean targetTierNodeFound = false;
             for (DiscoveryNode node : clusterState.nodes()) {
                 for (DiscoveryNodeRole role : node.getRoles()) {
-                    if (role.roleName().equals(DATA_ROLE.roleName()) || role.roleName().equals(tier)) {
+                    if (role.roleName().equals(DATA_ROLE.roleName()) || role.roleName().equals(destinationTier)) {
                         targetTierNodeFound = true;
                         break;
                     }
@@ -92,11 +92,11 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             }
             String statusMessage = String.format(Locale.ROOT, "%s lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] " +
                     "tier" + (targetTierNodeFound ? "" : " but there are currently no [%s] nodes in the cluster"),
-                index, getKey().getAction(), allocationPendingAllShards, tier, tier);
+                index, getKey().getAction(), allocationPendingAllShards, destinationTier, destinationTier);
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));
         } else {
-            logger.debug("{} lifecycle action for [{}] complete", index, getKey().getAction());
+            logger.debug("[{}] migration of index [{}] to tier [{}] complete", getKey().getAction(), index, destinationTier);
             return new Result(true, null);
         }
     }

@@ -262,8 +262,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
             .collect(Collectors.joining(","));
         if (Strings.hasText(phasesWithConflictingMigrationActions)) {
             throw new IllegalArgumentException("phases [" + phasesWithConflictingMigrationActions + "] specify an enabled " +
-                MigrateAction.NAME + " action and the " + AllocateAction.NAME + " action. specify only one data migration action in these" +
-                " phases");
+                MigrateAction.NAME + " action and an " + AllocateAction.NAME + " action with allocation rules. specify only a single " +
+                "data migration in each phase");
         }
     }
 

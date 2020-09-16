@@ -36,6 +36,10 @@ public class CompositeAggCursor extends ResultCursor<BucketExtractor> {
         super(next, exts, mask, remainingLimit, includeFrozen, indices);
     }
 
+    CompositeAggCursor(List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen, String... indices) {
+        super(exts, mask, remainingLimit, includeFrozen, indices);
+    }
+
     public CompositeAggCursor(StreamInput in) throws IOException {
         super(in);
     }
@@ -61,10 +65,15 @@ public class CompositeAggCursor extends ResultCursor<BucketExtractor> {
     }
 
     @Override
-    protected boolean shouldRetryUpdatedRequest(SearchResponse response) {
+    protected boolean shouldRetryUpdatedRequest(SearchResponse response, SearchSourceBuilder search) {
         CompositeAggregation composite = getComposite(response);
         // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
-        return composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty();
+        if (composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty()) {
+            updateSourceAfterKey(composite.afterKey(), search);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     static CompositeAggregation getComposite(SearchResponse response) {
@@ -81,15 +90,11 @@ public class CompositeAggCursor extends ResultCursor<BucketExtractor> {
     }
 
     @Override
-    protected void updateSourceAfterKey(SearchResponse r, SearchSourceBuilder search) {
-        CompositeAggregation composite = getComposite(r);
-
-        if (composite == null) {
-            throw new SqlIllegalArgumentException("Invalid server response; no group-by detected");
-        }
-
-        if (composite.afterKey() != null) {
-            updateSourceAfterKey(composite.afterKey(), search);
+    protected void updateSourceAfterKey(ResultRowSet<BucketExtractor> rowSet, SearchSourceBuilder source) {
+        assert rowSet instanceof CompositeAggRowSet;
+        Map<String, Object> afterKey = ((CompositeAggRowSet) rowSet).afterKey();
+        if (afterKey != null) {
+            updateSourceAfterKey(afterKey, source);
         }
     }
 

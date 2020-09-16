@@ -49,7 +49,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
             CompositeAggregation.Bucket bucket = buckets.get(bucketIndex);
             Map<String, Object> key = bucket.getKey();
 
-            // does the bucket below to the same group?
+            // does the bucket belong to the same group?
             if (currentRowGroupKey == null || sameCompositeKey(currentRowGroupKey, key)) {
                 currentRowGroupKey = key;
             }
@@ -79,7 +79,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
                 }
             }
         }
-        
+
         // check the last group using the following:
         // a. limit has been reached, the rest of the data is ignored.
         if (limit > 0 && data.size() == limit) {

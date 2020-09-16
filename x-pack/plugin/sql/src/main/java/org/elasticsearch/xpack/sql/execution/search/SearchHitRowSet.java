@@ -211,4 +211,12 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     public int size() {
         return size;
     }
+
+    public Object[] lastSortValues() {
+        if (hits.length > 0) {
+            assert hits[hits.length - 1].getSortValues() != null; // we always sort (by _doc, if not other attr)
+            return hits[hits.length - 1].getSortValues();
+        }
+        return null;
+    }
 }

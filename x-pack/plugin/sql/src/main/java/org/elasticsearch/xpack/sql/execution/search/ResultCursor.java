@@ -45,11 +45,15 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
 
     ResultCursor(@Nullable byte[] next, List<E> exts, BitSet mask, int remainingLimit, boolean includeFrozen, String... indices) {
         this.indices = indices;
-        this.nextQuery = next; // will be null on first (i.e. non-paginating) requests
+        this.nextQuery = next;
         this.extractors = exts;
         this.mask = mask;
         this.limit = remainingLimit;
         this.includeFrozen = includeFrozen;
+    }
+
+    ResultCursor(List<E> exts, BitSet mask, int remainingLimit, boolean includeFrozen, String... indices) {
+        this(null, exts, mask, remainingLimit, includeFrozen, indices);
     }
 
     public ResultCursor(StreamInput in) throws IOException {
@@ -125,7 +129,6 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
                 try {
                     doHandle(response, request.source(),
                         makeRowSet(response),
-                        makeCursor(),
                         () -> client.search(request, this),
                         listener::onResponse,
                         p -> Querier.closePointInTime(client, response.pointInTimeId(),
@@ -148,19 +151,20 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
     protected abstract BiFunction<byte[], ResultRowSet<E>, ResultCursor<E>> makeCursor();
 
     static <E extends NamedWriteable, RS extends ResultRowSet<E>, RC extends ResultCursor<E>> void handle(
-            SearchResponse response, SearchSourceBuilder source,
-            Supplier<RS> makeRowSet, BiFunction<byte[], RS, RC> makeCursor,
+            SearchResponse response,
+            SearchSourceBuilder source,
+            Supplier<RS> makeRowSet,
+            Supplier<RC> makeCursor,
             Runnable retry,
             Consumer<Page> onPage,
             Consumer<Page> onEnd,
             Schema schema) throws Exception {
-        RS rowSet = makeRowSet.get();
-        makeCursor.apply(null, rowSet).doHandle(response, source, makeRowSet, makeCursor, retry, onPage, onEnd, schema);
+        makeCursor.get().doHandle(response, source, makeRowSet, retry, onPage, onEnd, schema);
     }
 
-    <RS extends ResultRowSet<E>, RC extends ResultCursor<E>> void doHandle(SearchResponse response, SearchSourceBuilder source,
+    <RS extends ResultRowSet<E>> void doHandle(
+            SearchResponse response, SearchSourceBuilder source,
             Supplier<RS> makeRowSet,
-            BiFunction<byte[], RS, RC> makeCursor,
             @Nullable
             Runnable retry,
             Consumer<Page> onPage,
@@ -170,8 +174,7 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
         // there are some results
         if (hasResults(response)) {
             // retry
-            if (shouldRetryUpdatedRequest(response)) {
-                updateSourceAfterKey(response, source);
+            if (shouldRetryUpdatedRequest(response, source)) {
                 retry.run();
                 return;
             }
@@ -182,14 +185,13 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
                 onEnd.accept(new Page(rowSet, Cursor.EMPTY));
             } else {
                 assert source.pointInTimeBuilder() != null;
-                // update the PIT ID from answer, but reuse PIT timeout from previous request (since a t/o is mandatory)
-                source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(response.pointInTimeId(),
-                    source.pointInTimeBuilder().getKeepAlive()));
+                // update the PIT ID from answer, but don't extend the PIT timeout
+                source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(response.pointInTimeId(), null));
 
-                updateSourceAfterKey(response, source);
+                updateSourceAfterKey(rowSet, source);
 
                 byte[] queryAsBytes = Cursors.serializeQuery(source);
-                Cursor next = makeCursor.apply(queryAsBytes, rowSet);
+                Cursor next = makeCursor().apply(queryAsBytes, rowSet);
 
                 onPage.accept(new Page(rowSet, next));
             }
@@ -200,13 +202,13 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
         }
     }
 
-    protected abstract  boolean hasResults(SearchResponse response);
+    protected abstract boolean hasResults(SearchResponse response);
 
-    protected boolean shouldRetryUpdatedRequest(SearchResponse response) {
+    protected boolean shouldRetryUpdatedRequest(SearchResponse response, SearchSourceBuilder source) {
         return false;
     }
 
-    protected abstract void updateSourceAfterKey(SearchResponse r, SearchSourceBuilder source);
+    protected abstract void updateSourceAfterKey(ResultRowSet<E> rowSet, SearchSourceBuilder source);
 
     @Override
     public void clear(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {

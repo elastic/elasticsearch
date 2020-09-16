@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
@@ -27,6 +26,11 @@ public class SearchHitCursor extends ResultCursor<HitExtractor> {
     public SearchHitCursor(byte[] next, List<HitExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
                            String... indices) {
         super(next, exts, mask, remainingLimit, includeFrozen, indices);
+    }
+
+    public SearchHitCursor(List<HitExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
+                           String... indices) {
+        super(exts, mask, remainingLimit, includeFrozen, indices);
     }
 
     public SearchHitCursor(StreamInput in) throws IOException {
@@ -49,11 +53,11 @@ public class SearchHitCursor extends ResultCursor<HitExtractor> {
     }
 
     @Override
-    protected void updateSourceAfterKey(SearchResponse r, SearchSourceBuilder source) {
-        SearchHit[] hits = r.getHits().getHits();
-        if (hits.length > 0) {
-            assert hits[hits.length - 1].getSortValues() != null; // we should always sort (by _doc, if not other attr)
-            source.searchAfter(hits[hits.length - 1].getSortValues());
+    protected void updateSourceAfterKey(ResultRowSet<HitExtractor> rowSet, SearchSourceBuilder source) {
+        assert rowSet instanceof SearchHitRowSet;
+        Object[] sortValues = ((SearchHitRowSet) rowSet).lastSortValues();
+        if (sortValues != null) {
+            source.searchAfter(sortValues);
         }
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
@@ -26,11 +27,16 @@ public class PivotCursor extends CompositeAggCursor {
 
     private final Map<String, Object> previousKey;
 
-    PivotCursor(Map<String, Object> previousKey, byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit,
-            boolean includeFrozen,
-            String... indices) {
+    PivotCursor(@Nullable Map<String, Object> previousKey, @Nullable byte[] next, List<BucketExtractor> exts, BitSet mask,
+                int remainingLimit, boolean includeFrozen, String... indices) {
         super(next, exts, mask, remainingLimit, includeFrozen, indices);
         this.previousKey = previousKey;
+    }
+
+    PivotCursor(List<BucketExtractor> exts, BitSet mask, int remainingLimit,
+            boolean includeFrozen,
+            String... indices) {
+        this(null, null, exts, mask, remainingLimit, includeFrozen, indices);
     }
 
     public PivotCursor(StreamInput in) throws IOException {
@@ -62,7 +68,8 @@ public class PivotCursor extends CompositeAggCursor {
     @Override
     protected BiFunction<byte[], ResultRowSet<BucketExtractor>, ResultCursor<BucketExtractor>> makeCursor() {
         return (q, r) -> {
-            Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
+            assert r instanceof PivotRowSet;
+            Map<String, Object> lastAfterKey = ((PivotRowSet) r).lastAfterKey();
             return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingLimit(), includeFrozen(), indices());
         };
     }

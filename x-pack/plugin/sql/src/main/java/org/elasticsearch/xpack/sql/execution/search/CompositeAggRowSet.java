@@ -92,4 +92,8 @@ class CompositeAggRowSet extends ResultRowSet<BucketExtractor> {
     protected int remainingLimit() {
         return remainingData;
     }
+
+    protected Map<String, Object> afterKey() {
+        return afterKey;
+    }
 }

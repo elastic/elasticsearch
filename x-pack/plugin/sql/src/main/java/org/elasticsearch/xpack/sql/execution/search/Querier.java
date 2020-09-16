@@ -80,11 +80,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -402,20 +400,16 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) throws Exception {
 
-            Supplier<CompositeAggRowSet> makeRowSet = isPivot
-                ? () -> new PivotRowSet(schema, initBucketExtractors(response), mask, response,
-                    query.sortingColumns().isEmpty() ? query.limit() : -1, null)
-                : () -> new SchemaCompositeAggRowSet(schema, initBucketExtractors(response), mask, response,
-                    query.sortingColumns().isEmpty() ? query.limit() : -1);
+            int limit = query.sortingColumns().isEmpty() ? query.limit() : -1;
+            List<BucketExtractor> exts = initBucketExtractors(response);
 
-            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot
-                ? (q, r) -> {
-                        Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
-                        return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingLimit(),
-                            query.shouldIncludeFrozen(), request.indices());
-                    }
-                : (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
-                    request.indices());
+            Supplier<CompositeAggRowSet> makeRowSet = isPivot
+                ? () -> new PivotRowSet(schema, exts, mask, response, limit, null)
+                : () -> new SchemaCompositeAggRowSet(schema, exts, mask, response, limit);
+
+            Supplier<CompositeAggCursor> makeCursor = isPivot
+                ? () -> new PivotCursor(exts, mask, limit, query.shouldIncludeFrozen(), request.indices())
+                : () -> new CompositeAggCursor(exts, mask, limit, query.shouldIncludeFrozen(), request.indices());
 
             CompositeAggCursor.handle(response, request.source(),
                 makeRowSet, makeCursor,
@@ -523,8 +517,7 @@ public class Querier {
 
             SearchHitCursor.handle(response, request.source(),
                 () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
-                (q, r) -> new SearchHitCursor(q, r.extractors(), r.mask(), r.remainingLimit(), query.shouldIncludeFrozen(),
-                    request.indices()),
+                () -> new SearchHitCursor(exts, mask, query.limit(), query.shouldIncludeFrozen(), request.indices()),
                 null,
                 listener::onResponse,
                 p -> closePointInTime(client, response.pointInTimeId(), wrap(success -> listener.onResponse(p), listener::onFailure)),

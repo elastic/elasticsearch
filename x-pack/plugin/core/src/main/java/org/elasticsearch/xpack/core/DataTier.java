@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * The {@code DataTier} class encapsulates the formalization of the "content",
- * "hot", "warm", "cold", and "frozen" tiers as node roles. In contains the
+ * "hot", "warm", and "cold" tiers as node roles. In contains the
  * roles themselves as well as helpers for validation and determining if a node
  * has a tier configured.
  *
@@ -33,7 +33,6 @@ public class DataTier {
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
-    public static final String DATA_FROZEN = "data_frozen";
 
     /**
      * Returns true if the given tier name is a valid tier
@@ -42,8 +41,7 @@ public class DataTier {
         return DATA_CONTENT.equals(tierName) ||
             DATA_HOT.equals(tierName) ||
             DATA_WARM.equals(tierName) ||
-            DATA_COLD.equals(tierName) ||
-            DATA_FROZEN.equals(tierName);
+            DATA_COLD.equals(tierName);
     }
 
     /**
@@ -131,23 +129,6 @@ public class DataTier {
         }
     };
 
-    public static DiscoveryNodeRole DATA_FROZEN_NODE_ROLE = new DiscoveryNodeRole("data_frozen", "f") {
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return false;
-        }
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            return null;
-        }
-
-        @Override
-        public boolean canContainData() {
-            return true;
-        }
-    };
-
     public static boolean isContentNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(DATA_CONTENT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
@@ -162,10 +143,6 @@ public class DataTier {
 
     public static boolean isColdNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(DATA_COLD_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
-    }
-
-    public static boolean isFrozenNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DATA_FROZEN_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     /**

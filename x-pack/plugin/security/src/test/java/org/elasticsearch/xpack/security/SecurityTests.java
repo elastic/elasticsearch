@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,11 +30,14 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -48,6 +53,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -60,6 +66,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -72,6 +79,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -94,14 +103,7 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
-        if (security != null) {
-            throw new IllegalStateException("Security object already exists (" + security + ")");
-        }
-        Settings settings = Settings.builder()
-            .put("xpack.security.enabled", true)
-            .put(testSettings)
-            .put("path.home", createTempDir()).build();
+    private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
@@ -131,6 +133,28 @@ public class SecurityTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
             xContentRegistry(), env, new IndexNameExpressionResolver());
+    }
+
+    private Collection<Object> createComponentsWithSecurityNotExplicitlyEnabled(Settings testSettings, SecurityExtension... extensions)
+        throws Exception {
+        if (security != null) {
+            throw new IllegalStateException("Security object already exists (" + security + ")");
+        }
+        Settings settings = Settings.builder()
+            .put(testSettings)
+            .put("path.home", createTempDir()).build();
+        return createComponentsUtil(settings, extensions);
+    }
+
+    private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
+        if (security != null) {
+            throw new IllegalStateException("Security object already exists (" + security + ")");
+        }
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put(testSettings)
+            .put("path.home", createTempDir()).build();
+        return createComponentsUtil(settings, extensions);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -461,5 +485,42 @@ public class SecurityTests extends ESTestCase {
             .build();
         Security.validateForFips(settings);
         // no exception thrown
+    }
+
+    public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
+        Settings settings = Settings.builder().
+            put("xpack.security.authc.api_key.enabled", "true").
+            build();
+        Collection<Object> components = createComponentsWithSecurityNotExplicitlyEnabled(settings);
+        AuthenticationService service = findComponent(AuthenticationService.class, components);
+        assertNotNull(service);
+        RestRequest request = new FakeRestRequest();
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(request, ActionListener.wrap(result -> {
+            assertTrue(completed.compareAndSet(false, true));
+        }, this::logAndFail));
+        assertTrue(completed.compareAndSet(true, false));
+        threadContext.stashContext();
+        licenseState.update(
+            randomFrom(License.OperationMode.GOLD, License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM),
+            true, null);
+        service.authenticate(request, ActionListener.wrap(result -> {
+            assertTrue(completed.compareAndSet(false, true));
+        }, this::VerifyBasicAuthenticationHeader));
+        if(completed.get()){
+            fail("authentication succeeded but it shouldn't");
+        }
+    }
+
+    private void logAndFail(Exception e) {
+        logger.error("unexpected exception", e);
+        fail("unexpected exception " + e.getMessage());
+    }
+
+    private void VerifyBasicAuthenticationHeader(Exception e) {
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"),
+            hasItem("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 }

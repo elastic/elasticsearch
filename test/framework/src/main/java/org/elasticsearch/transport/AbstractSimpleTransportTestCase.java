@@ -2821,7 +2821,56 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat(te.get().getCause(), nullValue());
             }
         }
+    }
 
+    private static final class BuggyResponse extends TransportResponse {
+
+        BuggyResponse() {
+            super();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new RuntimeException("serialization exception");
+        }
+    }
+
+    public void testHandleSerializationFailure() {
+        serviceA.registerRequestHandler("internal:sayHelloException", ThreadPool.Names.GENERIC, StringMessageRequest::new,
+                (request, channel, task) -> {
+                    assertThat("moshe", equalTo(request.message));
+                    channel.sendResponse(new BuggyResponse());
+                });
+
+        TransportFuture<BuggyResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloException",
+                new StringMessageRequest("moshe"), new TransportResponseHandler<>() {
+                    @Override
+                    public BuggyResponse read(StreamInput in) {
+                        throw new AssertionError("Got response instead of exception");
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
+
+                    @Override
+                    public void handleResponse(BuggyResponse response) {
+                        throw new AssertionError("Got response instead of exception");
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertThat("runtime_exception: serialization exception", equalTo(exp.getCause().getMessage()));
+                    }
+                });
+
+        try {
+            res.txGet();
+            fail("exception should be thrown");
+        } catch (Exception e) {
+            assertThat(e.getCause().getMessage(), equalTo("runtime_exception: serialization exception"));
+        }
     }
 
     private void closeConnectionChannel(Transport.Connection connection) {

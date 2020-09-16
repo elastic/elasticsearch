@@ -39,7 +39,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
      * Create an sparse HLL++ algorithm where capacity is the maximum number of hashes this structure can hold
      * per bucket.
      */
-    public HyperLogLogPlusPlusSparse(int precision, BigArrays bigArrays, int capacity, int initialSize) {
+    HyperLogLogPlusPlusSparse(int precision, BigArrays bigArrays, int capacity, int initialSize) {
         super(precision);
         this.lc = new LinearCounting(precision, bigArrays, capacity, initialSize);
     }

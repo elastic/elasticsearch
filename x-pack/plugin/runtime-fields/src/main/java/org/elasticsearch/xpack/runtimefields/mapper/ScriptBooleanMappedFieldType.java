@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBooleanFieldData;
 import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldTermQuery;
@@ -27,12 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType {
-    private final BooleanScriptFieldScript.Factory scriptFactory;
-
-    ScriptBooleanMappedFieldType(String name, Script script, BooleanScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, meta);
-        this.scriptFactory = scriptFactory;
+public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType<BooleanFieldScript.LeafFactory> {
+    ScriptBooleanMappedFieldType(String name, Script script, BooleanFieldScript.Factory scriptFactory, Map<String, String> meta) {
+        super(name, script, scriptFactory::newFactory, meta);
     }
 
     @Override
@@ -71,14 +67,10 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType 
         return new ScriptBooleanFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private BooleanScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(script.getParams(), searchLookup);
-    }
-
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new BooleanScriptFieldExistsQuery(script, leafFactory(context.lookup()), name());
+        return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -149,7 +141,7 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value));
+        return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value));
     }
 
     @Override
@@ -176,11 +168,11 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType 
                 return existsQuery(context);
             }
             checkAllowExpensiveQueries(context);
-            return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), true);
+            return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), true);
         }
         if (falseAllowed) {
             checkAllowExpensiveQueries(context);
-            return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), false);
+            return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
         return new MatchNoDocsQuery("neither true nor false allowed");
     }

@@ -26,7 +26,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
@@ -45,7 +44,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
 
@@ -59,7 +57,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -90,7 +87,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         ScriptDateMappedFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
         DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
         for (int i = 0; i < 100; i++) {
-            long date = randomLongBetween(0, 3000000000000L); // Maxes out in the year 2065
+            long date = randomDate();
             assertThat(indexed.docValueFormat(null, null).format(date), equalTo(scripted.docValueFormat(null, null).format(date)));
             String format = randomDateFormatterPattern();
             assertThat(indexed.docValueFormat(format, null).format(date), equalTo(scripted.docValueFormat(format, null).format(date)));
@@ -223,7 +220,15 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     public void testDistanceFeatureQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.distanceFeatureQuery(randomLong(), randomAlphaOfLength(5), randomFloat(), ctx));
+        checkExpensiveQuery(this::randomDistanceFeatureQuery);
+    }
+
+    public void testDistanceFeatureQueryInLoop() throws IOException {
+        checkLoop(this::randomDistanceFeatureQuery);
+    }
+
+    private Query randomDistanceFeatureQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), randomFloat(), ctx);
     }
 
     @Override
@@ -236,11 +241,6 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
             }
         }
-    }
-
-    @Override
-    public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(ScriptDateMappedFieldType::existsQuery);
     }
 
     @Override
@@ -314,10 +314,15 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testRangeQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(
-            (ft, ctx) -> ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx)
-        );
+    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        long d1 = randomDate();
+        long d2 = randomValueOtherThan(d1, ScriptDateMappedFieldTypeTests::randomDate);
+        if (d1 > d2) {
+            long backup = d2;
+            d2 = d1;
+            d1 = backup;
+        }
+        return ft.rangeQuery(d1, d2, randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -342,8 +347,8 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testTermQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termQuery(0, ctx));
+    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termQuery(randomDate(), ctx);
     }
 
     @Override
@@ -383,13 +388,18 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testTermsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(0), ctx));
+    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termsQuery(randomList(1, 100, ScriptDateMappedFieldTypeTests::randomDate), ctx);
     }
 
     @Override
     protected ScriptDateMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_timestamp");
+    }
+
+    @Override
+    protected MappedFieldType loopFieldType() throws IOException {
+        return build("loop");
     }
 
     private ScriptDateMappedFieldType coolFormattedFieldType() throws IOException {
@@ -421,7 +431,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DateScriptFieldScript.CONTEXT);
+                        return Set.of(DateFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -436,29 +446,47 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                         return factory;
                     }
 
-                    private DateScriptFieldScript.Factory factory(String code) {
+                    private DateFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_timestamp":
-                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
-                                            emitValue(parse.parse(timestamp));
+                                            DateFieldScript.Parse parse = new DateFieldScript.Parse(this);
+                                            emit(parse.parse(timestamp));
                                         }
                                     }
                                 };
                             case "add_days":
-                                return (params, lookup, formatter) -> ctx -> new DateScriptFieldScript(params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
                                             long epoch = (Long) timestamp;
                                             ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                                             dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                                            emitValue(toEpochMilli(dt));
+                                            emit(toEpochMilli(dt));
                                         }
                                     }
+                                };
+                            case "loop":
+                                return (fieldName, params, lookup, formatter) -> {
+                                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                                    lookup.forkAndTrackFieldReferences("test");
+                                    throw new IllegalStateException("shoud have thrown on the line above");
                                 };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");
@@ -469,18 +497,13 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DateScriptFieldScript.Factory factory = scriptService.compile(script, DateScriptFieldScript.CONTEXT);
+            DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);
             return new ScriptDateMappedFieldType("test", script, factory, dateTimeFormatter, emptyMap());
         }
     }
 
-    private void checkExpensiveQuery(BiConsumer<ScriptDateMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptDateMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
+    private static long randomDate() {
+        return Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
     }
 
     private void checkBadDate(ThrowingRunnable queryBuilder) {

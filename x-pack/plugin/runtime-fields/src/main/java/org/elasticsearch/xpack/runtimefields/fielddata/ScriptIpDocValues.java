@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 public final class ScriptIpDocValues extends SortedBinaryDocValues {
-    private final IpScriptFieldScript script;
+    private final IpFieldScript script;
     private int cursor;
 
-    ScriptIpDocValues(IpScriptFieldScript script) {
+    ScriptIpDocValues(IpFieldScript script) {
         this.script = script;
     }
 

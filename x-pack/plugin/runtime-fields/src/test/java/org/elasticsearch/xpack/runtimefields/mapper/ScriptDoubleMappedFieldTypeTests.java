@@ -14,6 +14,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -21,7 +22,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
 
@@ -48,7 +47,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -163,10 +161,6 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     }
 
     @Override
-    public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(ScriptDoubleMappedFieldType::existsQuery);
-    }
-
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -186,10 +180,9 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         }
     }
 
-    public void testRangeQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(
-            (ft, ctx) -> ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx)
-        );
+    @Override
+    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -208,8 +201,8 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     }
 
     @Override
-    public void testTermQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomLong(), ctx));
+    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termQuery(randomLong(), ctx);
     }
 
     @Override
@@ -229,13 +222,18 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     }
 
     @Override
-    public void testTermsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(randomLong()), ctx));
+    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termsQuery(List.of(randomLong()), ctx);
     }
 
     @Override
     protected ScriptDoubleMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
+    }
+
+    @Override
+    protected MappedFieldType loopFieldType() throws IOException {
+        return build("loop", Map.of());
     }
 
     @Override
@@ -259,7 +257,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DoubleScriptFieldScript.CONTEXT);
+                        return Set.of(DoubleFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -274,25 +272,31 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                         return factory;
                     }
 
-                    private DoubleScriptFieldScript.Factory factory(String code) {
+                    private DoubleFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(((Number) foo).doubleValue());
+                                            emit(((Number) foo).doubleValue());
                                         }
                                     }
                                 };
                             case "add_param":
-                                return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emitValue(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
+                                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                                         }
                                     }
+                                };
+                            case "loop":
+                                return (fieldName, params, lookup) -> {
+                                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                                    lookup.forkAndTrackFieldReferences("test");
+                                    throw new IllegalStateException("shoud have thrown on the line above");
                                 };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");
@@ -303,17 +307,8 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DoubleScriptFieldScript.Factory factory = scriptService.compile(script, DoubleScriptFieldScript.CONTEXT);
+            DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
             return new ScriptDoubleMappedFieldType("test", script, factory, emptyMap());
         }
-    }
-
-    private void checkExpensiveQuery(BiConsumer<ScriptDoubleMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptDoubleMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
     }
 }

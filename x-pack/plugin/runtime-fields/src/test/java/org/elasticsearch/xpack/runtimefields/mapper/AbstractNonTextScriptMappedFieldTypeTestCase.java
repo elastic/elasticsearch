@@ -28,7 +28,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
     public void testRegexpQueryIsError() throws IOException {
         assertQueryOnlyOnTextAndKeyword(
             "regexp",
-            () -> simpleMappedFieldType().regexpQuery("cat", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+            () -> simpleMappedFieldType().regexpQuery("cat", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
         );
     }
 
@@ -43,7 +43,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on keyword and text fields - not on [test] which is of type [script] with runtime_type ["
+                    + " queries on keyword and text fields - not on [test] which is of type [runtime] with runtime_type ["
                     + runtimeType()
                     + "]"
             )
@@ -57,7 +57,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on keyword, text and wildcard fields - not on [test] which is of type [script] with runtime_type ["
+                    + " queries on keyword, text and wildcard fields - not on [test] which is of type [runtime] with runtime_type ["
                     + runtimeType()
                     + "]"
             )

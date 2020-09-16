@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 
 import java.util.Objects;
 
@@ -17,7 +17,7 @@ public class DoubleScriptFieldRangeQuery extends AbstractDoubleScriptFieldQuery 
 
     public DoubleScriptFieldRangeQuery(
         Script script,
-        DoubleScriptFieldScript.LeafFactory leafFactory,
+        DoubleFieldScript.LeafFactory leafFactory,
         String fieldName,
         double lowerValue,
         double upperValue

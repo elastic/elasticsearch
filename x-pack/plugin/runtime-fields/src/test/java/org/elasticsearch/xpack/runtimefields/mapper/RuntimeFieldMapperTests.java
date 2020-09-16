@@ -53,6 +53,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class RuntimeFieldMapperTests extends MapperTestCase {
 
@@ -311,7 +312,12 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> config.buildIndexSort(
-                field -> new ScriptKeywordMappedFieldType(field, new Script(""), null, Collections.emptyMap()),
+                field -> new ScriptKeywordMappedFieldType(
+                    field,
+                    new Script(""),
+                    mock(StringScriptFieldScript.Factory.class),
+                    Collections.emptyMap()
+                ),
                 (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
             )
         );

@@ -20,8 +20,8 @@ Many query languages allow you to match only single events. EQL lets you match a
 sequence of events across different event categories and time spans.
 
 * *EQL has a low learning curve.* +
-EQL syntax looks like other query languages. It lets you write and read queries
-intuitively, which makes for quick, iterative searching.
+<<eql-syntax,EQL syntax>> looks like other query languages. It lets you write
+and read queries intuitively, which makes for quick, iterative searching.
 
 * *We designed EQL for security use cases.* +
 While you can use EQL for any event-based data, we created EQL for threat
@@ -49,7 +49,8 @@ request. See <<specify-a-timestamp-or-event-category-field>>.
 [[run-an-eql-search]]
 == Run an EQL search
 
-You can use the <<eql-search-api,EQL search API>> to run an EQL search.
+You can use the <<eql-search-api,EQL search API>> to run an EQL search. For
+supported query syntax, see <<eql-syntax>>.
 
 The following request searches `my-index-000001` for events with an
 `event.category` of `process` and a `process.name` of `regsvr32.exe`. Each

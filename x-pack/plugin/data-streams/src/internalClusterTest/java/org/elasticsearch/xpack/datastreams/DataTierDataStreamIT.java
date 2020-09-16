@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,7 +57,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .addIndices(index)
             .get()
             .getSettings()
-            .get(".ds-" + index + "-000001");
+            .get(DataStream.getDefaultBackingIndexName(index, 1));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
@@ -64,7 +65,8 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
 
         // Roll over index and ensure the second index also went to the "hot" tier
         client().admin().indices().prepareRolloverIndex(index).get();
-        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(".ds-" + index + "-000002");
+        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings()
+            .get(DataStream.getDefaultBackingIndexName(index, 2));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));

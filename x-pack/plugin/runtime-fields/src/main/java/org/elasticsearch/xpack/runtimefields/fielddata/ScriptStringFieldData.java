@@ -15,14 +15,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 public class ScriptStringFieldData extends ScriptBinaryFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final StringScriptFieldScript.LeafFactory leafFactory;
+        private final StringFieldScript.LeafFactory leafFactory;
 
-        public Builder(String name, StringScriptFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, StringFieldScript.LeafFactory leafFactory) {
             this.name = name;
             this.leafFactory = leafFactory;
         }
@@ -33,16 +33,16 @@ public class ScriptStringFieldData extends ScriptBinaryFieldData {
         }
     }
 
-    private final StringScriptFieldScript.LeafFactory leafFactory;
+    private final StringFieldScript.LeafFactory leafFactory;
 
-    private ScriptStringFieldData(String fieldName, StringScriptFieldScript.LeafFactory leafFactory) {
+    private ScriptStringFieldData(String fieldName, StringFieldScript.LeafFactory leafFactory) {
         super(fieldName);
         this.leafFactory = leafFactory;
     }
 
     @Override
     public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-        StringScriptFieldScript script = leafFactory.newInstance(context);
+        StringFieldScript script = leafFactory.newInstance(context);
         return new ScriptBinaryLeafFieldData() {
             @Override
             public ScriptDocValues<?> getScriptValues() {

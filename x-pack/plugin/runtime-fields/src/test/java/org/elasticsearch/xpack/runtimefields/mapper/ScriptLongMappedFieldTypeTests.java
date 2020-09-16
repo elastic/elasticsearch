@@ -39,7 +39,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
 
@@ -278,7 +277,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(LongScriptFieldScript.CONTEXT);
+                        return Set.of(LongFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -293,10 +292,10 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                         return factory;
                     }
 
-                    private LongScriptFieldScript.Factory factory(String code) {
+                    private LongFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new LongScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -305,7 +304,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     }
                                 };
                             case "add_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new LongScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -316,7 +315,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                             case "millis_ago":
                                 // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
                                 long now = System.currentTimeMillis();
-                                return (fieldName, params, lookup) -> (ctx) -> new LongScriptFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
@@ -339,7 +338,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            LongScriptFieldScript.Factory factory = scriptService.compile(script, LongScriptFieldScript.CONTEXT);
+            LongFieldScript.Factory factory = scriptService.compile(script, LongFieldScript.CONTEXT);
             return new ScriptLongMappedFieldType("test", script, factory, emptyMap());
         }
     }

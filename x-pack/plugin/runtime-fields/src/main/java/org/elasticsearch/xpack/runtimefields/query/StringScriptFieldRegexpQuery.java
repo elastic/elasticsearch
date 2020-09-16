@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.Objects;
 
@@ -19,7 +19,7 @@ public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutom
 
     public StringScriptFieldRegexpQuery(
         Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
+        StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         String pattern,
         int flags,

@@ -78,7 +78,7 @@ for the leader index on the remote cluster. <<stack-management-ccr-remote,Config
 indices on the local cluster. <<stack-management-ccr-local,Configure local cluster privileges>>.
 * An index on the remote cluster that contains the data you want to replicate.
 This tutorial uses the sample eCommerce orders data set.
-{kibana-ref}/get-started.html#gs-get-data-into-kibana[Load sample data].
+{kibana-ref}/getting-started.html#get-data-in[Load sample data].
 
 [[ccr-getting-started-remote-cluster]]
 ==== Connect to a remote cluster

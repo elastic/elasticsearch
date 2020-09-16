@@ -163,7 +163,8 @@ public final class DefBootstrap {
                 case ITERATOR:
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(painlessLookup, functions, methodHandlesLookup, (String) args[0], receiver, name);
+                    return Def.lookupReference(painlessLookup, functions, methodHandlesLookup, (String) args[0], receiver, name,
+                                               compilerSettings);
                 case INDEX_NORMALIZE:
                     return Def.lookupIndexNormalize(receiver);
                 default: throw new AssertionError();

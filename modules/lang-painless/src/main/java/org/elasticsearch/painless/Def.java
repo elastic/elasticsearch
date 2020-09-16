@@ -209,14 +209,14 @@ public final class Def {
              }
 
              // TODO(stu): modify to bind injected constants, DONE
-             if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class)) {
-                 InjectConstantAnnotation inject = (InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class);
+             Object[] injects = getInjections(painlessMethod, compilerSettings);
+             if (injects.length > 0) {
                  MethodHandle modified = painlessMethod.methodHandle;
-                 for (int i = 0; i < inject.injects.size(); i++) {
+                 for (int i = 0; i < injects.length; i++) {
                      // We know this a def type, so start injecting at 1 because there are no static defs
                      // TODO(stu): ensure static objects aren't here and bail
                      // TODO(stu): test multiple injections
-                     modified = MethodHandles.insertArguments(modified, i + 1, compilerSettings.get(inject.injects.get(i)));
+                     modified = MethodHandles.insertArguments(modified, i + 1, injects[i]);
                  }
                  return modified;
              }
@@ -276,7 +276,14 @@ public final class Def {
                                                       interfaceType,
                                                       type,
                                                       call,
-                                                      numCaptures);
+                                                      numCaptures,
+                                                      getInjections(
+                                                          painlessLookup.lookupRuntimePainlessMethod(
+                                                              receiverClass, name, numArguments - 1
+                                                          ),
+                                                          compilerSettings
+                                                      )
+                     );
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
@@ -317,7 +324,8 @@ public final class Def {
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
     static MethodHandle lookupReference(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
+            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name,
+            Map<String, Object> compilerSettings) throws Throwable {
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
         if (interfaceType == null) {
             throw new IllegalArgumentException("type [" + interfaceClass + "] not found");
@@ -335,12 +343,25 @@ public final class Def {
 
         return lookupReferenceInternal(painlessLookup, functions, methodHandlesLookup,
             interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-            implMethod.javaMethod.getName(), 1);
+            implMethod.javaMethod.getName(), 1, getInjections(implMethod, compilerSettings));
+     }
+
+     private static Object[] getInjections(PainlessMethod painlessMethod, Map<String, Object> compilerSettings) {
+        if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
+            return new Object[0];
+        }
+        List<String> injectNames = ((InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
+        Object[] injects = new Object[injectNames.size()];
+        for (int i = 0; i < injectNames.size(); i++) {
+            injects[i] = compilerSettings.get(injectNames.get(i));
+        }
+        return injects;
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures) throws Throwable {
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures,
+            Object[] constants) throws Throwable {
         final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures);
         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
             methodHandlesLookup,
@@ -351,7 +372,8 @@ public final class Def {
             ref.delegateInvokeType,
             ref.delegateMethodName,
             ref.delegateMethodType,
-            ref.isDelegateInterface ? 1 : 0
+            ref.isDelegateInterface ? 1 : 0,
+            constants
         );
         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
      }

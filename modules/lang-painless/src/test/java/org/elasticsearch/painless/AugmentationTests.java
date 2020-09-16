@@ -243,12 +243,14 @@ public class AugmentationTests extends ScriptTestCase {
             exec("def d = new org.elasticsearch.painless.FeatureTestObject(100, 0); d.injectTimesX(5)"));
     }
 
+    // TODO(stu): fix
     public void testAugmentedMethodReference() {
         assertEquals(6.0,
             exec("double applyF(Supplier s) { return s.get(); } ArrayList al = new ArrayList(); al.add(1); al.add(2); al.add(3);" +
                 "return applyF(al::sum);"));
     }
 
+    // TODO(stu): fix
     public void testInjectionOnMethodReference() {
         assertEquals(30,
             exec(
@@ -258,6 +260,7 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     // TODO(stu): just make sure this works inside a lambda, it should
+    // TODO(stu): fix
     public void testInjectionOnLambda() {
         assertEquals(24600,
             exec("def d = org.elasticsearch.painless.FeatureTestObject.staticNumberArgument; d(100)"));

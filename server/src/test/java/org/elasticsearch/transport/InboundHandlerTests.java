@@ -249,7 +249,7 @@ public class InboundHandlerTests extends ESTestCase {
                         "expected message",
                         InboundHandler.class.getCanonicalName(),
                         Level.WARN,
-                        "Slow handling of transport message "));
+                        "handling inbound transport message "));
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
         Loggers.addAppender(inboundHandlerLogger, mockAppender);
 

@@ -79,25 +79,25 @@ public class InboundHandler {
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
-        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logInboundMessage(channel, message);
 
         if (message.isPing()) {
             keepAlive.receiveKeepAlive(channel);
         } else {
-            messageReceived(channel, message);
+            messageReceived(channel, message, startTime);
         }
     }
 
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
-    private void messageReceived(TcpChannel channel, InboundMessage message) throws IOException {
+    private void messageReceived(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
 
-        final long startTime = threadPool.relativeTimeInMillis();
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             // Place the context with the headers from the message
@@ -150,7 +150,8 @@ public class InboundHandler {
             final long took = threadPool.relativeTimeInMillis() - startTime;
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
-                logger.warn("Slow handling of transport message [{}] took [{}ms]", message, took);
+                logger.warn("handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        message, took, logThreshold);
             }
         }
     }

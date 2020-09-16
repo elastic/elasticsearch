@@ -43,16 +43,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         project.getExtensions().add("bwcGitConfig", new BwcGitExtension(project.getObjects()));
         Provider<String> remote = project.getProviders().systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
 
-        boolean gitFetchLatest;
-        final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true");
-        if ("true".equals(gitFetchLatestProperty)) {
-            gitFetchLatest = true;
-        } else if ("false".equals(gitFetchLatestProperty)) {
-            gitFetchLatest = false;
-        } else {
-            throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + gitFetchLatestProperty + "]");
-        }
-
         RegularFileProperty checkoutDir = gitExtension.checkoutDir;
 
         TaskContainer tasks = project.getTasks();
@@ -84,7 +74,20 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         });
 
         tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
-            fetchLatest.onlyIf(t -> project.getGradle().getStartParameter().isOffline() == false && gitFetchLatest);
+            var gitFetchLatest = project.getProviders()
+                .systemProperty("tests.bwc.git_fetch_latest")
+                .forUseAtConfigurationTime()
+                .orElse("true")
+                .map(fetchProp -> {
+                    if ("true".equals(fetchProp)) {
+                        return true;
+                    }
+                    if ("false".equals(fetchProp)) {
+                        return false;
+                    }
+                    throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
+                });
+            fetchLatest.onlyIf(t -> project.getGradle().getStartParameter().isOffline() == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.setWorkingDir(checkoutDir.get());
             fetchLatest.setCommandLine(asList("git", "fetch", "--all"));

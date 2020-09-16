@@ -47,10 +47,11 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
             equalTo(ClusterHealthStatus.RED));
 
-        logger.info("--> starting hot node");
         if (randomBoolean()) {
+            logger.info("--> starting content node");
             startContentOnlyNode();
         } else {
+            logger.info("--> starting hot node");
             startDataNode();
         }
 

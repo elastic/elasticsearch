@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 
 import java.util.Objects;
 
 public class BooleanScriptFieldTermQuery extends AbstractBooleanScriptFieldQuery {
     private final boolean term;
 
-    public BooleanScriptFieldTermQuery(Script script, BooleanScriptFieldScript.LeafFactory leafFactory, String fieldName, boolean term) {
+    public BooleanScriptFieldTermQuery(Script script, BooleanFieldScript.LeafFactory leafFactory, String fieldName, boolean term) {
         super(script, leafFactory, fieldName);
         this.term = term;
     }

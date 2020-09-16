@@ -719,7 +719,7 @@ name = "arrayContainsCaseInsensitive1"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayContains(bytes_written_string_list, 'En-uS')
+registry where arrayContains(bytes_written_string_list, "En-uS")
 '''
 
 [[queries]]
@@ -727,7 +727,7 @@ name = "arrayContainsCaseInsensitive2"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayContains(bytes_written_string_list, 'En')
+registry where arrayContains(bytes_written_string_list, "En")
 '''
 
 [[queries]]
@@ -735,7 +735,7 @@ name = "lengthCaseInsensitive"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == 'EN-us'
+registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == "EN-us"
 '''
 
 [[queries]]
@@ -743,7 +743,7 @@ name = "arrayCaseInsensitive1"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[0] == 'EN-us'
+registry where bytes_written_string_list[0] == "EN-us"
 '''
 
 [[queries]]
@@ -751,7 +751,7 @@ name = "arrayCaseInsensitive2"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[1] == 'EN'
+registry where bytes_written_string_list[1] == "EN"
 '''
 
 
@@ -760,7 +760,7 @@ name = "arrayContainsCaseInsensitive3"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayContains(bytes_written_string_list, 'en-US')
+registry where arrayContains(bytes_written_string_list, "en-US")
 '''
 
 [[queries]]
@@ -768,7 +768,7 @@ name = "arrayContainsCaseInsensitive4"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayContains(bytes_written_string_list, 'en')
+registry where arrayContains(bytes_written_string_list, "en")
 '''
 
 [[queries]]
@@ -776,42 +776,42 @@ name = "arrayCaseInsensitive3"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == 'en-US'
+registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == "en-US"
 '''
 
 [[queries]]
 name = "arrayEquality1"
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[0] == 'en-US'
+registry where bytes_written_string_list[0] == "en-US"
 '''
 
 [[queries]]
 name = "arrayEquality2"
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[1] == 'en'
+registry where bytes_written_string_list[1] == "en"
 '''
 
 # character classes aren't supported. custom tests made in test_queries_supported.toml
 [[queries]]
 name = "matchLite1"
 query = '''
-process where matchLite(command_line, ?'.*?net1\s+localgroup\s+.*?')
+process where matchLite(command_line, ?".*?net1\s+localgroup\s+.*?")
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 name = "matchLite2"
 query = '''
-process where matchLite(command_line, ?'.*?net1\s+\w+\s+.*?')
+process where matchLite(command_line, ?".*?net1\s+\w+\s+.*?")
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 name = "matchLite3"
 query = '''
-process where matchLite(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
+process where matchLite(command_line, ?".*?net1\s+\w{4,15}\s+.*?")
 '''
 expected_event_ids  = [98]
 
@@ -819,13 +819,13 @@ expected_event_ids  = [98]
 name = "match1"
 expected_event_ids  = [98]
 query = '''
-process where match(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
+process where match(command_line, ?".*?net1\s+\w{4,15}\s+.*?")
 '''
 
 [[queries]]
 name = "matchLite4"
 query = '''
-process where matchLite(command_line, ?'.*?net1\s+[localgrup]{4,15}\s+.*?')
+process where matchLite(command_line, ?".*?net1\s+[localgrup]{4,15}\s+.*?")
 '''
 expected_event_ids  = [98]
 
@@ -833,7 +833,7 @@ expected_event_ids  = [98]
 name = "stringEqualsCaseInsensitive1"
 case_insensitive = true
 query = '''
-process where 'net.EXE' == original_file_name
+process where "net.EXE" == original_file_name
 | filter process_name="net*.exe"
 '''
 expected_event_ids  = [97]
@@ -843,7 +843,7 @@ note = "check that case insensitive comparisons are performed even for lhs strin
 name = "stringEqualsCaseInsensitive2"
 case_insensitive = true
 query = '''
-process where process_name == original_file_name and process_name='net*.exe'
+process where process_name == original_file_name and process_name="net*.exe"
 '''
 expected_event_ids  = [97, 98]
 note = "check that case insensitive comparisons are performed for fields."
@@ -861,7 +861,7 @@ description = "check that case insensitive comparisons are performed for fields.
 name = "substring3"
 case_insensitive = true
 query = '''
-file where substring(file_name, 1, 3) == 'xp'
+file where substring(file_name, 1, 3) == "xp"
 '''
 expected_event_ids  = [88, 91, 92]
 description = "check substring ranges"
@@ -878,7 +878,7 @@ description = "test built-in math functions"
 name = "concatCaseInsensitive"
 case_insensitive = true
 query = '''
-process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'
+process where concat(serial_event_id, ":", process_name, opcode) == "5:winINIT.exe3"
 '''
 expected_event_ids  = [5]
 description = "test string concatenation"
@@ -898,7 +898,7 @@ name = "arraySearch1"
 expected_event_ids  = [57]
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, a == 'en-US')
+registry where arraySearch(bytes_written_string_list, a, a == "en-US")
 '''
 
 [[queries]]
@@ -907,7 +907,7 @@ case_sensitive = true
 expected_event_ids  = []
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, a == 'EN-US')
+registry where arraySearch(bytes_written_string_list, a, a == "EN-US")
 '''
 
 [[queries]]
@@ -916,7 +916,7 @@ case_insensitive = true
 expected_event_ids  = [57]
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, a == 'en-us')
+registry where arraySearch(bytes_written_string_list, a, a == "en-us")
 '''
 
 [[queries]]
@@ -925,7 +925,7 @@ case_insensitive = true
 expected_event_ids  = [57]
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, endsWith(a, '-us'))
+registry where arraySearch(bytes_written_string_list, a, endsWith(a, "-us"))
 '''
 
 [[queries]]
@@ -950,7 +950,7 @@ name = "arraySearchWithMysteriousField3"
 expected_event_ids  = [75305]
 description = "test arraySearch - conditional"
 query = '''
-network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == 's0-*')
+network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == "s0-*")
 '''
 
 [[queries]]
@@ -958,7 +958,7 @@ name = "arraySearchWithMysteriousField4"
 expected_event_ids  = [75305]
 description = "test arraySearch - conditional"
 query = '''
-network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a != 's0-*')
+network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a != "s0-*")
 '''
 
 [[queries]]
@@ -968,7 +968,7 @@ description = "test arraySearch - nested"
 query = '''
 network where mysterious_field
   and arraySearch(mysterious_field.subarray, sub1,
-    arraySearch(sub1.c, nested, nested.x.y == '*'))
+    arraySearch(sub1.c, nested, nested.x.y == "*"))
 '''
 
 [[queries]]
@@ -978,7 +978,7 @@ description = "test arraySearch - nested with cross-check pass"
 query = '''
 network where mysterious_field
   and arraySearch(mysterious_field.subarray, sub1,
-    sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == 's0-c1-x-z'))
+    sub1.a == "s0-a" and arraySearch(sub1.c, nested, nested.z == "s0-c1-x-z"))
 '''
 
 [[queries]]
@@ -988,7 +988,7 @@ description = "test arraySearch - nested with cross-check pass"
 query = '''
 network where mysterious_field
   and arraySearch(mysterious_field.subarray, sub1,
-    sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == sub1.cross_match))
+    sub1.a == "s0-a" and arraySearch(sub1.c, nested, nested.z == sub1.cross_match))
 '''
 
 [[queries]]
@@ -1013,7 +1013,7 @@ network where safe(divide(process_name, process_name))
 name = "nestedSetComparisons"
 case_insensitive = true
 query = '''
-file where serial_event_id == 82 and (true == (process_name in ('svchost.EXE', 'bad.exe', 'bad2.exe')))
+file where serial_event_id == 82 and (true == (process_name in ("svchost.EXE", "bad.exe", "bad2.exe")))
 '''
 expected_event_ids  = [82]
 description = "nested set comparisons"
@@ -1023,7 +1023,7 @@ name = "arrayCount1"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1
+registry where arrayCount(bytes_written_string_list, s, s == "*-us") == 1
 '''
 
 [[queries]]
@@ -1031,7 +1031,7 @@ name = "arrayCount2"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayCount(bytes_written_string_list, s, s == '*en*') == 2
+registry where arrayCount(bytes_written_string_list, s, s == "*en*") == 2
 '''
 
 [[queries]]
@@ -1081,7 +1081,7 @@ name = "lengthCaseSensitive"
 case_sensitive = true
 expected_event_ids = [7, 14, 29, 44]
 query = '''
-process where length(between(process_name, 'g', 'e')) > 0
+process where length(between(process_name, "g", "e")) > 0
 '''
 
 # TODO: add toggles to this function so it's not always insensitive
@@ -1090,6 +1090,6 @@ process where length(between(process_name, 'g', 'e')) > 0
 #case_insensitive = true
 #expected_event_ids = [7, 14, 22, 29, 44]
 #query = '''
-#process where length(between(process_name, 'g', 'e')) > 0
+#process where length(between(process_name, "g", "e")) > 0
 #'''
 

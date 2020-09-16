@@ -11,7 +11,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +19,7 @@ import java.util.Objects;
 public class StringScriptFieldPrefixQuery extends AbstractStringScriptFieldQuery {
     private final String prefix;
 
-    public StringScriptFieldPrefixQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName, String prefix) {
+    public StringScriptFieldPrefixQuery(Script script, StringFieldScript.LeafFactory leafFactory, String fieldName, String prefix) {
         super(script, leafFactory, fieldName);
         this.prefix = Objects.requireNonNull(prefix);
     }

@@ -47,15 +47,12 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues(); // should always have doc values
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
         this.fieldPrecision = fieldPrecision;
-        if (valuesSource == null) {
-            this.counts = null;
-        } else {
-            this.counts = new HyperLogLog(precision, context.bigArrays(), 1);
-        }
+        this.counts = new HyperLogLog(precision, context.bigArrays(), 1);
+
     }
 
     @Override
@@ -66,9 +63,6 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         HllValuesSource.HllSketch source = (HllValuesSource.HllSketch) valuesSource;
         if (precision == fieldPrecision) {
             return new EqualPrecisionHllCollector(counts, source.getHllValues(ctx));
@@ -84,8 +78,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (counts == null || owningBucketOrdinal >= counts.maxBucket() ||
-            counts.cardinality(owningBucketOrdinal) == 0) {
+        if (owningBucketOrdinal >= counts.maxBucket() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after
@@ -105,6 +98,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
         Releasables.close(counts);
     }
 
+    /** Collector used when the target precision is equal to the precision of the hll field */
     private static class EqualPrecisionHllCollector extends LeafBucketCollector {
 
         private final HllValues values;
@@ -131,6 +125,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
         }
     }
 
+    /** Collector used when the target precision is lower than the precision of the hll field */
     private static class DifferentPrecisionHllCollector extends LeafBucketCollector {
 
         private final HllValues values;

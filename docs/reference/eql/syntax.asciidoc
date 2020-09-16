@@ -8,7 +8,8 @@
 
 experimental::[]
 
-IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>>.
+IMPORTANT: {es} supports a subset of {eql-ref}/index.html[EQL syntax]. See
+<<eql-syntax-limitations>>.
 
 [discrete]
 [[eql-basic-syntax]]
@@ -69,6 +70,34 @@ You can specify and combine these criteria using the following operators:
 <   <=   ==   !=   >=   >
 ----
 
+.*Definitions*
+[%collapsible]
+====
+`<` (less than)::
+Returns `true` if the value to the left of the operator is less than the value
+to the right. Otherwise returns `false`.
+
+`<=` (less than or equal) ::
+Returns `true` if the value to the left of the operator is less than or equal to
+the value to the right. Otherwise returns `false`.
+
+`==` (equal)::
+Returns `true` if the values to the left and right of the operator are equal.
+Otherwise returns `false`.
+
+`!=` (not equal)::
+Returns `true` if the values to the left and right of the operator are not
+equal. Otherwise returns `false`.
+
+`>=` (greater than or equal) ::
+Returns `true` if the value to the left of the operator is greater than or equal
+to the value to the right. Otherwise returns `false`.
+
+`>` (greater than)::
+Returns `true` if the value to the left of the operator is greater than the
+value to the right. Otherwise returns `false`.
+====
+
 You cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a
 <<eql-functions,function>>.
@@ -105,34 +134,6 @@ difficult.
 
 To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
 DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
-
-.*Definitions*
-[%collapsible]
-====
-`<` (less than)::
-Returns `true` if the value to the left of the operator is less than the value
-to the right. Otherwise returns `false`.
-
-`<=` (less than or equal) ::
-Returns `true` if the value to the left of the operator is less than or equal to
-the value to the right. Otherwise returns `false`.
-
-`==` (equal)::
-Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`.
-
-`!=` (not equal)::
-Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`.
-
-`>=` (greater than or equal) ::
-Returns `true` if the value to the left of the operator is greater than or equal
-to the value to the right. Otherwise returns `false`.
-
-`>` (greater than)::
-Returns `true` if the value to the left of the operator is greater than the
-value to the right. Otherwise returns `false`.
 ====
 
 [discrete]

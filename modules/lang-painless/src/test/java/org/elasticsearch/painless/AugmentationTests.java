@@ -243,6 +243,12 @@ public class AugmentationTests extends ScriptTestCase {
             exec("def d = new org.elasticsearch.painless.FeatureTestObject(100, 0); d.injectTimesX(5)"));
     }
 
+    public void testAugmentedMethodReference() {
+        assertEquals(6.0,
+            exec("double applyF(Supplier s) { return s.get(); } ArrayList al = new ArrayList(); al.add(1); al.add(2); al.add(3);" +
+                "return applyF(al::sum);"));
+    }
+
     public void testInjectionOnMethodReference() {
         assertEquals(30,
             exec(

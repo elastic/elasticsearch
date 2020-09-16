@@ -44,6 +44,7 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * lambda function.
  */
 public class FunctionRef {
+    // TODO(stu): capture the wrapped arguments here
 
     /**
      * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
@@ -155,6 +156,8 @@ public class FunctionRef {
                     throw new IllegalStateException("internal error");
                 }
 
+                // TODO(stu): get the annotation from painless method here, and save into function ref statics
+                // painlessMethod.annotations.get(InjectConstantAnnotation.class).injects.get(0), pass in compilerSettings as map here
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
                 isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
 

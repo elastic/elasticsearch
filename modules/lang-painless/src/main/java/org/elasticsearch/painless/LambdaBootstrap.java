@@ -207,8 +207,9 @@ public final class LambdaBootstrap {
             int delegateInvokeType,
             String delegateMethodName,
             MethodType delegateMethodType,
-            int isDelegateInterface)
+            int isDelegateInterface) // TODO(stu): add object array of injections, need to know offset argument as well
             throws LambdaConversionException {
+        // TODO(stu): this is non-def method references
         Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
@@ -518,6 +519,7 @@ public final class LambdaBootstrap {
                                              String delegateMethodName,
                                              MethodType interfaceMethodType,
                                              MethodHandle delegateMethodHandle) {
+        // TODO(stu): the method handle is going to be incorrect
         return new ConstantCallSite(delegateMethodHandle.asType(interfaceMethodType));
     }
 }

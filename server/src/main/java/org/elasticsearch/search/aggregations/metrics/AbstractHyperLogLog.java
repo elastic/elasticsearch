@@ -740,22 +740,22 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
 
     /** Add a new runLen to the register. Implementor should only keep the value if it is
      * bigger that the current value of the register provided. */
-    protected abstract void addRunLen(int register, int runLen);
+    protected abstract void addRunLen(long bucketOrd, int register, int runLen);
 
     /** Returns an iterator over all values of the register. */
-    protected abstract RunLenIterator getRunLens();
+    protected abstract RunLenIterator getRunLens(long bucketOrd);
 
-    public void collect(long hash) {
+    public void collect(long bucketOrd, long hash) {
         final int index = Math.toIntExact(index(hash, p));
         final int runLen = runLen(hash, p);
-        addRunLen(index, runLen);
+        addRunLen(bucketOrd, index, runLen);
     }
 
     @Override
-    public long cardinality() {
+    public long cardinality(long bucketOrd) {
         double inverseSum = 0;
         int zeros = 0;
-        RunLenIterator iterator = getRunLens();
+        RunLenIterator iterator = getRunLens(bucketOrd);
         while (iterator.next()) {
             final int runLen = iterator.value();
             inverseSum += 1. / (1L << runLen);
@@ -778,20 +778,20 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         }
     }
 
-    public void collectEncoded(int encoded) {
+    public void collectEncoded(long bucketOrd, int encoded) {
         final int runLen = decodeRunLen(encoded, p);
         final int index = decodeIndex(encoded, p);
-        addRunLen(index, runLen);
+        addRunLen(bucketOrd, index, runLen);
     }
 
-    public void merge(AbstractHyperLogLog other) {
+    public void merge(long thisBucketOrd, AbstractHyperLogLog other, long otherBucketOrd) {
         if (p != other.p) {
             throw new IllegalArgumentException();
         }
-        RunLenIterator iterator = other.getRunLens();
+        RunLenIterator iterator = other.getRunLens(otherBucketOrd);
         for (int i = 0; i < m; ++i) {
             iterator.next();
-            addRunLen(i, iterator.value());
+            addRunLen(thisBucketOrd, i, iterator.value());
         }
     }
 

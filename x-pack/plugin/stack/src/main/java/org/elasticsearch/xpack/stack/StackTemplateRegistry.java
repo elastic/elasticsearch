@@ -90,6 +90,37 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         TEMPLATE_VERSION_VARIABLE
     );
 
+    //////////////////////////////////////////////////////////
+    // Synthetics components (for matching synthetics-*-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics-mappings";
+    public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
+    public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
+    public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
+
+    public static final IndexTemplateConfig SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
+        SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+        "/synthetics-mappings.json",
+        REGISTRY_VERSION,
+        TEMPLATE_VERSION_VARIABLE
+    );
+    public static final IndexTemplateConfig SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
+        SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+        "/synthetics-settings.json",
+        REGISTRY_VERSION,
+        TEMPLATE_VERSION_VARIABLE
+    );
+    public static final LifecyclePolicyConfig SYNTHETICS_ILM_POLICY = new LifecyclePolicyConfig(
+        SYNTHETICS_ILM_POLICY_NAME,
+        "/synthetics-policy.json"
+    );
+    public static final IndexTemplateConfig SYNTHETICS_INDEX_TEMPLATE = new IndexTemplateConfig(
+        SYNTHETICS_INDEX_TEMPLATE_NAME,
+        "/synthetics-template.json",
+        REGISTRY_VERSION,
+        TEMPLATE_VERSION_VARIABLE
+    );
+
     public StackTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -104,7 +135,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
         if (stackTemplateEnabled) {
-            return Arrays.asList(LOGS_ILM_POLICY, METRICS_ILM_POLICY);
+            return Arrays.asList(LOGS_ILM_POLICY, METRICS_ILM_POLICY, SYNTHETICS_ILM_POLICY);
         } else {
             return Collections.emptyList();
         }
@@ -117,7 +148,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE,
                 LOGS_SETTINGS_COMPONENT_TEMPLATE,
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE,
-                METRICS_SETTINGS_COMPONENT_TEMPLATE
+                METRICS_SETTINGS_COMPONENT_TEMPLATE,
+                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE,
+                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE
             );
         } else {
             return Collections.emptyList();
@@ -127,7 +160,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
         if (stackTemplateEnabled) {
-            return Arrays.asList(LOGS_INDEX_TEMPLATE, METRICS_INDEX_TEMPLATE);
+            return Arrays.asList(LOGS_INDEX_TEMPLATE, METRICS_INDEX_TEMPLATE, SYNTHETICS_INDEX_TEMPLATE);
         } else {
             return Collections.emptyList();
         }

@@ -140,7 +140,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
     }
 

@@ -26,6 +26,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -287,7 +288,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * IO buffer size hint for reading and writing to the underlying blob store.
      */
-    protected final int bufferSize;
+    private final int bufferSize;
 
     /**
      * Constructs new BlobStoreRepository
@@ -441,6 +442,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public ThreadPool threadPool() {
         return threadPool;
+    }
+
+    protected int bufferSize() {
+        return bufferSize;
     }
 
     // package private, only use for testing
@@ -2087,6 +2092,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
+                    ensureNotClosing(store);
                     boolean success = false;
                     try (IndexOutput indexOutput =
                              store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
@@ -2101,9 +2107,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {
-                                final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
+                                final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize(), fileInfo.length()))];
                                 int length;
                                 while ((length = stream.read(buffer)) > 0) {
+                                    ensureNotClosing(store);
                                     indexOutput.writeBytes(buffer, 0, length);
                                     recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
                                 }
@@ -2126,6 +2133,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
                 }
+
+                void ensureNotClosing(final Store store) throws AlreadyClosedException {
+                    assert store.refCount() > 0;
+                    if (store.isClosing()) {
+                        throw new AlreadyClosedException("store is closing");
+                    }
+                }
+
             }.restore(snapshotFiles, store, l);
         }));
     }

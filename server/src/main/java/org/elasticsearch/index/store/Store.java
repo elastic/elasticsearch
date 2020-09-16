@@ -403,12 +403,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     @Override
     public void close() {
-
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
             decRef();
             logger.debug("store reference count on close: {}", refCounter.refCount());
         }
+    }
+
+    /**
+     * @return true if the {@link Store#close()} method has been called indicating that the current store is being closed but potentially
+     * not yet fully closed and released. You might prefer to use {@link Store#ensureOpen()} instead.
+     */
+    public boolean isClosing() {
+        return isClosed.get();
     }
 
     private void closeInternal() {

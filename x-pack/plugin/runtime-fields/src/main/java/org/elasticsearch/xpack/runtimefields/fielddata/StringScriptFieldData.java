@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
-public class ScriptStringFieldData extends ScriptBinaryFieldData {
+public class StringScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final StringFieldScript.LeafFactory leafFactory;
@@ -28,22 +28,22 @@ public class ScriptStringFieldData extends ScriptBinaryFieldData {
         }
 
         @Override
-        public ScriptStringFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptStringFieldData(name, leafFactory);
+        public StringScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new StringScriptFieldData(name, leafFactory);
         }
     }
 
     private final StringFieldScript.LeafFactory leafFactory;
 
-    private ScriptStringFieldData(String fieldName, StringFieldScript.LeafFactory leafFactory) {
+    private StringScriptFieldData(String fieldName, StringFieldScript.LeafFactory leafFactory) {
         super(fieldName);
         this.leafFactory = leafFactory;
     }
 
     @Override
-    public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BinaryScriptLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
         StringFieldScript script = leafFactory.newInstance(context);
-        return new ScriptBinaryLeafFieldData() {
+        return new BinaryScriptLeafFieldData() {
             @Override
             public ScriptDocValues<?> getScriptValues() {
                 return new ScriptDocValues.Strings(getBytesValues());
@@ -51,7 +51,7 @@ public class ScriptStringFieldData extends ScriptBinaryFieldData {
 
             @Override
             public SortedBinaryDocValues getBytesValues() {
-                return new ScriptStringDocValues(script);
+                return new StringScriptDocValues(script);
             }
         };
     }

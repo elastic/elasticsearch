@@ -16,30 +16,30 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
-import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
-import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
-import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermQuery;
-import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
+import org.elasticsearch.xpack.runtimefields.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldExistsQuery;
+import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldRangeQuery;
+import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermQuery;
+import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermsQuery;
 
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType<LongFieldScript.LeafFactory> {
-    ScriptLongMappedFieldType(String name, Script script, LongFieldScript.Factory scriptFactory, Map<String, String> meta) {
+public class DoubleScriptMappedFieldType extends AbstractScriptMappedFieldType<DoubleFieldScript.LeafFactory> {
+    DoubleScriptMappedFieldType(String name, Script script, DoubleFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 
     @Override
     protected String runtimeType() {
-        return NumberType.LONG.typeName();
+        return NumberType.DOUBLE.typeName();
     }
 
     @Override
     public Object valueForDisplay(Object value) {
-        return value; // These should come back as a Long
+        return value; // These should come back as a Double
     }
 
     @Override
@@ -54,14 +54,14 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType<Lon
     }
 
     @Override
-    public ScriptLongFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new ScriptLongFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public DoubleScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
+        return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -75,22 +75,19 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType<Lon
         QueryShardContext context
     ) {
         checkAllowExpensiveQueries(context);
-        return NumberType.longRangeQuery(
+        return NumberType.doubleRangeQuery(
             lowerTerm,
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
+            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
         );
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
-        if (NumberType.hasDecimalPart(value)) {
-            return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
-        }
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), NumberType.objectToLong(value, true));
+        return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
     }
 
     @Override
@@ -100,15 +97,9 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType<Lon
         }
         LongSet terms = new LongHashSet(values.size());
         for (Object value : values) {
-            if (NumberType.hasDecimalPart(value)) {
-                continue;
-            }
-            terms.add(NumberType.objectToLong(value, true));
-        }
-        if (terms.isEmpty()) {
-            return Queries.newMatchNoDocsQuery("All values have a decimal part");
+            terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
         checkAllowExpensiveQueries(context);
-        return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
+        return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 }

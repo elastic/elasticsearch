@@ -42,8 +42,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptStringFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.BinaryScriptFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.StringScriptFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
+public class KeywordScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -64,8 +64,8 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType ft = build("append_param", Map.of("param", "-suffix"));
-                ScriptStringFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                KeywordScriptMappedFieldType ft = build("append_param", Map.of("param", "-suffix"));
+                StringScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -103,7 +103,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptBinaryFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"a\"]}"));
@@ -277,7 +277,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
+                KeywordScriptMappedFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -336,7 +336,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType fieldType = build("append_param", Map.of("param", "-Suffix"));
+                KeywordScriptMappedFieldType fieldType = build("append_param", Map.of("param", "-Suffix"));
                 QueryShardContext queryShardContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(queryShardContext);
                 assertThat(searcher.count(query), equalTo(1));
@@ -345,12 +345,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     @Override
-    protected ScriptKeywordMappedFieldType simpleMappedFieldType() throws IOException {
+    protected KeywordScriptMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected ScriptKeywordMappedFieldType loopFieldType() throws IOException {
+    protected KeywordScriptMappedFieldType loopFieldType() throws IOException {
         return build("loop", Map.of());
     }
 
@@ -359,11 +359,11 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         return "keyword";
     }
 
-    private static ScriptKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static KeywordScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static ScriptKeywordMappedFieldType build(Script script) throws IOException {
+    private static KeywordScriptMappedFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -426,7 +426,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             StringFieldScript.Factory factory = scriptService.compile(script, StringFieldScript.CONTEXT);
-            return new ScriptKeywordMappedFieldType("test", script, factory, emptyMap());
+            return new KeywordScriptMappedFieldType("test", script, factory, emptyMap());
         }
     }
 }

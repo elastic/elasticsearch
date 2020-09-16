@@ -83,11 +83,11 @@ the value to the right. Otherwise returns `false`.
 
 `==` (equal)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`.
+Otherwise returns `false`. Matching is case-insensitive.
 
 `!=` (not equal)::
 Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`.
+equal. Otherwise returns `false`. Matching is case-insensitive.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
@@ -97,6 +97,8 @@ to the value to the right. Otherwise returns `false`.
 Returns `true` if the value to the left of the operator is greater than the
 value to the right. Otherwise returns `false`.
 ====
+
+IMPORTANT: The `==` and `!=` operators are case-insensitive.
 
 You cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a

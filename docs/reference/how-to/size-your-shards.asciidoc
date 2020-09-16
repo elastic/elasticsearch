@@ -48,7 +48,7 @@ Keep the following considerations in mind for your sharding strategy.
 Most searches hit multiple shards. Each shard runs the search on a single
 thread. While a shard can run multiple concurrent searches, searches across a
 large number of shards can deplete a node's <<modules-threadpool,search
-threadpool>>. This can result in low throughput and slow search speeds.
+thread pool>>. This can result in low throughput and slow search speeds.
 
 [discrete]
 [[each-shard-has-overhead]]
@@ -139,10 +139,10 @@ and may tax node resources.
 
 [discrete]
 [[shard-count-recommendation]]
-==== Aim for 20 shards or fewer per GB of heap space
+==== Aim for 20 shards or fewer per GB of heap memory
 
 The number of shards a node can hold is proportional to the node's
-<<heap-size,heap space>>. For example, a node with a 30GB heap should have at
+<<heap-size,heap memory>>. For example, a node with a 30GB heap should have at
 most 600 shards. The further below this limit you can keep your nodes, the
 better. If you find your nodes exceeding more than 20 shards per GB, consider
 adding another node. You can use the <<cat-shards,cat shards API>> to check the

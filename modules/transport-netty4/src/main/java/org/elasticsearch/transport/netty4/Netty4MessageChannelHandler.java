@@ -25,9 +25,6 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,8 +47,6 @@ import java.util.Queue;
  * to the relevant action.
  */
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
-
-    private static final Logger logger = LogManager.getLogger(Netty4MessageChannelHandler.class);
 
     private final Netty4Transport transport;
 
@@ -149,13 +144,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 break;
             }
             final WriteOperation write = currentWrite;
-            final ByteBuf currentBuffer;
-            try {
-                currentBuffer = write.buffer();
-            } catch (Exception e) {
-                logger.error(new ParameterizedMessage("Failed to serialize message to [{}]", ctx.channel().remoteAddress()), e);
-                continue;
-            }
+            final ByteBuf currentBuffer = write.buffer();
             if (currentBuffer.readableBytes() == 0) {
                 write.promise.trySuccess();
                 currentWrite = null;

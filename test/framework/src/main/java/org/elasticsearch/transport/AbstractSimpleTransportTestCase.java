@@ -2835,7 +2835,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testHandleSerializationFailure() {
+    public void testHandleResponseSerializationFailure() {
         serviceA.registerRequestHandler("internal:sayHelloException", ThreadPool.Names.GENERIC, StringMessageRequest::new,
                 (request, channel, task) -> {
                     assertThat("moshe", equalTo(request.message));
@@ -2870,6 +2870,57 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("exception should be thrown");
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), equalTo("runtime_exception: serialization exception"));
+        }
+    }
+
+    public void testHandleRequestSerializationFailure() {
+        serviceA.registerRequestHandler("internal:sayHelloException", ThreadPool.Names.GENERIC, in -> {
+                    throw new AssertionError("Should never be sent");
+                },
+                (request, channel, task) -> {
+                    throw new AssertionError("Did not expect any message");
+                });
+
+        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloException",
+                new BuggyRequest(), new TransportResponseHandler<>() {
+                    @Override
+                    public StringMessageResponse read(StreamInput in) {
+                        throw new AssertionError("Did not except any message");
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
+
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        throw new AssertionError("Did not except any message");
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+
+                    }
+                });
+
+        try {
+            res.txGet();
+            fail("exception should be thrown");
+        } catch (Exception e) {
+            assertThat(e.getCause().getMessage(), equalTo("runtime_exception: serialization exception"));
+        }
+    }
+
+    private static final class BuggyRequest extends TransportRequest {
+
+        BuggyRequest() {
+            super();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new RuntimeException("serialization exception");
         }
     }
 

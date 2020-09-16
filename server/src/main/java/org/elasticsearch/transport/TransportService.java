@@ -685,45 +685,49 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             }
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
-            // usually happen either because we failed to connect to the node
-            // or because we failed serializing the message
-            final Transport.ResponseContext<? extends TransportResponse> contextToNotify = responseHandlers.remove(requestId);
-            // If holderToNotify == null then handler has already been taken care of.
-            if (contextToNotify != null) {
-                if (timeoutHandler != null) {
-                    timeoutHandler.cancel();
-                }
-                // callback that an exception happened, but on a different thread since we don't
-                // want handlers to worry about stack overflows. In the special case of running into a closing node we run on the current
-                // thread on a best effort basis though.
-                final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-                final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-                threadPool.executor(executor).execute(new AbstractRunnable() {
-                    @Override
-                    public void onRejection(Exception e) {
-                        // if we get rejected during node shutdown we don't wanna bubble it up
-                        logger.debug(
-                            () -> new ParameterizedMessage(
-                                "failed to notify response handler on rejection, action: {}",
-                                contextToNotify.action()),
-                            e);
-                    }
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to notify response handler on exception, action: {}",
-                                contextToNotify.action()),
-                            e);
-                    }
-                    @Override
-                    protected void doRun() throws Exception {
-                        contextToNotify.handler().handleException(sendRequestException);
-                    }
-                });
-            } else {
-                logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
+            handleSendException(action, node, requestId, timeoutHandler, e);
+        }
+    }
+
+    private void handleSendException(String action, DiscoveryNode node, long requestId, TimeoutHandler timeoutHandler, Exception e) {
+        // usually happen either because we failed to connect to the node
+        // or because we failed serializing the message
+        final Transport.ResponseContext<? extends TransportResponse> contextToNotify = responseHandlers.remove(requestId);
+        // If holderToNotify == null then handler has already been taken care of.
+        if (contextToNotify != null) {
+            if (timeoutHandler != null) {
+                timeoutHandler.cancel();
             }
+            // callback that an exception happened, but on a different thread since we don't
+            // want handlers to worry about stack overflows. In the special case of running into a closing node we run on the current
+            // thread on a best effort basis though.
+            final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
+            final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+            threadPool.executor(executor).execute(new AbstractRunnable() {
+                @Override
+                public void onRejection(Exception e) {
+                    // if we get rejected during node shutdown we don't wanna bubble it up
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "failed to notify response handler on rejection, action: {}",
+                            contextToNotify.action()),
+                        e);
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "failed to notify response handler on exception, action: {}",
+                            contextToNotify.action()),
+                        e);
+                }
+                @Override
+                protected void doRun() throws Exception {
+                    contextToNotify.handler().handleException(sendRequestException);
+                }
+            });
+        } else {
+            logger.debug("Exception while sending request, handler likely already notified due to timeout", e);
         }
     }
 

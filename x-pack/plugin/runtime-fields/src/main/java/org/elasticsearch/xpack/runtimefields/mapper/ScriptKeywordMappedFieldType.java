@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptStringFieldData;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldFuzzyQuery;
@@ -36,8 +35,8 @@ import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
 
-public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFieldType<StringScriptFieldScript.LeafFactory> {
-    ScriptKeywordMappedFieldType(String name, Script script, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
+public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFieldType<StringFieldScript.LeafFactory> {
+    ScriptKeywordMappedFieldType(String name, Script script, StringFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -21,8 +21,8 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateScriptFieldScript.Factory> {
-    public static final DateScriptFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
+    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
         fieldName,
         params,
         lookup,
@@ -36,12 +36,12 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
     };
 
     @Override
-    protected ScriptContext<DateScriptFieldScript.Factory> context() {
-        return DateScriptFieldScript.CONTEXT;
+    protected ScriptContext<DateFieldScript.Factory> context() {
+        return DateFieldScript.CONTEXT;
     }
 
     @Override
-    protected DateScriptFieldScript.Factory dummyScript() {
+    protected DateFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                DateScriptFieldScript script = new DateScriptFieldScript(
+                DateFieldScript script = new DateFieldScript(
                     "test",
                     org.elasticsearch.common.collect.Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null, null),
@@ -58,7 +58,7 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
                             emit(0);
                         }
                     }

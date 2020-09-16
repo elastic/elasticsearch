@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +52,8 @@ public class InboundHandler {
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
+    private volatile long slowLogThresholdMs = Long.MAX_VALUE;
+
     InboundHandler(ThreadPool threadPool, OutboundHandler outboundHandler, NamedWriteableRegistry namedWriteableRegistry,
                    TransportHandshaker handshaker, TransportKeepAlive keepAlive, Transport.RequestHandlers requestHandlers,
                    Transport.ResponseHandlers responseHandlers) {
@@ -69,6 +72,10 @@ public class InboundHandler {
         } else {
             throw new IllegalStateException("Cannot set message listener twice");
         }
+    }
+
+    void setSlowLogThreshold(TimeValue slowLogThreshold) {
+        this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
@@ -90,6 +97,7 @@ public class InboundHandler {
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
 
+        final long startTime = threadPool.relativeTimeInMillis();
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             // Place the context with the headers from the message
@@ -137,6 +145,12 @@ public class InboundHandler {
                         handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
                     }
                 }
+            }
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn("Slow handling of transport message [{}] took [{}ms]", message, took);
             }
         }
     }

@@ -125,8 +125,8 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [IMPORTANT]
 ====
-Avoid using the equal operator (`==`) to perform exact matching on
-<<text,`text`>> field values.
+Avoid using the `==` operator to perform exact matching on <<text,`text`>> field
+values.
 
 By default, {es} changes the values of `text` fields as part of <<analysis,
 analysis>>. This can make finding exact matches for `text` field values
@@ -262,9 +262,8 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 [[eql-syntax-wildcards]]
 ===== Wildcards
 
-You can use the wildcard operator (`*`) within a string to match specific
-patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
-operators:
+When making string comparisons using the `==` or `!=` operators, you can use the
+`*` operator to match specific patterns:
 
 [source,eql]
 ----

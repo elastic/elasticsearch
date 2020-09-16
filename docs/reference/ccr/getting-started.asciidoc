@@ -261,8 +261,7 @@ index is added to the local cluster.
 
 An auto-follow pattern specifies the remote cluster you want to replicate from,
 and one or more index patterns that specify the rolling time series indices you
-want to replicate. When the auto-follow pattern matches the specified index
-pattern, {es} creates new time series indices on the remote cluster.
+want to replicate.
 
 // tag::ccr-create-auto-follow-pattern-tag[]
 To create an auto-follow pattern from Stack Management in {kib}:

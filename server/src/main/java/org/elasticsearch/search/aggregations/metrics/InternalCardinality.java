@@ -123,7 +123,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         if (super.equals(obj) == false) return false;
 
         InternalCardinality other = (InternalCardinality) obj;
-        return counts.equals(0, other.counts);
+        return counts.equals(0, other.counts, 0);
     }
 
     AbstractHyperLogLogPlusPlus getState() {

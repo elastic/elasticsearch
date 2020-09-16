@@ -142,10 +142,10 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         }
     }
 
-    public boolean equals(long bucket, AbstractHyperLogLogPlusPlus other) {
+    public boolean equals(long thisBucket, AbstractHyperLogLogPlusPlus other, long otherBucket) {
         return Objects.equals(precision(), other.precision())
-            && Objects.equals(getAlgorithm(bucket), other.getAlgorithm(bucket))
-            && Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
+            && Objects.equals(getAlgorithm(thisBucket), other.getAlgorithm(otherBucket))
+            && Objects.equals(getComparableData(thisBucket), other.getComparableData(otherBucket));
     }
 
     public int hashCode(long bucket) {

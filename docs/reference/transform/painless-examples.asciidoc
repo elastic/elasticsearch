@@ -433,7 +433,6 @@ POST _transform/_preview
     "aggregations" : {
       "compare" : { <4>
         "scripted_metric" : {
-          "init_script" : "",
           "map_script" : "state.doc = new HashMap(params['_source'])", <5>
           "combine_script" : "return state", <6>
           "reduce_script" : """ <7>

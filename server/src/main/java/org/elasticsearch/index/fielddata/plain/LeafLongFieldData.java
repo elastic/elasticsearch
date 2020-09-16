@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.search.DocValueFormat;
+
+import java.io.IOException;
 
 /**
  * Specialization of {@link LeafNumericFieldData} for integers.
@@ -71,6 +76,27 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
     @Override
     public final SortedNumericDoubleValues getDoubleValues() {
         return FieldData.castToDouble(getLongValues());
+    }
+
+    @Override
+    public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+        SortedNumericDocValues values = getLongValues();
+        return new DocValueFetcher.Leaf() {
+            @Override
+            public boolean advanceExact(int docId) throws IOException {
+                return values.advanceExact(docId);
+            }
+
+            @Override
+            public int docValueCount() throws IOException {
+                return values.docValueCount();
+            }
+
+            @Override
+            public Object nextValue() throws IOException {
+                return format.format(values.nextValue());
+            }
+        };
     }
 
     @Override

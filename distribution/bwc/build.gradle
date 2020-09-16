@@ -42,53 +42,6 @@ apply plugin:"elasticsearch.internal-distribution-bwc-setup"
 BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion ->
   project("${unreleasedVersion.gradleProjectPath}") {
 
-    final String remote = System.getProperty("bwc.remote", "elastic")
-
-    boolean gitFetchLatest
-    final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
-    if ("true".equals(gitFetchLatestProperty)) {
-      gitFetchLatest = true
-    } else if ("false".equals(gitFetchLatestProperty)) {
-      gitFetchLatest = false
-    } else {
-      throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + gitFetchLatestProperty + "]")
-    }
-
-    tasks.register("createClone", LoggedExec) {
-      onlyIf { checkoutDir.exists() == false }
-      commandLine = ['git', 'clone', rootDir, checkoutDir]
-    }
-
-    tasks.register("findRemote", LoggedExec) {
-      dependsOn "createClone"
-      workingDir = checkoutDir
-      commandLine = ['git', 'remote', '-v']
-      ByteArrayOutputStream output = new ByteArrayOutputStream()
-      standardOutput = output
-      doLast {
-        project.ext.remoteExists = false
-        output.toString('UTF-8').eachLine {
-          if (it.contains("${remote}\t")) {
-            project.ext.remoteExists = true
-          }
-        }
-      }
-    }
-
-    tasks.register("addRemote", LoggedExec) {
-      dependsOn findRemote
-      onlyIf { project.ext.remoteExists == false }
-      workingDir = checkoutDir
-      commandLine = ['git', 'remote', 'add', "${remote}", "https://github.com/${remote}/elasticsearch.git"]
-    }
-
-    tasks.register("fetchLatest", LoggedExec) {
-      onlyIf { project.gradle.startParameter.isOffline() == false && gitFetchLatest }
-      dependsOn("addRemote")
-      workingDir = checkoutDir
-      commandLine = ['git', 'fetch', '--all']
-    }
-
     Closure execGit = { Action<ExecSpec> action ->
       new ByteArrayOutputStream().withStream { os ->
         ExecResult result = project.exec { spec ->
@@ -142,6 +95,7 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
 
         logger.lifecycle("Performing checkout of ${refspec}...")
         LoggedExec.exec(project) { spec ->
+          println "checkoutDir = $checkoutDir"
           spec.workingDir = checkoutDir
           spec.commandLine "git", "checkout", refspec
         }

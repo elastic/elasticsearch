@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -27,7 +27,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Abstract base for scripts to execute to build scripted fields. Inspired by
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
-public abstract class AbstractScriptFieldScript {
+public abstract class AbstractFieldScript {
     /**
      * The maximum number of values a script should be allowed to emit.
      */
@@ -64,7 +64,7 @@ public abstract class AbstractScriptFieldScript {
     private final Map<String, Object> params;
     private final LeafSearchLookup leafSearchLookup;
 
-    public AbstractScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.fieldName = fieldName;
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
         params = new HashMap<>(params);

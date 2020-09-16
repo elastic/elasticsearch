@@ -4,15 +4,15 @@
 # you may not use this file except in compliance with the Elastic License.
 #
 
-# The whitelist for long-valued runtime fields
+# The whitelist for string-valued runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript @no_import {
+class org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript @no_import {
 }
-class org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Factory @no_import {
+class org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.xpack.runtimefields.LongScriptFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.LongScriptFieldScript$Emit
+    void emit(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$Emit
 }

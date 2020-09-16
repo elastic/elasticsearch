@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -17,7 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScript {
+public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("long_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -32,17 +32,17 @@ public abstract class LongScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public interface LeafFactory {
-        LongScriptFieldScript newInstance(LeafReaderContext ctx);
+        LongFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public LongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public LongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
     public static class Emit {
-        private final LongScriptFieldScript script;
+        private final LongFieldScript script;
 
-        public Emit(LongScriptFieldScript script) {
+        public Emit(LongFieldScript script) {
             this.script = script;
         }
 

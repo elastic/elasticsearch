@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import java.util.stream.Collectors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.sql.stats.Metrics;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -277,4 +277,27 @@ public class FieldAttributeTests extends ESTestCase {
                 + "matches any of [line 1:37 [m], line 1:55 [m]]",
             ex.getMessage());
     }
+
+    public void testFunctionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        VerificationException ex = expectThrows(VerificationException.class, () ->
+            plan("SELECT sum(missing) AS missing FROM test WHERE missing = 0"));
+        assertEquals("Found 1 problem\nline 1:12: Unknown column [missing]", ex.getMessage());
+    }
+
+    public void testFunctionWithExpressionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        VerificationException ex = expectThrows(VerificationException.class, () ->
+            plan("SELECT LENGTH(CONCAT(missing, 'x')) + 1 AS missing FROM test WHERE missing = 0"));
+        assertEquals("Found 1 problem\nline 1:22: Unknown column [missing]", ex.getMessage());
+    }
+
 }

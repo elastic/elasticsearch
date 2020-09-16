@@ -53,21 +53,6 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalScro
  * run separate fetch phases etc.
  */
 abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements Runnable {
-    /*
-     * Some random TODO:
-     * Today we still have a dedicated executing mode for scrolls while we could simplify this by implementing
-     * scroll like functionality (mainly syntactic sugar) as an ordinary search with search_after. We could even go further and
-     * make the scroll entirely stateless and encode the state per shard in the scroll ID.
-     *
-     * Today we also hold a context per shard but maybe
-     * we want the context per coordinating node such that we route the scroll to the same coordinator all the time and hold the context
-     * here? This would have the advantage that if we loose that node the entire scroll is deal not just one shard.
-     *
-     * Additionally there is the possibility to associate the scroll with a seq. id. such that we can talk to any replica as long as
-     * the shards engine hasn't advanced that seq. id yet. Such a resume is possible and best effort, it could be even a safety net since
-     * if you rely on indices being read-only things can change in-between without notification or it's hard to detect if there where any
-     * changes while scrolling. These are all options to improve the current situation which we can look into down the road
-     */
     protected final Logger logger;
     protected final ActionListener<SearchResponse> listener;
     protected final ParsedScrollId scrollId;

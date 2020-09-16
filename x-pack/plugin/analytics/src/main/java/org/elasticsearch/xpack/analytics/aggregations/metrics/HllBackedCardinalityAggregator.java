@@ -91,7 +91,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
         // We need to build a copy because the returned Aggregation needs remain usable after
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
-        copy.merge(0, counts.getHyperLogLog(owningBucketOrdinal));
+        copy.merge(0, counts, owningBucketOrdinal);
         return new InternalCardinality(name, copy, metadata());
     }
 
@@ -109,7 +109,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
 
         private final HllValues values;
         private final HyperLogLog counts;
-       private final int m;
+        private final int m;
 
         EqualPrecisionHllCollector(HyperLogLog counts, HllValues values) {
             this.counts = counts;
@@ -161,7 +161,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
             }
         }
 
-        private byte mergeRegister(HllValue value) throws IOException {
+        private byte mergeRegister(HllValue value) {
             for (int i = 0; i < registersToMerge; i++) {
                 value.next();
                 final byte runLen = value.value();

@@ -82,7 +82,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             BytesRef ref = new BytesRef(value);
             org.elasticsearch.common.hash.MurmurHash3.hash128(ref.bytes, ref.offset, ref.length, 0, hash);
-            histogram.collect(hash.h1);
+            histogram.collect(0, hash.h1);
             if ((i + 1) % frq == 0) {
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
@@ -93,7 +93,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
                       .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
-                histogram.reset();
+                histogram.reset(0);
             }
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
@@ -181,7 +181,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             BytesRef ref = new BytesRef(value);
             org.elasticsearch.common.hash.MurmurHash3.hash128(ref.bytes, ref.offset, ref.length, 0, hash);
-            histogram.collect(hash.h1);
+            histogram.collect(0, hash.h1);
             if ((i + 1) % frq == 0) {
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
@@ -194,7 +194,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
                       .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
-                histogram.reset();
+                histogram.reset(0);
             }
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
@@ -240,16 +240,16 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void addRunLen(int register, int runLen) {
+        protected void addRunLen(long bucketOrd, int register, int runLen) {
             runLens[register] = Math.max(runLen, runLens[register]);
         }
 
-        protected void reset() {
+        protected void reset(long bucketOrd) {
             Arrays.fill(runLens, 0);
         }
 
         @Override
-        protected RunLenIterator getRunLens() {
+        protected RunLenIterator getRunLens(long bucketOrd) {
           throw new UnsupportedOperationException();
         }
     }

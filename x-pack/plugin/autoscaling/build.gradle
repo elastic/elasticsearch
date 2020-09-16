@@ -12,8 +12,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-autoscaling'
 
-integTest.enabled = false
-
 tasks.named('internalClusterTest').configure {
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.autoscaling_feature_flag_registered', 'true'
@@ -32,10 +30,4 @@ gradle.projectsEvaluated {
     .subprojects
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
-}
-
-testingConventions.naming {
-  IT {
-    baseClass "org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase"
-  }
 }

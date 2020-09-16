@@ -2416,7 +2416,25 @@ public class TranslogTests extends ESTestCase {
 
         @Override
         public int write(ByteBuffer src, long position) throws IOException {
-            throw new UnsupportedOperationException();
+            if (fail.fail()) {
+                if (partialWrite) {
+                    if (src.hasRemaining()) {
+                        final int pos = src.position();
+                        final int limit = src.limit();
+                        src.limit(randomIntBetween(pos, limit));
+                        super.write(src, position);
+                        src.limit(limit);
+                        src.position(pos);
+                        throw new IOException("__FAKE__ no space left on device");
+                    }
+                }
+                if (throwUnknownException) {
+                    throw new UnknownException();
+                } else {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
+            }
+            return super.write(src, position);
         }
 
 

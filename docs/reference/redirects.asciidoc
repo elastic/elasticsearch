@@ -1142,3 +1142,45 @@ See <<joining-queries-notes>>.
 === Percolate query notes
 
 See <<percolate-query-notes>>.
+
+[role="exclude",id="point-in-time"]
+=== Point in time API
+
+See <<point-in-time-api>>.
+
+[role="exclude",id="constant-keyword"]
+=== Constant keyword field type
+
+See <<constant-keyword-field-type>>.
+
+[role="exclude",id="wildcard"]
+=== Wildcard field type
+
+See <<wildcard-field-type>>.
+
+[role="exclude",id="searchable-snapshots-api-clear-cache"]
+=== Clear cache API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="searchable-snapshots-api-stats"]
+=== Searchable snapshot statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="searchable-snapshots-repository-stats"]
+=== Searchable snapshot repository statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.

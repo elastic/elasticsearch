@@ -64,7 +64,7 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
-            if (!(indexFieldData instanceof IndexHllFieldData)) {
+            if ((indexFieldData instanceof IndexHllFieldData) == false) {
                 throw new IllegalArgumentException("Expected cardinality type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }

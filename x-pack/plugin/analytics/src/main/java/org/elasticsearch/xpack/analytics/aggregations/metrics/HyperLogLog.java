@@ -40,7 +40,7 @@ import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
  *
  * It supports storing several HyperLogLog structures which are identified by a bucket number.
  */
-public final class HyperLogLog implements Releasable {
+public final class HyperLogLog extends AbstractHyperLogLog implements Releasable {
 
     private static final long[] HLLPRECISIONTOTHRESHOLDS = new long[] {
         2,
@@ -72,88 +72,54 @@ public final class HyperLogLog implements Releasable {
         return HLLPRECISIONTOTHRESHOLDS[precision - 4];
     }
 
-    private final SingletonHyperLogLog hll;
+    private final BigArrays bigArrays;
+    private final HyperLogLogIterator iterator;
+    // array for holding the runlens.
+    private ByteArray runLens;
 
     public HyperLogLog(int precision, BigArrays bigArrays, long initialBucketCount) {
-        hll = new SingletonHyperLogLog(bigArrays, initialBucketCount, precision);
-    }
-
-    public int precision() {
-        return hll.precision();
+        super(precision);
+        this.runLens =  bigArrays.newByteArray(initialBucketCount << precision);
+        this.bigArrays = bigArrays;
+        this.iterator = new HyperLogLogIterator(this, precision, m);
     }
 
     public long maxBucket() {
-        return hll.runLens.size() >>> hll.precision();
+        return runLens.size() >>> precision();
     }
 
+    @Override
     public void addRunLen(long bucket, int register, int runLen) {
-        hll.ensureCapacity(bucket + 1);
-        hll.bucket = bucket;
-        hll.addRunLen(register, runLen);
+        ensureCapacity(bucket + 1);
+        final long bucketIndex = (bucket << p) + register;
+        runLens.set(bucketIndex, (byte) Math.max(runLen, runLens.get(bucketIndex)));
     }
 
-    public long cardinality(long bucket) {
-        hll.bucket = bucket;
-        return hll.cardinality();
+    protected void ensureCapacity(long numBuckets) {
+        runLens = bigArrays.grow(runLens, numBuckets << p);
     }
 
-    public AbstractHyperLogLog getHyperLogLog(long bucket) {
-        hll.bucket = bucket;
-        return hll;
+    @Override
+    protected RunLenIterator getRunLens(long bucket) {
+        iterator.reset(bucket);
+        return iterator;
     }
 
     @Override
     public void close() {
-        Releasables.close(hll);
+        Releasables.close(runLens);
     }
 
-    private static class SingletonHyperLogLog extends AbstractHyperLogLog implements Releasable {
-        private final BigArrays bigArrays;
-        private final HyperLogLogIterator iterator;
-        // array for holding the runlens.
-        private ByteArray runLens;
-        // Defines the position of the data structure. Callers of this object should set this value
-        // before calling any of the methods.
-        protected long bucket;
-
-        SingletonHyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
-            super(precision);
-            this.runLens =  bigArrays.newByteArray(initialBucketCount << precision);
-            this.bigArrays = bigArrays;
-            this.iterator = new HyperLogLogIterator(this, precision, m);
-        }
-
-        @Override
-        protected void addRunLen(int register, int encoded) {
-            final long bucketIndex = (bucket << p) + register;
-            runLens.set(bucketIndex, (byte) Math.max(encoded, runLens.get(bucketIndex)));
-        }
-
-        @Override
-        protected RunLenIterator getRunLens() {
-            iterator.reset(bucket);
-            return iterator;
-        }
-
-        protected void ensureCapacity(long numBuckets) {
-            runLens = bigArrays.grow(runLens, numBuckets << p);
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(runLens);
-        }
-    }
 
     private static class HyperLogLogIterator implements AbstractHyperLogLog.RunLenIterator {
 
-        private final SingletonHyperLogLog hll;
+        private final HyperLogLog hll;
         private final int m, p;
         int pos;
         long start;
         private byte value;
 
-        HyperLogLogIterator(SingletonHyperLogLog hll, int p, int m) {
+        HyperLogLogIterator(HyperLogLog hll, int p, int m) {
             this.hll = hll;
             this.m = m;
             this.p = p;

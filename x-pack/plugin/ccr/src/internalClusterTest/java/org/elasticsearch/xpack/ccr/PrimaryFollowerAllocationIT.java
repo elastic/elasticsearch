@@ -49,6 +49,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         final PutFollowAction.Request putFollowRequest = putFollow(leaderIndex, followerIndex);
         putFollowRequest.setSettings(Settings.builder()
             .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+            .putNull("index.routing.allocation.include._tier")
             .build());
         putFollowRequest.waitForActiveShards(ActiveShardCount.ONE);
         putFollowRequest.timeout(TimeValue.timeValueSeconds(2));
@@ -82,6 +83,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             .put("index.routing.rebalance.enable", "none")
             .put("index.routing.allocation.include._name",
                 Stream.concat(dataOnlyNodes.stream(), dataAndRemoteNodes.stream()).collect(Collectors.joining(",")))
+            .putNull("index.routing.allocation.include._tier")
             .build());
         final PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, putFollowRequest).get();
         assertTrue(response.isFollowIndexShardsAcked());
@@ -104,7 +106,9 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         // Follower primaries can be relocated to nodes without the remote cluster client role
         followerClient().admin().indices().prepareUpdateSettings(followerIndex)
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+                .putNull("index.routing.allocation.include._tier"))
             .get();
         assertBusy(() -> {
             final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();

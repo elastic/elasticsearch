@@ -1,13 +1,9 @@
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(xpackModule('autoscaling'))
+  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 restResources {
@@ -17,11 +13,7 @@ restResources {
   }
 }
 
-task restTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
-}
-
-testClusters.restTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.autoscaling_feature_flag_registered', 'true'
@@ -32,6 +24,3 @@ testClusters.restTest {
   user username: 'autoscaling-admin', password: 'autoscaling-admin-password', role: 'superuser'
   user username: 'autoscaling-user', password: 'autoscaling-user-password', role: 'autoscaling'
 }
-
-check.dependsOn restTest
-test.enabled = false

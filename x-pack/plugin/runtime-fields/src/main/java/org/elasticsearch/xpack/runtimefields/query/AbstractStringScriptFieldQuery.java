@@ -7,21 +7,21 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.List;
 
 /**
- * Abstract base class for building queries based on {@link StringScript}.
+ * Abstract base class for building queries based on {@link StringFieldScript}.
  */
-abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery<StringScript> {
+abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery<StringFieldScript> {
 
-    AbstractStringScriptFieldQuery(Script script, StringScript.LeafFactory leafFactory, String fieldName) {
+    AbstractStringScriptFieldQuery(Script script, StringFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, fieldName, leafFactory::newInstance);
     }
 
     @Override
-    protected final boolean matches(StringScript scriptContext, int docId) {
+    protected final boolean matches(StringFieldScript scriptContext, int docId) {
         return matches(scriptContext.resultsForDoc(docId));
     }
 

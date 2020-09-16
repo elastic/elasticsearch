@@ -18,8 +18,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScript;
-import org.elasticsearch.xpack.runtimefields.DateScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,8 +28,8 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFieldQueryTestCase<LongScriptFieldDistanceFeatureQuery> {
-    private final Function<LeafReaderContext, AbstractLongScript> leafFactory = ctx -> null;
+public class LongScriptFieldDistanceFeatureQueryTests extends AbstractFieldScriptFieldQueryTestCase<LongScriptFieldDistanceFeatureQuery> {
+    private final Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> null;
 
     @Override
     protected LongScriptFieldDistanceFeatureQuery createTestInstance() {
@@ -86,7 +86,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                Function<LeafReaderContext, AbstractLongScript> leafFactory = ctx -> new DateScript(
+                Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(null, null),

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<StringScript.Factory> {
-    public static final StringScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringScript(
+public class StringScriptFieldTests extends ScriptFieldTestCase<StringFieldScript.Factory> {
+    public static final StringFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
         fieldName,
         params,
         lookup,
@@ -36,12 +36,12 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
     };
 
     @Override
-    protected ScriptContext<StringScript.Factory> context() {
-        return StringScript.CONTEXT;
+    protected ScriptContext<StringFieldScript.Factory> context() {
+        return StringFieldScript.CONTEXT;
     }
 
     @Override
-    protected StringScript.Factory dummyScript() {
+    protected StringFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                StringScript script = new StringScript(
+                StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -57,7 +57,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
                             emit("test");
                         }
                     }
@@ -75,7 +75,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                StringScript script = new StringScript(
+                StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -84,7 +84,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<Stri
                     @Override
                     public void execute() {
                         StringBuilder big = new StringBuilder();
-                        while (big.length() < StringScript.MAX_CHARS / 4) {
+                        while (big.length() < StringFieldScript.MAX_CHARS / 4) {
                             big.append("test");
                         }
                         String bigString = big.toString();

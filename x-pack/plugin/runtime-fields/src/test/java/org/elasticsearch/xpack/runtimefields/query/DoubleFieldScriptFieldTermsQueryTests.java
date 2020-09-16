@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.query;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
@@ -20,7 +19,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldTermsQuery> {
+public class DoubleFieldScriptFieldTermsQueryTests extends AbstractDoubleFieldScriptFieldQueryTestCase<DoubleScriptFieldTermsQuery> {
     @Override
     protected DoubleScriptFieldTermsQuery createTestInstance() {
         LongSet terms = new LongHashSet();

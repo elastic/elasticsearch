@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class IpScriptFieldTermsQueryTests extends AbstractIpScriptFieldQueryTestCase<IpScriptFieldTermsQuery> {
+public class IpFieldScriptFieldTermsQueryTests extends AbstractIpFieldScriptFieldQueryTestCase<IpScriptFieldTermsQuery> {
     @Override
     protected IpScriptFieldTermsQuery createTestInstance() {
         return createTestInstance(between(1, 100));

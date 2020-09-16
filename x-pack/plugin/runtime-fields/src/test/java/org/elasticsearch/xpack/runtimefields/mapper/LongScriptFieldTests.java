@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -22,21 +22,26 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class IpScriptTests extends ScriptFieldScriptTestCase<IpScript.Factory> {
-    public static final IpScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpScript(fieldName, params, lookup, ctx) {
+public class LongScriptFieldTests extends ScriptFieldTestCase<LongFieldScript.Factory> {
+    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongFieldScript(
+        fieldName,
+        params,
+        lookup,
+        ctx
+    ) {
         @Override
         public void execute() {
-            emit("192.168.0.1");
+            emit(1);
         }
     };
 
     @Override
-    protected ScriptContext<IpScript.Factory> context() {
-        return IpScript.CONTEXT;
+    protected ScriptContext<LongFieldScript.Factory> context() {
+        return LongFieldScript.CONTEXT;
     }
 
     @Override
-    protected IpScript.Factory dummyScript() {
+    protected LongFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -44,7 +49,7 @@ public class IpScriptTests extends ScriptFieldScriptTestCase<IpScript.Factory> {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IpScript script = new IpScript(
+                LongFieldScript script = new LongFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -52,8 +57,8 @@ public class IpScriptTests extends ScriptFieldScriptTestCase<IpScript.Factory> {
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScript.MAX_VALUES; i++) {
-                            emit("192.168.0.1");
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
+                            emit(0);
                         }
                     }
                 };

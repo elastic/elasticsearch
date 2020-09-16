@@ -14,7 +14,7 @@ import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IpScriptFieldRangeQueryTests extends AbstractIpScriptFieldQueryTestCase<IpScriptFieldRangeQuery> {
+public class IpFieldScriptFieldRangeQueryTests extends AbstractIpFieldScriptFieldQueryTestCase<IpScriptFieldRangeQuery> {
     @Override
     protected IpScriptFieldRangeQuery createTestInstance() {
         InetAddress lower = randomIp(randomBoolean());

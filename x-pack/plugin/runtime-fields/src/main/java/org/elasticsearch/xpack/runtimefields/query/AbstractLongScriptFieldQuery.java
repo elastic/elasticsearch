@@ -9,21 +9,25 @@ package org.elasticsearch.xpack.runtimefields.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 
 import java.util.function.Function;
 
 /**
- * Abstract base class for building queries based on {@link AbstractLongScript}.
+ * Abstract base class for building queries based on {@link AbstractLongFieldScript}.
  */
-abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery<AbstractLongScript> {
+abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery<AbstractLongFieldScript> {
 
-    AbstractLongScriptFieldQuery(Script script, Function<LeafReaderContext, AbstractLongScript> scriptContextFunction, String fieldName) {
+    AbstractLongScriptFieldQuery(
+        Script script,
+        Function<LeafReaderContext, AbstractLongFieldScript> scriptContextFunction,
+        String fieldName
+    ) {
         super(script, fieldName, scriptContextFunction);
     }
 
     @Override
-    protected boolean matches(AbstractLongScript scriptContext, int docId) {
+    protected boolean matches(AbstractLongFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return AbstractLongScriptFieldQuery.this.matches(scriptContext.values(), scriptContext.count());
     }

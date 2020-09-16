@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.DateScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
@@ -36,13 +35,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<DateScript.LeafFactory> {
+public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
 
     ScriptDateMappedFieldType(
         String name,
         Script script,
-        DateScript.Factory scriptFactory,
+        DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Map<String, String> meta
     ) {

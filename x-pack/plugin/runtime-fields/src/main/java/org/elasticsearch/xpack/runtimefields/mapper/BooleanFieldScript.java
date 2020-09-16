@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Booleans;
@@ -17,7 +17,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.List;
 import java.util.Map;
 
-public abstract class BooleanScript extends AbstractScript {
+public abstract class BooleanFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -32,13 +32,13 @@ public abstract class BooleanScript extends AbstractScript {
     }
 
     public interface LeafFactory {
-        BooleanScript newInstance(LeafReaderContext ctx);
+        BooleanFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private int trues;
     private int falses;
 
-    public BooleanScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public BooleanFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -79,9 +79,9 @@ public abstract class BooleanScript extends AbstractScript {
     }
 
     public static class Emit {
-        private final BooleanScript script;
+        private final BooleanFieldScript script;
 
-        public Emit(BooleanScript script) {
+        public Emit(BooleanFieldScript script) {
             this.script = script;
         }
 

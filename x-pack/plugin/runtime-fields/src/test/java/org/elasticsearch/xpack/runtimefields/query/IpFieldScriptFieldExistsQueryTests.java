@@ -10,7 +10,7 @@ import org.apache.lucene.util.BytesRef;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IpScriptFieldExistsQueryTests extends AbstractIpScriptFieldQueryTestCase<IpScriptFieldExistsQuery> {
+public class IpFieldScriptFieldExistsQueryTests extends AbstractIpFieldScriptFieldQueryTestCase<IpScriptFieldExistsQuery> {
     @Override
     protected IpScriptFieldExistsQuery createTestInstance() {
         return new IpScriptFieldExistsQuery(randomScript(), leafFactory, randomAlphaOfLength(5));

@@ -42,7 +42,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.StringScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptStringFieldData;
 
@@ -56,7 +55,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
+public class ScriptKeywordMappedFieldTypeTests extends AbstractFieldScriptMappedFieldTypeTestCase {
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -376,7 +375,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(StringScript.CONTEXT);
+                        return Set.of(StringFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -391,10 +390,10 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                         return factory;
                     }
 
-                    private StringScript.Factory factory(String code) {
+                    private StringFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> ctx -> new StringScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -403,7 +402,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                                     }
                                 };
                             case "append_param":
-                                return (fieldName, params, lookup) -> ctx -> new StringScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -426,7 +425,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            StringScript.Factory factory = scriptService.compile(script, StringScript.CONTEXT);
+            StringFieldScript.Factory factory = scriptService.compile(script, StringFieldScript.CONTEXT);
             return new ScriptKeywordMappedFieldType("test", script, factory, emptyMap());
         }
     }

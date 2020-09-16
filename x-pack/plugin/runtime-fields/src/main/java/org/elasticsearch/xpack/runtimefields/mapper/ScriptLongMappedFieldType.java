@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.LongScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
@@ -28,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType<LongScript.LeafFactory> {
-    ScriptLongMappedFieldType(String name, Script script, LongScript.Factory scriptFactory, Map<String, String> meta) {
+public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType<LongFieldScript.LeafFactory> {
+    ScriptLongMappedFieldType(String name, Script script, LongFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 

@@ -29,20 +29,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.xpack.runtimefields.BooleanScript;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptTests;
-import org.elasticsearch.xpack.runtimefields.DateScript;
-import org.elasticsearch.xpack.runtimefields.DateScriptTests;
-import org.elasticsearch.xpack.runtimefields.DoubleScript;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptTests;
-import org.elasticsearch.xpack.runtimefields.IpScript;
-import org.elasticsearch.xpack.runtimefields.IpScriptTests;
-import org.elasticsearch.xpack.runtimefields.LongScript;
-import org.elasticsearch.xpack.runtimefields.LongScriptTests;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.StringScript;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScriptTests;
-import org.elasticsearch.xpack.runtimefields.TestScriptEngine;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -312,7 +299,12 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> config.buildIndexSort(
-                field -> new ScriptKeywordMappedFieldType(field, new Script(""), mock(StringScript.Factory.class), Collections.emptyMap()),
+                field -> new ScriptKeywordMappedFieldType(
+                    field,
+                    new Script(""),
+                    mock(StringFieldScript.Factory.class),
+                    Collections.emptyMap()
+                ),
                 (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
             )
         );
@@ -362,35 +354,35 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
             return new TestScriptEngine() {
                 @Override
                 protected Object buildScriptFactory(ScriptContext<?> context) {
-                    if (context == BooleanScript.CONTEXT) {
-                        return BooleanScriptTests.DUMMY;
+                    if (context == BooleanFieldScript.CONTEXT) {
+                        return BooleanScriptFieldTests.DUMMY;
                     }
-                    if (context == DateScript.CONTEXT) {
-                        return DateScriptTests.DUMMY;
+                    if (context == DateFieldScript.CONTEXT) {
+                        return DateScriptFieldTests.DUMMY;
                     }
-                    if (context == DoubleScript.CONTEXT) {
-                        return DoubleScriptTests.DUMMY;
+                    if (context == DoubleFieldScript.CONTEXT) {
+                        return DoubleFieldScriptFieldTests.DUMMY;
                     }
-                    if (context == IpScript.CONTEXT) {
-                        return IpScriptTests.DUMMY;
+                    if (context == IpFieldScript.CONTEXT) {
+                        return IpFieldScriptFieldTests.DUMMY;
                     }
-                    if (context == LongScript.CONTEXT) {
-                        return LongScriptTests.DUMMY;
+                    if (context == LongFieldScript.CONTEXT) {
+                        return LongScriptFieldTests.DUMMY;
                     }
-                    if (context == StringScript.CONTEXT) {
-                        return StringScriptFieldScriptTests.DUMMY;
+                    if (context == StringFieldScript.CONTEXT) {
+                        return StringScriptFieldTests.DUMMY;
                     }
                     throw new IllegalArgumentException("Unsupported context: " + context);
                 };
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
                     return Set.of(
-                        BooleanScript.CONTEXT,
-                        DateScript.CONTEXT,
-                        DoubleScript.CONTEXT,
-                        IpScript.CONTEXT,
-                        StringScript.CONTEXT,
-                        LongScript.CONTEXT
+                        BooleanFieldScript.CONTEXT,
+                        DateFieldScript.CONTEXT,
+                        DoubleFieldScript.CONTEXT,
+                        IpFieldScript.CONTEXT,
+                        StringFieldScript.CONTEXT,
+                        LongFieldScript.CONTEXT
                     );
                 }
             };

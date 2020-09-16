@@ -7,12 +7,12 @@
 # The whitelist for ip-valued runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.xpack.runtimefields.IpScript @no_import {
+class org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript @no_import {
 }
-class org.elasticsearch.xpack.runtimefields.IpScript$Factory @no_import {
+class org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.xpack.runtimefields.IpScript, String) bound_to org.elasticsearch.xpack.runtimefields.IpScript$Emit
+    void emit(org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript$Emit
 }

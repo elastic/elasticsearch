@@ -14,7 +14,7 @@ import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IpScriptFieldTermQueryTests extends AbstractIpScriptFieldQueryTestCase<IpScriptFieldTermQuery> {
+public class IpFieldScriptFieldTermQueryTests extends AbstractIpFieldScriptFieldQueryTestCase<IpScriptFieldTermQuery> {
     @Override
     protected IpScriptFieldTermQuery createTestInstance() {
         return new IpScriptFieldTermQuery(randomScript(), leafFactory, randomAlphaOfLength(5), encode(randomIp(randomBoolean())));

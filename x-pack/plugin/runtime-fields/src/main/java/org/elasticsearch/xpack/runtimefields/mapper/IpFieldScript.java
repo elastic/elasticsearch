@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.LeafReaderContext;
@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Script producing IP addresses. Unlike the other {@linkplain AbstractScript}s
+ * Script producing IP addresses. Unlike the other {@linkplain AbstractFieldScript}s
  * which deal with their native java objects this converts its values to the same format
  * that Lucene uses to store its fields, {@link InetAddressPoint}. There are a few compelling
  * reasons to do this:
@@ -38,7 +38,7 @@ import java.util.Map;
  * so it saves us a lot of trouble to use the same representation.
  * </ul>
  */
-public abstract class IpScript extends AbstractScript {
+public abstract class IpFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("ip_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -53,13 +53,13 @@ public abstract class IpScript extends AbstractScript {
     }
 
     public interface LeafFactory {
-        IpScript newInstance(LeafReaderContext ctx);
+        IpFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private BytesRef[] values = new BytesRef[1];
     private int count;
 
-    public IpScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public IpFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -101,9 +101,9 @@ public abstract class IpScript extends AbstractScript {
     }
 
     public static class Emit {
-        private final IpScript script;
+        private final IpFieldScript script;
 
-        public Emit(IpScript script) {
+        public Emit(IpFieldScript script) {
             this.script = script;
         }
 

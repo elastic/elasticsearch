@@ -10,7 +10,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.xpack.runtimefields.BooleanScript;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,9 +20,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractBooleanScriptFieldQueryTestCase<T extends AbstractBooleanScriptFieldQuery> extends
-    AbstractScriptFieldQueryTestCase<T> {
+    AbstractFieldScriptFieldQueryTestCase<T> {
 
-    protected final BooleanScript.LeafFactory leafFactory = mock(BooleanScript.LeafFactory.class);
+    protected final BooleanFieldScript.LeafFactory leafFactory = mock(BooleanFieldScript.LeafFactory.class);
 
     @Override
     public final void testVisit() {

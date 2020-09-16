@@ -325,7 +325,7 @@ public class DataFrameDataExtractor {
             searchRequestBuilder.request(),
             ActionListener.wrap(
                 searchResponse -> dataSummaryActionListener.onResponse(
-                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)),
+                    new DataSummary(2^32, numberOfFields)),
             dataSummaryActionListener::onFailure
         ));
     }

@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -22,14 +21,11 @@ import static org.elasticsearch.xpack.security.action.token.TransportCreateToken
 public class TransportRefreshTokenAction extends HandledTransportAction<CreateTokenRequest, CreateTokenResponse> {
 
     private final TokenService tokenService;
-    private final SecurityContext securityContext;
 
     @Inject
-    public TransportRefreshTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService,
-                                       SecurityContext securityContext) {
+    public TransportRefreshTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
         super(RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
         this.tokenService = tokenService;
-        this.securityContext = securityContext;
     }
 
     @Override
@@ -37,8 +33,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
             final String scope = getResponseScopeValue(request.getScope());
             final CreateTokenResponse response =
-                    new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope, tuple.v2(), null,
-                        securityContext.getAuthentication());
+                    new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope, tuple.v2(), null);
             listener.onResponse(response);
         }, listener::onFailure));
     }

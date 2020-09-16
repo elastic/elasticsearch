@@ -47,7 +47,6 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE));
     private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE));
     private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DataTier.DATA_COLD_NODE_ROLE));
-    private static final DiscoveryNode FROZEN_NODE = newNode("node-frozen", Collections.singleton(DataTier.DATA_FROZEN_NODE_ROLE));
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);
@@ -89,7 +88,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(d.type(), equalTo(Decision.Type.YES));
         }
 
-        for (DiscoveryNode n : Arrays.asList(WARM_NODE, COLD_NODE, FROZEN_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
@@ -110,12 +109,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
-            .put(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE, "data_warm,data_frozen")
+            .put(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE, "data_warm,data_cold")
             .build());
         Decision d;
         RoutingNode node;
 
-        for (DiscoveryNode n : Arrays.asList(WARM_NODE, FROZEN_NODE, DATA_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE, DATA_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.YES));
@@ -123,18 +122,18 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(d.type(), equalTo(Decision.Type.YES));
         }
 
-        for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node does not match any cluster setting [cluster.routing.allocation.include._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node does not match any cluster setting [cluster.routing.allocation.include._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
         }
     }
 
@@ -145,23 +144,23 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
-            .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_warm,data_frozen")
+            .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_warm")
             .build());
         Decision d;
         RoutingNode node;
 
-        for (DiscoveryNode n : Arrays.asList(WARM_NODE, FROZEN_NODE, DATA_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE, DATA_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm]"));
 
         }
 
@@ -193,7 +192,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(d.type(), equalTo(Decision.Type.YES));
         }
 
-        for (DiscoveryNode n : Arrays.asList(WARM_NODE, COLD_NODE, FROZEN_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
@@ -209,7 +208,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testIndexIncludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_frozen")
+                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, 0);
@@ -217,7 +216,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Decision d;
         RoutingNode node;
 
-        for (DiscoveryNode n : Arrays.asList(WARM_NODE, FROZEN_NODE, DATA_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE, DATA_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.YES));
@@ -225,25 +224,25 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(d.type(), equalTo(Decision.Type.YES));
         }
 
-        for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
         }
     }
 
     public void testIndexExcludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm,data_frozen")
+                .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, 0);
@@ -251,22 +250,22 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Decision d;
         RoutingNode node;
 
-        for (DiscoveryNode n : Arrays.asList(WARM_NODE, FROZEN_NODE, DATA_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE, DATA_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node matches any index setting [index.routing.allocation.exclude._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
                 containsString("node matches any index setting [index.routing.allocation.exclude._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
 
         }
 
-        for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
@@ -278,41 +277,41 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterAndIndex() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_frozen")
+                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, 0);
         clusterSettings.applySettings(Settings.builder()
-            .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_frozen")
+            .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
             .build());
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
 
-        for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(node.toString(), d.getExplanation(),
                 containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(node.toString(), d.getExplanation(),
                 containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
-                    "tier filters [data_warm,data_frozen]"));
+                    "tier filters [data_warm,data_cold]"));
         }
 
-        for (DiscoveryNode n : Arrays.asList(FROZEN_NODE, DATA_NODE)) {
+        for (DiscoveryNode n : Arrays.asList(DATA_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
-                containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] tier filters [data_frozen]"));
+                containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] tier filters [data_cold]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(d.getExplanation(),
-                containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] tier filters [data_frozen]"));
+                containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] tier filters [data_cold]"));
         }
 
         for (DiscoveryNode n : Arrays.asList(WARM_NODE)) {
@@ -334,7 +333,6 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .add(HOT_NODE)
                 .add(WARM_NODE)
                 .add(COLD_NODE)
-                .add(FROZEN_NODE)
                 .add(DATA_NODE)
                 .build())
             .metadata(Metadata.builder()

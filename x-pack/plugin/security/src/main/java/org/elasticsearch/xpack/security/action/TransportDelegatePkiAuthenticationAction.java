@@ -84,7 +84,7 @@ public final class TransportDelegatePkiAuthenticationAction
                         tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false,
                                 ActionListener.wrap(tuple -> {
                                     final TimeValue expiresIn = tokenService.getExpirationDelay();
-                                    listener.onResponse(new DelegatePkiAuthenticationResponse(tuple.v1(), expiresIn, authentication));
+                                    listener.onResponse(new DelegatePkiAuthenticationResponse(tuple.v1(), expiresIn));
                                 }, listener::onFailure));
                     }, e -> {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated",

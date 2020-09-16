@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +27,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     private String scope;
     private String refreshToken;
     private String kerberosAuthenticationResponseToken;
-    private Authentication authentication;
 
     CreateTokenResponse() {}
 
@@ -42,13 +40,12 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     }
 
     public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken,
-                               String kerberosAuthenticationResponseToken, Authentication authentication) {
+                               String kerberosAuthenticationResponseToken) {
         this.tokenString = Objects.requireNonNull(tokenString);
         this.expiresIn = Objects.requireNonNull(expiresIn);
         this.scope = scope;
         this.refreshToken = refreshToken;
         this.kerberosAuthenticationResponseToken = kerberosAuthenticationResponseToken;
-        this.authentication = authentication;
     }
 
     public String getTokenString() {
@@ -95,9 +92,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         }
         if (kerberosAuthenticationResponseToken != null) {
             builder.field("kerberos_authentication_response_token", kerberosAuthenticationResponseToken);
-        }
-        if (authentication != null) {
-            builder.field("authentication", authentication);
         }
         return builder.endObject();
     }

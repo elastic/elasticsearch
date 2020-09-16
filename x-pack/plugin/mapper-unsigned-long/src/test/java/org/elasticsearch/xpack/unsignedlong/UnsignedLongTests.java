@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +60,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 3);
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
         prepareCreate("idx").setMapping("ul_field", "type=unsigned_long").setSettings(settings).get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
@@ -263,5 +265,29 @@ public class UnsignedLongTests extends ESIntegTestCase {
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
             assertEquals(expectedSum, sum.getValue(), 0.001);
         }
+    }
+
+    public void testSortDifferentFormatsShouldFail() throws IOException, InterruptedException {
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
+        prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            builders.add(client().prepareIndex("idx2").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
+        }
+        indexRandom(true, builders);
+        ensureSearchable();
+
+        Exception exception = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch()
+                .setIndices("idx", "idx2")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort("ul_field", SortOrder.ASC)
+                .get()
+        );
+        assertEquals(
+            exception.getCause().getMessage(),
+            "Can't do sort across indices, as a field has [unsigned_long] type in one index, and different type in another index!"
+        );
     }
 }

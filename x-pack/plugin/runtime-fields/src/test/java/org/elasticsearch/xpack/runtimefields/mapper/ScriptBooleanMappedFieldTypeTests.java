@@ -49,8 +49,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBooleanFieldData;
 
@@ -468,7 +466,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return org.elasticsearch.common.collect.Set.of(DoubleScriptFieldScript.CONTEXT);
+                        return org.elasticsearch.common.collect.Set.of(DoubleFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -483,15 +481,10 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                         return factory;
                     }
 
-                    private BooleanScriptFieldScript.Factory factory(String code) {
+                    private BooleanFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new BooleanScriptFieldScript(
-                                    fieldName,
-                                    params,
-                                    lookup,
-                                    ctx
-                                ) {
+                                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -500,12 +493,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
                                     }
                                 };
                             case "xor_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new BooleanScriptFieldScript(
-                                    fieldName,
-                                    params,
-                                    lookup,
-                                    ctx
-                                ) {
+                                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
@@ -531,7 +519,7 @@ public class ScriptBooleanMappedFieldTypeTests extends AbstractNonTextScriptMapp
             org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields())
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            BooleanScriptFieldScript.Factory factory = scriptService.compile(script, BooleanScriptFieldScript.CONTEXT);
+            BooleanFieldScript.Factory factory = scriptService.compile(script, BooleanFieldScript.CONTEXT);
             return new ScriptBooleanMappedFieldType("test", script, factory, emptyMap());
         }
     }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.List;
 import java.util.Objects;
@@ -18,12 +18,7 @@ import java.util.Set;
 public class StringScriptFieldTermsQuery extends AbstractStringScriptFieldQuery {
     private final Set<String> terms;
 
-    public StringScriptFieldTermsQuery(
-        Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
-        String fieldName,
-        Set<String> terms
-    ) {
+    public StringScriptFieldTermsQuery(Script script, StringFieldScript.LeafFactory leafFactory, String fieldName, Set<String> terms) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
     }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
@@ -37,13 +35,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<DateScriptFieldScript.LeafFactory> {
+public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
 
     ScriptDateMappedFieldType(
         String name,
         Script script,
-        DateScriptFieldScript.Factory scriptFactory,
+        DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Map<String, String> meta
     ) {

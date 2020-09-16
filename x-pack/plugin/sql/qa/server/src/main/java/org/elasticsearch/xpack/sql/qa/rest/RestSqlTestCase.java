@@ -1025,7 +1025,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             runSql(new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, Mode.PLAIN.toString())
         );
 
-        assertEquals(0, getNumberOfSearchContexts("test"));
+        assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {

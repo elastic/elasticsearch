@@ -105,7 +105,7 @@ public class FetchPhase {
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
 
-        FetchContext fetchContext = FetchContext.fromSearchContext(context);
+        FetchContext fetchContext = new FetchContext(context);
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
         Map<String, Object> sharedCache = new HashMap<>();

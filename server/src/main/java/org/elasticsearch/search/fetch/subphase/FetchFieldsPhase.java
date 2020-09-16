@@ -41,14 +41,14 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext searchContext, SearchLookup lookup) {
-        FetchFieldsContext fetchFieldsContext = searchContext.fetchFieldsContext();
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext, SearchLookup lookup) {
+        FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
             return null;
         }
         FieldValueRetriever retriever = fetchFieldsContext.fieldValueRetriever(
-            searchContext.getIndexName(),
-            searchContext.mapperService(),
+            fetchContext.getIndexName(),
+            fetchContext.mapperService(),
             lookup
         );
         return new FetchSubPhaseProcessor() {

@@ -43,18 +43,14 @@ import java.util.List;
  */
 public class FetchContext {
 
-    private FetchContext(SearchContext searchContext) {
-        this.searchContext = searchContext;
-    }
+    private final SearchContext searchContext;
 
     /**
      * Create a FetchContext based on a SearchContext
      */
-    public static FetchContext fromSearchContext(SearchContext context) {
-        return new FetchContext(context);
+    public FetchContext(SearchContext searchContext) {
+        this.searchContext = searchContext;
     }
-
-    private final SearchContext searchContext;
 
     /**
      * The name of the index that documents are being fetched from

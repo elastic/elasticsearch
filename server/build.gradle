@@ -298,10 +298,3 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
-
-tasks.named("test").configure {
-  /* We need to set this to prevent release builds from failing while the default is different between snapshot and release builds.
-  * In particular, this is needed for IndexNameExpressionResolverTests, which assumes the value is `deprecated`.
-  */
-  systemProperty 'es.system_index_access_behavior', 'deprecated'
-}

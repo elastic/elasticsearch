@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.indices.SystemIndices.AccessBehavior.DEPRECATED;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -63,6 +65,8 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
     }
 
     public void testSystemIndexAccessBlockedByDefault() throws Exception {
+        assumeTrue("This test assumes access to system indices is deprecated, which is currently only true by default in snapshot builds",
+            SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR == DEPRECATED);
         // create index
         {
             Request putDocRequest = new Request("POST", "/_sys_index_test/add_doc/42");

@@ -357,7 +357,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             MockTransportService mockTransportService =
                 ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
             mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                (connection, requestId, action, request, options) -> {
+                (connection, requestId, action, request, options, listener) -> {
                 if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                     RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                     byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
@@ -365,7 +365,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     array[i] = (byte) ~array[i]; // flip one byte in the content
                     hasCorrupted.countDown();
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             });
         }
 
@@ -428,7 +428,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             MockTransportService mockTransportService =
                 ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
             mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                    (connection, requestId, action, request, options) -> {
+                    (connection, requestId, action, request, options, listener) -> {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                     RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                     if (truncate && req.length() > 1) {
@@ -443,7 +443,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         array[i] = (byte) ~array[i]; // flip one byte in the content
                     }
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             });
         }
 

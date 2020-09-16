@@ -165,7 +165,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             final Set<String> interruptedRecoveries = ConcurrentCollections.newConcurrentSet();
 
             // Create a SendRequestBehavior that will block outgoing start recovery request
-            final StubbableTransport.SendRequestBehavior sendBehavior = (connection, requestId, action, request, options) -> {
+            final StubbableTransport.SendRequestBehavior sendBehavior = (connection, requestId, action, request, options, listener) -> {
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
                     final StartRecoveryRequest startRecoveryRequest = ((StartRecoveryRequest) request);
                     if (blockedShards.contains(startRecoveryRequest.shardId())) {
@@ -183,7 +183,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                         }
                     }
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             };
 
             final MockTransportService targetTransportService =

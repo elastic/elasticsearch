@@ -192,14 +192,14 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
             mockTransportService.addSendBehavior(internalTestCluster.getInstance(TransportService.class, node.getName()),
-                (connection, requestId, action, request, options) -> {
+                (connection, requestId, action, request, options, listener) -> {
                     if (blockedActions.contains(action)) {
                         if (timeout.get()) {
                             logger.info("dropping [{}] to [{}]", action, node);
                             return;
                         }
                     }
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 });
         }
 

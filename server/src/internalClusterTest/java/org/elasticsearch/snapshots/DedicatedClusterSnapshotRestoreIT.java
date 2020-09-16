@@ -1281,11 +1281,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         // Drop all file chunk requests so that below relocation takes forever and we're guaranteed to run the snapshot in parallel to it
         for (String nodeName : dataNodes) {
             ((MockTransportService) internalCluster().getInstance(TransportService.class, nodeName)).addSendBehavior(
-                    (connection, requestId, action, request, options) -> {
+                    (connection, requestId, action, request, options, listener) -> {
                         if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
                             return;
                         }
-                        connection.sendRequest(requestId, action, request, options);
+                        connection.sendRequest(requestId, action, request, options, listener);
                     });
         }
 

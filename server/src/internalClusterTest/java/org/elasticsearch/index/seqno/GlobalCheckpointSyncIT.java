@@ -111,11 +111,11 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                             final MockTransportService receiverTransportService =
                                     (MockTransportService) internalCluster().getInstance(TransportService.class, other.getName());
                             senderTransportService.addSendBehavior(receiverTransportService,
-                                (connection, requestId, action, request, options) -> {
+                                (connection, requestId, action, request, options, listener) -> {
                                     if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
                                         throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
                                     } else {
-                                        connection.sendRequest(requestId, action, request, options);
+                                        connection.sendRequest(requestId, action, request, options, listener);
                                     }
                                 });
                         }

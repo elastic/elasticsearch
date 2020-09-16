@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -684,7 +685,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         @Override
         public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                TransportRequestOptions options) throws IOException {
+                                TransportRequestOptions options, ActionListener<Void> listener) {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
@@ -696,9 +697,9 @@ public class RelocationIT extends ESIntegTestCase {
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             } else {
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             }
         }
     }

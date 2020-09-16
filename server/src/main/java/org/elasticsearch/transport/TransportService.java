@@ -118,7 +118,8 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                ActionListener<Void> listener)
             throws TransportException {
             sendLocalRequest(requestId, action, request, options);
         }
@@ -683,7 +684,17 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                 assert options.timeout() != null;
                 timeoutHandler.scheduleTimeout(options.timeout());
             }
-            connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
+            connection.sendRequest(requestId, action, request, options, new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    // nothing for now
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    handleSendException(action, node, requestId, timeoutHandler, e);
+                }
+            }); // local node optimization happens upstream
         } catch (final Exception e) {
             handleSendException(action, node, requestId, timeoutHandler, e);
         }

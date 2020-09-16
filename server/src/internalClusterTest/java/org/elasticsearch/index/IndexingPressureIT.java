@@ -102,7 +102,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         TransportService replicaService = internalCluster().getInstance(TransportService.class, replicaName);
         final MockTransportService replicaTransportService = (MockTransportService) replicaService;
 
-        primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        primaryTransportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (action.equals(TransportShardBulkAction.ACTION_NAME + "[r]")) {
                 try {
                     replicationSendPointReached.countDown();
@@ -111,7 +111,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         final ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();

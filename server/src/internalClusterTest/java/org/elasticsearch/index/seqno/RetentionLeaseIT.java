@@ -383,7 +383,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
         final MockTransportService primaryTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, primaryShardNodeName);
-        primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        primaryTransportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE) && recoveriesToDisrupt.tryAcquire()) {
                 if (randomBoolean()) {
                     // return a ConnectTransportException to the START_RECOVERY action
@@ -397,7 +397,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     throw new ElasticsearchException("failing recovery for test purposes");
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         logger.info("allow [{}] replicas to allocate", numberOfReplicas);

@@ -300,10 +300,10 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         for (TransportService transportService : getFollowerCluster().getDataOrMasterNodeInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
                 if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false &&
                     action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME)) == false) {
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 }
             });
         }
@@ -407,12 +407,12 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         for (TransportService transportService : getFollowerCluster().getDataOrMasterNodeInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
                 if (action.equals(PutCcrRestoreSessionAction.NAME)) {
                     updateMappings.run();
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 } else {
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 }
             });
         }

@@ -102,7 +102,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         CountDownLatch recoveryStarted = new CountDownLatch(1);
         MockTransportService transportServiceOnPrimary
             = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
-        transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
                 try {
@@ -111,7 +111,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     Thread.currentThread().interrupt();
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         internalCluster().startDataOnlyNode();
         recoveryStarted.await();
@@ -157,7 +157,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         CountDownLatch recoveryStarted = new CountDownLatch(1);
         MockTransportService transportServiceOnPrimary
             = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
-        transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
                 try {
@@ -166,7 +166,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     Thread.currentThread().interrupt();
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         String newNode = internalCluster().startDataOnlyNode();
         recoveryStarted.await();
@@ -294,7 +294,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         MockTransportService transportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
         CountDownLatch newNodeStarted = new CountDownLatch(1);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                 if (brokenNode.equals(connection.getNode().getName())) {
                     try {
@@ -305,7 +305,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     throw new CircuitBreakingException("not enough memory for indexing", 100, 50, CircuitBreaker.Durability.TRANSIENT);
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));

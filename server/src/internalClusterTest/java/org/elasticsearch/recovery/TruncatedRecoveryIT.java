@@ -117,7 +117,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster()
                     .getInstance(TransportService.class, dataNode.getNode().getName()));
             mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                (connection, requestId, action, request, options) -> {
+                (connection, requestId, action, request, options, listener) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
@@ -126,7 +126,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                             throw new RuntimeException("Caused some truncated files for fun and profit");
                         }
                     }
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 });
         }
 

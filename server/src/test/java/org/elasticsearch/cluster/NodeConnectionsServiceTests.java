@@ -540,7 +540,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                            ActionListener<Void> listener)
                         throws TransportException {
                     }
 

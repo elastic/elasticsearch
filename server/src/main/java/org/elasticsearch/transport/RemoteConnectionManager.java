@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -174,10 +173,10 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws IOException, TransportException {
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                ActionListener<Void> listener) {
             connection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
-                TransportActionProxy.wrapRequest(targetNode, request), options);
+                TransportActionProxy.wrapRequest(targetNode, request), options, listener);
         }
 
         @Override

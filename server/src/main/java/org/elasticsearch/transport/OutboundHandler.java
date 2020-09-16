@@ -72,13 +72,25 @@ public final class OutboundHandler {
      */
     void sendRequest(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
-                     final boolean compressRequest, final boolean isHandshake) throws TransportException {
+                     final boolean compressRequest, final boolean isHandshake, ActionListener<Void> listener) throws TransportException {
         Version version = Version.min(this.version, channelVersion);
         OutboundMessage.Request message =
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressRequest);
-        ActionListener<Void> listener = ActionListener.wrap(() ->
-            messageListener.onRequestSent(node, requestId, action, request, options));
-        sendMessage(channel, message, listener);
+        sendMessage(channel, message, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                try {
+                    listener.onResponse(null);
+                } finally {
+                    messageListener.onRequestSent(node, requestId, action, request, options);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**

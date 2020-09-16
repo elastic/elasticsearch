@@ -94,8 +94,8 @@ public class ExceptionRetryIT extends ESIntegTestCase {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class,
                 dataNode.getNode().getName()));
             mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                (connection, requestId, action, request, options) -> {
-                    connection.sendRequest(requestId, action, request, options);
+                (connection, requestId, action, request, options, listener) -> {
+                    connection.sendRequest(requestId, action, request, options, listener);
                     if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
                         logger.debug("Throw ConnectTransportException");
                         throw new ConnectTransportException(connection.getNode(), action);

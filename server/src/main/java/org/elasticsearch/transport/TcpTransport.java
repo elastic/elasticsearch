@@ -151,7 +151,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, false, true));
+                TransportRequestOptions.EMPTY, v, false, true, ActionListener.wrap(() -> {})));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive,
             requestHandlers, responseHandlers);
@@ -241,13 +241,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws TransportException {
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                ActionListener<Void> listener) {
             if (isClosing.get()) {
-                throw new NodeNotConnectedException(node, "connection already closed");
+                listener.onFailure(new NodeNotConnectedException(node, "connection already closed"));
+                return;
             }
             TcpChannel channel = channel(options.type());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false, listener);
         }
     }
 

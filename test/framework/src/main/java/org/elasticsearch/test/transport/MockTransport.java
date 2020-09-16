@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -158,10 +159,11 @@ public class MockTransport extends StubbableTransport {
             }
 
             @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws TransportException {
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                    ActionListener<Void> listener) {
                 requests.put(requestId, Tuple.tuple(node, action));
                 onSendRequest(requestId, action, request, node);
+                listener.onResponse(null);
             }
         };
     }

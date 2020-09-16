@@ -185,7 +185,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         CountDownLatch recoveryStarted = new CountDownLatch(1);
         MockTransportService transportServiceOnPrimary
             = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
-        transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
                 try {
@@ -194,7 +194,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                     Thread.currentThread().interrupt();
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         internalCluster().startDataOnlyNode();
         recoveryStarted.await();
@@ -273,7 +273,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, source);
         Semaphore failRecovery = new Semaphore(1);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.CLEAN_FILES)) {
                 RecoveryCleanFilesRequest cleanFilesRequest = (RecoveryCleanFilesRequest) request;
                 request = new RecoveryCleanFilesRequest(cleanFilesRequest.recoveryId(),
@@ -285,7 +285,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                     throw new IllegalStateException("simulated");
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         assertAcked(client().admin().indices().prepareUpdateSettings()
             .setIndices(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()));

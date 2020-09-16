@@ -220,13 +220,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
         TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        transportServiceNode_1.addSendBehavior(transportServiceNode_2, (connection, requestId, action, request, options) -> {
+        transportServiceNode_1.addSendBehavior(transportServiceNode_2, (connection, requestId, action, request, options, listener) -> {
             if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
                 shardActiveRequestSent.countDown();
                 logger.info("prevent shard active request from being sent");
                 throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);

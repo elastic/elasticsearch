@@ -31,14 +31,12 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportStats;
 
-import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
@@ -225,14 +223,14 @@ public class StubbableTransport implements Transport {
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws IOException, TransportException {
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                ActionListener<Void> listener) {
             TransportAddress address = connection.getNode().getAddress();
             SendRequestBehavior behavior = sendBehaviors.getOrDefault(address, defaultSendRequest);
             if (behavior == null) {
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             } else {
-                behavior.sendRequest(connection, requestId, action, request, options);
+                behavior.sendRequest(connection, requestId, action, request, options, listener);
             }
         }
 
@@ -279,7 +277,7 @@ public class StubbableTransport implements Transport {
     @FunctionalInterface
     public interface SendRequestBehavior {
         void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                         TransportRequestOptions options) throws IOException;
+                         TransportRequestOptions options, ActionListener<Void> listener);
 
         default void clearCallback() {}
     }

@@ -216,7 +216,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final MockTransportService senderTransportService =
                     (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.getName());
             senderTransportService.addSendBehavior(
-                    (connection, requestId, action, request, options) -> {
+                    (connection, requestId, action, request, options, listener) -> {
                         if (ClearCcrRestoreSessionAction.NAME.equals(action)
                                 || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
                             try {
@@ -225,7 +225,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                 fail(e.toString());
                             }
                         }
-                        connection.sendRequest(requestId, action, request, options);
+                        connection.sendRequest(requestId, action, request, options, listener);
                     });
         }
 
@@ -402,7 +402,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final MockTransportService senderTransportService =
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.getName());
                 senderTransportService.addSendBehavior(
-                        (connection, requestId, action, request, options) -> {
+                        (connection, requestId, action, request, options, listener) -> {
                             if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
                                     || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
                                 final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
@@ -434,7 +434,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                     }
                                 }
                             }
-                            connection.sendRequest(requestId, action, request, options);
+                            connection.sendRequest(requestId, action, request, options, listener);
                         });
             }
 
@@ -485,7 +485,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final MockTransportService senderTransportService =
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.getName());
                 senderTransportService.addSendBehavior(
-                        (connection, requestId, action, request, options) -> {
+                        (connection, requestId, action, request, options, listener) -> {
                             if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
                                     || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
                                 final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
@@ -495,7 +495,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                             : new IndexShardClosedException(removeRequest.getShardId());
                                 }
                             }
-                            connection.sendRequest(requestId, action, request, options);
+                            connection.sendRequest(requestId, action, request, options, listener);
                         });
             }
 
@@ -766,7 +766,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final MockTransportService senderTransportService =
                     (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.getName());
                 senderTransportService.addSendBehavior(
-                    (connection, requestId, action, request, options) -> {
+                    (connection, requestId, action, request, options, listener) -> {
                         if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
                             || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
                             final RetentionLeaseActions.RenewRequest renewRequest = (RetentionLeaseActions.RenewRequest) request;
@@ -806,7 +806,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                 }
                             }
                         }
-                        connection.sendRequest(requestId, action, request, options);
+                        connection.sendRequest(requestId, action, request, options, listener);
                     });
             }
 
@@ -869,7 +869,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final MockTransportService senderTransportService =
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.getName());
                 senderTransportService.addSendBehavior(
-                        (connection, requestId, action, request, options) -> {
+                        (connection, requestId, action, request, options, listener) -> {
                             if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
                                     || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
                                 final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
@@ -901,7 +901,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                     fail(e.toString());
                                 }
                             }
-                            connection.sendRequest(requestId, action, request, options);
+                            connection.sendRequest(requestId, action, request, options, listener);
                         });
             }
 

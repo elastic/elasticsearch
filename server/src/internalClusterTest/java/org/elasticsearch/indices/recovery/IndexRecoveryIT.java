@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -377,7 +378,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
         CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeA);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
                 phase1ReadyBlocked.countDown();
                 try {
@@ -386,7 +387,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     throw new AssertionError(e);
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         logger.info("--> restart node B");
@@ -801,9 +802,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final AtomicBoolean finalizeReceived = new AtomicBoolean(false);
 
         final SingleStartEnforcer validator = new SingleStartEnforcer(indexName, recoveryStarted, finalizeReceived);
-        redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options) -> {
+        redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options, listener) -> {
             validator.accept(action, request);
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         Runnable connectionBreaker = () -> {
             // Always break connection from source to remote to ensure that actions are retried
@@ -1026,7 +1027,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         @Override
         public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException {
+                                TransportRequestOptions options, ActionListener<Void> listener) {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 requestBlocked.countDown();
                 if (dropRequests) {
@@ -1037,7 +1038,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         }
     }
 
@@ -1090,7 +1091,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
             @Override
             public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException {
+                                    TransportRequestOptions options, ActionListener<Void> listener) {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
@@ -1102,7 +1103,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                     try {
                         Thread.sleep(disconnectAfterDelay.millis());
                     } catch (InterruptedException e) {
@@ -1111,27 +1112,27 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     throw new ConnectTransportException(connection.getNode(),
                         "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
                 } else {
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 }
             }
         });
 
         final AtomicBoolean finalized = new AtomicBoolean();
-        blueMockTransportService.addSendBehavior(redMockTransportService, (connection, requestId, action, request, options) -> {
+        blueMockTransportService.addSendBehavior(redMockTransportService, (connection, requestId, action, request, options, listener) -> {
             logger.info("--> sending request {} on {}", action, connection.getNode());
             if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
                 finalized.set(true);
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
-            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options, listener) -> {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if ((primaryRelocation && finalized.get()) == false) {
                     assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             });
         }
 
@@ -1240,7 +1241,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (DiscoveryNode node : clusterService().state().nodes()) {
             MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
                 TransportService.class, node.getName());
-            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
                 if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                     if (recoveryBlocked.tryAcquire()) {
                         PluginsService pluginService = internalCluster().getInstance(PluginsService.class, node.getName());
@@ -1249,7 +1250,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                         }
                     }
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             });
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
@@ -1272,7 +1273,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
         CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
         Semaphore blockRecovery = new Semaphore(1);
-        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+        transport.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
                 phase1ReadyBlocked.countDown();
                 try {
@@ -1281,7 +1282,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     throw new AssertionError(e);
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         try {
             String nodeWithReplica = internalCluster().startDataOnlyNode();
@@ -1327,7 +1328,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         SetOnce<Integer> localRecoveredOps = new SetOnce<>();
         for (String node : nodes) {
             MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
                 if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                     final RecoveryState recoveryState = internalCluster().getInstance(IndicesService.class, failingNode)
                         .getShardOrNull(new ShardId(resolveIndex(indexName), 0)).recoveryState();
@@ -1348,7 +1349,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     throw new AssertionError("expect an operation-based recovery:" +
                         "retention leases" + Strings.toString(retentionLeases) + "]");
                 }
-                connection.sendRequest(requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options, listener);
             });
         }
         IndexShard shard = internalCluster().getInstance(IndicesService.class, failingNode)
@@ -1720,7 +1721,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .getInstance(TransportService.class, nodeWithOldPrimary.getName());
         CountDownLatch readyToRestartNode = new CountDownLatch(1);
         AtomicBoolean stopped = new AtomicBoolean();
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (action.equals("indices:data/write/bulk[s][r]") && randomInt(100) < 5) {
                 throw new NodeClosedException(nodeWithOldPrimary);
             }
@@ -1730,7 +1731,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 readyToRestartNode.countDown();
                 throw new NodeClosedException(nodeWithOldPrimary);
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
         Thread[] indexers = new Thread[randomIntBetween(1, 8)];
         for (int i = 0; i < indexers.length; i++) {
@@ -1795,7 +1796,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         final AtomicBoolean fileInfoIntercepted = new AtomicBoolean();
         final AtomicBoolean fileChunkIntercepted = new AtomicBoolean();
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        transportService.addSendBehavior((connection, requestId, action, request, options, listener) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                 if (fileInfoIntercepted.compareAndSet(false, true)) {
                     final NodeIndicesStats nodeIndicesStats = client().admin().cluster().prepareNodesStats(connection.getNode().getId())
@@ -1814,7 +1815,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                         greaterThan(0L));
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)

@@ -82,7 +82,8 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
             }
 
             @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                    ActionListener<Void> listener1) {
 
             }
         });

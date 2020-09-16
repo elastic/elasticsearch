@@ -73,7 +73,6 @@ import org.elasticsearch.transport.RemoteClusterServiceTests;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -308,8 +307,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws TransportException {
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                    ActionListener<Void> listener) {
             }
 
             @Override

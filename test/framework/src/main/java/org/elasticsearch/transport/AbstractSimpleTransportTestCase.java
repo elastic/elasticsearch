@@ -2908,7 +2908,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), equalTo("runtime_exception: serialization exception"));
+            assertThat(e.getCause().getMessage(), equalTo("serialization exception"));
         }
     }
 

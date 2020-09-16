@@ -95,9 +95,11 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     }
 
                     @Override
-                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                            ActionListener<Void> l)
                         throws TransportException {
                         onSendRequest(requestId, action, request, matchingTransport);
+                        l.onResponse(null);
                     }
                 });
             }

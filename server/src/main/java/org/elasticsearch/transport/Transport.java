@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -102,10 +101,10 @@ public interface Transport extends LifecycleComponent {
          * @param action the action to execute
          * @param request the request to send
          * @param options request options to apply
-         * @throws NodeNotConnectedException if the given node is not connected
+         * @param listener listener to resolve once message has been sent
          */
-        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-            IOException, TransportException;
+        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                         ActionListener<Void> listener);
 
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
@@ -194,7 +193,7 @@ public interface Transport extends LifecycleComponent {
         /**
          * Adds a new response context and associates it with a new request ID.
          * @return the new request ID
-         * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
+         * @see Connection#sendRequest
          */
         public long add(ResponseContext<? extends TransportResponse> holder) {
             long requestId = newRequestId();
@@ -204,8 +203,7 @@ public interface Transport extends LifecycleComponent {
         }
 
         /**
-         * Returns a new request ID to use when sending a message via {@link Connection#sendRequest(long, String,
-         * TransportRequest, TransportRequestOptions)}
+         * Returns a new request ID to use when sending a message via {@link Connection#sendRequest}
          */
         long newRequestId() {
             return requestIdGenerator.incrementAndGet();

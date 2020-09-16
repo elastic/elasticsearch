@@ -143,7 +143,8 @@ public class OutboundHandlerTests extends ESTestCase {
                 requestRef.set(request);
             }
         });
-        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
+        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake,
+                ActionListener.wrap(() -> {}));
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

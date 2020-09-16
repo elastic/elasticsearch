@@ -92,11 +92,11 @@ public class VotingConfigurationIT extends ESIntegTestCase {
                 = (MockTransportService) internalCluster().getInstance(TransportService.class, sender);
             for (final String receiver : nodeNames) {
                 senderTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, receiver),
-                    (connection, requestId, action, request, options) -> {
+                    (connection, requestId, action, request, options, listener) -> {
                         if (action.equals(PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
                             throw new ElasticsearchException("rejected");
                         }
-                        connection.sendRequest(requestId, action, request, options);
+                        connection.sendRequest(requestId, action, request, options, listener);
                     });
             }
         }

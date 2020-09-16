@@ -482,9 +482,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
                         if (type != TransportRequestOptions.Type.REG) {
                             assertThat(expectThrows(IllegalStateException.class,
-                                    () -> connection.getConnection().sendRequest(randomNonNegativeLong(),
-                                    "arbitrary", TransportRequest.Empty.INSTANCE,
-                                    TransportRequestOptions.builder().withType(type).build())).getMessage(),
+                                    () -> PlainActionFuture.<Void, Exception>get(f -> connection.getConnection()
+                                            .sendRequest(randomNonNegativeLong(), "arbitrary", TransportRequest.Empty.INSTANCE,
+                                    TransportRequestOptions.builder().withType(type).build(), f))).getMessage(),
                                     allOf(containsString("can't select"), containsString(type.toString())));
                         }
                     }

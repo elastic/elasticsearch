@@ -39,7 +39,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 
@@ -651,8 +650,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws TransportException {
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options,
+                                ActionListener<Void> listener) {
             throw new UnsupportedOperationException();
         }
 

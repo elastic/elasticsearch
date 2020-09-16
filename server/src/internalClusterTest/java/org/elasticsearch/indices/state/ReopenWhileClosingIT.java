@@ -139,7 +139,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch release = new CountDownLatch(1);
         for (DiscoveryNode node : internalCluster().clusterService().state().getNodes()) {
             mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()),
-                (connection, requestId, action, request, options) -> {
+                (connection, requestId, action, request, options, listener) -> {
                     if (action.startsWith(TransportVerifyShardBeforeCloseAction.NAME)) {
                         if (request instanceof TransportVerifyShardBeforeCloseAction.ShardRequest) {
                             final String index = ((TransportVerifyShardBeforeCloseAction.ShardRequest) request).shardId().getIndexName();
@@ -156,7 +156,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
                         }
 
                     }
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                 });
         }
         final RunOnce releaseOnce = new RunOnce(release::countDown);

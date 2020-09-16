@@ -237,10 +237,10 @@ public final class MockTransportService extends TransportService {
         transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
             listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated")));
 
-        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
+        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options, listener) -> {
             connection.close();
             // send the request, which will blow up
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
     }
 
@@ -264,12 +264,12 @@ public final class MockTransportService extends TransportService {
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress, final Set<String> blockedActions) {
-        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
+        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options, listener) -> {
             if (blockedActions.contains(action)) {
                 logger.info("--> preventing {} request", action);
                 connection.close();
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
     }
 
@@ -295,7 +295,7 @@ public final class MockTransportService extends TransportService {
             private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
             @Override
             public void sendRequest(Transport.Connection connection, long requestId, String action,
-                                    TransportRequest request, TransportRequestOptions options) {
+                                    TransportRequest request, TransportRequestOptions options, ActionListener<Void> listener) {
                 // don't send anything, the receiving node is unresponsive
                 toClose.add(connection);
             }
@@ -374,40 +374,43 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException {
+                                    TransportRequestOptions options, ActionListener<Void> listener) {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
-                    connection.sendRequest(requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options, listener);
                     return;
                 }
+                try {
+                    // poor mans request cloning...
+                    RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
+                    BytesStreamOutput bStream = new BytesStreamOutput();
+                    request.writeTo(bStream);
+                    final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
 
-                // poor mans request cloning...
-                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
-                BytesStreamOutput bStream = new BytesStreamOutput();
-                request.writeTo(bStream);
-                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+                    final RunOnce runnable = new RunOnce(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug("failed to send delayed request", e);
+                        }
 
-                final RunOnce runnable = new RunOnce(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug("failed to send delayed request", e);
+                        @Override
+                        protected void doRun() throws IOException {
+                            connection.sendRequest(requestId, action, clonedRequest, options, listener);
+                        }
+                    });
+
+                    // store the request to send it once the rule is cleared.
+                    synchronized (this) {
+                        if (cleared) {
+                            runnable.run();
+                        } else {
+                            requestsToSendWhenCleared.add(runnable);
+                            threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
+                        }
                     }
-
-                    @Override
-                    protected void doRun() throws IOException {
-                        connection.sendRequest(requestId, action, clonedRequest, options);
-                    }
-                });
-
-                // store the request to send it once the rule is cleared.
-                synchronized (this) {
-                    if (cleared) {
-                        runnable.run();
-                    } else {
-                        requestsToSendWhenCleared.add(runnable);
-                        threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
-                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
 

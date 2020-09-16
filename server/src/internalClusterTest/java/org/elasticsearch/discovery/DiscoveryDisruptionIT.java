@@ -79,11 +79,11 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
-        nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+        nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options, listener) -> {
             if (action.equals(JoinHelper.JOIN_ACTION_NAME)) {
                 countDownLatch.countDown();
             }
-            connection.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options, listener);
         });
 
         nonMasterTransportService.addConnectBehavior(masterTransportService, Transport::openConnection);

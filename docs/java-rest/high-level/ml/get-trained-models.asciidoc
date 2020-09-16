@@ -25,14 +25,16 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> Constructing a new GET request referencing an existing Trained Model
 <2> Set the paging parameters
 <3> Indicate if the complete model definition should be included
-<4> Should the definition be fully decompressed on GET
-<5> Allow empty response if no Trained Models match the provided ID patterns.
+<4> Indicate if the total feature importance for the features used in training
+    should be included in the model `metadata` field.
+<5> Should the definition be fully decompressed on GET
+<6> Allow empty response if no Trained Models match the provided ID patterns.
     If false, an error will be thrown if no Trained Models match the
     ID patterns.
-<6> An optional list of tags used to narrow the model search. A Trained Model
+<7> An optional list of tags used to narrow the model search. A Trained Model
     can have many tags or none. The trained models in the response will
     contain all the provided tags.
-<7> Optional boolean value indicating if certain fields should be removed on
+<8> Optional boolean value indicating if certain fields should be removed on
     retrieval. This is useful for getting the trained model in a format that
     can then be put into another cluster.
 

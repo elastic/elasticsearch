@@ -53,6 +53,10 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         return NAME + "-" + modelId;
     }
 
+    public static String modelId(String docId) {
+        return docId.substring(NAME.length() + 1);
+    }
+
     private final List<TotalFeatureImportance> totalFeatureImportances;
     private final String modelId;
 

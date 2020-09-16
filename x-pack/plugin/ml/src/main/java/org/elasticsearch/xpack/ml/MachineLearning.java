@@ -113,7 +113,6 @@ import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsMetadataAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
@@ -191,7 +190,6 @@ import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsMetadataAction;
 import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportInternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
@@ -310,7 +308,6 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsMetadataAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
@@ -866,7 +863,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestDeleteTrainedModelAction(),
             new RestGetTrainedModelsStatsAction(),
             new RestPutTrainedModelAction(),
-            new RestGetTrainedModelsMetadataAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -950,7 +946,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
                 new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
                 new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class),
-                new ActionHandler<>(GetTrainedModelsMetadataAction.INSTANCE, TransportGetTrainedModelsMetadataAction.class),
             usageAction,
                 infoAction);
     }

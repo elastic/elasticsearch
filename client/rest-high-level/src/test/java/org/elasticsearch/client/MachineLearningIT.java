@@ -78,8 +78,6 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
-import org.elasticsearch.client.ml.GetTrainedModelsMetadataRequest;
-import org.elasticsearch.client.ml.GetTrainedModelsMetadataResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
@@ -167,7 +165,6 @@ import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
-import org.elasticsearch.client.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -190,7 +187,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.junit.After;
 
 import java.io.IOException;
@@ -2231,7 +2227,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(true).setIncludeDefinition(true),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(true)
+                    .includeDefinition()
+                    .includeTotalFeatureImportance(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
 
@@ -2242,7 +2241,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
 
             getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(true),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(false)
+                    .includeTotalFeatureImportance()
+                    .includeDefinition(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
 
@@ -2253,7 +2255,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
 
             getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(false),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(false)
+                    .includeDefinition(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
             assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
@@ -2391,66 +2395,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 getTrainedModelsStatsResponse.getTrainedModelStats()
                     .stream()
                     .map(TrainedModelStats::getModelId)
-                    .collect(Collectors.toList()),
-                containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
-        }
-    }
-
-    public void testGetTrainedModelsMetadata() throws Exception {
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String modelIdPrefix = "a-get-trained-model-metadata-";
-        int numberOfModels = 5;
-        for (int i = 0; i < numberOfModels; ++i) {
-            String modelId = modelIdPrefix + i;
-            putTrainedModel(modelId);
-            IndexRequest indexRequest = new IndexRequest(InferenceIndexConstants.LATEST_INDEX_NAME).id("trained_model_metadata-" + modelId);
-            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            indexRequest.source("{\"model_id\":\"" + modelId + "\", \"doc_type\": \"trained_model_metadata\",\n" +
-                "    \"total_feature_importance\": [\n" +
-                "        {\n" +
-                "            \"feature_name\": \"foo\",\n" +
-                "            \"importance\": {\n" +
-                "                \"mean_magnitude\": 6.0,\n" +
-                "                \"min\": -3.0,\n" +
-                "                \"max\": 3.0\n" +
-                "            }\n" +
-                "        },\n" +
-                "        {\n" +
-                "            \"feature_name\": \"bar\",\n" +
-                "            \"importance\": {\n" +
-                "                \"mean_magnitude\": 5.0,\n" +
-                "                \"min\": -2.0,\n" +
-                "                \"max\": 3.0\n" +
-                "            }\n" +
-                "        }\n" +
-                "    ]}", XContentType.JSON);
-            highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
-        }
-
-        {
-            GetTrainedModelsMetadataResponse getTrainedModelsMetadataResponse = execute(
-                GetTrainedModelsMetadataRequest.getAllTrainedModelsMetadataRequest(),
-                machineLearningClient::getTrainedModelsMetadata, machineLearningClient::getTrainedModelsMetadataAsync);
-            assertThat(getTrainedModelsMetadataResponse.getTrainedModelsMetadata(), hasSize(numberOfModels));
-            assertThat(getTrainedModelsMetadataResponse.getCount(), equalTo(5L));
-        }
-        {
-            GetTrainedModelsMetadataResponse getTrainedModelsMetadataResponse = execute(
-                new GetTrainedModelsMetadataRequest(modelIdPrefix + 4, modelIdPrefix + 2, modelIdPrefix + 3),
-                machineLearningClient::getTrainedModelsMetadata, machineLearningClient::getTrainedModelsMetadataAsync);
-            assertThat(getTrainedModelsMetadataResponse.getTrainedModelsMetadata(), hasSize(3));
-            assertThat(getTrainedModelsMetadataResponse.getCount(), equalTo(3L));
-        }
-        {
-            GetTrainedModelsMetadataResponse getTrainedModelsMetadataResponse = execute(
-                new GetTrainedModelsMetadataRequest(modelIdPrefix + "*").setPageParams(new PageParams(1, 2)),
-                machineLearningClient::getTrainedModelsMetadata, machineLearningClient::getTrainedModelsMetadataAsync);
-            assertThat(getTrainedModelsMetadataResponse.getTrainedModelsMetadata(), hasSize(2));
-            assertThat(getTrainedModelsMetadataResponse.getCount(), equalTo(5L));
-            assertThat(
-                getTrainedModelsMetadataResponse.getTrainedModelsMetadata()
-                    .stream()
-                    .map(TrainedModelMetadata::getModelId)
                     .collect(Collectors.toList()),
                 containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
         }

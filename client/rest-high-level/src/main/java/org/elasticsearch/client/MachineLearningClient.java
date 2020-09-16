@@ -77,8 +77,6 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
-import org.elasticsearch.client.ml.GetTrainedModelsMetadataRequest;
-import org.elasticsearch.client.ml.GetTrainedModelsMetadataResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
@@ -2517,49 +2515,6 @@ public final class MachineLearningClient {
             MLRequestConverters::getTrainedModelsStats,
             options,
             GetTrainedModelsStatsResponse::fromXContent,
-            listener,
-            Collections.emptySet());
-    }
-
-    /**
-     * Gets trained model metadata
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-metadata.html">
-     *     GET Trained Model Metadata documentation</a>
-     *
-     * @param request The {@link GetTrainedModelsMetadataRequest}
-     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@link GetTrainedModelsMetadataResponse} response object
-     */
-    public GetTrainedModelsMetadataResponse getTrainedModelsMetadata(GetTrainedModelsMetadataRequest request,
-                                                                     RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-            MLRequestConverters::getTrainedModelsMetadata,
-            options,
-            GetTrainedModelsMetadataResponse::fromXContent,
-            Collections.emptySet());
-    }
-
-    /**
-     * Gets trained model metadata asynchronously and notifies listener upon completion
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-metadata.html">
-     *     GET Trained Model Metadata documentation</a>
-     *
-     * @param request The {@link GetTrainedModelsMetadataRequest}
-     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener Listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable getTrainedModelsMetadataAsync(GetTrainedModelsMetadataRequest request,
-                                                     RequestOptions options,
-                                                     ActionListener<GetTrainedModelsMetadataResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            MLRequestConverters::getTrainedModelsMetadata,
-            options,
-            GetTrainedModelsMetadataResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

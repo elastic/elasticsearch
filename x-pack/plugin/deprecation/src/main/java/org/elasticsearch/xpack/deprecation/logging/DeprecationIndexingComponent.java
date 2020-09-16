@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -33,7 +34,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.xpack.core.ClientHelper;
 
+import java.util.Arrays;
+import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * This component manages the construction and lifecycle of the {@link DeprecationIndexingAppender}.
@@ -106,7 +110,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     /**
      * Constructs a bulk processor for writing documents
-     * @param client the client to use
+     *
+     * @param client   the client to use
      * @param settings the settings to use
      * @return an initialised bulk processor
      */
@@ -131,11 +136,27 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         public void beforeBulk(long executionId, BulkRequest request) {}
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
+        public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+            long numberOfActions = request.numberOfActions();
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "indexed [{}] deprecation documents into [{}]",
+                    numberOfActions,
+                    Arrays.stream(response.getItems()).map(BulkItemResponse::getIndex).distinct().collect(Collectors.joining(","))
+                );
+            }
+
+            if (response.hasFailures()) {
+                Map<String, String> failures = Arrays.stream(response.getItems())
+                    .filter(BulkItemResponse::isFailed)
+                    .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                logger.error("Bulk write of deprecation logs encountered some failures: [{}]", failures);
+            }
+        }
 
         @Override
         public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-            logger.error("Bulk write of deprecation logs failed: " + failure.getMessage(), failure);
+            logger.error("Bulk write of " + request.numberOfActions() + " deprecation logs failed: " + failure.getMessage(), failure);
         }
     }
 }

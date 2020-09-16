@@ -18,7 +18,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -46,21 +45,22 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "ip_whitelist.txt"));
     }
 
+    @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
-        IpScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        IpScriptFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private BytesRef[] values = new BytesRef[1];
     private int count;
 
-    public IpScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(params, searchLookup, ctx);
+    public IpScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx);
     }
 
     /**
@@ -92,22 +92,23 @@ public abstract class IpScriptFieldScript extends AbstractScriptFieldScript {
         return count;
     }
 
-    protected final void emitValue(String v) {
+    protected final void emit(String v) {
+        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
         values[count++] = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
     }
 
-    public static class EmitValue {
+    public static class Emit {
         private final IpScriptFieldScript script;
 
-        public EmitValue(IpScriptFieldScript script) {
+        public Emit(IpScriptFieldScript script) {
             this.script = script;
         }
 
-        public void emitValue(String v) {
-            script.emitValue(v);
+        public void emit(String v) {
+            script.emit(v);
         }
     }
 }

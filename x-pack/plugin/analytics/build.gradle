@@ -20,4 +20,3 @@ dependencies {
   api 'org.apache.commons:commons-math3:3.2'
 }
 
-integTest.enabled = false

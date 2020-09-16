@@ -43,10 +43,12 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 
+import javax.management.monitor.Monitor;
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -837,7 +839,7 @@ public class HttpExporter extends Exporter {
 
             // add a resource per watch
             for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
-                final boolean blacklisted = blacklist.contains(watchId);
+                final boolean blacklisted = blacklist.contains(watchId) || Monitoring.MIGRATION_DECOMMISSION_ALERTS.get(config.settings());
                 // lazily load the cluster state to fetch the cluster UUID once it's loaded
                 final Supplier<String> uniqueWatchId = () -> ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
                 final Supplier<String> watch = blacklisted ? null : () -> ClusterAlertsUtil.loadWatch(clusterService, watchId);

@@ -82,10 +82,10 @@ public class ExpressionTests extends ESTestCase {
 
     public void testSingleQuotedStringForbidden() {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("'hello world'"));
-        assertEquals("line 1:2: Single quotes ['] are not supported around literal strings, please use double quotes [\"]",
+        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
         e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name='hello world'"));
-        assertEquals("line 1:21: Single quotes ['] are not supported around literal strings, please use double quotes [\"]",
+        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 
@@ -98,10 +98,10 @@ public class ExpressionTests extends ESTestCase {
 
     public void testSingleQuotedUnescapedStringForbidden() {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
-        assertEquals("line 1:2: Single quotes ['] are not supported around literal strings, please use double quotes [\"]",
+        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
         e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Single quotes ['] are not supported around literal strings, please use double quotes [\"]",
+        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 

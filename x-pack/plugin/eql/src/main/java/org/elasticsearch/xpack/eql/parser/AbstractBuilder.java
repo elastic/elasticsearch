@@ -180,7 +180,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
     private static void checkForSingleQuotedString(Source source, String text, int i) {
         if (text.charAt(i) == '\'') {
             throw new ParsingException(source,
-                    "Single quotes ['] are not supported around literal strings, please use double quotes [\"]");
+                    "Use double quotes [\"] to define string literals, not single quotes [']");
         }
     }
 

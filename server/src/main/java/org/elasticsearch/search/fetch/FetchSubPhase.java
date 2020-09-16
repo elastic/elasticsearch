@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -38,14 +39,21 @@ public interface FetchSubPhase {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private final SourceLookup sourceLookup = new SourceLookup();
+        private final SourceLookup sourceLookup;
         private final Map<String, Object> cache;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Map<String, Object> cache) {
+        public HitContext(
+            SearchHit hit,
+            LeafReaderContext context,
+            int docId,
+            SourceLookup sourceLookup,
+            Map<String, Object> cache
+        ) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup.setSegmentAndDocument(context, docId);
+            this.sourceLookup = sourceLookup;
+            sourceLookup.setSegmentAndDocument(context, docId);
             this.cache = cache;
         }
 
@@ -95,5 +103,5 @@ public interface FetchSubPhase {
      * If nothing should be executed for the provided {@link SearchContext}, then the
      * implementation should return {@code null}
      */
-    FetchSubPhaseProcessor getProcessor(SearchContext searchContext) throws IOException;
+    FetchSubPhaseProcessor getProcessor(SearchContext searchContext, SearchLookup lookup) throws IOException;
 }

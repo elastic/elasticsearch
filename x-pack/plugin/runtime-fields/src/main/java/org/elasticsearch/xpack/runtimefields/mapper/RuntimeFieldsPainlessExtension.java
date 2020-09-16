@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -17,12 +17,12 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         return Map.ofEntries(
-            Map.entry(BooleanScriptFieldScript.CONTEXT, BooleanScriptFieldScript.whitelist()),
-            Map.entry(DateScriptFieldScript.CONTEXT, DateScriptFieldScript.whitelist()),
-            Map.entry(DoubleScriptFieldScript.CONTEXT, DoubleScriptFieldScript.whitelist()),
-            Map.entry(IpScriptFieldScript.CONTEXT, IpScriptFieldScript.whitelist()),
-            Map.entry(LongScriptFieldScript.CONTEXT, LongScriptFieldScript.whitelist()),
-            Map.entry(StringScriptFieldScript.CONTEXT, StringScriptFieldScript.whitelist())
+            Map.entry(BooleanFieldScript.CONTEXT, BooleanFieldScript.whitelist()),
+            Map.entry(DateFieldScript.CONTEXT, DateFieldScript.whitelist()),
+            Map.entry(DoubleFieldScript.CONTEXT, DoubleFieldScript.whitelist()),
+            Map.entry(IpFieldScript.CONTEXT, IpFieldScript.whitelist()),
+            Map.entry(LongFieldScript.CONTEXT, LongFieldScript.whitelist()),
+            Map.entry(StringFieldScript.CONTEXT, StringFieldScript.whitelist())
         );
     }
 }

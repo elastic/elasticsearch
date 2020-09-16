@@ -7,15 +7,15 @@
 # The whitelist for boolean-valued runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript @no_import {
+class org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript @no_import {
 }
-class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Factory @no_import {
+class org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript$Emit
+    void emit(org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript$Emit
     # Parse a value from the source to a boolean
-    boolean parse(def) from_class org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript
+    boolean parse(def) from_class org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript
 }
 

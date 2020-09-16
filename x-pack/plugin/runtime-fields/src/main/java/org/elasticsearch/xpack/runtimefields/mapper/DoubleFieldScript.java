@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
@@ -17,7 +17,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.List;
 import java.util.Map;
 
-public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -32,13 +32,13 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        DoubleScriptFieldScript newInstance(LeafReaderContext ctx);
+        DoubleFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private double[] values = new double[1];
     private int count;
 
-    public DoubleScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public DoubleFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -77,9 +77,9 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public static class Emit {
-        private final DoubleScriptFieldScript script;
+        private final DoubleFieldScript script;
 
-        public Emit(DoubleScriptFieldScript script) {
+        public Emit(DoubleFieldScript script) {
             this.script = script;
         }
 

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
@@ -15,11 +15,11 @@ import java.util.Map;
 /**
  * Common base class for script field scripts that return long values.
  */
-public abstract class AbstractLongScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     private long[] values = new long[1];
     private int count;
 
-    public AbstractLongScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractLongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 

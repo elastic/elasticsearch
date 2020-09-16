@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class StringFieldScript extends AbstractFieldScript {
     /**
      * The maximum number of chars a script should be allowed to emit.
      */
@@ -38,13 +38,13 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        StringScriptFieldScript newInstance(LeafReaderContext ctx);
+        StringFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final List<String> results = new ArrayList<>();
     private long chars;
 
-    public StringScriptFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public StringFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
@@ -80,9 +80,9 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public static class Emit {
-        private final StringScriptFieldScript script;
+        private final StringFieldScript script;
 
-        public Emit(StringScriptFieldScript script) {
+        public Emit(StringFieldScript script) {
             this.script = script;
         }
 

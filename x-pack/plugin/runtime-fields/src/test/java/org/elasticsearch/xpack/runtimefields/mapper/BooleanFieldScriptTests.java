@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -21,8 +21,8 @@ import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
-public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<BooleanScriptFieldScript.Factory> {
-    public static final BooleanScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanScriptFieldScript(
+public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScript.Factory> {
+    public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
         fieldName,
         params,
         lookup,
@@ -35,12 +35,12 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
     };
 
     @Override
-    protected ScriptContext<BooleanScriptFieldScript.Factory> context() {
-        return BooleanScriptFieldScript.CONTEXT;
+    protected ScriptContext<BooleanFieldScript.Factory> context() {
+        return BooleanFieldScript.CONTEXT;
     }
 
     @Override
-    protected BooleanScriptFieldScript.Factory dummyScript() {
+    protected BooleanFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -48,7 +48,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                BooleanScriptFieldScript script = new BooleanScriptFieldScript(
+                BooleanFieldScript script = new BooleanFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -56,7 +56,7 @@ public class BooleanScriptFieldScriptTests extends ScriptFieldScriptTestCase<Boo
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES * 1000; i++) {
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES * 1000; i++) {
                             emit(i % 2 == 0);
                         }
                     }

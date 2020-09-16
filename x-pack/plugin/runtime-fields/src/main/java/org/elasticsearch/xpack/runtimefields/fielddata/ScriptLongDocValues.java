@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 public final class ScriptLongDocValues extends AbstractSortedNumericDocValues {
-    private final AbstractLongScriptFieldScript script;
+    private final AbstractLongFieldScript script;
     private int cursor;
 
-    ScriptLongDocValues(AbstractLongScriptFieldScript script) {
+    ScriptLongDocValues(AbstractLongFieldScript script) {
         this.script = script;
     }
 

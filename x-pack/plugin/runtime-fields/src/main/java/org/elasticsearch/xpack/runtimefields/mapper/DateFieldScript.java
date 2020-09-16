@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.time.DateFormatter;
@@ -19,7 +19,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Map;
 
-public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScript {
+public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -34,12 +34,12 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public interface LeafFactory {
-        DateScriptFieldScript newInstance(LeafReaderContext ctx);
+        DateFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final DateFormatter formatter;
 
-    public DateScriptFieldScript(
+    public DateFieldScript(
         String fieldName,
         Map<String, Object> params,
         SearchLookup searchLookup,
@@ -58,9 +58,9 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public static class Emit {
-        private final DateScriptFieldScript script;
+        private final DateFieldScript script;
 
-        public Emit(DateScriptFieldScript script) {
+        public Emit(DateFieldScript script) {
             this.script = script;
         }
 
@@ -70,9 +70,9 @@ public abstract class DateScriptFieldScript extends AbstractLongScriptFieldScrip
     }
 
     public static class Parse {
-        private final DateScriptFieldScript script;
+        private final DateFieldScript script;
 
-        public Parse(DateScriptFieldScript script) {
+        public Parse(DateFieldScript script) {
             this.script = script;
         }
 

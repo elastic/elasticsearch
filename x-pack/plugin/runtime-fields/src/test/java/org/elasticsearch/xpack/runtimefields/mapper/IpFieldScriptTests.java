@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongScriptFieldScript.Factory> {
-    public static final LongScriptFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongScriptFieldScript(
+public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factory> {
+    public static final IpFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpFieldScript(
         fieldName,
         params,
         lookup,
@@ -31,17 +31,17 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
     ) {
         @Override
         public void execute() {
-            emit(1);
+            emit("192.168.0.1");
         }
     };
 
     @Override
-    protected ScriptContext<LongScriptFieldScript.Factory> context() {
-        return LongScriptFieldScript.CONTEXT;
+    protected ScriptContext<IpFieldScript.Factory> context() {
+        return IpFieldScript.CONTEXT;
     }
 
     @Override
-    protected LongScriptFieldScript.Factory dummyScript() {
+    protected IpFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                LongScriptFieldScript script = new LongScriptFieldScript(
+                IpFieldScript script = new IpFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -57,8 +57,8 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<LongSc
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emit(0);
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
+                            emit("192.168.0.1");
                         }
                     }
                 };

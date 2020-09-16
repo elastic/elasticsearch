@@ -10,7 +10,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 
 public abstract class AbstractStringScriptFieldQueryTestCase<T extends AbstractStringScriptFieldQuery> extends
     AbstractScriptFieldQueryTestCase<T> {
-    protected final StringScriptFieldScript.LeafFactory leafFactory = mock(StringScriptFieldScript.LeafFactory.class);
+    protected final StringFieldScript.LeafFactory leafFactory = mock(StringFieldScript.LeafFactory.class);
 
     /**
      * {@link Query#visit Visit} a query, collecting {@link ByteRunAutomaton automata},

@@ -44,7 +44,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
 
@@ -432,7 +431,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DateScriptFieldScript.CONTEXT);
+                        return Set.of(DateFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -447,10 +446,10 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                         return factory;
                     }
 
-                    private DateScriptFieldScript.Factory factory(String code) {
+                    private DateFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_timestamp":
-                                return (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
                                     fieldName,
                                     params,
                                     lookup,
@@ -460,13 +459,13 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            DateScriptFieldScript.Parse parse = new DateScriptFieldScript.Parse(this);
+                                            DateFieldScript.Parse parse = new DateFieldScript.Parse(this);
                                             emit(parse.parse(timestamp));
                                         }
                                     }
                                 };
                             case "add_days":
-                                return (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+                                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
                                     fieldName,
                                     params,
                                     lookup,
@@ -498,7 +497,7 @@ public class ScriptDateMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DateScriptFieldScript.Factory factory = scriptService.compile(script, DateScriptFieldScript.CONTEXT);
+            DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);
             return new ScriptDateMappedFieldType("test", script, factory, dateTimeFormatter, emptyMap());
         }
     }

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-public abstract class ScriptFieldScriptTestCase<T> extends ESTestCase {
+public abstract class FieldScriptTestCase<T> extends ESTestCase {
     protected abstract ScriptContext<T> context();
 
     protected abstract T dummyScript();

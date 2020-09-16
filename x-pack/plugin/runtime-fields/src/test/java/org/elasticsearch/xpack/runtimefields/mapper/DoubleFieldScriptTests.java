@@ -4,14 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.runtimefields;
+package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -23,27 +22,26 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateScriptFieldScript.Factory> {
-    public static final DateScriptFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateScriptFieldScript(
+public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScript.Factory> {
+    public static final DoubleFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleFieldScript(
         fieldName,
         params,
         lookup,
-        formatter,
         ctx
     ) {
         @Override
         public void execute() {
-            emit(1595431354874L);
+            emit(1.0);
         }
     };
 
     @Override
-    protected ScriptContext<DateScriptFieldScript.Factory> context() {
-        return DateScriptFieldScript.CONTEXT;
+    protected ScriptContext<DoubleFieldScript.Factory> context() {
+        return DoubleFieldScript.CONTEXT;
     }
 
     @Override
-    protected DateScriptFieldScript.Factory dummyScript() {
+    protected DoubleFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -51,17 +49,16 @@ public class DateScriptFieldScriptTests extends ScriptFieldScriptTestCase<DateSc
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                DateScriptFieldScript script = new DateScriptFieldScript(
+                DoubleFieldScript script = new DoubleFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
-                    DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractScriptFieldScript.MAX_VALUES; i++) {
-                            emit(0);
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
+                            emit(1.0);
                         }
                     }
                 };

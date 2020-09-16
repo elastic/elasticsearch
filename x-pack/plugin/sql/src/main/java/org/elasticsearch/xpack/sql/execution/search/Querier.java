@@ -149,7 +149,7 @@ public class Querier {
 
     private void openPointInTime(String index, boolean includeFrozen, SearchRequest search, ActionListener<SearchResponse> listener) {
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(Strings.commaDelimitedListToStringArray(index),
-            indicesOptions(includeFrozen), keepAlive, null, null); // TODO: routing
+            indicesOptions(includeFrozen), keepAlive, null, null);
         client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, new ActionListener<>() {
             @Override
             public void onResponse(OpenPointInTimeResponse openPointInTimeResponse) {

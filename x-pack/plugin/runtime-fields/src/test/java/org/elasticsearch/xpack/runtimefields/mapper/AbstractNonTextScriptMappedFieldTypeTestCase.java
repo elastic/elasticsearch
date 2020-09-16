@@ -13,7 +13,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractFieldScriptMappedFieldTypeTestCase {
+abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScriptMappedFieldTypeTestCase {
     public void testFuzzyQueryIsError() throws IOException {
         assertQueryOnlyOnTextAndKeyword(
             "fuzzy",

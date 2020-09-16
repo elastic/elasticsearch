@@ -25,7 +25,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-abstract class AbstractFieldScriptMappedFieldTypeTestCase extends ESTestCase {
+abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
     protected abstract MappedFieldType simpleMappedFieldType() throws IOException;
 
     protected abstract MappedFieldType loopFieldType() throws IOException;

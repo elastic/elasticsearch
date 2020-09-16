@@ -55,7 +55,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptKeywordMappedFieldTypeTests extends AbstractFieldScriptMappedFieldTypeTestCase {
+public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {

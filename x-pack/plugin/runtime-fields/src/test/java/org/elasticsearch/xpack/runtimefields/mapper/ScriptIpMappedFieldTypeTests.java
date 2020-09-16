@@ -54,7 +54,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ScriptIpMappedFieldTypeTests extends AbstractFieldScriptMappedFieldTypeTestCase {
+public class ScriptIpMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));

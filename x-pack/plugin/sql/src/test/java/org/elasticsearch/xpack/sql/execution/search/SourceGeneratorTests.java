@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -100,23 +101,23 @@ public class SourceGeneratorTests extends ESTestCase {
         QueryContainer container = new QueryContainer()
                 .addSort("id", new ScoreSort(Direction.DESC, null));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(singletonList(scoreSort()), sourceBuilder.sorts());
+        assertEquals(List.of(scoreSort(), fieldSort("_doc")), sourceBuilder.sorts());
     }
 
     public void testSortFieldSpecified() {
         FieldSortBuilder sortField = fieldSort("test").unmappedType("keyword");
-        
+
         QueryContainer container = new QueryContainer()
                 .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.ASC, Missing.LAST));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(singletonList(sortField.order(SortOrder.ASC).missing("_last")), sourceBuilder.sorts());
+        assertEquals(List.of(sortField.order(SortOrder.ASC).missing("_last"), fieldSort("_doc")), sourceBuilder.sorts());
 
         container = new QueryContainer()
                 .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.DESC, Missing.FIRST));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(singletonList(sortField.order(SortOrder.DESC).missing("_first")), sourceBuilder.sorts());
+        assertEquals(List.of(sortField.order(SortOrder.DESC).missing("_first"), fieldSort("_doc")), sourceBuilder.sorts());
     }
 
     public void testNoSort() {

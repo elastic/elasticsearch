@@ -10,9 +10,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.sort.SortBuilders;
+
+import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
@@ -37,6 +39,6 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         assertEquals(
                 singletonList(new FieldAndFormat("date", "epoch_millis")),
                 source.docValueFields());
-        assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
+        assertEquals(List.of(fieldSort("count").missing("_last").unmappedType("long"), fieldSort("_doc")), source.sorts());
     }
 }

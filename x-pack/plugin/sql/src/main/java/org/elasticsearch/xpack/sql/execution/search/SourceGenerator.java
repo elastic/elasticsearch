@@ -105,64 +105,65 @@ public abstract class SourceGenerator {
             // Aggs can't be sorted using search sorting. That sorting is handled elsewhere.
             return;
         }
-        if (container.sort() == null || container.sort().isEmpty()) {
-            // if no sorting is specified, use the _doc one
-            source.sort("_doc");
-            return;
-        }
-        for (Sort sortable : container.sort().values()) {
-            SortBuilder<?> sortBuilder = null;
+        if (container.sort() != null) {
+            for (Sort sortable : container.sort().values()) {
+                SortBuilder<?> sortBuilder = null;
 
-            if (sortable instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) sortable;
-                Attribute attr = as.attribute();
+                if (sortable instanceof AttributeSort) {
+                    AttributeSort as = (AttributeSort) sortable;
+                    Attribute attr = as.attribute();
 
-                // sorting only works on not-analyzed fields - look for a multi-field replacement
-                if (attr instanceof FieldAttribute) {
-                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
+                    // sorting only works on not-analyzed fields - look for a multi-field replacement
+                    if (attr instanceof FieldAttribute) {
+                        FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
 
-                    sortBuilder = fieldSort(fa.name())
+                        sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
                             .unmappedType(fa.dataType().esType());
-                    
-                    if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name())
+
+                        if (fa.isNested()) {
+                            FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
                                 .unmappedType(fa.dataType().esType());
 
-                        NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
-                        NestedSortBuilder nestedSort = fieldSort.getNestedSort();
+                            NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
+                            NestedSortBuilder nestedSort = fieldSort.getNestedSort();
 
-                        if (nestedSort == null) {
-                            fieldSort.setNestedSort(newSort);
-                        } else {
-                            while (nestedSort.getNestedSort() != null) {
-                                nestedSort = nestedSort.getNestedSort();
+                            if (nestedSort == null) {
+                                fieldSort.setNestedSort(newSort);
+                            } else {
+                                while (nestedSort.getNestedSort() != null) {
+                                    nestedSort = nestedSort.getNestedSort();
+                                }
+                                nestedSort.setNestedSort(newSort);
                             }
-                            nestedSort.setNestedSort(newSort);
-                        }
 
-                        nestedSort = newSort;
+                            nestedSort = newSort;
 
-                        if (container.query() != null) {
-                            container.query().enrichNestedSort(nestedSort);
+                            if (container.query() != null) {
+                                container.query().enrichNestedSort(nestedSort);
+                            }
+                            sortBuilder = fieldSort;
                         }
-                        sortBuilder = fieldSort;
                     }
-                }
-            } else if (sortable instanceof ScriptSort) {
-                ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
+                } else if (sortable instanceof ScriptSort) {
+                    ScriptSort ss = (ScriptSort) sortable;
+                    sortBuilder = scriptSort(ss.script().toPainless(),
                         ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
-            } else if (sortable instanceof ScoreSort) {
-                sortBuilder = scoreSort();
-            }
+                } else if (sortable instanceof ScoreSort) {
+                    sortBuilder = scoreSort();
+                }
 
-            if (sortBuilder != null) {
-                sortBuilder.order(sortable.direction().asOrder());
-                source.sort(sortBuilder);
+                if (sortBuilder != null) {
+                    sortBuilder.order(sortable.direction().asOrder());
+                    source.sort(sortBuilder);
+                }
             }
         }
+        // Since paginating with search_after (and PIT) is stateless and either there's no sorting specified or the specified sorting
+        // criteria do not necessarily output a strictly monotonic sequence, we need to provide a hint as to where to resume the search
+        // from: use the _doc as state holder.
+        source.sort("_doc");
     }
 
     private static void optimize(QlSourceBuilder sqlSource, SearchSourceBuilder builder) {

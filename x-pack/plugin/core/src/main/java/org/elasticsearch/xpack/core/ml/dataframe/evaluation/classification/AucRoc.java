@@ -206,7 +206,7 @@ public class AucRoc extends AbstractAucRoc {
         }
         if (restNestedFilter.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have a different value than [{}]",
+                "[{}] requires at least one [{}] to have the value [{}]",
                 getName(), fields.get().getPredictedClassNameField(), className);
         }
         Percentiles restPercentiles = restNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);

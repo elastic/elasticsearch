@@ -395,7 +395,7 @@ public class Classification implements DataFrameAnalysis {
 
         Map<String, Object> topClassesProperties = new HashMap<>();
         topClassesProperties.put("class_name", dependentVariableMapping);
-        topClassesProperties.put("class_probability", NumberFieldMapper.NumberType.DOUBLE.typeName());
+        topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
 
         Map<String, Object> topClassesMapping = new HashMap<>();
         topClassesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);

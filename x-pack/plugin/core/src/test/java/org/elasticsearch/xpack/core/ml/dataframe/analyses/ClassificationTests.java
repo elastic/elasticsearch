@@ -367,7 +367,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             put("type", "nested");
             put("properties", new HashMap<>() {{
                 put("class_name", Collections.singletonMap("bar", "baz"));
-                put("class_probability", "double");
+                put("class_probability", Collections.singletonMap("type", "double"));
             }});
         }};
         Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
@@ -381,7 +381,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             put("type", "nested");
             put("properties", new HashMap<>() {{
                 put("class_name", Collections.singletonMap("type", "long"));
-                put("class_probability", "double");
+                put("class_probability", Collections.singletonMap("type", "double"));
             }});
         }};
         explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(

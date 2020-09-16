@@ -262,8 +262,8 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 [[eql-syntax-wildcards]]
 ===== Wildcards
 
-When making string comparisons using the `==` or `!=` operators, you can use the
-`*` operator to match specific patterns:
+When comparing strings using the `==` or `!=` operators, you can use the `*`
+operator within the string to match specific patterns:
 
 [source,eql]
 ----

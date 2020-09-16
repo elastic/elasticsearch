@@ -49,7 +49,8 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         assertTrue("Missing index should have been flagged", responses[1].isFailed());
         assertThat(
             responses[1].getFailureMessage(),
-            equalTo("[wontwork] org.elasticsearch.index.IndexNotFoundException: no such index [wontwork]"));
+            equalTo("[wontwork] org.elasticsearch.index.IndexNotFoundException: no such index [wontwork]"
+                + " and [action.auto_create_index] is [false]"));
         assertFalse("Operation on existing index should succeed", responses[2].isFailed());
     }
 }

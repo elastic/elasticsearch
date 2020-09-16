@@ -11,7 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DoubleFieldScriptFieldTermQueryTests extends AbstractDoubleFieldScriptFieldQueryTestCase<DoubleScriptFieldTermQuery> {
+public class DoubleScriptFieldTermQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldTermQuery> {
     @Override
     protected DoubleScriptFieldTermQuery createTestInstance() {
         return new DoubleScriptFieldTermQuery(randomScript(), leafFactory, randomAlphaOfLength(5), randomDouble());

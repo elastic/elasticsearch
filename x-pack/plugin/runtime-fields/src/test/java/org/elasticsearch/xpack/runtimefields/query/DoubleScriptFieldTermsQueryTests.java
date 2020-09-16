@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DoubleFieldScriptFieldTermsQueryTests extends AbstractDoubleFieldScriptFieldQueryTestCase<DoubleScriptFieldTermsQuery> {
+public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldTermsQuery> {
     @Override
     protected DoubleScriptFieldTermsQuery createTestInstance() {
         LongSet terms = new LongHashSet();

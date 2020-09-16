@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DoubleFieldScriptFieldExistsQueryTests extends AbstractDoubleFieldScriptFieldQueryTestCase<DoubleScriptFieldExistsQuery> {
+public class DoubleScriptFieldExistsQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldExistsQuery> {
     @Override
     protected DoubleScriptFieldExistsQuery createTestInstance() {
         return new DoubleScriptFieldExistsQuery(randomScript(), leafFactory, randomAlphaOfLength(5));

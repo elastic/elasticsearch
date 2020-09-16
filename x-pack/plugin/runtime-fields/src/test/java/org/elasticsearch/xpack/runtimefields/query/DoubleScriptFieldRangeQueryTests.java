@@ -11,7 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DoubleFieldScriptFieldRangeQueryTests extends AbstractDoubleFieldScriptFieldQueryTestCase<DoubleScriptFieldRangeQuery> {
+public class DoubleScriptFieldRangeQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldRangeQuery> {
     @Override
     protected DoubleScriptFieldRangeQuery createTestInstance() {
         double lower = randomDouble();

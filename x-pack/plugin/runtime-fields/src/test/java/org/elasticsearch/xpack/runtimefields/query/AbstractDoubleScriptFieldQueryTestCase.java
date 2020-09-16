@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 
 import static org.mockito.Mockito.mock;
 
-public abstract class AbstractDoubleFieldScriptFieldQueryTestCase<T extends AbstractDoubleScriptFieldQuery> extends
+public abstract class AbstractDoubleScriptFieldQueryTestCase<T extends AbstractDoubleScriptFieldQuery> extends
     AbstractFieldScriptFieldQueryTestCase<T> {
 
     protected final DoubleFieldScript.LeafFactory leafFactory = mock(DoubleFieldScript.LeafFactory.class);

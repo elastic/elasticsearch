@@ -66,7 +66,7 @@ kept in heap memory.
 
 [discrete]
 [[shard-auto-balance]]
-==== {es} automatically balances shards across a data tier
+==== {es} automatically balances shards within a data tier
 
 A cluster's nodes are grouped into data tiers. Within each tier, {es}
 attempts to spread an index's shards across as many nodes as possible. When you

@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
 import java.net.InetAddress;
 
-public class ScriptIpFieldData extends ScriptBinaryFieldData {
+public class IpScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final IpFieldScript.LeafFactory leafFactory;
@@ -36,22 +36,22 @@ public class ScriptIpFieldData extends ScriptBinaryFieldData {
         }
 
         @Override
-        public ScriptIpFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptIpFieldData(name, leafFactory);
+        public IpScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new IpScriptFieldData(name, leafFactory);
         }
     }
 
     private final IpFieldScript.LeafFactory leafFactory;
 
-    private ScriptIpFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory) {
+    private IpScriptFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory) {
         super(fieldName);
         this.leafFactory = leafFactory;
     }
 
     @Override
-    public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BinaryScriptLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
         IpFieldScript script = leafFactory.newInstance(context);
-        return new ScriptBinaryLeafFieldData() {
+        return new BinaryScriptLeafFieldData() {
             @Override
             public ScriptDocValues<String> getScriptValues() {
                 return new IpScriptDocValues(getBytesValues());
@@ -59,7 +59,7 @@ public class ScriptIpFieldData extends ScriptBinaryFieldData {
 
             @Override
             public SortedBinaryDocValues getBytesValues() {
-                return new ScriptIpDocValues(script);
+                return new org.elasticsearch.xpack.runtimefields.fielddata.IpScriptDocValues(script);
             }
         };
     }

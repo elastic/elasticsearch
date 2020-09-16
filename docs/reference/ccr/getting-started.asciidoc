@@ -5,6 +5,48 @@
 ++++
 <titleabbrev>Set up {ccr}</titleabbrev>
 ++++
+
+////
+[source,console]
+----
+PUT /server-metrics
+{
+  "settings" : {
+    "index" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 0
+    }
+  },
+  "mappings" : {
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+////
+
 Use this guide to set up {ccr} (CCR) between clusters in two
 datacenters. Replicating your data across datacenters provides several benefits:
 

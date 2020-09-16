@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -23,7 +24,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +49,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,11 +185,6 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(ScriptLongMappedFieldType::existsQuery);
-    }
-
-    @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -208,10 +202,8 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testRangeQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(
-            (ft, ctx) -> ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx)
-        );
+    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -230,8 +222,8 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testTermQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomLong(), ctx));
+    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termQuery(randomLong(), ctx);
     }
 
     @Override
@@ -251,13 +243,18 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    public void testTermsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(randomLong()), ctx));
+    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termsQuery(List.of(randomLong()), ctx);
     }
 
     @Override
     protected ScriptLongMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
+    }
+
+    @Override
+    protected ScriptLongMappedFieldType loopFieldType() throws IOException {
+        return build("loop", Map.of());
     }
 
     @Override
@@ -327,6 +324,12 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                                         }
                                     }
                                 };
+                            case "loop":
+                                return (fieldName, params, lookup) -> {
+                                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                                    lookup.forkAndTrackFieldReferences("test");
+                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");
                         }
@@ -339,14 +342,5 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             LongScriptFieldScript.Factory factory = scriptService.compile(script, LongScriptFieldScript.CONTEXT);
             return new ScriptLongMappedFieldType("test", script, factory, emptyMap());
         }
-    }
-
-    private void checkExpensiveQuery(BiConsumer<ScriptLongMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptLongMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
     }
 }

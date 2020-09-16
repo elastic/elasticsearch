@@ -23,13 +23,13 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -52,7 +52,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -157,11 +156,6 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
-    @Override
-    public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(ScriptKeywordMappedFieldType::existsQuery);
-    }
-
     public void testFuzzyQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));   // No edits, matches
@@ -180,15 +174,21 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     public void testFuzzyQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(
-            (ft, ctx) -> ft.fuzzyQuery(
-                randomAlphaOfLengthBetween(1, 1000),
-                randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO),
-                randomInt(),
-                randomInt(),
-                randomBoolean(),
-                ctx
-            )
+        checkExpensiveQuery(this::randomFuzzyQuery);
+    }
+
+    public void testFuzzyQueryInLoop() throws IOException {
+        checkLoop(this::randomFuzzyQuery);
+    }
+
+    private Query randomFuzzyQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.fuzzyQuery(
+            randomAlphaOfLengthBetween(1, 1000),
+            randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO),
+            randomInt(),
+            randomInt(),
+            randomBoolean(),
+            ctx
         );
     }
 
@@ -205,7 +205,15 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     public void testPrefixQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
+        checkExpensiveQuery(this::randomPrefixQuery);
+    }
+
+    public void testPrefixQueryInLoop() throws IOException {
+        checkLoop(this::randomPrefixQuery);
+    }
+
+    private Query randomPrefixQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
     }
 
     @Override
@@ -225,18 +233,16 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     @Override
-    public void testRangeQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(
-            (ft, ctx) -> ft.rangeQuery(
-                "a" + randomAlphaOfLengthBetween(0, 1000),
-                "b" + randomAlphaOfLengthBetween(0, 1000),
-                randomBoolean(),
-                randomBoolean(),
-                null,
-                null,
-                null,
-                ctx
-            )
+    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.rangeQuery(
+            randomAlphaOfLengthBetween(0, 1000),
+            randomAlphaOfLengthBetween(0, 1000),
+            randomBoolean(),
+            randomBoolean(),
+            null,
+            null,
+            null,
+            ctx
         );
     }
 
@@ -257,8 +263,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
-    public void testRegexpQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, randomInt(), null, ctx));
+    public void testRegexpQueryInLoop() throws IOException {
+        checkLoop(this::randomRegexpQuery);
+    }
+
+    private Query randomRegexpQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, Integer.MAX_VALUE, null, ctx);
     }
 
     @Override
@@ -275,8 +285,8 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     @Override
-    public void testTermQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx));
+    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);
     }
 
     @Override
@@ -294,8 +304,8 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     @Override
-    public void testTermsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx));
+    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx);
     }
 
     public void testWildcardQuery() throws IOException {
@@ -310,7 +320,15 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     public void testWildcardQueryIsExpensive() throws IOException {
-        checkExpensiveQuery((ft, ctx) -> ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
+        checkExpensiveQuery(this::randomWildcardQuery);
+    }
+
+    public void testWildcardQueryInLoop() throws IOException {
+        checkLoop(this::randomWildcardQuery);
+    }
+
+    private Query randomWildcardQuery(MappedFieldType ft, QueryShardContext ctx) {
+        return ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
     }
 
     public void testMatchQuery() throws IOException {
@@ -330,6 +348,11 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     @Override
     protected ScriptKeywordMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
+    }
+
+    @Override
+    protected ScriptKeywordMappedFieldType loopFieldType() throws IOException {
+        return build("loop", Map.of());
     }
 
     @Override
@@ -388,6 +411,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                                         }
                                     }
                                 };
+                            case "loop":
+                                return (fieldName, params, lookup) -> {
+                                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                                    lookup.forkAndTrackFieldReferences("test");
+                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");
                         }
@@ -400,14 +429,5 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             StringScriptFieldScript.Factory factory = scriptService.compile(script, StringScriptFieldScript.CONTEXT);
             return new ScriptKeywordMappedFieldType("test", script, factory, emptyMap());
         }
-    }
-
-    private void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptKeywordMappedFieldType ft = simpleMappedFieldType();
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
-        assertThat(
-            e.getMessage(),
-            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
-        );
     }
 }

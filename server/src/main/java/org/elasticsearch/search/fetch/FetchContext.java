@@ -21,8 +21,6 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -84,13 +82,6 @@ public class FetchContext {
      */
     public IndexSettings getIndexSettings() {
         return mapperService().getIndexSettings();
-    }
-
-    /**
-     * Gets index field data for a specific fieldtype
-     */
-    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
-        return searchContext.getForField(fieldType);
     }
 
     /**

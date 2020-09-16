@@ -37,15 +37,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType {
-
-    private final Script script;
-    private final IpScriptFieldScript.Factory scriptFactory;
-
+public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType<IpScriptFieldScript.LeafFactory> {
     ScriptIpMappedFieldType(String name, Script script, IpScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, meta);
-        this.script = script;
-        this.scriptFactory = scriptFactory;
+        super(name, script, scriptFactory::newFactory, meta);
     }
 
     @Override
@@ -79,14 +73,10 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
         return new ScriptIpFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private IpScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(name(), script.getParams(), searchLookup);
-    }
-
     @Override
     public Query existsQuery(QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new IpScriptFieldExistsQuery(script, leafFactory(context.lookup()), name());
+        return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -107,7 +97,7 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
             includeUpper,
             (lower, upper) -> new IpScriptFieldRangeQuery(
                 script,
-                leafFactory(context.lookup()),
+                leafFactory(context),
                 name(),
                 new BytesRef(InetAddressPoint.encode(lower)),
                 new BytesRef(InetAddressPoint.encode(upper))
@@ -119,14 +109,18 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
         if (value instanceof InetAddress) {
-            return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
+            return inetAddressQuery((InetAddress) value, context);
         }
         String term = BytesRefs.toString(value);
         if (term.contains("/")) {
             return cidrQuery(term, context);
         }
         InetAddress address = InetAddresses.forString(term);
-        return new IpScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), new BytesRef(InetAddressPoint.encode(address)));
+        return inetAddressQuery(address, context);
+    }
+
+    private Query inetAddressQuery(InetAddress address, QueryShardContext context) {
+        return new IpScriptFieldTermQuery(script, leafFactory(context), name(), new BytesRef(InetAddressPoint.encode(address)));
     }
 
     @Override
@@ -149,7 +143,7 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
             }
             cidrQueries.add(cidrQuery(term, context));
         }
-        Query termsQuery = new IpScriptFieldTermsQuery(script, leafFactory(context.lookup()), name(), terms);
+        Query termsQuery = new IpScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
         if (cidrQueries == null) {
             return termsQuery;
         }
@@ -176,6 +170,6 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
         // Force the terms into IPv6
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));
         BytesRef upperBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(upper)));
-        return new IpScriptFieldRangeQuery(script, leafFactory(context.lookup()), name(), lowerBytes, upperBytes);
+        return new IpScriptFieldRangeQuery(script, leafFactory(context), name(), lowerBytes, upperBytes);
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -158,11 +159,11 @@ public class FetchSourcePhaseTests extends ESTestCase {
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, null, new HashMap<>());
+        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, new SourceLookup(), new HashMap<>());
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
-        FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);
+        FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext, null);
         if (fetchSource == false) {
             assertNull(processor);
         } else {

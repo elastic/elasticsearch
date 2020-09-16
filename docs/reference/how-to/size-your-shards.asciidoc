@@ -142,11 +142,11 @@ and may tax node resources.
 ==== Aim for 20 shards or fewer per GB of heap memory
 
 The number of shards a node can hold is proportional to the node's
-<<heap-size,heap memory>>. For example, a node with a 30GB heap should have at
-most 600 shards. The further below this limit you can keep your nodes, the
-better. If you find your nodes exceeding more than 20 shards per GB, consider
-adding another node. You can use the <<cat-shards,cat shards API>> to check the
-number of shards per node.
+<<heap-size,heap memory>>. For example, a node with 30GB of heap memory should
+have at most 600 shards. The further below this limit you can keep your nodes,
+the better. If you find your nodes exceeding more than 20 shards per GB,
+consider adding another node. You can use the <<cat-shards,cat shards API>> to
+check the number of shards per node.
 
 [source,console]
 ----

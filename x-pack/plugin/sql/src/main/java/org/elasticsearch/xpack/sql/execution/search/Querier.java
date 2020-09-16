@@ -136,6 +136,9 @@ public class Querier {
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
+                // execute the request right away, no need for a PIT
+                client.search(search, l);
+                return;
             } else {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
@@ -180,7 +183,7 @@ public class Querier {
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
-                .setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout) // TODO: track hits was overwritten
+                .setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
                 .setIndicesOptions(indicesOptions(includeFrozen))
                 .request();
     }

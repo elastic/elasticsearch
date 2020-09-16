@@ -218,7 +218,6 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
             listener.onFailure(ex);
             return;
         }
-        // TODO: PIT actually closed (scroll wasn't)
         String pointInTimeId = query.pointInTimeBuilder().getId();
         Querier.closePointInTime(client, pointInTimeId, listener);
     }

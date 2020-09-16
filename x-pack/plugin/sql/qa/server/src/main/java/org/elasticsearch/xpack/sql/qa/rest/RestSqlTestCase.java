@@ -1026,13 +1026,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             runSql(new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, Mode.PLAIN.toString())
         );
 
-        Map<String, Object> response = runSql(
-            new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
-            "/close",
-            Mode.PLAIN.toString()
-        );
-        assertEquals(true, response.get("succeeded"));
-
         assertEquals(0, getNumberOfSearchContexts("test"));
     }
 

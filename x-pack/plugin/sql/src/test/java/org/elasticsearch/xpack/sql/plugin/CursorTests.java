@@ -6,29 +6,39 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.execution.search.SearchHitCursor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitCursorTests;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.CursorsTestUtil;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class CursorTests extends ESTestCase {
@@ -40,6 +50,30 @@ public class CursorTests extends ESTestCase {
         cursor.clear(SqlTestUtils.TEST_CFG, clientMock, getNamedWriteableRegistry(), future);
         assertFalse(future.actionGet());
         verifyZeroInteractions(clientMock);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSearchHitCursorClearCursor() throws Exception {
+        Client clientMock = mock(Client.class);
+        ActionListener<Boolean> listenerMock = mock(ActionListener.class);
+        String pointInTimeId = randomAlphaOfLength(100);
+        TimeValue keepAlive = randomBoolean() ? null : new TimeValue(randomNonNegativeLong());
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pointInTimeId, keepAlive));
+        byte[] queryAsBytes = Cursors.serializeQuery(source);
+
+
+        Cursor cursor = new SearchHitCursor(queryAsBytes, Collections.emptyList(), new BitSet(0), randomInt(),
+            randomBoolean(), randomAlphaOfLength(10));
+
+        cursor.clear(SqlTestUtils.TEST_CFG, clientMock, getNamedWriteableRegistry(), listenerMock);
+
+        ArgumentCaptor<ClosePointInTimeRequest> request = ArgumentCaptor.forClass(ClosePointInTimeRequest.class);
+        verify(clientMock).execute(any(ClosePointInTimeAction.class), request.capture(), any(ActionListener.class));
+
+        assertEquals(pointInTimeId, request.getValue().getId());
+        verifyZeroInteractions(listenerMock);
     }
 
     private static SqlQueryResponse createRandomSqlResponse() {

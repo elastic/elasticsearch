@@ -62,7 +62,7 @@ network where cidrMatch(source_address, "0.0.0.0/0") == true
 name = "concatEquals1"
 description = "test string concatenation. update test to avoid case-sensitivity issues"
 query = '''
-process where concat(serial_event_id, '::', process_name, '::', opcode) == '5::wininit.exe::3'
+process where concat(serial_event_id, "::", process_name, "::", opcode) == "5::wininit.exe::3"
 '''
 expected_event_ids  = [5]
 
@@ -138,15 +138,15 @@ expected_event_ids  = [98]
 notes = "regexp doesn't support character classes"
 query = '''
 //
-//                                ?'.*?net1\s+localgroup.*?')
-process where match(command_line, ?'.*?net1[ ]+localgroup.*?')
+//                                ?".*?net1\s+localgroup.*?")
+process where match(command_line, ?".*?net1[ ]+localgroup.*?")
 '''
 
 [[queries]]
 name = "matchLiteAdditional"
 expected_event_ids  = [98]
 query = '''
-process where matchLite(command_line, ?'.*?net1.*?')
+process where matchLite(command_line, ?".*?net1.*?")
 '''
 
 [[queries]]
@@ -154,8 +154,8 @@ name = "matchWithCharacterClasses2"
 expected_event_ids  = [98]
 notes = "regexp doesn't support predefined character classes (like \\s)"
 query = '''
-//                                ?'.*?net1\s+\w{4,15}\s+.*?'
-process where match(command_line, ?'.*?net1[ ]+[a-z]{4,15}[ ]+.*?')
+//                                ?".*?net1\s+\w{4,15}\s+.*?"
+process where match(command_line, ?".*?net1[ ]+[a-z]{4,15}[ ]+.*?")
 '''
 
 
@@ -164,14 +164,14 @@ process where match(command_line, ?'.*?net1[ ]+[a-z]{4,15}[ ]+.*?')
 name = "multiPatternMatch"
 expected_event_ids  = [50, 97, 98]
 query = '''
-process where match(command_line, '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
+process where match(command_line, ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
 '''
 
 [[queries]]
 name = "matchWithSubstring"
 expected_event_ids  = [50, 98]
 query = '''
-process where match(substring(command_line, 5), '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
+process where match(substring(command_line, 5), ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
 '''
 
 [[queries]]

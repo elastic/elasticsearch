@@ -31,9 +31,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -68,16 +68,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Boolean> ignoreMalformed;
-        private final Parameter<InetAddress> nullValue = new Parameter<>("null_value", false, () -> null,
-            (n, c, o) -> o == null ? null : InetAddresses.forString(o.toString()), m -> toType(m).nullValue)
-            .setSerializer((b, f, v) -> {
-                if (v == null) {
-                    b.nullField(f);
-                } else {
-                    b.field(f, InetAddresses.toAddrString(v));
-                }
-            }, NetworkAddress::format)
-            .acceptsNull();
+        private final Parameter<String> nullValue
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -90,14 +82,27 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
         }
 
-        Builder nullValue(InetAddress nullValue) {
+        Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
             return this;
         }
 
+        private InetAddress parseNullValue() {
+            String nullValueAsString = nullValue.getValue();
+            if (nullValueAsString == null || Strings.isEmpty(nullValueAsString)) {
+                return null;
+            }
+            try {
+                return InetAddresses.forString(nullValueAsString);
+            }
+            catch (Exception e) {
+                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+            }
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
         }
 
         @Override
@@ -322,7 +327,9 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     private final boolean hasDocValues;
     private final boolean stored;
     private final boolean ignoreMalformed;
+
     private final InetAddress nullValue;
+    private final String nullValueAsString;
 
     private final boolean ignoreMalformedByDefault;
 
@@ -338,7 +345,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.nullValue = builder.nullValue.getValue();
+        this.nullValue = builder.parseNullValue();
+        this.nullValueAsString = builder.nullValue.getValue();
     }
 
     @Override

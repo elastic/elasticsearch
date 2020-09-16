@@ -191,6 +191,13 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1457654400000L, dvField.numericValue().longValue());
         assertFalse(dvField.fieldType().stored());
+
+        mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("null_value", "");
+        }));
+        doc = mapper.parse(source(b -> b.nullField("field")));
+        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
     }
 
     public void testNanosNullValue() throws IOException {
@@ -223,10 +230,11 @@ public class DateFieldMapperTests extends MapperTestCase {
     public void testBadNullValue() {
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", ""))));
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", "foo"))));
 
         assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: cannot parse empty date"));
+            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: " +
+                "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"));
     }
 
     public void testNullConfigValuesFail() {

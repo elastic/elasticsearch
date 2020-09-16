@@ -33,6 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
@@ -226,7 +227,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
-            if (nullValue.getValue() == null) {
+            if (nullValue.getValue() == null || Strings.isEmpty(nullValue.getValue())) {
                 return null;
             }
             try {

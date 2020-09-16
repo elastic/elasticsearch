@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class FeatureImportance implements Writeable, ToXContentObject {
 
     private final List<ClassImportance> classImportance;
-    private final double importance;
+    private final Double importance;
     private final String featureName;
     static final String IMPORTANCE = "importance";
     static final String FEATURE_NAME = "feature_name";
@@ -46,9 +47,7 @@ public class FeatureImportance implements Writeable, ToXContentObject {
     }
 
     public static FeatureImportance forClassification(String featureName, List<ClassImportance> classImportance) {
-        return new FeatureImportance(featureName,
-            classImportance.stream().mapToDouble(ClassImportance::getImportance).map(Math::abs).sum(),
-            classImportance);
+        return new FeatureImportance(featureName, null, classImportance);
     }
 
     @SuppressWarnings("unchecked")
@@ -59,7 +58,7 @@ public class FeatureImportance implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(FeatureImportance.FEATURE_NAME));
-        PARSER.declareDouble(constructorArg(), new ParseField(FeatureImportance.IMPORTANCE));
+        PARSER.declareDouble(optionalConstructorArg(), new ParseField(FeatureImportance.IMPORTANCE));
         PARSER.declareObjectArray(optionalConstructorArg(),
             (p, c) -> ClassImportance.fromXContent(p),
             new ParseField(FeatureImportance.CLASSES));
@@ -69,7 +68,7 @@ public class FeatureImportance implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    FeatureImportance(String featureName, double importance, List<ClassImportance> classImportance) {
+    FeatureImportance(String featureName, Double importance, List<ClassImportance> classImportance) {
         this.featureName = Objects.requireNonNull(featureName);
         this.importance = importance;
         this.classImportance = classImportance == null ? null : Collections.unmodifiableList(classImportance);
@@ -77,7 +76,11 @@ public class FeatureImportance implements Writeable, ToXContentObject {
 
     public FeatureImportance(StreamInput in) throws IOException {
         this.featureName = in.readString();
-        this.importance = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.importance = in.readOptionalDouble();
+        } else {
+            this.importance = in.readDouble();
+        }
         if (in.readBoolean()) {
             if (in.getVersion().before(Version.V_7_10_0)) {
                 Map<String, Double> classImportance = in.readMap(StreamInput::readString, StreamInput::readDouble);
@@ -90,11 +93,13 @@ public class FeatureImportance implements Writeable, ToXContentObject {
         }
     }
 
+    @Nullable
     public List<ClassImportance> getClassImportance() {
         return classImportance;
     }
 
-    public double getImportance() {
+    @Nullable
+    public Double getImportance() {
         return importance;
     }
 
@@ -104,14 +109,18 @@ public class FeatureImportance implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.featureName);
-        out.writeDouble(this.importance);
-        out.writeBoolean(this.classImportance != null);
-        if (this.classImportance != null) {
+        out.writeString(featureName);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalDouble(importance);
+        } else {
+            out.writeDouble(importance);
+        }
+        out.writeBoolean(classImportance != null);
+        if (classImportance != null) {
             if (out.getVersion().before(Version.V_7_10_0)) {
-                out.writeMap(ClassImportance.toMap(this.classImportance), StreamOutput::writeString, StreamOutput::writeDouble);
+                out.writeMap(ClassImportance.toMap(classImportance), StreamOutput::writeString, StreamOutput::writeDouble);
             } else {
-                out.writeList(this.classImportance);
+                out.writeList(classImportance);
             }
         }
     }
@@ -119,7 +128,9 @@ public class FeatureImportance implements Writeable, ToXContentObject {
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(FEATURE_NAME, featureName);
-        map.put(IMPORTANCE, importance);
+        if (importance != null) {
+            map.put(IMPORTANCE, importance);
+        }
         if (classImportance != null) {
             map.put(CLASSES, classImportance.stream().map(ClassImportance::toMap).collect(Collectors.toList()));
         }
@@ -130,7 +141,9 @@ public class FeatureImportance implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FEATURE_NAME, featureName);
-        builder.field(IMPORTANCE, importance);
+        if (importance != null) {
+            builder.field(IMPORTANCE, importance);
+        }
         if (classImportance != null && classImportance.isEmpty() == false) {
             builder.field(CLASSES, classImportance);
         }

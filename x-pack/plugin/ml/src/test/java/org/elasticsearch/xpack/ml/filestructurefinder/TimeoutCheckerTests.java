@@ -16,7 +16,6 @@ import org.junit.Before;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -69,7 +68,7 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
             assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(1));
             try {
                 assertBusy(() -> {
-                    verify(matcher, atLeastOnce()).interrupt();
+                    verify(matcher).interrupt();
                 });
             } finally {
                 watchdog.unregister(matcher);

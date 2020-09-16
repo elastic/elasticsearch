@@ -17,31 +17,31 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 
 import java.io.IOException;
 
-public final class ScriptLongFieldData extends IndexNumericFieldData {
+public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final LongFieldScript.LeafFactory leafFactory;
+        private final BooleanFieldScript.LeafFactory leafFactory;
 
-        public Builder(String name, LongFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, BooleanFieldScript.LeafFactory leafFactory) {
             this.name = name;
             this.leafFactory = leafFactory;
         }
 
         @Override
-        public ScriptLongFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptLongFieldData(name, leafFactory);
+        public BooleanScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new BooleanScriptFieldData(name, leafFactory);
         }
     }
 
     private final String fieldName;
-    private final LongFieldScript.LeafFactory leafFactory;
+    private final BooleanFieldScript.LeafFactory leafFactory;
 
-    private ScriptLongFieldData(String fieldName, LongFieldScript.LeafFactory leafFactory) {
+    private BooleanScriptFieldData(String fieldName, BooleanFieldScript.LeafFactory leafFactory) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
     }
@@ -53,11 +53,11 @@ public final class ScriptLongFieldData extends IndexNumericFieldData {
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.BOOLEAN;
     }
 
     @Override
-    public ScriptLongLeafFieldData load(LeafReaderContext context) {
+    public BooleanScriptLeafFieldData load(LeafReaderContext context) {
         try {
             return loadDirect(context);
         } catch (Exception e) {
@@ -66,13 +66,13 @@ public final class ScriptLongFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public ScriptLongLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new ScriptLongLeafFieldData(new ScriptLongDocValues(leafFactory.newInstance(context)));
+    public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)));
     }
 
     @Override
     public NumericType getNumericType() {
-        return NumericType.LONG;
+        return NumericType.BOOLEAN;
     }
 
     @Override
@@ -80,17 +80,20 @@ public final class ScriptLongFieldData extends IndexNumericFieldData {
         return true;
     }
 
-    public static class ScriptLongLeafFieldData extends LeafLongFieldData {
-        private final ScriptLongDocValues scriptLongDocValues;
+    public static class BooleanScriptLeafFieldData extends LeafLongFieldData {
+        private final BooleanScriptDocValues booleanScriptDocValues;
 
-        ScriptLongLeafFieldData(ScriptLongDocValues scriptLongDocValues) {
-            super(0, NumericType.LONG);
-            this.scriptLongDocValues = scriptLongDocValues;
+        BooleanScriptLeafFieldData(BooleanScriptDocValues booleanScriptDocValues) {
+            super(0, NumericType.BOOLEAN);
+            this.booleanScriptDocValues = booleanScriptDocValues;
         }
 
         @Override
         public SortedNumericDocValues getLongValues() {
-            return scriptLongDocValues;
+            return booleanScriptDocValues;
         }
+
+        @Override
+        public void close() {}
     }
 }

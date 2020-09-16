@@ -299,7 +299,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> config.buildIndexSort(
-                field -> new ScriptKeywordMappedFieldType(
+                field -> new KeywordScriptMappedFieldType(
                     field,
                     new Script(""),
                     mock(StringFieldScript.Factory.class),

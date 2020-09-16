@@ -18,10 +18,10 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public abstract class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData> {
+public abstract class BinaryScriptFieldData implements IndexFieldData<BinaryScriptFieldData.BinaryScriptLeafFieldData> {
     private final String fieldName;
 
-    protected ScriptBinaryFieldData(String fieldName) {
+    protected BinaryScriptFieldData(String fieldName) {
         this.fieldName = fieldName;
     }
 
@@ -31,7 +31,7 @@ public abstract class ScriptBinaryFieldData implements IndexFieldData<ScriptBina
     }
 
     @Override
-    public ScriptBinaryLeafFieldData load(LeafReaderContext context) {
+    public BinaryScriptLeafFieldData load(LeafReaderContext context) {
         try {
             return loadDirect(context);
         } catch (Exception e) {
@@ -59,7 +59,7 @@ public abstract class ScriptBinaryFieldData implements IndexFieldData<ScriptBina
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
-    public abstract class ScriptBinaryLeafFieldData implements LeafFieldData {
+    public abstract class BinaryScriptLeafFieldData implements LeafFieldData {
         @Override
         public long ramBytesUsed() {
             return 0;

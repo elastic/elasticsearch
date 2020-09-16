@@ -25,8 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -37,11 +36,14 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.BinaryScriptFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.IpScriptFieldData;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -50,27 +52,28 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
     public void testFormat() throws IOException {
-        assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
-        assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1.2), equalTo("1.2"));
-        assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
-        assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(1123), equalTo("1,123"));
-        assertThat(simpleMappedFieldType().docValueFormat("#,##0.00", null).format(1123), equalTo("1,123.00"));
-        assertThat(simpleMappedFieldType().docValueFormat("#,##0.00", null).format(1123.1), equalTo("1,123.10"));
+        assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom formats"));
+        e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom time zones"));
     }
 
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.0]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [3.14, 1.4]}"))));
-            List<Double> results = new ArrayList<>();
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.2\", \"192.168.1\"]}"))));
+            List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptDoubleMappedFieldType ft = build("add_param", Map.of("param", 1));
-                ScriptDoubleFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                IpScriptMappedFieldType ft = build("append_param", Map.of("param", ".1"));
+                BinaryScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                DocValueFormat format = ft.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -79,7 +82,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedNumericDoubleValues dv = ifd.load(context).getDoubleValues();
+                        SortedBinaryDocValues dv = ifd.load(context).getBytesValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -88,14 +91,14 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                             public void collect(int doc) throws IOException {
                                 if (dv.advanceExact(doc)) {
                                     for (int i = 0; i < dv.docValueCount(); i++) {
-                                        results.add(dv.nextValue());
+                                        results.add(format.format(dv.nextValue()));
                                     }
                                 }
                             }
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of(2.0, 2.4, 4.140000000000001)));
+                assertThat(results, equalTo(List.of("192.168.0.1", "192.168.1.1", "192.168.2.1")));
             }
         }
     }
@@ -103,17 +106,26 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptDoubleFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
-                assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1.1]}"));
-                assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2.1]}"));
-                assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4.2]}"));
+                assertThat(
+                    reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [\"192.168.0.1\"]}")
+                );
+                assertThat(
+                    reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [\"192.168.0.2\"]}")
+                );
+                assertThat(
+                    reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [\"192.168.0.4\"]}")
+                );
             }
         }
     }
@@ -121,9 +133,9 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
@@ -138,8 +150,8 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                         return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
-                                return doubles.get(0);
+                                IpScriptFieldData.IpScriptDocValues bytes = (IpScriptFieldData.IpScriptDocValues) getDoc().get("test");
+                                return Integer.parseInt(bytes.getValue().substring(bytes.getValue().lastIndexOf(".") + 1));
                             }
                         };
                     }
@@ -151,7 +163,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -163,71 +175,76 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.5]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedFieldType();
-                assertThat(searcher.count(ft.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2.5, 3, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2.5, 3, false, true, null, null, null, mockContext())), equalTo(0));
+                assertThat(
+                    searcher.count(
+                        simpleMappedFieldType().rangeQuery("192.0.0.0", "200.0.0.0", false, false, null, null, null, mockContext())
+                    ),
+                    equalTo(1)
+                );
             }
         }
     }
 
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
+        return ft.rangeQuery("192.0.0.0", "200.0.0.0", randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("add_param", Map.of("param", 1)).termQuery(2, mockContext())), equalTo(1));
+                IpScriptMappedFieldType fieldType = build("append_param", Map.of("param", ".1"));
+                assertThat(searcher.count(fieldType.termQuery("192.168.0.1", mockContext())), equalTo(1));
+                assertThat(searcher.count(fieldType.termQuery("192.168.0.7", mockContext())), equalTo(0));
+                assertThat(searcher.count(fieldType.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
+                assertThat(searcher.count(fieldType.termQuery("10.168.0.0/16", mockContext())), equalTo(0));
             }
         }
     }
 
     @Override
     protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.termQuery(randomLong(), ctx);
+        return ft.termQuery(randomIp(randomBoolean()), ctx);
     }
 
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("1"), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1.1), mockContext())), equalTo(0));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1.1, 2.1), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(2.1, 1), mockContext())), equalTo(2));
+                assertThat(
+                    searcher.count(simpleMappedFieldType().termsQuery(List.of("192.168.0.1", "1.1.1.1"), mockContext())),
+                    equalTo(2)
+                );
+                assertThat(
+                    searcher.count(simpleMappedFieldType().termsQuery(List.of("192.168.0.0/16", "1.1.1.1"), mockContext())),
+                    equalTo(3)
+                );
             }
         }
     }
 
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.termsQuery(List.of(randomLong()), ctx);
+        return ft.termsQuery(randomList(100, () -> randomIp(randomBoolean())), ctx);
     }
 
     @Override
-    protected ScriptDoubleMappedFieldType simpleMappedFieldType() throws IOException {
+    protected IpScriptMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
     }
 
@@ -238,14 +255,14 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
 
     @Override
     protected String runtimeType() {
-        return "double";
+        return "ip";
     }
 
-    private static ScriptDoubleMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static IpScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static ScriptDoubleMappedFieldType build(Script script) throws IOException {
+    private static IpScriptMappedFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -257,7 +274,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DoubleFieldScript.CONTEXT);
+                        return Set.of(StringFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -272,23 +289,23 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                         return factory;
                     }
 
-                    private DoubleFieldScript.Factory factory(String code) {
+                    private IpFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emit(((Number) foo).doubleValue());
+                                            emit(foo.toString());
                                         }
                                     }
                                 };
-                            case "add_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                            case "append_param":
+                                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
+                                            emit(foo.toString() + getParams().get("param"));
                                         }
                                     }
                                 };
@@ -307,8 +324,8 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
-            return new ScriptDoubleMappedFieldType("test", script, factory, emptyMap());
+            IpFieldScript.Factory factory = scriptService.compile(script, IpFieldScript.CONTEXT);
+            return new IpScriptMappedFieldType("test", script, factory, emptyMap());
         }
     }
 }

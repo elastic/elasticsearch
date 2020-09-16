@@ -17,7 +17,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBooleanFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldTermQuery;
 
@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType<BooleanFieldScript.LeafFactory> {
-    ScriptBooleanMappedFieldType(String name, Script script, BooleanFieldScript.Factory scriptFactory, Map<String, String> meta) {
+public class BooleanScriptMappedFieldType extends AbstractScriptMappedFieldType<BooleanFieldScript.LeafFactory> {
+    BooleanScriptMappedFieldType(String name, Script script, BooleanFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 
@@ -63,8 +63,8 @@ public class ScriptBooleanMappedFieldType extends AbstractScriptMappedFieldType<
     }
 
     @Override
-    public ScriptBooleanFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new ScriptBooleanFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
     @Override

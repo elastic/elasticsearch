@@ -2256,8 +2256,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             getTrainedModelsResponse = execute(
                 new GetTrainedModelsRequest(modelIdPrefix + 0)
-                    .setDecompressDefinition(false)
-                    .includeDefinition(),
+                    .setDecompressDefinition(false),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
             assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));

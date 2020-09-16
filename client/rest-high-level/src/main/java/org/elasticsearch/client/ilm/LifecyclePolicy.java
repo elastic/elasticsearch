@@ -62,8 +62,6 @@ public class LifecyclePolicy implements ToXContentObject {
             ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
         ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
             FreezeAction.NAME));
-        ALLOWED_ACTIONS.put("frozen", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
-            FreezeAction.NAME));
         ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME));
     }
 

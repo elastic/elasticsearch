@@ -45,14 +45,6 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
          * @param parserContext context that may be useful to build the field like analyzers
          */
         MetadataFieldMapper getDefault(ParserContext parserContext);
-
-        /**
-         *  @return Whether a metadata field can be included in the document _source.
-         */
-        default boolean isAllowedInSource() {
-            // By default return false for metadata fields.
-            return false;
-        }
     }
 
     /**
@@ -160,10 +152,35 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         return builder.endObject();
     }
 
+    /*
+     * By default metadata fields cannot be set through the document source and parse() method
+     * throws an exception. To enable a metadata field to parse the document source, this
+     * method must be overridden and doParse() should be called.
+     */
+    @Override
+    public void parse(ParseContext context) throws IOException {
+        throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
+            + " a document. Use the index API request parameters.");
+    }
+
+    /**
+     * Do the actual parse of the field by calling {@link FieldMapper#parse(ParseContext)}
+     */
+    protected void doParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
+        // do nothing
+    }
+
     /**
      * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
      */
-    public abstract void preParse(ParseContext context) throws IOException;
+    public void preParse(ParseContext context) throws IOException {
+        // do nothing
+    }
 
     /**
      * Called after {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
@@ -176,5 +193,4 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     public ValueFetcher valueFetcher(MapperService mapperService, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
-
 }

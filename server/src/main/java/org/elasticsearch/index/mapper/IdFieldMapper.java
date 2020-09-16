@@ -257,7 +257,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
+        doParse(context);
     }
 
     @Override

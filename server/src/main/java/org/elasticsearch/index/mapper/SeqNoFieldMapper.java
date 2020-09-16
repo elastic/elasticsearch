@@ -182,7 +182,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
+        doParse(context);
     }
 
     @Override
@@ -194,11 +194,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         context.doc().add(seqID.seqNo);
         context.doc().add(seqID.seqNoDocValue);
         context.doc().add(seqID.primaryTerm);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // fields are added in parseCreateField
     }
 
     @Override

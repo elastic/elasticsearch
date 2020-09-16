@@ -95,22 +95,12 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+        doParse(context);
     }
 
     @Override
     protected String contentType() {
         return NAME;
     }
-
 
 }

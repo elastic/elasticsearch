@@ -117,14 +117,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // no need ot parse here, we either get the routing in the sourceToParse
-        // or we don't have routing, if we get it in sourceToParse, we process it in preParse
-        // which will always be called
+        doParse(context);
     }
 
     @Override

@@ -947,23 +947,26 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDocumentContainsAllowedMetadataField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-
-        // A metadata field that parses a value fails to parse a null value
-        MapperParsingException e2 = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(source(b -> b.nullField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE))));
-        assertTrue(e2.getMessage(), e2.getMessage().contains("failed to parse field [_mock_metadata]"));
-
-        // A metadata field that parses a value fails to parse an object
-        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(source(b -> b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE)
-                .startObject().field("sub-field", "true").endObject())));
-        assertTrue(e.getMessage(), e.getMessage().contains("failed to parse field [_mock_metadata]"));
-
-        ParsedDocument doc = mapper.parse(source(b ->
-            b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")
-        ));
-        IndexableField field = doc.rootDoc().getField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE);
-        assertEquals("mock-metadata-field-value", field.stringValue());
+        {
+            // A metadata field that parses a value fails to parse a null value
+            MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+                mapper.parse(source(b -> b.nullField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE))));
+            assertTrue(e.getMessage(), e.getMessage().contains("failed to parse field [_mock_metadata]"));
+        }
+        {
+            // A metadata field that parses a value fails to parse an object
+            MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+                mapper.parse(source(b -> b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE)
+                    .startObject().field("sub-field", "true").endObject())));
+            assertTrue(e.getMessage(), e.getMessage().contains("failed to parse field [_mock_metadata]"));
+        }
+        {
+            ParsedDocument doc = mapper.parse(source(b ->
+                b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")
+            ));
+            IndexableField field = doc.rootDoc().getField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE);
+            assertEquals("mock-metadata-field-value", field.stringValue());
+        }
     }
 
     public void testSimpleMapper() throws Exception {

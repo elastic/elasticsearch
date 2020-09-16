@@ -497,18 +497,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.isMetadataField(indexVersionCreated, field);
     }
 
-    /**
-     * @return Whether a field should be included in the document _source.
-     */
-    public boolean isFieldAllowedInSource(String field) {
-        if(isMetadataField(field)) {
-            // Metadata fields may not be allowed in the document _source.
-            return mapperRegistry.isAllowedInSource(indexVersionCreated, field);
-        } else {
-            return true;
-        }
-    }
-
     /** An analyzer wrapper that can lookup fields within the index mappings */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
 

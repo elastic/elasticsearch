@@ -50,6 +50,11 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
         }
 
         @Override
+        public void parse(ParseContext context) throws IOException {
+           doParse(context);
+        }
+
+        @Override
         protected void parseCreateField(ParseContext context) throws IOException {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                 context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
@@ -66,14 +71,6 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
         @Override
         protected String contentType() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public void preParse(ParseContext context) throws IOException {
-        }
-
-        @Override
-        public void postParse(ParseContext context) throws IOException {
         }
 
         public static class Builder extends MetadataFieldMapper.Builder {
@@ -96,11 +93,6 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
         public static final TypeParser PARSER = new ConfigurableTypeParser(
             c -> new MockMetadataMapper(),
             c -> new MockMetadataMapper.Builder()) {
-
-            @Override
-            public boolean isAllowedInSource() {
-                return true;
-            }
         };
     }
 

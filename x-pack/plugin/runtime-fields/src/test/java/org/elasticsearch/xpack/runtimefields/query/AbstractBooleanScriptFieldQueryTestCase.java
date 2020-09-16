@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractBooleanScriptFieldQueryTestCase<T extends AbstractBooleanScriptFieldQuery> extends
-    AbstractFieldScriptFieldQueryTestCase<T> {
+    AbstractScriptFieldQueryTestCase<T> {
 
     protected final BooleanFieldScript.LeafFactory leafFactory = mock(BooleanFieldScript.LeafFactory.class);
 

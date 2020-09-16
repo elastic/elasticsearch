@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractStringScriptFieldQueryTestCase<T extends AbstractStringScriptFieldQuery> extends
-    AbstractFieldScriptFieldQueryTestCase<T> {
+    AbstractScriptFieldQueryTestCase<T> {
     protected final StringFieldScript.LeafFactory leafFactory = mock(StringFieldScript.LeafFactory.class);
 
     /**

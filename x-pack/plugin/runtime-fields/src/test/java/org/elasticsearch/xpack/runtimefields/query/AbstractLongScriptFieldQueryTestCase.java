@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 import java.util.function.Function;
 
 public abstract class AbstractLongScriptFieldQueryTestCase<T extends AbstractLongScriptFieldQuery> extends
-    AbstractFieldScriptFieldQueryTestCase<T> {
+    AbstractScriptFieldQueryTestCase<T> {
     protected final Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> null;
 
     @Override

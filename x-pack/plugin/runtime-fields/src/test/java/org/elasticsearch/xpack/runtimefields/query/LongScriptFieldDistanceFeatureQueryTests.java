@@ -28,7 +28,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongScriptFieldDistanceFeatureQueryTests extends AbstractFieldScriptFieldQueryTestCase<LongScriptFieldDistanceFeatureQuery> {
+public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFieldQueryTestCase<LongScriptFieldDistanceFeatureQuery> {
     private final Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> null;
 
     @Override

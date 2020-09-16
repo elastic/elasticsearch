@@ -14,8 +14,8 @@ import java.net.InetAddress;
 
 import static org.mockito.Mockito.mock;
 
-public abstract class AbstractIpFieldScriptFieldQueryTestCase<T extends AbstractIpScriptFieldQuery> extends
-    AbstractFieldScriptFieldQueryTestCase<T> {
+public abstract class AbstractIpScriptFieldQueryTestCase<T extends AbstractIpScriptFieldQuery> extends
+    AbstractScriptFieldQueryTestCase<T> {
 
     protected final IpFieldScript.LeafFactory leafFactory = mock(IpFieldScript.LeafFactory.class);
 

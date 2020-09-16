@@ -65,7 +65,12 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
 
         // Roll over index and ensure the second index also went to the "hot" tier
         client().admin().indices().prepareRolloverIndex(index).get();
-        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings()
+        idxSettings = client().admin()
+            .indices()
+            .prepareGetIndex()
+            .addIndices(index)
+            .get()
+            .getSettings()
             .get(DataStream.getDefaultBackingIndexName(index, 2));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 

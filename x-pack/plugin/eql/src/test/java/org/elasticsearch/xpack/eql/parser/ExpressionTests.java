@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -40,6 +41,10 @@ public class ExpressionTests extends ESTestCase {
 
     private final EqlParser parser = new EqlParser();
 
+    private static Source source(String text) {
+        return new Source(0, 0, text);
+    }
+
     private Expression expr(String source) {
         return parser.createExpression(source);
     }
@@ -52,22 +57,21 @@ public class ExpressionTests extends ESTestCase {
         return results;
     }
 
-
     public void testStrings() {
-        assertEquals("hello\"world", unquoteString("'hello\"world'"));
-        assertEquals("hello'world", unquoteString("\"hello'world\""));
-        assertEquals("hello\nworld", unquoteString("'hello\\nworld'"));
-        assertEquals("hello\\\nworld", unquoteString("'hello\\\\\\nworld'"));
-        assertEquals("hello\\\"world", unquoteString("'hello\\\\\\\"world'"));
+        assertEquals("hello\"world", unquoteString(source("\"hello\"world\"")));
+        assertEquals("hello'world", unquoteString(source("\"hello'world\"")));
+        assertEquals("hello\nworld", unquoteString(source("\"hello\\nworld\"")));
+        assertEquals("hello\\\nworld", unquoteString(source("\"hello\\\\\\nworld\"")));
+        assertEquals("hello\\\"world", unquoteString(source("\"hello\\\\\\\"world\"")));
 
-        // test for unescaped strings: ?"...." or ?'....'
-        assertEquals("hello\"world", unquoteString("?'hello\"world'"));
-        assertEquals("hello\\\"world", unquoteString("?'hello\\\"world'"));
-        assertEquals("hello'world", unquoteString("?\"hello'world\""));
-        assertEquals("hello\\nworld", unquoteString("?'hello\\nworld'"));
-        assertEquals("hello\\\\nworld", unquoteString("?'hello\\\\nworld'"));
-        assertEquals("hello\\\\\\nworld", unquoteString("?'hello\\\\\\nworld'"));
-        assertEquals("hello\\\\\\\"world", unquoteString("?'hello\\\\\\\"world'"));
+        // test for unescaped strings: ?"...."
+        assertEquals("hello\"world", unquoteString(source("?\"hello\"world\"")));
+        assertEquals("hello\\\"world", unquoteString(source("?\"hello\\\"world\"")));
+        assertEquals("hello'world", unquoteString(source("?\"hello'world\"")));
+        assertEquals("hello\\nworld", unquoteString(source("?\"hello\\nworld\"")));
+        assertEquals("hello\\\\nworld", unquoteString(source("?\"hello\\\\nworld\"")));
+        assertEquals("hello\\\\\\nworld", unquoteString(source("?\"hello\\\\\\nworld\"")));
+        assertEquals("hello\\\\\\\"world", unquoteString(source("?\"hello\\\\\\\"world\"")));
     }
 
     public void testLiterals() {
@@ -76,11 +80,13 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.NULL, expr("null"));
     }
 
-    public void testSingleQuotedString() {
-        // "hello \" world"
-        Expression parsed = expr("'hello \\' world!'");
-        Expression expected = new Literal(null, "hello ' world!", DataTypes.KEYWORD);
-        assertEquals(expected, parsed);
+    public void testSingleQuotedStringForbidden() {
+        ParsingException e = expectThrows(ParsingException.class, () -> expr("'hello world'"));
+        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
+                e.getMessage());
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name='hello world'"));
+        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+                e.getMessage());
     }
 
     public void testDoubleQuotedString() {
@@ -90,11 +96,13 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testSingleQuotedUnescapedString() {
-        // "hello \" world"
-        Expression parsed = expr("?'hello \\' world!'");
-        Expression expected = new Literal(null, "hello \\' world!", DataTypes.KEYWORD);
-        assertEquals(expected, parsed);
+    public void testSingleQuotedUnescapedStringForbidden() {
+        ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
+        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
+                e.getMessage());
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
+        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+                e.getMessage());
     }
 
     public void testDoubleQuotedUnescapedString() {
@@ -135,7 +143,7 @@ public class ExpressionTests extends ESTestCase {
         UnresolvedFunction.ResolutionType resolutionType = UnresolvedFunction.ResolutionType.STANDARD;
         Expression expected = new UnresolvedFunction(null, "concat", resolutionType, arguments);
 
-        assertEquals(expected, expr("concat(some.field, 'test string')"));
+        assertEquals(expected, expr("concat(some.field, \"test string\")"));
     }
 
     public void testComparison() {
@@ -154,8 +162,8 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testBoolean() {
-        String leftText = "process_name == 'net.exe'";
-        String rightText = "command_line == '* localgroup*'";
+        String leftText = "process_name == \"net.exe\"";
+        String rightText = "command_line == \"* localgroup*\"";
 
         Expression lhs = expr(leftText);
         Expression rhs = expr(rightText);
@@ -178,13 +186,13 @@ public class ExpressionTests extends ESTestCase {
             new In(null, expr("name"), exprs("2", "1"))
         );
         assertEquals(
-            expr("name in ('net.exe')"),
-            new In(null, expr("name"), exprs("'net.exe'"))
+            expr("name in (\"net.exe\")"),
+            new In(null, expr("name"), exprs("\"net.exe\""))
         );
 
         assertEquals(
-            expr("name in ('net.exe', 'whoami.exe', 'hostname.exe')"),
-            new In(null, expr("name"), exprs("'net.exe'", "'whoami.exe'", "'hostname.exe'"))
+            expr("name in (\"net.exe\", \"whoami.exe\", \"hostname.exe\")"),
+            new In(null, expr("name"), exprs("\"net.exe\"", "\"whoami.exe\"", "\"hostname.exe\""))
         );
     }
 
@@ -195,17 +203,17 @@ public class ExpressionTests extends ESTestCase {
         );
 
         assertEquals(
-            expr("name in ('net.exe', 'net.exe')"),
-            new In(null, expr("name"), exprs("'net.exe'", "'net.exe'"))
+            expr("name in (\"net.exe\", \"net.exe\")"),
+            new In(null, expr("name"), exprs("\"net.exe\"", "\"net.exe\""))
         );
     }
 
     public void testNotInSet() {
         assertEquals(
-            expr("name not in ('net.exe', 'whoami.exe', 'hostname.exe')"),
+            expr("name not in (\"net.exe\", \"whoami.exe\", \"hostname.exe\")"),
             new Not(null, new In(null,
                 expr("name"),
-                exprs("'net.exe'", "'whoami.exe'", "'hostname.exe'")))
+                exprs("\"net.exe\"", "\"whoami.exe\"", "\"hostname.exe\"")))
         );
     }
 

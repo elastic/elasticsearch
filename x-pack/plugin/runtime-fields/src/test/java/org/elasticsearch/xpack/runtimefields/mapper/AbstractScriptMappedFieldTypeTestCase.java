@@ -7,13 +7,17 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -22,7 +26,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
-    protected abstract AbstractScriptMappedFieldType simpleMappedFieldType() throws IOException;
+    protected abstract MappedFieldType simpleMappedFieldType() throws IOException;
+
+    protected abstract MappedFieldType loopFieldType() throws IOException;
 
     protected abstract String runtimeType();
 
@@ -39,25 +45,19 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
     public abstract void testExistsQuery() throws IOException;
 
     @SuppressWarnings("unused")
-    public abstract void testExistsQueryIsExpensive() throws IOException;
-
-    @SuppressWarnings("unused")
     public abstract void testRangeQuery() throws IOException;
 
-    @SuppressWarnings("unused")
-    public abstract void testRangeQueryIsExpensive() throws IOException;
+    protected abstract Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx);
 
     @SuppressWarnings("unused")
     public abstract void testTermQuery() throws IOException;
 
-    @SuppressWarnings("unused")
-    public abstract void testTermQueryIsExpensive() throws IOException;
+    protected abstract Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx);
 
     @SuppressWarnings("unused")
     public abstract void testTermsQuery() throws IOException;
 
-    @SuppressWarnings("unused")
-    public abstract void testTermsQueryIsExpensive() throws IOException;
+    protected abstract Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx);
 
     protected static QueryShardContext mockContext() {
         return mockContext(true);
@@ -67,7 +67,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         return mockContext(allowExpensiveQueries, null);
     }
 
-    protected static QueryShardContext mockContext(boolean allowExpensiveQueries, AbstractScriptMappedFieldType mappedFieldType) {
+    protected static QueryShardContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
         QueryShardContext context = mock(QueryShardContext.class);
@@ -85,6 +85,14 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         return context;
     }
 
+    public void testExistsQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(MappedFieldType::existsQuery);
+    }
+
+    public void testExistsQueryInLoop() throws IOException {
+        checkLoop(MappedFieldType::existsQuery);
+    }
+
     public void testRangeQueryWithShapeRelationIsError() throws IOException {
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -94,6 +102,30 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
             e.getMessage(),
             equalTo("Field [test] of type [runtime] with runtime type [" + runtimeType() + "] does not support DISJOINT ranges")
         );
+    }
+
+    public void testRangeQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(this::randomRangeQuery);
+    }
+
+    public void testRangeQueryInLoop() throws IOException {
+        checkLoop(this::randomRangeQuery);
+    }
+
+    public void testTermQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(this::randomTermQuery);
+    }
+
+    public void testTermQueryInLoop() throws IOException {
+        checkLoop(this::randomTermQuery);
+    }
+
+    public void testTermsQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(this::randomTermsQuery);
+    }
+
+    public void testTermsQueryInLoop() throws IOException {
+        checkLoop(this::randomTermsQuery);
     }
 
     public void testPhraseQueryIsError() {
@@ -119,7 +151,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on text fields - not on [test] which is of type [script] with runtime_type ["
+                    + " queries on text fields - not on [test] which is of type [runtime] with runtime_type ["
                     + runtimeType()
                     + "]"
             )
@@ -128,5 +160,18 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
 
     protected String readSource(IndexReader reader, int docId) throws IOException {
         return reader.document(docId).getBinaryValue("_source").utf8ToString();
+    }
+
+    protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(simpleMappedFieldType(), mockContext(false)));
+        assertThat(
+            e.getMessage(),
+            equalTo("queries cannot be executed against [runtime] fields while [search.allow_expensive_queries] is set to [false].")
+        );
+    }
+
+    protected final void checkLoop(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(loopFieldType(), mockContext()));
+        assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }
 }

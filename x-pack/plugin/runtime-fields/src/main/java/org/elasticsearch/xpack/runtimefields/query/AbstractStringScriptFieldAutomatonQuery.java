@@ -10,7 +10,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.List;
 
@@ -20,7 +20,7 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
 
     public AbstractStringScriptFieldAutomatonQuery(
         Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
+        StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         ByteRunAutomaton automaton
     ) {

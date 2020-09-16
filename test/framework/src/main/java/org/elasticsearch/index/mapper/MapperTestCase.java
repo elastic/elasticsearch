@@ -19,18 +19,28 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -122,19 +132,43 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
         return fetchSourceValue(mapper, sourceValue, null);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
         String field = mapper.name();
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);
+    }
+
+    /**
+     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     */
+    protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
+        throws IOException {
+
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
+            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+        SetOnce<List<?>> result = new SetOnce<>();
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(lookup.source()));
+        });
+        return result.get();
     }
 }

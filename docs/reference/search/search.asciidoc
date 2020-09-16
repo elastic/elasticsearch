@@ -332,6 +332,33 @@ pattern].
 For other field data types, this parameter is not supported.
 ====
 
+`fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The request returns values for field names
+matching these patterns in the `hits.fields` property of the response.
++
+You can specify items in the array as a string or object.
+See <<search-fields-param>> for more details.
++
+.Properties of `fields` objects
+[%collapsible%open]
+====
+`field`::
+(Required, string)
+Wildcard pattern. The request returns values for field names matching this pattern.
+
+`format`::
+(Optional, string)
+Format in which the values are returned.
++
+The date fields <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
+<<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>> accept either
+`geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
++
+For other field data types, this parameter is not supported.
+====
+
 [[request-body-search-explain]]
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
@@ -358,7 +385,7 @@ are supported.
 `<boost-value>` is the factor by which scores are multiplied.
 +
 A boost value greater than `1.0` increases the score. A boost value between
-`0` and `1.0` decreases the score. 
+`0` and `1.0` decreases the score.
 ====
 
 [[search-api-min-score]]

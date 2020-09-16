@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class StringScriptFieldTests extends ScriptFieldTestCase<StringFieldScript.Factory> {
-    public static final StringFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
+public class DoubleFieldScriptTests extends ScriptFieldTestCase<DoubleFieldScript.Factory> {
+    public static final DoubleFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleFieldScript(
         fieldName,
         params,
         lookup,
@@ -31,17 +31,17 @@ public class StringScriptFieldTests extends ScriptFieldTestCase<StringFieldScrip
     ) {
         @Override
         public void execute() {
-            emit("foo");
+            emit(1.0);
         }
     };
 
     @Override
-    protected ScriptContext<StringFieldScript.Factory> context() {
-        return StringFieldScript.CONTEXT;
+    protected ScriptContext<DoubleFieldScript.Factory> context() {
+        return DoubleFieldScript.CONTEXT;
     }
 
     @Override
-    protected StringFieldScript.Factory dummyScript() {
+    protected DoubleFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class StringScriptFieldTests extends ScriptFieldTestCase<StringFieldScrip
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                StringFieldScript script = new StringFieldScript(
+                DoubleFieldScript script = new DoubleFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -58,7 +58,7 @@ public class StringScriptFieldTests extends ScriptFieldTestCase<StringFieldScrip
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
-                            emit("test");
+                            emit(1.0);
                         }
                     }
                 };
@@ -66,37 +66,6 @@ public class StringScriptFieldTests extends ScriptFieldTestCase<StringFieldScrip
                 assertThat(
                     e.getMessage(),
                     equalTo("Runtime field [test] is emitting [101] values while the maximum number of values allowed is [100]")
-                );
-            }
-        }
-    }
-
-    public void testTooManyChars() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
-            try (DirectoryReader reader = iw.getReader()) {
-                StringFieldScript script = new StringFieldScript(
-                    "test",
-                    Map.of(),
-                    new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
-                    reader.leaves().get(0)
-                ) {
-                    @Override
-                    public void execute() {
-                        StringBuilder big = new StringBuilder();
-                        while (big.length() < StringFieldScript.MAX_CHARS / 4) {
-                            big.append("test");
-                        }
-                        String bigString = big.toString();
-                        for (int i = 0; i <= 4; i++) {
-                            emit(bigString);
-                        }
-                    }
-                };
-                Exception e = expectThrows(IllegalArgumentException.class, script::execute);
-                assertThat(
-                    e.getMessage(),
-                    equalTo("Runtime field [test] is emitting [1310720] characters while the maximum number of values allowed is [1048576]")
                 );
             }
         }

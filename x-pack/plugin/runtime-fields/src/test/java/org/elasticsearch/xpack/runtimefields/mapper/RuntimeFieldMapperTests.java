@@ -355,22 +355,22 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
                 @Override
                 protected Object buildScriptFactory(ScriptContext<?> context) {
                     if (context == BooleanFieldScript.CONTEXT) {
-                        return BooleanScriptFieldTests.DUMMY;
+                        return BooleanFieldScriptTests.DUMMY;
                     }
                     if (context == DateFieldScript.CONTEXT) {
-                        return DateScriptFieldTests.DUMMY;
+                        return DateFieldScriptTests.DUMMY;
                     }
                     if (context == DoubleFieldScript.CONTEXT) {
-                        return DoubleFieldScriptFieldTests.DUMMY;
+                        return DoubleFieldScriptTests.DUMMY;
                     }
                     if (context == IpFieldScript.CONTEXT) {
-                        return IpFieldScriptFieldTests.DUMMY;
+                        return IpFieldScriptTests.DUMMY;
                     }
                     if (context == LongFieldScript.CONTEXT) {
-                        return LongScriptFieldTests.DUMMY;
+                        return LongFieldScriptTests.DUMMY;
                     }
                     if (context == StringFieldScript.CONTEXT) {
-                        return StringScriptFieldTests.DUMMY;
+                        return StringFieldScriptTests.DUMMY;
                     }
                     throw new IllegalArgumentException("Unsupported context: " + context);
                 };

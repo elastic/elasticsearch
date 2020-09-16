@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class DoubleFieldScriptFieldTests extends ScriptFieldTestCase<DoubleFieldScript.Factory> {
-    public static final DoubleFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new DoubleFieldScript(
+public class LongFieldScriptTests extends ScriptFieldTestCase<LongFieldScript.Factory> {
+    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongFieldScript(
         fieldName,
         params,
         lookup,
@@ -31,17 +31,17 @@ public class DoubleFieldScriptFieldTests extends ScriptFieldTestCase<DoubleField
     ) {
         @Override
         public void execute() {
-            emit(1.0);
+            emit(1);
         }
     };
 
     @Override
-    protected ScriptContext<DoubleFieldScript.Factory> context() {
-        return DoubleFieldScript.CONTEXT;
+    protected ScriptContext<LongFieldScript.Factory> context() {
+        return LongFieldScript.CONTEXT;
     }
 
     @Override
-    protected DoubleFieldScript.Factory dummyScript() {
+    protected LongFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +49,7 @@ public class DoubleFieldScriptFieldTests extends ScriptFieldTestCase<DoubleField
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                DoubleFieldScript script = new DoubleFieldScript(
+                LongFieldScript script = new LongFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -58,7 +58,7 @@ public class DoubleFieldScriptFieldTests extends ScriptFieldTestCase<DoubleField
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
-                            emit(1.0);
+                            emit(0);
                         }
                     }
                 };

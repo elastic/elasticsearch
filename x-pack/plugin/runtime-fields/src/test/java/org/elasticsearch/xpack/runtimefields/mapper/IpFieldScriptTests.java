@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class IpFieldScriptFieldTests extends ScriptFieldTestCase<IpFieldScript.Factory> {
+public class IpFieldScriptTests extends ScriptFieldTestCase<IpFieldScript.Factory> {
     public static final IpFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpFieldScript(
         fieldName,
         params,

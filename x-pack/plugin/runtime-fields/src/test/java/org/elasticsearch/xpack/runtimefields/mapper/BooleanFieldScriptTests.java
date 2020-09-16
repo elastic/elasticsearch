@@ -19,11 +19,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class LongScriptFieldTests extends ScriptFieldTestCase<LongFieldScript.Factory> {
-    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongFieldScript(
+public class BooleanFieldScriptTests extends ScriptFieldTestCase<BooleanFieldScript.Factory> {
+    public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
         fieldName,
         params,
         lookup,
@@ -31,17 +30,17 @@ public class LongScriptFieldTests extends ScriptFieldTestCase<LongFieldScript.Fa
     ) {
         @Override
         public void execute() {
-            emit(1);
+            emit(false);
         }
     };
 
     @Override
-    protected ScriptContext<LongFieldScript.Factory> context() {
-        return LongFieldScript.CONTEXT;
+    protected ScriptContext<BooleanFieldScript.Factory> context() {
+        return BooleanFieldScript.CONTEXT;
     }
 
     @Override
-    protected LongFieldScript.Factory dummyScript() {
+    protected BooleanFieldScript.Factory dummyScript() {
         return DUMMY;
     }
 
@@ -49,7 +48,7 @@ public class LongScriptFieldTests extends ScriptFieldTestCase<LongFieldScript.Fa
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                LongFieldScript script = new LongFieldScript(
+                BooleanFieldScript script = new BooleanFieldScript(
                     "test",
                     Map.of(),
                     new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
@@ -57,16 +56,13 @@ public class LongScriptFieldTests extends ScriptFieldTestCase<LongFieldScript.Fa
                 ) {
                     @Override
                     public void execute() {
-                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
-                            emit(0);
+                        for (int i = 0; i <= AbstractFieldScript.MAX_VALUES * 1000; i++) {
+                            emit(i % 2 == 0);
                         }
                     }
                 };
-                Exception e = expectThrows(IllegalArgumentException.class, script::execute);
-                assertThat(
-                    e.getMessage(),
-                    equalTo("Runtime field [test] is emitting [101] values while the maximum number of values allowed is [100]")
-                );
+                // There isn't a limit to the number of values so this won't throw
+                script.execute();
             }
         }
     }

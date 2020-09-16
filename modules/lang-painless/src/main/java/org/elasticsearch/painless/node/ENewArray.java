@@ -19,96 +19,51 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array instantiation.
  */
-public final class ENewArray extends AExpression {
+public class ENewArray extends AExpression {
 
-    private final String type;
-    private final List<AExpression> arguments;
-    private final boolean initialize;
+    private final String canonicalTypeName;
+    private final List<AExpression> valueNodes;
+    private final boolean isInitializer;
 
-    public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
-        super(location);
+    public ENewArray(int identifier, Location location, String canonicalTypeName, List<AExpression> valueNodes, boolean isInitializer) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.arguments = Objects.requireNonNull(arguments);
-        this.initialize = initialize;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.valueNodes = Collections.unmodifiableList(Objects.requireNonNull(valueNodes));
+        this.isInitializer = isInitializer;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public List<AExpression> getValueNodes() {
+        return valueNodes;
+    }
+
+    public boolean isInitializer() {
+        return isInitializer;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNewArray(this, scope);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (!read) {
-             throw createError(new IllegalArgumentException("A newly created array must be read from."));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AExpression valueNode : valueNodes) {
+            valueNode.visit(userTreeVisitor, scope);
         }
-
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
-        }
-
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
-
-            expression.expected = initialize ? clazz.getComponentType() : int.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
-        }
-
-        actual = clazz;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        if (initialize) {
-            methodWriter.push(arguments.size());
-            methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
-
-            for (int index = 0; index < arguments.size(); ++index) {
-                AExpression argument = arguments.get(index);
-
-                methodWriter.dup();
-                methodWriter.push(index);
-                argument.write(classWriter, methodWriter, globals);
-                methodWriter.arrayStore(MethodWriter.getType(actual.getComponentType()));
-            }
-        } else {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            if (arguments.size() > 1) {
-                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
-            } else {
-                methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
-            }
-        }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, type, initialize ? "init" : "dims");
     }
 }

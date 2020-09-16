@@ -109,7 +109,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
         private static final ParseField CONTEXT_SETUP_FIELD = new ParseField("context_setup");
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "painless_execute_request", args -> new Request((Script) args[0], (String) args[1], (ContextSetup) args[2]));
+                "painless_execute_request", args -> new Request((Script) args[0], (String) args[1], (ContextSetup) args[2]));
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Script.parse(p), SCRIPT_FIELD);
@@ -141,8 +141,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             private static final ParseField DOCUMENT_FIELD = new ParseField("document");
             private static final ParseField QUERY_FIELD = new ParseField("query");
             private static final ConstructingObjectParser<ContextSetup, Void> PARSER =
-                new ConstructingObjectParser<>("execute_script_context",
-                    args -> new ContextSetup((String) args[0], (BytesReference) args[1], (QueryBuilder) args[2]));
+                    new ConstructingObjectParser<>("execute_script_context",
+                            args -> new ContextSetup((String) args[0], (BytesReference) args[1], (QueryBuilder) args[2]));
 
             static {
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_FIELD);
@@ -153,7 +153,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     }
                 }, DOCUMENT_FIELD);
                 PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-                    AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY_FIELD);
+                        AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY_FIELD);
             }
 
             private final String index;
@@ -210,9 +210,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 if (o == null || getClass() != o.getClass()) return false;
                 ContextSetup that = (ContextSetup) o;
                 return Objects.equals(index, that.index) &&
-                    Objects.equals(document, that.document) &&
-                    Objects.equals(query, that.query) &&
-                    Objects.equals(xContentType, that.xContentType);
+                        Objects.equals(document, that.document) &&
+                        Objects.equals(query, that.query) &&
+                        Objects.equals(xContentType, that.xContentType);
             }
 
             @Override
@@ -231,11 +231,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             @Override
             public String toString() {
                 return "ContextSetup{" +
-                    ", index='" + index + '\'' +
-                    ", document=" + document +
-                    ", query=" + query +
-                    ", xContentType=" + xContentType +
-                    '}';
+                        ", index='" + index + '\'' +
+                        ", document=" + document +
+                        ", query=" + query +
+                        ", xContentType=" + xContentType +
+                        '}';
             }
 
             @Override
@@ -248,7 +248,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     if (document != null) {
                         builder.field(DOCUMENT_FIELD.getPreferredName());
                         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                            LoggingDeprecationHandler.INSTANCE, document, xContentType)) {
+                                LoggingDeprecationHandler.INSTANCE, document, xContentType)) {
                             builder.generator().copyCurrentStructure(parser);
                         }
                     }
@@ -355,8 +355,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(script, request.script) &&
-                Objects.equals(context, request.context) &&
-                Objects.equals(contextSetup, request.contextSetup);
+                    Objects.equals(context, request.context) &&
+                    Objects.equals(contextSetup, request.contextSetup);
         }
 
         @Override
@@ -367,10 +367,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         public String toString() {
             return "Request{" +
-                "script=" + script +
-                "context=" + context +
-                ", contextSetup=" + contextSetup +
-                '}';
+                    "script=" + script +
+                    "context=" + context +
+                    ", contextSetup=" + contextSetup +
+                    '}';
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
@@ -455,13 +455,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Inject
         public TransportAction(ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
+                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
             super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                // Forking a thread here, because only light weight operations should happen on network thread and
-                // Creating a in-memory index is not light weight
-                // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
-                Request::new, ThreadPool.Names.MANAGEMENT);
+                    // Forking a thread here, because only light weight operations should happen on network thread and
+                    // Creating a in-memory index is not light weight
+                    // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
+                    Request::new, ThreadPool.Names.MANAGEMENT);
             this.scriptService = scriptService;
             this.indicesServices = indicesServices;
         }
@@ -500,7 +500,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
                 String indexExpression = request.contextSetup.index;
                 Index[] concreteIndices =
-                    indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
+                        indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
                 if (concreteIndices.length != 1) {
                     throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
                 }
@@ -523,7 +523,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
                     FilterScript.LeafFactory leafFactory =
-                        factory.newFactory(request.getScript().getParams(), context.lookup());
+                            factory.newFactory(request.getScript().getParams(), context.lookup());
                     FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
                     filterScript.setDocument(0);
                     boolean result = filterScript.execute();
@@ -533,7 +533,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
                     ScoreScript.LeafFactory leafFactory =
-                        factory.newFactory(request.getScript().getParams(), context.lookup());
+                            factory.newFactory(request.getScript().getParams(), context.lookup());
                     ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
                     scoreScript.setDocument(0);
 
@@ -558,8 +558,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         private static Response prepareRamIndex(Request request,
-                                                CheckedBiFunction<QueryShardContext, LeafReaderContext, Response, IOException> handler,
-                                                IndexService indexService) throws IOException {
+                CheckedBiFunction<QueryShardContext, LeafReaderContext, Response, IOException> handler,
+                IndexService indexService) throws IOException {
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
@@ -577,7 +577,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
+                                indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
@@ -590,8 +590,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         public List<Route> routes() {
             return unmodifiableList(asList(
-                new Route(GET, "/_scripts/painless/_execute"),
-                new Route(POST, "/_scripts/painless/_execute")));
+                    new Route(GET, "/_scripts/painless/_execute"),
+                    new Route(POST, "/_scripts/painless/_execute")));
         }
 
         @Override

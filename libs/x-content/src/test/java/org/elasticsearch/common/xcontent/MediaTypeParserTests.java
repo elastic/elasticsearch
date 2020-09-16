@@ -65,5 +65,7 @@ public class MediaTypeParserTests extends ESTestCase {
 
         assertThat(mediaTypeParser.parseMediaType(mediaType + "; key = value"),
             is(nullValue()));
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; key=") ,
+            is(nullValue()));
     }
 }

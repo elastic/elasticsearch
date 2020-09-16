@@ -96,7 +96,6 @@ public class MediaTypeParser<T extends MediaType> {
 
     /**
      * A media type object that contains all the information provided on a Content-Type or Accept header
-     * // TODO PG to be extended with getCompatibleAPIVersion and more
      */
     public class ParsedMediaType {
         private final Map<String, String> parameters;

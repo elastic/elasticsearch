@@ -132,17 +132,15 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
 
         logger.info("starting cold data node");
         internalCluster().startNode(coldNode(Settings.EMPTY));
-        logger.info("starting frozen data node");
-        internalCluster().startNode(frozenNode(Settings.EMPTY));
 
-        // wait for lifecycle to complete in the frozen phase after the index has been migrated to the frozen node
+        // wait for lifecycle to complete in the cold phase after the index has been migrated to the cold node
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
-            assertThat(indexLifecycleExplainResponse.getPhase(), is("frozen"));
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
         });
     }

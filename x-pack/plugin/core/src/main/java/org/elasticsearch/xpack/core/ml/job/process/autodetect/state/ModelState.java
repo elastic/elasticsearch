@@ -23,13 +23,6 @@ public class ModelState {
     }
 
     /**
-     * This is how the IDs were formed in v5.4
-     */
-    public static final String v54DocumentId(String jobId, String snapshotId, int docNum) {
-        return jobId + "-" + snapshotId + "#" + docNum;
-    }
-
-    /**
      * Given the id of a state document it extracts the job id
      * @param docId the state document id
      * @return the job id or {@code null} if the id is not valid

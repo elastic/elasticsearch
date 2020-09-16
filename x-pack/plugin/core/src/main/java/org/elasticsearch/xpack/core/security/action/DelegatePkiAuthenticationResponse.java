@@ -14,7 +14,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,7 +26,6 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     private static final ParseField ACCESS_TOKEN_FIELD = new ParseField("access_token");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField EXPIRES_IN_FIELD = new ParseField("expires_in");
-    private static final ParseField AUTHENTICATION = new ParseField("authentication");
 
     public static final ConstructingObjectParser<DelegatePkiAuthenticationResponse, Void> PARSER = new ConstructingObjectParser<>(
             "delegate_pki_response", true, a -> {
@@ -37,35 +35,30 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
                     throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
                 }
                 final Long expiresIn = (Long) a[2];
-                final Authentication authentication = (Authentication) a[3];
-                return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn), authentication);
+                return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn));
             });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACCESS_TOKEN_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPIRES_IN_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), AUTHENTICATION);
     }
 
     private String accessToken;
     private TimeValue expiresIn;
-    private Authentication authentication;
 
     DelegatePkiAuthenticationResponse() { }
 
-    public DelegatePkiAuthenticationResponse(String accessToken, TimeValue expiresIn, Authentication authentication) {
+    public DelegatePkiAuthenticationResponse(String accessToken, TimeValue expiresIn) {
         this.accessToken = Objects.requireNonNull(accessToken);
         // always store expiration in seconds because this is how we "serialize" to JSON and we need to parse back
         this.expiresIn = TimeValue.timeValueSeconds(Objects.requireNonNull(expiresIn).getSeconds());
-        this.authentication = authentication;
     }
 
     public DelegatePkiAuthenticationResponse(StreamInput input) throws IOException {
         super(input);
         accessToken = input.readString();
         expiresIn = input.readTimeValue();
-        authentication = null;
     }
 
     public String getAccessToken() {
@@ -98,13 +91,10 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(ACCESS_TOKEN_FIELD.getPreferredName(), accessToken);
-        builder.field(TYPE_FIELD.getPreferredName(), "Bearer");
-        builder.field(EXPIRES_IN_FIELD.getPreferredName(), expiresIn.getSeconds());
-        if (authentication != null) {
-            builder.field(AUTHENTICATION.getPreferredName(), authentication);
-        }
+        builder.startObject()
+            .field(ACCESS_TOKEN_FIELD.getPreferredName(), accessToken)
+            .field(TYPE_FIELD.getPreferredName(), "Bearer")
+            .field(EXPIRES_IN_FIELD.getPreferredName(), expiresIn.getSeconds());
         return builder.endObject();
     }
 }

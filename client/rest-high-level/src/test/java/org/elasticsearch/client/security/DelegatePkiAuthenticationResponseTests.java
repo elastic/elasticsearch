@@ -37,7 +37,7 @@ public class DelegatePkiAuthenticationResponseTests extends
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance(
         XContentType xContentType) {
         return new org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse(randomAlphaOfLength(6),
-                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"), null);
+                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"));
     }
 
     @Override

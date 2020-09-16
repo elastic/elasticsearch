@@ -73,7 +73,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
     public void testSort() {
         // asc sort
         {
-            SearchResponse response = client().prepareSearch()
+            SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.ASC)
@@ -88,7 +88,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // desc sort
         {
-            SearchResponse response = client().prepareSearch()
+            SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.DESC)
@@ -103,7 +103,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // asc sort with search_after as Long
         {
-            SearchResponse response = client().prepareSearch()
+            SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.ASC)
@@ -119,7 +119,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // asc sort with search_after as BigInteger
         {
-            SearchResponse response = client().prepareSearch()
+            SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.ASC)
@@ -135,7 +135,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // asc sort with search_after as BigInteger in String format
         {
-            SearchResponse response = client().prepareSearch()
+            SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.ASC)
@@ -151,7 +151,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // asc sort with search_after of negative value should fail
         {
-            SearchRequestBuilder srb = client().prepareSearch()
+            SearchRequestBuilder srb = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.ASC)
@@ -161,7 +161,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // asc sort with search_after of value>=2^64 should fail
         {
-            SearchRequestBuilder srb = client().prepareSearch()
+            SearchRequestBuilder srb = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.ASC)
@@ -171,7 +171,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // desc sort with search_after as BigInteger
         {
-            SearchResponse response = client().prepareSearch()
+            SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(numDocs)
                 .addSort("ul_field", SortOrder.DESC)

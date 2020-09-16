@@ -36,16 +36,11 @@ import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome
  *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  *  and configure them to build various versions here.
  */
+
+apply plugin:"elasticsearch.internal-distribution-bwc-setup"
+
 BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion ->
   project("${unreleasedVersion.gradleProjectPath}") {
-    Version bwcVersion = unreleasedVersion.version
-    String bwcBranch = unreleasedVersion.branch
-    apply plugin: 'distribution'
-    // Not published so no need to assemble
-    tasks.named("assemble").configure {
-      enabled = false
-    }
-    File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
     final String remote = System.getProperty("bwc.remote", "elastic")
 

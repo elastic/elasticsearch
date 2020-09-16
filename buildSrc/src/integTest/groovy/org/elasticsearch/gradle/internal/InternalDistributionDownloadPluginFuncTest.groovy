@@ -134,27 +134,6 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 "without a bundled JDK is not supported.")
     }
 
-    private File internalBuild() {
-        buildFile << """plugins {
-          id 'elasticsearch.global-build-info'
-        }
-        import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.info.BuildParams
-
-        BuildParams.init { it.setIsInternal(true) }
-
-        import org.elasticsearch.gradle.BwcVersions
-        import org.elasticsearch.gradle.Version
-
-        Version currentVersion = Version.fromString("9.0.0")
-        BwcVersions versions = new BwcVersions(new TreeSet<>(
-        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
-            currentVersion)
-
-        BuildParams.init { it.setBwcVersions(versions) }
-        """
-    }
-
 
     private void bwcMinorProjectSetup() {
         settingsFile << """

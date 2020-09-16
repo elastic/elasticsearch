@@ -168,7 +168,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         return projectName;
     }
 
-    private class ProjectBasedDistributionDependency implements DistributionDependency {
+    private static class ProjectBasedDistributionDependency implements DistributionDependency {
 
         private Function<String, Dependency> function;
 

@@ -135,7 +135,7 @@ public class TimeoutChecker implements Closeable {
         }
 
         @Override
-        synchronized public void register(Matcher matcher) {
+        public synchronized void register(Matcher matcher) {
             WatchDogEntry value = registry.get(Thread.currentThread());
             if (value != null) {
                 boolean wasFalse = value.registered.compareAndSet(false, true);

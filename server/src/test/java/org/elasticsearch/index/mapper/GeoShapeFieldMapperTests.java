@@ -214,7 +214,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

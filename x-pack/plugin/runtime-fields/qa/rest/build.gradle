@@ -32,8 +32,6 @@ yamlRestTest {
   systemProperty 'tests.rest.blacklist',
     [
       /////// TO FIX ///////
-      'search/330_fetch_fields/*', // The 'fields' option is not yet supported
-      'search/110_field_collapsing/field collapsing, inner_hits, and fields', // Also fails because of the 'fields' option
       'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // The plain highlighter is incompatible with runtime fields. Worth fixing?
       'search/115_multiple_field_collapsing/two levels fields collapsing', // Broken. Gotta fix.
       'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?

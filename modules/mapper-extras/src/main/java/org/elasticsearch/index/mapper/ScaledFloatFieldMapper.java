@@ -398,7 +398,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
@@ -545,5 +545,25 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
+        @Override
+        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+            SortedNumericDoubleValues values = getDoubleValues();
+            return new DocValueFetcher.Leaf() {
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    return values.advanceExact(docId);
+                }
+
+                @Override
+                public int docValueCount() throws IOException {
+                    return values.docValueCount();
+                }
+
+                @Override
+                public Object nextValue() throws IOException {
+                    return format.format(values.nextValue());
+                }
+            };
+        }
     }
 }

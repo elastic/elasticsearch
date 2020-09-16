@@ -10,6 +10,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
@@ -75,8 +77,8 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
-        throw new UnsupportedOperationException();
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        return new DocValueFetcher(fieldType().docValueFormat(format, null), lookup.doc().getForField(fieldType()));
     }
 
     @Override

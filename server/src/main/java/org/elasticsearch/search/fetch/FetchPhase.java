@@ -56,6 +56,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -103,7 +104,8 @@ public class FetchPhase {
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
         Map<String, Object> sharedCache = new HashMap<>();
 
-        List<FetchSubPhaseProcessor> processors = getProcessors(context);
+            SearchLookup lookup = context.getQueryShardContext().newFetchLookup();
+        List<FetchSubPhaseProcessor> processors = getProcessors(context, lookup);
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
@@ -122,8 +124,15 @@ public class FetchPhase {
                     }
                 }
                 assert currentReaderContext != null;
-                HitContext hit
-                    = prepareHitContext(context, fieldsVisitor, docId, storedToRequestedFields, currentReaderContext, sharedCache);
+                HitContext hit = prepareHitContext(
+                    context,
+                    lookup,
+                    fieldsVisitor,
+                    docId,
+                    storedToRequestedFields,
+                    currentReaderContext,
+                    sharedCache
+                );
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
@@ -141,11 +150,11 @@ public class FetchPhase {
 
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(SearchContext context) {
+    List<FetchSubPhaseProcessor> getProcessors(SearchContext context, SearchLookup lookup) {
         try {
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
-                FetchSubPhaseProcessor processor = fsp.getProcessor(context);
+                FetchSubPhaseProcessor processor = fsp.getProcessor(context, lookup);
                 if (processor != null) {
                     processors.add(processor);
                 }
@@ -235,12 +244,20 @@ public class FetchPhase {
         return -1;
     }
 
-    private HitContext prepareHitContext(SearchContext context, FieldsVisitor fieldsVisitor, int docId,
+    private HitContext prepareHitContext(SearchContext context, SearchLookup lookup, FieldsVisitor fieldsVisitor, int docId,
                                          Map<String, Set<String>> storedToRequestedFields,
                                          LeafReaderContext subReaderContext, Map<String, Object> sharedCache) throws IOException {
         int rootDocId = findRootDocumentIfNested(context, subReaderContext, docId - subReaderContext.docBase);
         if (rootDocId == -1) {
-            return prepareNonNestedHitContext(context, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, sharedCache);
+            return prepareNonNestedHitContext(
+                context,
+                lookup,
+                fieldsVisitor,
+                docId,
+                storedToRequestedFields,
+                subReaderContext,
+                sharedCache
+            );
         } else {
             return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields, subReaderContext, sharedCache);
         }
@@ -254,6 +271,7 @@ public class FetchPhase {
      *     fetch subphases that use the hit context to access the preloaded source.
      */
     private HitContext prepareNonNestedHitContext(SearchContext context,
+                                   SearchLookup lookup,
                                    FieldsVisitor fieldsVisitor,
                                    int docId,
                                    Map<String, Set<String>> storedToRequestedFields,
@@ -265,7 +283,7 @@ public class FetchPhase {
 
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, typeText, null, null);
-            return new HitContext(hit, subReaderContext, subDocId, sharedCache);
+            return new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
         } else {
             SearchHit hit;
             loadStoredFields(context.mapperService(), subReaderContext, fieldsVisitor, subDocId);
@@ -279,7 +297,7 @@ public class FetchPhase {
                 hit = new SearchHit(docId, uid.id(), typeText, emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, sharedCache);
+            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
             if (fieldsVisitor.source() != null) {
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
             }
@@ -288,7 +306,6 @@ public class FetchPhase {
     }
 
     /**
-     /**
      * Resets the provided {@link HitContext} with information on the current
      * nested document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
@@ -359,7 +376,13 @@ public class FetchPhase {
                 getInternalNestedIdentity(context, nestedDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
 
         SearchHit hit = new SearchHit(nestedTopDocId, rootId.id(), typeText, nestedIdentity, docFields, metaFields);
-        HitContext hitContext = new HitContext(hit, subReaderContext, nestedDocId, sharedCache);
+        HitContext hitContext = new HitContext(
+            hit,
+            subReaderContext,
+            nestedDocId,
+            new SourceLookup(),  // Use a clean, fresh SourceLookup for the nested context
+            sharedCache
+        );
 
         if (rootSourceAsMap != null) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json

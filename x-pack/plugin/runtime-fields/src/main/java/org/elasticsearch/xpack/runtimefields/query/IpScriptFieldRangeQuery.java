@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
 import java.net.InetAddress;
 import java.util.Objects;
@@ -18,13 +18,7 @@ public class IpScriptFieldRangeQuery extends AbstractIpScriptFieldQuery {
     private final BytesRef lower;
     private final BytesRef upper;
 
-    public IpScriptFieldRangeQuery(
-        Script script,
-        IpScriptFieldScript.LeafFactory leafFactory,
-        String fieldName,
-        BytesRef lower,
-        BytesRef upper
-    ) {
+    public IpScriptFieldRangeQuery(Script script, IpFieldScript.LeafFactory leafFactory, String fieldName, BytesRef lower, BytesRef upper) {
         super(script, leafFactory, fieldName);
         this.lower = lower;
         this.upper = upper;

@@ -42,26 +42,26 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
      * Add encoded value to the linear counting. Implementor should only accept the value if it has not been
      * seen before.
      */
-    protected abstract int addEncoded(int encoded);
+    protected abstract int addEncoded(long bucketOrd, int encoded);
 
     /**
      * number of values in the counter.
      */
-    protected abstract int size();
+    protected abstract int size(long bucketOrd);
 
     /**
      * return the current values in the counter.
      */
-    protected abstract HashesIterator values();
+    protected abstract HashesIterator values(long bucketOrd);
 
-    public int collect(long hash) {
+    public int collect(long bucketOrd, long hash) {
         final int k = encodeHash(hash, p);
-        return addEncoded(k);
+        return addEncoded(bucketOrd, k);
     }
 
-    public long cardinality() {
+    public long cardinality(long bucketOrd) {
         final long m = 1 << P2;
-        final long v = m - size();
+        final long v = m - size(bucketOrd);
         return linearCounting(m, v);
     }
 

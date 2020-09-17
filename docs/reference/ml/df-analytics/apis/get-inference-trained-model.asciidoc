@@ -79,9 +79,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
 (Optional, string)
 A comma delimited string of optional fields to include in the response body.
 Valid options are:
- - definition: to include the model definition
- - total_feature_importance: to include the total feature importance for the
-   training feature sets. This field will be available in the `metadata` field.
+ - `definition`: Includes the model definition
+ - `total_feature_importance`: Includes the total feature importance for the
+   training data set. This field is available in the `metadata` field in the
+   response body.
 Default is empty, indicating including no optional fields.
 
 `size`::
@@ -143,7 +144,7 @@ created by {dfanalytics} contain `analysis_config` and `input` objects.
 =====
 `total_feature_importance`:::
 (array)
-An array of the total feature importance for each training feature used from
+An array of the total feature importance for each feature used from
 the training data set. This array of objects is returned if {dfanalytics} trained
 the model and the request includes `total_feature_importance` in the `include`
 request parameter.

@@ -628,12 +628,10 @@ public class TrainedModelProvider {
                                 .sorted(Comparator.comparing(TrainedModelConfig::getModelId))
                                 .collect(Collectors.toList()));
                             return;
-
                         }
                         finalListener.onFailure(failure);
                     }
                 ));
-
             },
             finalListener::onFailure
         );

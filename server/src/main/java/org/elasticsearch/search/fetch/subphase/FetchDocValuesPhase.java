@@ -23,15 +23,14 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -45,19 +44,9 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context, SearchLookup lookup) throws IOException {
-        if (context.collapse() != null) {
-            // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldName();
-            if (context.docValuesContext() == null) {
-                context.docValuesContext(new FetchDocValuesContext(
-                    Collections.singletonList(new FieldAndFormat(name, null))));
-            } else if (context.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValuesContext().fields().add(new FieldAndFormat(name, null));
-            }
-        }
-
-        if (context.docValuesContext() == null) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+        FetchDocValuesContext dvContext = context.docValuesContext();
+        if (dvContext == null) {
             return null;
         }
 
@@ -87,7 +76,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
 
         return new FetchSubPhaseProcessor() {
             @Override
-            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            public void setNextReader(LeafReaderContext readerContext) {
                 for (DocValueField f : fields) {
                     f.fetcher.setNextReader(readerContext);
                 }
@@ -109,7 +98,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         };
     }
 
-    private class DocValueField {
+    private static class DocValueField {
         private final String field;
         private final ValueFetcher fetcher;
 

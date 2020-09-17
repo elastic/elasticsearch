@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -326,8 +327,12 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
 
-        final Collection<SnapshotId> snapshotIds = getRepositoryData(repoName).getSnapshotIds();
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         assertThat(snapshotIds, hasSize(2));
+        for (SnapshotId snapshotId : snapshotIds) {
+            assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
+        }
     }
 
     private void blockMasterOnShardClone(String repoName) {

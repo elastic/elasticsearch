@@ -383,6 +383,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (state != entry.state) return false;
             if (repositoryStateId != entry.repositoryStateId) return false;
             if (version.equals(entry.version) == false) return false;
+            if (Objects.equals(source, ((Entry) o).source) == false) return false;
+            if (clones.equals(((Entry) o).clones) == false) return false;
 
             return true;
         }
@@ -398,6 +400,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + Long.hashCode(startTime);
             result = 31 * result + Long.hashCode(repositoryStateId);
             result = 31 * result + version.hashCode();
+            result = 31 * result + (source == null ? 0 : source.hashCode());
+            result = 31 * result + clones.hashCode();
             return result;
         }
 

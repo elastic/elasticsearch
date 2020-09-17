@@ -337,6 +337,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        initializingClones.add(snapshot);
         // TODO: throw when no indices match or source snapshot was not successful for the matching indices
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
@@ -378,6 +379,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
+                initializingClones.remove(snapshot);
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to clone snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
             }
@@ -391,6 +393,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public TimeValue timeout() {
+                initializingClones.remove(snapshot);
                 return request.masterNodeTimeout();
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
@@ -487,12 +490,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
+                initializingClones.remove(targetSnapshot);
                 logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
                 failAllListenersOnMasterFailOver(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                initializingClones.remove(targetSnapshot);
                 if (updatedEntry != null) {
                     final Snapshot target = updatedEntry.snapshot();
                     final SnapshotId sourceSnapshot = updatedEntry.source();
@@ -834,8 +839,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
                     if (statesToUpdate.contains(snapshot.state())) {
+                        // Currently initializing clone
                         if (snapshot.source() != null && snapshot.clones().isEmpty()) {
-                            throw new AssertionError("TODO");
+                            if (initializingClones.contains(snapshot.snapshot())) {
+                                updatedSnapshotEntries.add(snapshot);
+                            } else {
+                                throw new AssertionError("TODO");
+                            }
                         } else {
                             ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = processWaitingShardsAndRemovedNodes(snapshot.shards(),
                                     routingTable, nodes, knownFailures.computeIfAbsent(snapshot.repository(), k -> new HashMap<>()));

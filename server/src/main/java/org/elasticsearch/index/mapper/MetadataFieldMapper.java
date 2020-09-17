@@ -153,27 +153,10 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         return builder.endObject();
     }
 
-    /*
-     * By default metadata fields cannot be set through the document source and parse() method
-     * throws an exception. To enable a metadata field to parse the document source, this
-     * method must be overridden and doParse() should be called.
-     */
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
-            + " a document. Use the index API request parameters.");
-    }
-
-    /**
-     * Do the actual parsing of the field by calling {@link FieldMapper#parse(ParseContext)}
-     */
-    protected void doParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        // do nothing
+        throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
+            + " a document. Use the index API request parameters.");
     }
 
     /**

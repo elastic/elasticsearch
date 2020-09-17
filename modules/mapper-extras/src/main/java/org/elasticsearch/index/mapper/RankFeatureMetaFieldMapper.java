@@ -66,11 +66,6 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
-        throw new AssertionError("Should never be called");
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

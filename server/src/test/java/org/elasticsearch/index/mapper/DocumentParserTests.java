@@ -939,8 +939,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapper.parse(source(b -> b.field("_field_names", 0))));
-        assertTrue(e.getMessage(),
-            e.getMessage().contains("Field [_field_names] is a metadata field and cannot be added inside a document."));
+        assertTrue(e.getCause().getMessage(),
+            e.getCause().getMessage().contains("Field [_field_names] is a metadata field and cannot be added inside a document."));
 
         mapper.parse(source(b -> b.field("foo._field_names", 0))); // parses without error
     }

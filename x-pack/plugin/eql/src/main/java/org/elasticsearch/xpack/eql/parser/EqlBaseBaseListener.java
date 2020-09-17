@@ -268,6 +268,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterDefaultExpressionDefault(EqlBaseParser.DefaultExpressionDefaultContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDefaultExpressionDefault(EqlBaseParser.DefaultExpressionDefaultContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx) { }
   /**
    * {@inheritDoc}

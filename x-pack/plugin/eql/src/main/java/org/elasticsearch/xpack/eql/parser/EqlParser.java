@@ -81,7 +81,7 @@ public class EqlParser {
             parser.removeErrorListeners();
             parser.addErrorListener(ERROR_LISTENER);
 
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+            parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
 
             if (DEBUG) {
                 debug(parser);

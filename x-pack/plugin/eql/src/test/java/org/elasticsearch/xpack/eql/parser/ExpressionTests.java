@@ -221,4 +221,25 @@ public class ExpressionTests extends ESTestCase {
         expectThrows(ParsingException.class, "Expected syntax error",
             () -> expr("name in ()"));
     }
+
+    public void testChainedComparisons() {
+        int noComparisions = randomIntBetween(2, 20);
+        String firstComparator = "";
+        String secondComparator = "";
+        StringBuilder sb = new StringBuilder("a ");
+        for (int i = 0 ; i < noComparisions; i++) {
+            String comparator = randomFrom("=", "==", "!=", "<", "<=", ">", ">=");
+            sb.append(comparator).append(" a ");
+
+            if (i == 0) {
+                firstComparator = comparator;
+            } else if (i == 1) {
+                secondComparator = comparator;
+            }
+        }
+        ParsingException e = expectThrows(ParsingException.class, () -> expr(sb.toString()));
+        assertEquals("line 1:" + (6 + firstComparator.length()) + ": mismatched input '" + secondComparator +
+                        "' expecting {<EOF>, 'and', 'in', 'not', 'or', '+', '-', '*', '/', '%', '.', '['}",
+                e.getMessage());
+    }
 }

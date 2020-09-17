@@ -143,15 +143,22 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitComparison(EqlBaseParser.ComparisonContext ctx);
   /**
+   * Visit a parse tree produced by the {@code defaultExpressionDefault}
+   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDefaultExpressionDefault(EqlBaseParser.DefaultExpressionDefaultContext ctx);
+  /**
    * Visit a parse tree produced by the {@code arithmeticBinary}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx);
   /**
    * Visit a parse tree produced by the {@code arithmeticUnary}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */

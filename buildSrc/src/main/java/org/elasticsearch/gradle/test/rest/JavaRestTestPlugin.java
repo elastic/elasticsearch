@@ -31,6 +31,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
+import static org.elasticsearch.gradle.test.rest.RestTestUtil.createTestCluster;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.registerTask;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 
@@ -51,6 +52,9 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
+
+        //create the test cluster container
+        createTestCluster(project, javaTestSourceSet);
 
         // setup the javaRestTest task
         Provider<RestIntegTestTask> javaRestTestTask = registerTask(project, javaTestSourceSet);

@@ -117,7 +117,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
     public static final class SubFetchPhasePlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList((searchContext, lookup) -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList(searchContext -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {}
 

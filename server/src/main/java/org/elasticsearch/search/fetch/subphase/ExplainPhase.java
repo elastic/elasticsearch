@@ -23,7 +23,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
@@ -34,7 +33,7 @@ import java.io.IOException;
 public final class ExplainPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.explain() == false) {
             return null;
         }

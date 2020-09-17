@@ -17,20 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- * An {@link IndexSettingProvider} is a provider for index level settings that can be set
- * explicitly as a default value (so they show up as "set" for newly created indices)
- */
-public interface IndexSettingProvider {
-    /**
-     * Returns explicitly set default index {@link Settings} for the given index. This should not
-     * return null.
-     */
-    default Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
-        return Settings.EMPTY;
+public class FetchPhaseTests extends ESTestCase {
+    public void testSequentialDocs() {
+        FetchPhase.DocIdToIndex[] docs = new FetchPhase.DocIdToIndex[10];
+        int start = randomIntBetween(0, Short.MAX_VALUE);
+        for (int i = 0; i < 10; i++) {
+            docs[i] = new FetchPhase.DocIdToIndex(start, i);
+            ++ start;
+        }
+        assertTrue(FetchPhase.hasSequentialDocs(docs));
+
+        int from = randomIntBetween(0, 9);
+        start = docs[from].docId;
+        for (int i = from; i < 10; i++) {
+            start += randomIntBetween(2, 10);
+            docs[i] = new FetchPhase.DocIdToIndex(start, i);
+        }
+        assertFalse(FetchPhase.hasSequentialDocs(docs));
     }
 }

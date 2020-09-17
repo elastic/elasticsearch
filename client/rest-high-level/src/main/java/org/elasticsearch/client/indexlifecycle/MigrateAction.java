@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ilm;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

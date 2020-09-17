@@ -680,8 +680,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // all shards to be active and we want that to happen as part of the shrink action)
         MigrateAction migrateAction = new MigrateAction(false);
         ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards);
-        Phase phase = new Phase("warm", TimeValue.ZERO, Map.of(migrateAction.getWriteableName(), migrateAction,
-            shrinkAction.getWriteableName(), shrinkAction));
+        Phase phase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(
+            migrateAction.getWriteableName(), migrateAction, shrinkAction.getWriteableName(), shrinkAction)
+        );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);

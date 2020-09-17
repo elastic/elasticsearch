@@ -198,7 +198,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
         actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
-        List<Phase> phases = List.of(new Phase(WARM_PHASE, TimeValue.ZERO, actions), new Phase(COLD_PHASE, TimeValue.ZERO, actions));
+        List<Phase> phases = org.elasticsearch.common.collect.List.of(
+            new Phase(WARM_PHASE, TimeValue.ZERO, actions), new Phase(COLD_PHASE, TimeValue.ZERO, actions)
+        );
 
         Exception validationException = expectThrows(IllegalArgumentException.class,
             () -> TimeseriesLifecycleType.INSTANCE.validate(phases));
@@ -226,8 +228,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testGetOrderedPhasesInsertsMigrateAction() {
         Map<String, Phase> phaseMap = new HashMap<>();
-        phaseMap.put(HOT_PHASE, new Phase(HOT_PHASE, TimeValue.ZERO, Map.of()));
-        phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, Map.of()));
+        phaseMap.put(HOT_PHASE, new Phase(HOT_PHASE, TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()));
+        phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()));
 
         List<Phase> orderedPhases = TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap);
         assertTrue(isSorted(orderedPhases, Phase::getName, VALID_PHASES));

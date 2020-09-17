@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -49,7 +48,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
     }
 
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(
-        List.of(
+        org.elasticsearch.common.collect.List.of(
             new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS))
         )
     );

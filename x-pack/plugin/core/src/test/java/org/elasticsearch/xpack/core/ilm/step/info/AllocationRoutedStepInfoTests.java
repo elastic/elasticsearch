@@ -44,7 +44,7 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
         long actualReplicas = instance.getNumberOfReplicas();
         long shardsToAllocate = instance.getNumberShardsLeftToAllocate();
         boolean allShardsActive = instance.allShardsActive();
-        var message = instance.getMessage();
+        String message = instance.getMessage();
         switch (between(0, 2)) {
         case 0:
             shardsToAllocate += between(1, 20);

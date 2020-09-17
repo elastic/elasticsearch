@@ -98,7 +98,7 @@ public class MigrateAction implements LifecycleAction {
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return Arrays.asList(updateMigrationSettingStep, migrationRoutedStep);
         } else {
-            return List.of();
+            return org.elasticsearch.common.collect.List.of();
         }
     }
 

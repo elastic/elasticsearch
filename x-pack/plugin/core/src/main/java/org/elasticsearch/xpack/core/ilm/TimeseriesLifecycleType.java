@@ -170,6 +170,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case COLD_PHASE:
                 return ORDERED_VALID_COLD_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(toList());
+            case FROZEN_PHASE:
+                return ORDERED_VALID_FROZEN_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
             case DELETE_PHASE:
                 return ORDERED_VALID_DELETE_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(toList());

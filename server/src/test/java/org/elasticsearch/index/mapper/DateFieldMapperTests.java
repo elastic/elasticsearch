@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends MapperTestCase {
@@ -221,14 +220,10 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
-    public void testBadNullValue() {
+    public void testBadNullValue() throws IOException {
+        createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", ""))));
-
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping [_doc]: Error parsing [null_value] on field [field]: cannot parse empty date"));
-    }
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored"); }
 
     public void testNullConfigValuesFail() {
         Exception e = expectThrows(MapperParsingException.class,
@@ -364,7 +359,8 @@ public class DateFieldMapperTests extends MapperTestCase {
             mapping.put("null_value", nullValue);
         }
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("field", Version.CURRENT, resolution, null, false);
+        DateFieldMapper.Builder builder
+            = new DateFieldMapper.Builder("field", resolution, null, false, Version.CURRENT);
         builder.parse("field", null, mapping);
         return builder.build(context);
     }

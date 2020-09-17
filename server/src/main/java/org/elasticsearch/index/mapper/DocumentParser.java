@@ -696,9 +696,8 @@ final class DocumentParser {
                         = context.root().findTemplateBuilder(context, currentFieldName, dateTimeFormatter);
                     if (builder == null) {
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
-                        Version indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
-                        builder = new DateFieldMapper.Builder(currentFieldName, indexCreatedVersion,
-                            DateFieldMapper.Resolution.MILLISECONDS, dateTimeFormatter, ignoreMalformed);
+                        builder = new DateFieldMapper.Builder(currentFieldName, DateFieldMapper.Resolution.MILLISECONDS,
+                            dateTimeFormatter, ignoreMalformed, Version.indexCreated(context.indexSettings().getSettings()));
                     }
                     return builder;
 

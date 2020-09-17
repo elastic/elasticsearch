@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 
-import java.io.IOException;
-
 public final class BooleanScriptDocValues extends AbstractSortedNumericDocValues {
     private final BooleanFieldScript script;
     private int cursor;
@@ -27,7 +25,7 @@ public final class BooleanScriptDocValues extends AbstractSortedNumericDocValues
     }
 
     @Override
-    public long nextValue() throws IOException {
+    public long nextValue() {
         // Emit all false values before all true values
         return cursor++ < script.falses() ? 0 : 1;
     }

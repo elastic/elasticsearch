@@ -19,8 +19,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
 
-import java.io.IOException;
-
 public final class DateScriptFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
@@ -66,7 +64,7 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public DateScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+    public DateScriptLeafFieldData loadDirect(LeafReaderContext context) {
         return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)));
     }
 

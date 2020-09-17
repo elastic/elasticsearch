@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
@@ -669,8 +670,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             request.addParameter("level", "shards");
         });
 
-        // assign the policy that'll attempt to shrink the index
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards));
+        // assign the policy that'll attempt to shrink the index (disabling the migrate action as it'll otherwise wait for
+        // all shards to be active and we want that to happen as part of the shrink action)
+        MigrateAction migrateAction = new MigrateAction(false);
+        ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards);
+        Phase phase = new Phase("warm", TimeValue.ZERO, Map.of(migrateAction.getWriteableName(), migrateAction,
+            shrinkAction.getWriteableName(), shrinkAction));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request putPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        putPolicyRequest.setEntity(entity);
+        client().performRequest(putPolicyRequest);
         updatePolicy(index, policy);
 
         assertTrue("ILM did not start retrying the set-single-node-allocation step", waitUntil(() -> {

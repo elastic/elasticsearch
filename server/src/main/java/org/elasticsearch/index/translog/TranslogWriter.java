@@ -25,6 +25,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -53,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+@SuppressForbidden(reason = "Channel#write")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private static final int FORCE_WRITE_THRESHOLD = 4 * 1024 * 1024;

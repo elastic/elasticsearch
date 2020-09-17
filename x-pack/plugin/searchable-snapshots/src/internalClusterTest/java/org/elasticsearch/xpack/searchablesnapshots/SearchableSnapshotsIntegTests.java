@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,6 +41,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -49,9 +52,13 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.hamcrest.Matchers;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -68,6 +75,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -79,6 +88,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -658,6 +669,52 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
             assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
         }
+    }
+
+    public void testSnapshotMountedIndexLeavesBlobsUntouched() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+        );
+        ensureGreen(indexName);
+        forceMerge();
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final Path repositoryLocation = randomRepoPath();
+        createFsRepository(repositoryName, repositoryLocation);
+
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, List.of(indexName));
+        final Set<Tuple<String, Long>> snapshotOneDataBlobs = listDataBlobsInRepository(repositoryLocation);
+        assertThat(snapshotOneDataBlobs, hasSize(greaterThan(0)));
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
+        ensureGreen(indexName);
+
+        createSnapshot(repositoryName, List.of(indexName));
+        final Set<Tuple<String, Long>> snapshotTwoDataBlobs = listDataBlobsInRepository(repositoryLocation);
+        assertThat(snapshotTwoDataBlobs.containsAll(snapshotOneDataBlobs), is(true));
+        assertThat(snapshotTwoDataBlobs, hasSize(snapshotOneDataBlobs.size()));
+    }
+
+    private static Set<Tuple<String, Long>> listDataBlobsInRepository(final Path path) throws IOException {
+        final Set<Tuple<String, Long>> files = new HashSet<>();
+        Files.walkFileTree(path, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (file.getFileName().toString().startsWith("__")) {
+                    final CheckedInputStream checkedStream = new CheckedInputStream(Files.newInputStream(file), new CRC32());
+                    Streams.readFully(new BufferedInputStream(checkedStream));
+                    files.add(Tuple.tuple(file.toAbsolutePath().toString(), checkedStream.getChecksum().getValue()));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return files;
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

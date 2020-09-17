@@ -304,7 +304,38 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(settings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), "1");
     }
 
-    public void testMasterFailoverDuringClone() throws Exception {
+    public void testMasterFailoverDuringCloneStep1() throws Exception {
+        // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
+        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createSingleShardIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final String targetSnapshot1 = "target-snapshot";
+        blockMasterOnReadIndexMeta(repoName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture = dataNodeClient().admin().cluster()
+                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(testIndex).execute();
+        awaitNSnapshotsInProgress(1);
+        final String masterNode = internalCluster().getMasterName();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        internalCluster().restartNode(masterNode);
+        expectThrows(SnapshotException.class, cloneFuture::actionGet);
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+        for (SnapshotId snapshotId : snapshotIds) {
+            assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
+        }
+    }
+
+    public void testMasterFailoverDuringCloneStep2() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
         internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
@@ -333,6 +364,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (SnapshotId snapshotId : snapshotIds) {
             assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
         }
+    }
+
+    private void blockMasterOnReadIndexMeta(String repoName) {
+        ((MockRepository)internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName))
+                .setBlockOnReadIndexMeta();
     }
 
     private void blockMasterOnShardClone(String repoName) {

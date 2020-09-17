@@ -844,7 +844,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             if (initializingClones.contains(snapshot.snapshot())) {
                                 updatedSnapshotEntries.add(snapshot);
                             } else {
-                                throw new AssertionError("TODO");
+                                logger.debug("removing not yet start clone operation [{}]", snapshot);
+                                changed = true;
                             }
                         } else {
                             ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = processWaitingShardsAndRemovedNodes(snapshot.shards(),

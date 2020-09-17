@@ -120,6 +120,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnWriteShardLevelMeta;
 
+    private volatile boolean blockOnReadIndexMeta;
+
     /**
      * Writes to the blob {@code index.latest} at the repository root will fail with an {@link IOException} if {@code true}.
      */
@@ -186,6 +188,7 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = false;
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
+        blockOnReadIndexMeta = false;
         this.notifyAll();
     }
 
@@ -213,6 +216,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteShardLevelMeta = true;
     }
 
+    public void setBlockOnReadIndexMeta() {
+        blockOnReadIndexMeta = true;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -226,7 +233,7 @@ public class MockRepository extends FsRepository {
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnAnyFiles || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta) {
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -349,7 +356,11 @@ public class MockRepository extends FsRepository {
 
             @Override
             public InputStream readBlob(String name) throws IOException {
-                maybeIOExceptionOrBlock(name);
+                if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) &&  path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(name);
+                } else {
+                    maybeIOExceptionOrBlock(name);
+                }
                 return super.readBlob(name);
             }
 
@@ -406,8 +417,8 @@ public class MockRepository extends FsRepository {
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX) &&
-                        path().equals(basePath()) == false) {
+                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(blobName);
                 }
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);

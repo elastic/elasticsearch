@@ -10,19 +10,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.Objects;
 
 public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAutomatonQuery {
     private final String pattern;
 
-    public StringScriptFieldWildcardQuery(
-        Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
-        String fieldName,
-        String pattern
-    ) {
+    public StringScriptFieldWildcardQuery(Script script, StringFieldScript.LeafFactory leafFactory, String fieldName, String pattern) {
         super(
             script,
             leafFactory,

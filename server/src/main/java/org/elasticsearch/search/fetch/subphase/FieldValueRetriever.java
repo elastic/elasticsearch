@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -26,8 +27,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -40,10 +43,11 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldValueRetriever {
-    private final List<FieldContext> fieldContexts;
-
-    public static FieldValueRetriever create(MapperService mapperService,
-                                             Collection<FieldAndFormat> fieldAndFormats) {
+    public static FieldValueRetriever create(
+        MapperService mapperService,
+        SearchLookup searchLookup,
+        Collection<FieldAndFormat> fieldAndFormats
+    ) {
         MappingLookup fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fieldContexts = new ArrayList<>();
 
@@ -65,7 +69,7 @@ public class FieldValueRetriever {
                 }
 
                 FieldMapper fieldMapper = (FieldMapper) mapper;
-                ValueFetcher valueFetcher = fieldMapper.valueFetcher(mapperService, format);
+                ValueFetcher valueFetcher = fieldMapper.valueFetcher(mapperService, searchLookup, format);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }
@@ -73,11 +77,13 @@ public class FieldValueRetriever {
         return new FieldValueRetriever(fieldContexts);
     }
 
+    private final List<FieldContext> fieldContexts;
+
     private FieldValueRetriever(List<FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
 
-    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) {
+    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts) {
             String field = context.fieldName;
@@ -93,6 +99,12 @@ public class FieldValueRetriever {
             }
         }
         return documentFields;
+    }
+
+    public void setNextReader(LeafReaderContext readerContext) {
+        for (FieldContext field : fieldContexts) {
+            field.valueFetcher.setNextReader(readerContext);
+        }
     }
 
     private static class FieldContext {

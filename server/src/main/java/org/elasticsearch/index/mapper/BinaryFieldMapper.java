@@ -82,7 +82,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
-    public static final class BinaryFieldType extends MappedFieldType {
+    public static final class BinaryFieldType extends ConcreteMappedFieldType {
 
         public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, hasDocValues, TextSearchInfo.NONE, meta);

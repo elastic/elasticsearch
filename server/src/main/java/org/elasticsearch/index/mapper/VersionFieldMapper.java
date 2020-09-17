@@ -37,7 +37,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
 
-    static final class VersionFieldType extends MappedFieldType {
+    static final class VersionFieldType extends ConcreteMappedFieldType {
 
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 

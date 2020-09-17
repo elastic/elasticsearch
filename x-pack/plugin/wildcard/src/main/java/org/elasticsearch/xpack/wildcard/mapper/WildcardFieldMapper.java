@@ -52,6 +52,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -207,7 +208,7 @@ public class WildcardFieldMapper extends FieldMapper {
      public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);
      public static final String TOKEN_END_STRING = TOKEN_START_STRING + TOKEN_START_STRING;
 
-     public static final class WildcardFieldType extends MappedFieldType {
+     public static final class WildcardFieldType extends ConcreteMappedFieldType {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 

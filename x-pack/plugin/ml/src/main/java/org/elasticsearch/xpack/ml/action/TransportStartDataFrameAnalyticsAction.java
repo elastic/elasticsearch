@@ -377,7 +377,7 @@ public class TransportStartDataFrameAnalyticsAction
                             startContext.config.getId(),
                             Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                         ));
-                    } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows)  >= (2L^32)) {
+                    } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows)  >= Math.pow(2, 32)) {
                         listener.onFailure(ExceptionsHelper.badRequestException("Unable to start because too many documents " +
                             "(more than 2^32) are included in the analysis. Consider downsampling."));
                     } else {

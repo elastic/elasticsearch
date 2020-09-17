@@ -114,8 +114,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {
-            String indexName = searchContext.indexShard().shardId().getIndexName();
-            FetchFieldsContext fieldsContext = FetchFieldsContext.create(indexName, searchContext.mapperService(), fetchFields);
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(fetchFields);
             subSearchContext.fetchFieldsContext(fieldsContext);
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {

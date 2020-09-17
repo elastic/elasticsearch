@@ -90,7 +90,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     @Override
     protected InternalCardinality mutateInstance(InternalCardinality instance) {
         String name = instance.getName();
-        HyperLogLogPlusPlus state = instance.getState();
+        AbstractHyperLogLogPlusPlus state = instance.getState();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:

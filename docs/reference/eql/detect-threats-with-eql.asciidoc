@@ -299,8 +299,8 @@ GET /my-index-000001/_eql/search
 {
   "query": """
     sequence by process.pid
-      [process where process.name == 'regsvr32.exe']
-      [library where dll.name == 'scrobj.dll']
+      [process where process.name == "regsvr32.exe"]
+      [library where dll.name == "scrobj.dll"]
       [network where true]
   """
 }

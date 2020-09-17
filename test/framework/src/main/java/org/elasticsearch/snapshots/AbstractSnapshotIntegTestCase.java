@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -505,5 +506,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createIndex(indexName, indexSettings);
         ensureGreen(indexName);
         indexDoc(indexName, "some_id", "foo", "bar");
+    }
+
+    protected ActionFuture<AcknowledgedResponse> startDelete(String repoName, String snapshotName) {
+        logger.info("--> deleting snapshot [{}] from repo [{}]", snapshotName, repoName);
+        return client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 }

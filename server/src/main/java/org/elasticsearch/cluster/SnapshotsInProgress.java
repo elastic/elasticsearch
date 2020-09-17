@@ -167,7 +167,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 this.clones = clones;
             }
-            assert assertShardsConsistent(source, state, indices, shards);
+            assert assertShardsConsistent(source, state, indices, shards, this.clones);
         }
 
         private Entry(StreamInput in) throws IOException {
@@ -197,7 +197,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         private static boolean assertShardsConsistent(SnapshotId source, State state, List<IndexId> indices,
-                                                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+                                                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+                                                      ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
             }
@@ -211,12 +212,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert source == null || indexNames.isEmpty() == false : "No empty snapshot clones allowed";
             assert source != null || indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
-            final boolean shardsCompleted = completed(shards.values(), ImmutableOpenMap.of());
-            if (source == null) {
+            final boolean shardsCompleted = completed(shards.values(), clones);
+            if (source == null || clones.isEmpty() == false) {
                 assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
                         : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;
-            } else {
-                // TODO: assert things about clones
+            }
+            if (source != null && state.completed()) {
+                assert hasFailures(clones) == false || state == State.FAILED
+                        : "Failed shard clones in [" + clones + "] but state was [" + state + "]";
             }
             return true;
         }
@@ -233,7 +236,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 return this;
             }
             return new Entry(snapshot, includeGlobalState, partial,
-                    completed(shards.values(), updatedClones) ? State.SUCCESS : state,
+                    completed(shards.values(), updatedClones) ? (hasFailures(updatedClones) ? State.FAILED : State.SUCCESS) : state,
                     indices, dataStreams, startTime, repositoryStateId, shards, failure, userMetadata, version, source, updatedClones);
         }
 
@@ -498,6 +501,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
         return true;
+    }
+
+    private static boolean hasFailures(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
+        for (ObjectCursor<ShardSnapshotStatus> value : clones.values()) {
+            if (value.value.state().failed()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class ShardSnapshotStatus implements Writeable {

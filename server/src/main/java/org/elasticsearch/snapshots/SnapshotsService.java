@@ -517,33 +517,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
 
-    private void runReadyClone(Snapshot target, SnapshotId sourceSnapshot,
-                               ShardSnapshotStatus shardStatusBefore, RepositoryShardId repoShardId, Repository repository) {
-        SnapshotId targetSnapshot = target.getSnapshotId();
+    private void runReadyClone(Snapshot target, SnapshotId sourceSnapshot, ShardSnapshotStatus shardStatusBefore,
+                               RepositoryShardId repoShardId, Repository repository) {
+        final SnapshotId targetSnapshot = target.getSnapshotId();
+        final String localNodeId = clusterService.localNode().getId();
         if (currentlyCloning.add(repoShardId)) {
             repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, repoShardId,
                     shardStatusBefore.generation(), ActionListener.wrap(
                             generation -> innerUpdateSnapshotState(
-                                    new ShardSnapshotUpdate(target,
-                                            repoShardId, null,
-                                            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.SUCCESS, generation)),
-                                    ActionListener.wrap(
-                                            v -> {
-                                                currentlyCloning.remove(repoShardId);
-                                                logger.trace("Marked [{}] as successfully cloned from [{}] to [{}]", repoShardId,
-                                                        sourceSnapshot, targetSnapshot);
-                                            },
+                                    new ShardSnapshotUpdate(target, repoShardId, null,
+                                            new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)),
+                                    ActionListener.runBefore(ActionListener.wrap(
+                                            v -> logger.trace("Marked [{}] as successfully cloned from [{}] to [{}]", repoShardId,
+                                                    sourceSnapshot, targetSnapshot),
                                             e -> {
-                                                currentlyCloning.remove(repoShardId);
                                                 logger.warn("Cluster state update after successful shard clone [{}] failed", repoShardId);
                                                 failAllListenersOnMasterFailOver(e);
                                             }
-
-                                    )), e -> {
-                                currentlyCloning.remove(repoShardId);
-                                // TODO: error handling, cleanup clone right away on partial failure?
-                                throw new AssertionError(e);
-                            }));
+                                    ), () -> currentlyCloning.remove(repoShardId))), e -> innerUpdateSnapshotState(
+                                    new ShardSnapshotUpdate(target, repoShardId, null, new ShardSnapshotStatus(localNodeId,
+                                            ShardState.FAILED, "failed to clone shard snapshot", null)),
+                                    ActionListener.runBefore(ActionListener.wrap(
+                                            v -> logger.trace("Marked [{}] as failed clone from [{}] to [{}]", repoShardId,
+                                                    sourceSnapshot, targetSnapshot),
+                                            ex -> {
+                                                logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
+                                                failAllListenersOnMasterFailOver(ex);
+                                            }
+                                    ), () -> currentlyCloning.remove(repoShardId)))));
         }
     }
 
@@ -1043,6 +1044,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param entry snapshot
      */
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
+        if (entry.source() != null && entry.state() == State.FAILED) {
+            logger.debug("Removing failed snapshot clone [{}] from cluster state", entry);
+            removeFailedSnapshotFromClusterState(entry.snapshot(), new SnapshotException(entry.snapshot(), entry.failure()), null);
+            return;
+        }
         final boolean newFinalization = endingSnapshots.add(entry.snapshot());
         final String repoName = entry.repository();
         if (tryEnterRepoLoop(repoName)) {

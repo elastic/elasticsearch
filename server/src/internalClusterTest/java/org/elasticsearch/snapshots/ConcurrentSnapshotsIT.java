@@ -1272,11 +1272,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return internalCluster().nonMasterClient().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
-    private ActionFuture<AcknowledgedResponse> startDelete(String repoName, String snapshotName) {
-        logger.info("--> deleting snapshot [{}] from repo [{}]", snapshotName, repoName);
-        return client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
-    }
-
     private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromNonMasterClient(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}] from non master client", snapshotName, repoName);
         return internalCluster().nonMasterClient().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)

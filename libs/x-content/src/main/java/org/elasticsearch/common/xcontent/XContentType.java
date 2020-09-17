@@ -24,10 +24,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.util.Locale;
-import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.Map;
 
 /**
@@ -116,29 +112,24 @@ public enum XContentType implements MediaType {
             return CborXContent.cborXContent;
         }
     };
-/*
-/**
+    /**
      * A regexp to allow parsing media types. It covers two use cases.
      * 1. Media type with a version - requires a custom vnd.elasticsearch subtype and a compatible-with parameter
      * i.e. application/vnd.elasticsearch+json;compatible-with
      * 2. Media type without a version - for users not using compatible API i.e. application/json
+     * //public scope for testing //todo pg consider a getter?
      */
-//private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
-//    //type
-//    "^(application|text)/" +
-//        // custom subtype and a version: vnd.elasticsearch+json;compatible-with=7
-//        "((vnd\\.elasticsearch\\+([^;\\s]+)(\\s*;\\s*compatible-with=(\\d+)))" +
-//        "|([^;\\s]+))" + //subtype: json,yaml,etc some of these are defined in x-pack so can't be enumerated
-//        "(?:\\s*;\\s*(charset=UTF-8)?)?$",
-//    Pattern.CASE_INSENSITIVE);
-// */
-    public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values(),
-        Map.of("application/*", JSON, "application/x-ndjson", JSON,
-            "application/vnd.elasticsearch+json", JSON,
-            "application/vnd.elasticsearch+smile", SMILE,
-            "application/vnd.elasticsearch+yaml", YAML,
-            "application/vnd.elasticsearch+cbor", CBOR));
-
+     public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
+        .withMediaTypesNoParams(XContentType.values())//todo pg maybe we could explicitly add cbor and smile?
+        .withMediaTypeAndParams("application/json", JSON, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/yaml", YAML, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/*", JSON, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/x-ndjson", JSON, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+json", JSON, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+smile", SMILE, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+yaml", YAML, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+cbor", CBOR, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
+        .build();
 
     /**
      * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}
@@ -160,11 +151,21 @@ public enum XContentType implements MediaType {
         return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);
     }
 
-
     private int index;
 
     XContentType(int index) {
         this.index = index;
+    }
+
+    public static Byte parseVersion(String mediaType) {
+        MediaTypeParser<XContentType>.ParsedMediaType parsedMediaType = mediaTypeParser.parseMediaType(mediaType);
+        if(parsedMediaType != null) {
+            String version = parsedMediaType
+                .getParameters()
+                .get("compatible-with");
+            return version != null ? Byte.parseByte(version) : null;
+        }
+        return null;
     }
 
     public int index() {

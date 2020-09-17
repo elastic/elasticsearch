@@ -25,6 +25,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -294,7 +295,11 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser<>(TextFormat.values());
+    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser.Builder<TextFormat>()
+        .withMediaTypeAndParams(PLAIN_TEXT.typeWithSubtype(), PLAIN_TEXT, Map.of("header", "present|absent", "charset", "utf-8"))
+        .withMediaTypeAndParams(CSV.typeWithSubtype(), CSV, Map.of("header", "present|absent", "charset", "utf-8"))
+        .withMediaTypeAndParams(TSV.typeWithSubtype(), TSV, Map.of("header", "present|absent", "charset", "utf-8"))
+        .build();
 
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();

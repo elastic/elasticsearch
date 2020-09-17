@@ -38,7 +38,7 @@ public class RestTestUtil {
 
     private RestTestUtil() {}
 
-    static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet){
+    static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
         // eagerly create the testCluster container so it is easily available for configuration
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project

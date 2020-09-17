@@ -53,7 +53,7 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        //create the test cluster container
+        // create the test cluster container
         createTestCluster(project, javaTestSourceSet);
 
         // setup the javaRestTest task

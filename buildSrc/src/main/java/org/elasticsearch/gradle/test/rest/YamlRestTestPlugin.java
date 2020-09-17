@@ -54,7 +54,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        //create the test cluster container
+        // create the test cluster container
         createTestCluster(project, yamlTestSourceSet);
 
         // setup the yamlRestTest task

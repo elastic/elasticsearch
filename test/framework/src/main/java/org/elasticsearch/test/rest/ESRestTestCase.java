@@ -556,6 +556,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             Request ilmHistoryRequest = new Request("PUT", "_cluster/settings");
             ilmHistoryRequest.setJsonEntity("{\"transient\":{\"indices.lifecycle.history_index_enabled\":\"false\"}}");
             client().performRequest(ilmHistoryRequest);
+            Thread.sleep(100);
         } catch (Exception e){
             //no ILM setting, either version is older or no ILM, either way ignore
         }

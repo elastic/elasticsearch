@@ -1020,12 +1020,12 @@ public class JobResultsProvider {
                                String snapshotId,
                                Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
-        ResultsFilterBuilder fb = new ResultsFilterBuilder();
-        if (snapshotId != null && !snapshotId.isEmpty()) {
-            fb.term(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotId);
-        }
+        String[] snapshotIds = Strings.split(snapshotId, ",");
+        QueryBuilder qb = new ResultsFilterBuilder()
+            .resourceTokenFilers(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
+            .timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs)
+            .build();
 
-        QueryBuilder qb = fb.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
         modelSnapshots(jobId, from, size, sortField, sortDescending, qb, handler, errorHandler);
     }
 
@@ -1281,7 +1281,7 @@ public class JobResultsProvider {
                         handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
                         return;
                     }
-                    List<String> calendarIds = calendars.results().stream().map(Calendar::getId).collect(Collectors.toList());
+                    String[] calendarIds = calendars.results().stream().map(Calendar::getId).toArray(String[]::new);
                     queryBuilder.calendarIds(calendarIds);
                     scheduledEvents(queryBuilder, handler);
                 },

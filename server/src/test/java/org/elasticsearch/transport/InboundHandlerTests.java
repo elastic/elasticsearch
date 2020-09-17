@@ -270,6 +270,7 @@ public class InboundHandlerTests extends ESTestCase {
                     });
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Collections.emptyMap(), Collections.emptyMap());
+            requestHeader.features = org.elasticsearch.common.collect.Set.of();
             handler.inboundMessage(channel, requestMessage);
             assertNotNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();

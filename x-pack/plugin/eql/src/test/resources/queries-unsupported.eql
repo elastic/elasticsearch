@@ -298,7 +298,7 @@ sequence
 ;
 
 
-process where 'net.EXE' == original_file_name
+process where "net.EXE" == original_file_name
 | filter process_name="net*.exe"
 ;
 

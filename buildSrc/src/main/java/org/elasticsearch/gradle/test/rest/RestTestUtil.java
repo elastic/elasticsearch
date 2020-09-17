@@ -38,20 +38,18 @@ public class RestTestUtil {
 
     private RestTestUtil() {}
 
-    static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
-        // eagerly create the testCluster container so it is easily available for configuration
+    static Provider<ElasticsearchCluster> createTestCluster(Project project, SourceSet sourceSet) {
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
-        return testClusters.create(sourceSet.getName());
+        return testClusters.register(sourceSet.getName());
     }
 
     /**
      * Creates a task with the source set name of type {@link RestIntegTestTask}
      */
     static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
-        // lazily create the test task
         Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");

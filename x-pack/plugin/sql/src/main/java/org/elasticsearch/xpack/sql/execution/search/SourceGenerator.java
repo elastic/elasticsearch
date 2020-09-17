@@ -162,8 +162,9 @@ public abstract class SourceGenerator {
         }
         // Since paginating with search_after (and PIT) is stateless and either there's no sorting specified or the specified sorting
         // criteria do not necessarily output a strictly monotonic sequence, we need to provide a hint as to where to resume the search
-        // from: use the _doc as state holder.
+        // from: use the _doc as state holder, and _index for multi-index aliases.
         source.sort("_doc");
+        source.sort("_index");
     }
 
     private static void optimize(QlSourceBuilder sqlSource, SearchSourceBuilder builder) {

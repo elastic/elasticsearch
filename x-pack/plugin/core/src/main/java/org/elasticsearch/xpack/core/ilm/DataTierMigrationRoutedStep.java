@@ -100,20 +100,4 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(true, null);
         }
     }
-
-    @Override
-    public int hashCode() {
-        return 711;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        return super.equals(obj);
-    }
 }

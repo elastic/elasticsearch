@@ -505,7 +505,8 @@ public class MetadataCreateIndexService {
         ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
         if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
            throw new IllegalArgumentException("cannot create index with name [" + request.index() +
-               "], because it matches with template [" + templateName + "] that creates data streams only");
+               "], because it matches with template [" + templateName + "] that creates data streams only, " +
+               "use create data stream api instead");
         }
 
         final List<Map<String, Object>> mappings =

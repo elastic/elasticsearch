@@ -424,6 +424,6 @@ setup:
 
   # test error message
   - do:
-      catch: /cannot create index with name \[logs-foobar\], because it matches with template \[generic_logs_template\] that creates data streams only/
+      catch: /cannot create index with name \[logs-foobar\], because it matches with template \[generic_logs_template\] that creates data streams only, use create data stream api instead/
       indices.create:
         index: logs-foobar

@@ -86,15 +86,15 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         return context;
     }
 
-    public void testExistsQueryIsExpensive() throws IOException {
+    public void testExistsQueryIsExpensive() {
         checkExpensiveQuery(MappedFieldType::existsQuery);
     }
 
-    public void testExistsQueryInLoop() throws IOException {
+    public void testExistsQueryInLoop() {
         checkLoop(MappedFieldType::existsQuery);
     }
 
-    public void testRangeQueryWithShapeRelationIsError() throws IOException {
+    public void testRangeQueryWithShapeRelationIsError() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> simpleMappedFieldType().rangeQuery(1, 2, true, true, ShapeRelation.DISJOINT, null, null, null)
@@ -105,27 +105,27 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         );
     }
 
-    public void testRangeQueryIsExpensive() throws IOException {
+    public void testRangeQueryIsExpensive() {
         checkExpensiveQuery(this::randomRangeQuery);
     }
 
-    public void testRangeQueryInLoop() throws IOException {
+    public void testRangeQueryInLoop() {
         checkLoop(this::randomRangeQuery);
     }
 
-    public void testTermQueryIsExpensive() throws IOException {
+    public void testTermQueryIsExpensive() {
         checkExpensiveQuery(this::randomTermQuery);
     }
 
-    public void testTermQueryInLoop() throws IOException {
+    public void testTermQueryInLoop() {
         checkLoop(this::randomTermQuery);
     }
 
-    public void testTermsQueryIsExpensive() throws IOException {
+    public void testTermsQueryIsExpensive() {
         checkExpensiveQuery(this::randomTermsQuery);
     }
 
-    public void testTermsQueryInLoop() throws IOException {
+    public void testTermsQueryInLoop() {
         checkLoop(this::randomTermsQuery);
     }
 
@@ -163,7 +163,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         return reader.document(docId).getBinaryValue("_source").utf8ToString();
     }
 
-    protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+    protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) {
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(simpleMappedFieldType(), mockContext(false)));
         assertThat(
             e.getMessage(),
@@ -171,7 +171,7 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         );
     }
 
-    protected final void checkLoop(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+    protected final void checkLoop(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) {
         Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(loopFieldType(), mockContext()));
         assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }

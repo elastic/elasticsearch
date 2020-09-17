@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -381,14 +382,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
                 };
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return org.elasticsearch.common.collect.Set.of(
-                        BooleanFieldScript.CONTEXT,
-                        DateFieldScript.CONTEXT,
-                        DoubleFieldScript.CONTEXT,
-                        IpFieldScript.CONTEXT,
-                        StringFieldScript.CONTEXT,
-                        LongFieldScript.CONTEXT
-                    );
+                    return new HashSet<>(new RuntimeFields().getContexts());
                 }
             };
         }

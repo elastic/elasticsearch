@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -80,13 +79,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
             return mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
         };
-        Snippet[] fieldSnippets;
-        try {
-            fieldSnippets = highlighter.highlightField(hitContext.reader(), hitContext.docId(), loadFieldValues);
-        } catch (IOException e) {
-            throw new FetchPhaseExecutionException(fieldContext.shardTarget,
-                "Failed to highlight field [" + fieldContext.fieldName + "]", e);
-        }
+        Snippet[] fieldSnippets = highlighter.highlightField(hitContext.reader(), hitContext.docId(), loadFieldValues);
 
         if (fieldSnippets == null || fieldSnippets.length == 0) {
             return null;
@@ -121,12 +114,12 @@ public class UnifiedHighlighter implements Highlighter {
         int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
         int keywordIgnoreAbove = Integer.MAX_VALUE;
         if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.getMapperService().documentMapper()
+            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService().documentMapper()
                 .mappers().getMapper(fieldContext.fieldName);
             keywordIgnoreAbove = mapper.ignoreAbove();
         }
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = getAnalyzer(fieldContext.context.getMapperService().documentMapper());
+        Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -155,7 +148,7 @@ public class UnifiedHighlighter implements Highlighter {
             passageFormatter,
             fieldContext.field.fieldOptions().boundaryScannerLocale(),
             breakIterator,
-            fieldContext.context.getFullyQualifiedIndex().getName(),
+            fieldContext.context.getIndexName(),
             fieldContext.fieldName,
             fieldContext.query,
             fieldContext.field.fieldOptions().noMatchSize(),

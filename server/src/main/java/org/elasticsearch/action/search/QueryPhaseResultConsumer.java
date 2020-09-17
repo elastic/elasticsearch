@@ -290,7 +290,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (hasAggs == false) {
                 return 0;
             }
-            assert result.aggregations().isSerialized() : "shard aggregations result is not in serialized form";
             return result.aggregations()
                 .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
                 .ramBytesUsed();

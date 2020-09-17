@@ -83,8 +83,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchIT extends ESIntegTestCase {
     public static class TestPlugin extends Plugin implements SearchPlugin {
-        public TestPlugin(Settings settings) {}
-
         @Override
         public List<AggregationSpec> getAggregations() {
             return Collections.singletonList(
@@ -98,13 +96,13 @@ public class TransportSearchIT extends ESIntegTestCase {
             /**
              * Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
              */
-            return Collections.singletonList((searchContext, lookup) -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList((fetchContext, lookup) -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {}
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {
-                    if (searchContext.getQueryShardContext().index().getName().startsWith("boom")) {
+                    if (fetchContext.getIndexName().startsWith("boom")) {
                         throw new RuntimeException("boom");
                     }
                 }

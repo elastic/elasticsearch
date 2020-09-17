@@ -48,17 +48,24 @@ public final class EvaluationFields {
      */
     private final String predictedProbabilityField;
 
+    /**
+     * Whether the {@code predictedProbabilityField} should be treated as nested (e.g.: when used in exists queries).
+     */
+    private final boolean predictedProbabilityFieldNested;
+
     public EvaluationFields(@Nullable String actualField,
                             @Nullable String predictedField,
                             @Nullable String topClassesField,
                             @Nullable String predictedClassField,
-                            @Nullable String predictedProbabilityField) {
+                            @Nullable String predictedProbabilityField,
+                            boolean predictedProbabilityFieldNested) {
 
         this.actualField = actualField;
         this.predictedField = predictedField;
         this.topClassesField = topClassesField;
         this.predictedClassField = predictedClassField;
         this.predictedProbabilityField = predictedProbabilityField;
+        this.predictedProbabilityFieldNested = predictedProbabilityFieldNested;
     }
 
     /**
@@ -96,6 +103,13 @@ public final class EvaluationFields {
         return predictedProbabilityField;
     }
 
+    /**
+     * Returns whether the {@code predictedProbabilityField} should be treated as nested (e.g.: when used in exists queries).
+     */
+    public boolean isPredictedProbabilityFieldNested() {
+        return predictedProbabilityFieldNested;
+    }
+
     public List<Tuple<String, String>> listPotentiallyRequiredFields() {
         return Arrays.asList(
             Tuple.tuple(ACTUAL_FIELD.getPreferredName(), actualField),
@@ -113,11 +127,13 @@ public final class EvaluationFields {
             && Objects.equals(that.predictedField, this.predictedField)
             && Objects.equals(that.topClassesField, this.topClassesField)
             && Objects.equals(that.predictedClassField, this.predictedClassField)
-            && Objects.equals(that.predictedProbabilityField, this.predictedProbabilityField);
+            && Objects.equals(that.predictedProbabilityField, this.predictedProbabilityField)
+            && Objects.equals(that.predictedProbabilityFieldNested, this.predictedProbabilityFieldNested);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualField, predictedField, topClassesField, predictedClassField, predictedProbabilityField);
+        return Objects.hash(
+            actualField, predictedField, topClassesField, predictedClassField, predictedProbabilityField, predictedProbabilityFieldNested);
     }
 }

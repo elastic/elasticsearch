@@ -17,30 +17,32 @@ import static org.hamcrest.Matchers.nullValue;
 public class EvaluationFieldsTests extends ESTestCase {
 
     public void testConstructorAndGetters() {
-        EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e");
+        EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e", true);
         assertThat(fields.getActualField(), is(equalTo("a")));
         assertThat(fields.getPredictedField(), is(equalTo("b")));
         assertThat(fields.getTopClassesField(), is(equalTo("c")));
         assertThat(fields.getPredictedClassField(), is(equalTo("d")));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("e")));
+        assertThat(fields.isPredictedProbabilityFieldNested(), is(true));
     }
 
     public void testConstructorAndGetters_WithNullValues() {
-        EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e");
+        EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e", true);
         assertThat(fields.getActualField(), is(equalTo("a")));
         assertThat(fields.getPredictedField(), is(nullValue()));
         assertThat(fields.getTopClassesField(), is(equalTo("c")));
         assertThat(fields.getPredictedClassField(), is(nullValue()));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("e")));
+        assertThat(fields.isPredictedProbabilityFieldNested(), is(true));
     }
 
     public void testListPotentiallyRequiredFields() {
-        EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e");
+        EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e", randomBoolean());
         assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", "b", "d", "e"));
     }
 
     public void testListPotentiallyRequiredFields_WithNullValues() {
-        EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e");
+        EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e", randomBoolean());
         assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", null, null, "e"));
     }
 }

@@ -77,7 +77,8 @@ public class OutlierDetection implements Evaluation {
                 null,
                 null,
                 null,
-                ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD));
+                ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD),
+                false);
         this.metrics = initMetrics(metrics, OutlierDetection::defaultMetrics);
     }
 
@@ -90,7 +91,7 @@ public class OutlierDetection implements Evaluation {
     }
 
     public OutlierDetection(StreamInput in) throws IOException {
-        this.fields = new EvaluationFields(in.readString(), null, null, null, in.readString());
+        this.fields = new EvaluationFields(in.readString(), null, null, null, in.readString(), false);
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }
 

@@ -22,13 +22,16 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Defines an evaluation
@@ -87,35 +90,31 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      */
     default SearchSourceBuilder buildSearch(EvaluationParameters parameters, QueryBuilder userProvidedQueryBuilder) {
         Objects.requireNonNull(userProvidedQueryBuilder);
-        BoolQueryBuilder boolQuery =
-            QueryBuilders.boolQuery()
-                // Verify existence of the actual field (which is always required)
-                .filter(QueryBuilders.existsQuery(getFields().getActualField()));
-        if (getFields().getPredictedField() != null) {
-            // Verify existence of the predicted field if required for this evaluation
+        Set<String> requiredFields = new HashSet<>(getRequiredFields());
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+        if (getFields().getActualField() != null && requiredFields.contains(getFields().getActualField())) {
+            // Verify existence of the actual field if required
+            boolQuery.filter(QueryBuilders.existsQuery(getFields().getActualField()));
+        }
+        if (getFields().getPredictedField() != null && requiredFields.contains(getFields().getPredictedField())) {
+            // Verify existence of the predicted field if required
             boolQuery.filter(QueryBuilders.existsQuery(getFields().getPredictedField()));
         }
-        if (getFields().getTopClassesField() != null) {
-            // Verify existence of the top classes field if required for this evaluation
-            QueryBuilder topClassesFieldExistsQuery = QueryBuilders.existsQuery(getFields().getTopClassesField());
-            boolQuery.filter(
-                QueryBuilders.nestedQuery(getFields().getTopClassesField(), topClassesFieldExistsQuery, ScoreMode.None)
-                    .ignoreUnmapped(true));
-        }
-        if (getFields().getPredictedClassField() != null) {
+        if (getFields().getPredictedClassField() != null && requiredFields.contains(getFields().getPredictedClassField())) {
             assert getFields().getTopClassesField() != null;
-            // Verify existence of the predicted class name field if required for this evaluation
+            // Verify existence of the predicted class name field if required
             QueryBuilder predictedClassFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassField());
             boolQuery.filter(
                 QueryBuilders.nestedQuery(getFields().getTopClassesField(), predictedClassFieldExistsQuery, ScoreMode.None)
                     .ignoreUnmapped(true));
         }
-        if (getFields().getPredictedProbabilityField() != null) {
-            // Verify existence of the predicted probability field if required for this evaluation
+        if (getFields().getPredictedProbabilityField() != null && requiredFields.contains(getFields().getPredictedProbabilityField())) {
+            // Verify existence of the predicted probability field if required
             QueryBuilder predictedProbabilityFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedProbabilityField());
             // predicted probability field may be either nested (just like in case of classification evaluation) or non-nested (just like
             // in case of outlier detection evaluation). Here we support both modes.
-            if (getFields().getTopClassesField() != null) {
+            if (getFields().isPredictedProbabilityFieldNested()) {
+                assert getFields().getTopClassesField() != null;
                 boolQuery.filter(
                     QueryBuilders.nestedQuery(getFields().getTopClassesField(), predictedProbabilityFieldExistsQuery, ScoreMode.None)
                         .ignoreUnmapped(true));
@@ -142,16 +141,29 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
     default void process(SearchResponse searchResponse) {
         Objects.requireNonNull(searchResponse);
         if (searchResponse.getHits().getTotalHits().value == 0) {
-            String requiredFieldsString =
-                getFields().listPotentiallyRequiredFields().stream()
-                    .map(Tuple::v2)
-                    .filter(Objects::nonNull)
-                    .collect(joining(", "));
+            String requiredFieldsString = String.join(", ", getRequiredFields());
             throw ExceptionsHelper.badRequestException("No documents found containing all the required fields [{}]", requiredFieldsString);
         }
         for (EvaluationMetric metric : getMetrics()) {
             metric.process(searchResponse.getAggregations());
         }
+    }
+
+    /**
+     * @return list of fields which are required by at least one of the metrics
+     */
+    private List<String> getRequiredFields() {
+        Set<String> requiredFieldDescriptors =
+            getMetrics().stream()
+                .map(EvaluationMetric::getRequiredFields)
+                .flatMap(Set::stream)
+                .collect(toSet());
+        List<String> requiredFields =
+            getFields().listPotentiallyRequiredFields().stream()
+                .filter(f -> requiredFieldDescriptors.contains(f.v1()))
+                .map(Tuple::v2)
+                .collect(toList());
+        return requiredFields;
     }
 
     /**

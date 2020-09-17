@@ -145,16 +145,17 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testGetFields() {
-        Classification classification = new Classification("foo", "bar", "results.class_name", "results.class_probability", null);
-        EvaluationFields fields = classification.getFields();
+        Classification evaluation = new Classification("foo", "bar", "results.class_name", "results.class_probability", null);
+        EvaluationFields fields = evaluation.getFields();
         assertThat(fields.getActualField(), is(equalTo("foo")));
         assertThat(fields.getPredictedField(), is(equalTo("bar")));
         assertThat(fields.getTopClassesField(), is(equalTo("results")));
         assertThat(fields.getPredictedClassField(), is(equalTo("results.class_name")));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("results.class_probability")));
+        assertThat(fields.isPredictedProbabilityFieldNested(), is(true));
     }
 
-    public void testBuildSearch() {
+    public void testBuildSearch_WithDefaultNonRequiredNestedFields() {
         QueryBuilder userProvidedQuery =
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("field_A", "some-value"))
@@ -174,7 +175,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
 
-    public void testBuildSearch_WithNestedFields() {
+    public void testBuildSearch_WithExplicitNonRequiredNestedFields() {
         QueryBuilder userProvidedQuery =
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("field_A", "some-value"))
@@ -183,7 +184,52 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.existsQuery("act"))
                 .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results"), ScoreMode.None).ignoreUnmapped(true))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+
+        Classification evaluation =
+            new Classification("act", "pred", "results.pred_class", "results.pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithDefaultRequiredNestedFields() {
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
+                .filter(
+                    QueryBuilders.nestedQuery("ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_name"), ScoreMode.None)
+                        .ignoreUnmapped(true))
+                .filter(
+                    QueryBuilders.nestedQuery(
+                            "ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_probability"), ScoreMode.None)
+                        .ignoreUnmapped(true))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+
+        Classification evaluation = new Classification("act", "pred", null, null, Arrays.asList(new AucRoc(false, "some-value")));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithExplicitRequiredNestedFields() {
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
                 .filter(
                     QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.pred_class"), ScoreMode.None)
                         .ignoreUnmapped(true))
@@ -195,7 +241,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
         Classification evaluation =
-            new Classification("act", "pred", "results.pred_class", "results.pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
+            new Classification("act", "pred", "results.pred_class", "results.pred_prob", Arrays.asList(new AucRoc(false, "some-value")));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));

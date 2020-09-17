@@ -38,6 +38,10 @@ public class Classification implements Evaluation {
 
     private static final ParseField METRICS = new ParseField("metrics");
 
+    private static final String DEFAULT_TOP_CLASSES_FIELD = "ml.top_classes";
+    private static final String DEFAULT_PREDICTED_CLASS_FIELD = DEFAULT_TOP_CLASSES_FIELD + ".class_name";
+    private static final String DEFAULT_PREDICTED_PROBABILITY_FIELD = DEFAULT_TOP_CLASSES_FIELD + ".class_probability";
+
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Classification, Void> PARSER =
         new ConstructingObjectParser<>(
@@ -76,7 +80,11 @@ public class Classification implements Evaluation {
                           @Nullable String predictedProbabilityField,
                           @Nullable List<EvaluationMetric> metrics) {
         String topClassesField = null;
-        if (predictedClassField != null && predictedProbabilityField != null) {
+        if (predictedClassField == null && predictedProbabilityField == null) {
+            topClassesField = DEFAULT_TOP_CLASSES_FIELD;
+            predictedClassField = DEFAULT_PREDICTED_CLASS_FIELD;
+            predictedProbabilityField = DEFAULT_PREDICTED_PROBABILITY_FIELD;
+        } else if (predictedClassField != null && predictedProbabilityField != null) {
             int predictedClassFieldLastDot = predictedClassField.lastIndexOf(".");
             int predictedProbabilityFieldLastDot = predictedProbabilityField.lastIndexOf(".");
             if (predictedClassFieldLastDot == -1) {
@@ -107,7 +115,8 @@ public class Classification implements Evaluation {
                 predictedField,
                 topClassesField,
                 predictedClassField,
-                predictedProbabilityField);
+                predictedProbabilityField,
+                true);
         this.metrics = initMetrics(metrics, Classification::defaultMetrics);
     }
 
@@ -119,9 +128,14 @@ public class Classification implements Evaluation {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.fields =
                 new EvaluationFields(
-                    in.readString(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+                    in.readString(),
+                    in.readOptionalString(),
+                    in.readOptionalString(),
+                    in.readOptionalString(),
+                    in.readOptionalString(),
+                    true);
         } else {
-            this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null);
+            this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null, true);
         }
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }

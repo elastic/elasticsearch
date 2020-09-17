@@ -207,6 +207,7 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - match: { outlier_detection.auc_roc.doc_count: 8 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -227,6 +228,7 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - match: { outlier_detection.auc_roc.doc_count: 8 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -247,6 +249,7 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - match: { outlier_detection.auc_roc.doc_count: 8 }
   - is_true: outlier_detection.auc_roc.curve
 
 ---
@@ -412,6 +415,7 @@ setup:
             }
           }
   - is_true: outlier_detection.auc_roc.score
+  - is_true: outlier_detection.auc_roc.doc_count
   - is_true: outlier_detection.precision.0\.25
   - is_true: outlier_detection.precision.0\.5
   - is_true: outlier_detection.precision.0\.75
@@ -768,6 +772,7 @@ setup:
             }
           }
   - match: { classification.auc_roc.score: 0.8050111095212122 }
+  - match: { classification.auc_roc.doc_count: 8 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":
@@ -999,7 +1004,7 @@ setup:
 ---
 "Test classification given missing top_classes_field":
   - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, missing.class_name, missing.class_probability\]/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, missing.class_name, missing.class_probability\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -1009,7 +1014,12 @@ setup:
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
                 "predicted_class_field": "missing.class_name",
-                "predicted_probability_field": "missing.class_probability"
+                "predicted_probability_field": "missing.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "dummy"
+                  }
+                }
               }
             }
           }
@@ -1017,7 +1027,7 @@ setup:
 ---
 "Test classification given missing predicted_class_field":
   - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes.missing, ml.top_classes.class_probability\]/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, ml.top_classes.missing, ml.top_classes.class_probability\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -1027,7 +1037,12 @@ setup:
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
                 "predicted_class_field": "ml.top_classes.missing",
-                "predicted_probability_field": "ml.top_classes.class_probability"
+                "predicted_probability_field": "ml.top_classes.class_probability",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "dummy"
+                  }
+                }
               }
             }
           }
@@ -1035,7 +1050,7 @@ setup:
 ---
 "Test classification given missing predicted_probability_field":
   - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes.class_name, ml.top_classes.missing\]/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, ml.top_classes.class_name, ml.top_classes.missing\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -1045,7 +1060,12 @@ setup:
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
                 "predicted_class_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.missing"
+                "predicted_probability_field": "ml.top_classes.missing",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "dummy"
+                  }
+                }
               }
             }
           }

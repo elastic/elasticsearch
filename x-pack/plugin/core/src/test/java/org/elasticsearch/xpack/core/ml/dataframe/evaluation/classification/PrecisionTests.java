@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
-    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null);
+    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
 
     @Override
     protected Precision doParseInstance(XContentParser parser) throws IOException {

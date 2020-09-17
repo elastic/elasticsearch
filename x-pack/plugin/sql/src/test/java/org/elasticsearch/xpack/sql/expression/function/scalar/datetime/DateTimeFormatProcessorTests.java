@@ -281,5 +281,10 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         assertEquals("01-2001-02001",
             new Format(Source.EMPTY, l(dateTime(2001, 9, 3, 18, 10, 37, 123456789)),
                 l("yy-yyyy-yyyyy"), zoneId).makePipe().asProcessor().process(null));
+
+        assertEquals("%9-\"09-\\Sep-September",
+            new Format(Source.EMPTY, dateTime, l("%M-\"MM-\\MMM-MMMM"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
     }
 }

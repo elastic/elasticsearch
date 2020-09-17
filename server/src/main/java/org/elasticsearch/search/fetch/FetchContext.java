@@ -171,10 +171,7 @@ public class FetchContext {
      * Should the response include version metadata
      */
     public boolean version() {
-        // TODO version is loaded from docvalues, not stored fields, so why are we checking
-        // stored fields here?
-        return searchContext.version() &&
-            (searchContext.storedFieldsContext() == null || searchContext.storedFieldsContext().fetchFields());
+        return searchContext.version();
     }
 
     /**

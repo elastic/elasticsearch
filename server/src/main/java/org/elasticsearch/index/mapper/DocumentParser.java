@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -680,7 +681,7 @@ final class DocumentParser {
                     if (builder == null) {
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
                         builder = new DateFieldMapper.Builder(currentFieldName, DateFieldMapper.Resolution.MILLISECONDS,
-                            dateTimeFormatter, ignoreMalformed);
+                            dateTimeFormatter, ignoreMalformed, Version.indexCreated(context.indexSettings().getSettings()));
                     }
                     return builder;
 

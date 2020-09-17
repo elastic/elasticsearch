@@ -91,6 +91,10 @@ public class FetchPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
 
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
+        }
+
         if (context.docIdsToLoadSize() == 0) {
             // no individual hits to process, so we shortcut
             context.fetchResult().hits(new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(),

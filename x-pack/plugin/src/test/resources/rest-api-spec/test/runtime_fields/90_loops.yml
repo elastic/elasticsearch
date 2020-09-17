@@ -82,6 +82,7 @@ setup:
         body:
           sort: timestamp
           docvalue_fields: [tight_loop]
+
 ---
 "tight loop - aggs":
   - do:
@@ -94,6 +95,7 @@ setup:
             loop:
              terms:
                field: tight_loop
+
 ---
 "tight loop - sort":
   - do:
@@ -102,6 +104,17 @@ setup:
         index: sensor
         body:
           sort: tight_loop
+
+---
+"tight loop - queries":
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: tight_loop -> tight_loop/'
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              tight_loop: foo
 
 ---
 "loose loop - aggs":
@@ -135,6 +148,17 @@ setup:
           docvalue_fields: [loose_loop]
 
 ---
+"loose loop - queries":
+  - do:
+      catch: '/Cyclic dependency detected while resolving runtime fields: loose_loop -> lla -> llb -> llc -> loose_loop/'
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              loose_loop: foo
+
+---
 "loose loop - begins within":
   - do:
       catch: '/Cyclic dependency detected while resolving runtime fields: lla -> llb -> llc -> loose_loop -> lla/'
@@ -148,7 +172,7 @@ setup:
                field: lla
 
 ---
-"Max chain depth - 5 is allowed":
+"Max chain depth for fetch - 5 is allowed":
   - do:
       search:
         index: sensor
@@ -158,6 +182,17 @@ setup:
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields.over_max_depth_1.0: test}
+
+---
+"Max chain depth for query - 5 is allowed":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              over_max_depth_1: test
+  - match: {hits.total.value: 1}
 
 ---
 "Max chain depth - direct references are not counted":
@@ -183,6 +218,7 @@ setup:
             loop:
              terms:
                field: over_max_depth
+
 ---
 "Max chain depth - sort":
   - do:
@@ -191,6 +227,7 @@ setup:
         index: sensor
         body:
           sort: over_max_depth
+
 ---
 "Max chain depth - docvalue_fields":
   - do:
@@ -200,3 +237,14 @@ setup:
         body:
           sort: timestamp
           docvalue_fields: [over_max_depth]
+
+---
+"Max chain depth - query":
+  - do:
+      catch: '/Field requires resolving too many dependent fields: over_max_depth -> over_max_depth_1 -> over_max_depth_2 -> over_max_depth_3 -> over_max_depth_4 -> over_max_depth_5/'
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              over_max_depth: foo

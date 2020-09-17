@@ -24,25 +24,31 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MediaTypeParser<T extends MediaType> {
-    private final Map<String, T> formatToMediaType = new HashMap<>();
-    private final Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
+    private final Map<String, T> formatToMediaType;
+    private final Map<String, T> typeWithSubtypeToMediaType;
 
     public MediaTypeParser(T[] acceptedMediaTypes) {
-        for (T mediaType : acceptedMediaTypes) {
-            typeWithSubtypeToMediaType.put(mediaType.typeWithSubtype(), mediaType);
-            formatToMediaType.put(mediaType.format(), mediaType);
-        }
+        this(acceptedMediaTypes, Map.of());
     }
 
     public MediaTypeParser(T[] acceptedMediaTypes, Map<String, T> additionalMediaTypes) {
-        this(acceptedMediaTypes);
+        final int size = acceptedMediaTypes.length + additionalMediaTypes.size();
+        Map<String, T> formatMap = new HashMap<>(size);
+        Map<String, T> typeMap = new HashMap<>(size);
+        for (T mediaType : acceptedMediaTypes) {
+            typeMap.put(mediaType.typeWithSubtype(), mediaType);
+            formatMap.put(mediaType.format(), mediaType);
+        }
         for (Map.Entry<String, T> entry : additionalMediaTypes.entrySet()) {
             String typeWithSubtype = entry.getKey();
             T mediaType = entry.getValue();
 
-            typeWithSubtypeToMediaType.put(typeWithSubtype.toLowerCase(Locale.ROOT), mediaType);
-            formatToMediaType.put(mediaType.format(), mediaType);
+            typeMap.put(typeWithSubtype.toLowerCase(Locale.ROOT), mediaType);
+            formatMap.put(mediaType.format(), mediaType);
         }
+
+        this.formatToMediaType = Map.copyOf(formatMap);
+        this.typeWithSubtypeToMediaType = Map.copyOf(typeMap);
     }
 
     public T fromMediaType(String mediaType) {

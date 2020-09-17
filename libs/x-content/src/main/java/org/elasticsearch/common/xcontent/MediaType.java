@@ -39,7 +39,7 @@ public interface MediaType {
 
     /**
      * Returns a corresponding format for a MediaType. i.e. json for application/json media type
-     * Can differ from the MediaType's subtype i.e plain/text but format is txt
+     * Can differ from the MediaType's subtype i.e plain/text has a subtype of text but format is txt
      */
     String format();
 

@@ -5943,7 +5943,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testProducesStoredFieldsReader() throws Exception {
-        // Make sure that the engine produces a CodecReader.
+        // Make sure that the engine produces a SequentialStoredFieldsLeafReader.
         // This is required for optimizations on SourceLookup to work, which is in-turn useful for runtime fields.
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField("test"),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);

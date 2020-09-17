@@ -556,12 +556,6 @@ public class FetchPhase {
      * stored sequentially (Dn = Dn-1 + 1).
      */
     static boolean hasSequentialDocs(DocIdToIndex[] docs) {
-        for (int i = 1; i < docs.length; i++) {
-            assert docs[i].docId >= docs[i-1].docId : "doc ids out of order";
-            if (docs[i].docId - docs[i-1].docId > 1) {
-                return false;
-            }
-        }
-        return true;
+        return docs.length > 0 && docs[docs.length-1].docId - docs[0].docId == docs.length - 1;
     }
 }

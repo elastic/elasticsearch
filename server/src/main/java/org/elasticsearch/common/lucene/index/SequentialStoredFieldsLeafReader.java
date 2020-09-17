@@ -44,6 +44,10 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
         super(in);
     }
 
+    /**
+     * Implementations should return a {@link StoredFieldsReader} that wraps the provided <code>reader</code>
+     * that is optimized for sequential access (adjacent doc ids).
+     */
     protected abstract StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader);
 
     /**

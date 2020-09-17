@@ -218,7 +218,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IOUtils.close(ir, ir2, iw, dir);
     }
 
-    public void testProducesCodecReader() throws Exception {
+    public void testProducesStoredFieldsReader() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         iwc.setMaxBufferedDocs(100);

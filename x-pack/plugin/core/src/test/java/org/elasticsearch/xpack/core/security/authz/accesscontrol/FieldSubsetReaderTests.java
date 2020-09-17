@@ -1154,7 +1154,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         }
     }
 
-    public void testProducesCodecReader() throws Exception {
+    public void testProducesStoredFieldsReader() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);

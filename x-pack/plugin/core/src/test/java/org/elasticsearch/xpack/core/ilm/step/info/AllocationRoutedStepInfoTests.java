@@ -4,25 +4,24 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.xpack.core.ilm.step.info;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.Info;
 
 import java.io.IOException;
 
-public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<AllocationRoutedStep.Info> {
+public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<AllocationInfo> {
 
     @Override
-    protected Info createTestInstance() {
-        return new Info(randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean());
+    protected AllocationInfo createTestInstance() {
+        return new AllocationInfo(randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean(), randomAlphaOfLengthBetween(5, 10));
     }
 
     @Override
-    protected Info doParseInstance(XContentParser parser) throws IOException {
-        return Info.PARSER.apply(parser, null);
+    protected AllocationInfo doParseInstance(XContentParser parser) throws IOException {
+        return AllocationInfo.PARSER.apply(parser, null);
     }
 
     @Override
@@ -36,14 +35,16 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
         }
     }
 
-    protected final Info copyInstance(Info instance) throws IOException {
-        return new Info(instance.getActualReplicas(), instance.getNumberShardsLeftToAllocate(), instance.allShardsActive());
+    protected final AllocationInfo copyInstance(AllocationInfo instance) {
+        return new AllocationInfo(instance.getNumberOfReplicas(), instance.getNumberShardsLeftToAllocate(), instance.allShardsActive(),
+            instance.getMessage());
     }
 
-    protected Info mutateInstance(Info instance) throws IOException {
-        long actualReplicas = instance.getActualReplicas();
+    protected AllocationInfo mutateInstance(AllocationInfo instance) throws IOException {
+        long actualReplicas = instance.getNumberOfReplicas();
         long shardsToAllocate = instance.getNumberShardsLeftToAllocate();
         boolean allShardsActive = instance.allShardsActive();
+        var message = instance.getMessage();
         switch (between(0, 2)) {
         case 0:
             shardsToAllocate += between(1, 20);
@@ -54,10 +55,13 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
         case 2:
             actualReplicas += between(1, 20);
             break;
+        case 3:
+            message = randomValueOtherThan(message, () -> randomAlphaOfLengthBetween(5, 10));
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new Info(actualReplicas, shardsToAllocate, allShardsActive);
+        return new AllocationInfo(actualReplicas, shardsToAllocate, allShardsActive, message);
     }
 
 }

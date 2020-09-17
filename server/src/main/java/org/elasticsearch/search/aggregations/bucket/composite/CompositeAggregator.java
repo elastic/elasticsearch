@@ -296,8 +296,10 @@ final class CompositeAggregator extends BucketsAggregator {
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {
                                     @Override
-                                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                                        NumericDocValues dvs =  SortedNumericSelector.wrap(DocValues.getSortedNumeric(context.reader(), field),
+                                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
+                                            throws IOException {
+                                        NumericDocValues dvs =  SortedNumericSelector.wrap(
+                                                DocValues.getSortedNumeric(context.reader(), field),
                                             delegate.getSelector(), delegate.getNumericType());
                                         return new NumericDocValues() {
                                             @Override

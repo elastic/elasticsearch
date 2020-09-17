@@ -20,7 +20,7 @@ Creates an API key for access without requiring basic authentication.
 * To use this API, you must have at least the `manage_api_key` cluster privilege.
 
 IMPORTANT: If the credential that is used to authenticate this request is
-an API key, then the derived API key that is created cannot have any privileges.
+an API key, the derived API key cannot have any privileges. If you specify privileges, the API returns an error.
 See the note under `role_descriptors`.
 
 [[security-api-create-api-key-desc]]
@@ -65,8 +65,8 @@ For more details, see <<security-api-put-role, create or update roles API>>.
 NOTE: Due to the way in which this permission intersection is calculated, it is not
 possible to create an API key that is a child of another API key, unless the derived
 key is created without any privileges. In this case, you must explicitly specify a
-role descriptor with no privileges, and the derived API key can be used for
-authentication only, but will not have access to call {es} APIs.
+role descriptor with no privileges. The derived API key can be used for
+authentication; it will not have authority to call {es} APIs.
 
 --
 

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSourc
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSourceTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests;
@@ -76,7 +77,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertEquals(10, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10)).size());
 
         // a terms group_by is limited by terms query
-        SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSource();
+        SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSourceNoScript();
         groups.put("terms", termsGroupBy);
 
         collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
@@ -136,6 +137,24 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
         assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
+    }
+
+    public void testNoTermsFieldCollectorForScripts() throws IOException {
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+
+        // terms with value script
+        SingleGroupSource termsGroupBy = new TermsGroupSource("id", ScriptConfigTests.randomScriptConfig());
+        groups.put("id", termsGroupBy);
+
+        Map<String, FieldCollector> fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(groups, null);
+        assertTrue(fieldCollectors.isEmpty());
+
+        // terms with only a script
+        termsGroupBy = new TermsGroupSource(null, ScriptConfigTests.randomScriptConfig());
+        groups.put("id", termsGroupBy);
+
+        fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(groups, null);
+        assertTrue(fieldCollectors.isEmpty());
     }
 
     private static CompositeAggregationBuilder getCompositeAggregation(Map<String, SingleGroupSource> groups) throws IOException {

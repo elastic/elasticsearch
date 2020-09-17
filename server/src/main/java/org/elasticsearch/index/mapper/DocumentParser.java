@@ -880,16 +880,14 @@ final class DocumentParser {
     // looks up a child mapper, but takes into account field names that expand to objects
     private static Mapper getMapper(final ParseContext context, ObjectMapper objectMapper, String fieldName, String[] subfields) {
         String fieldPath = context.path().pathAsText(fieldName);
-        if (context.mapperService().isMetadataField(fieldPath)) {
-            for (MetadataFieldMapper metadataFieldMapper : context.docMapper().mapping().getMetadataMappers()) {
-                if (fieldPath.equals(metadataFieldMapper.name())) {
-                    return metadataFieldMapper;
-                }
-            }
+        // Check if mapper is a metadata mapper first
+        Mapper mapper = context.docMapper().mapping().getMetadataMapper(fieldPath);
+        if (mapper != null) {
+            return mapper;
         }
 
         for (int i = 0; i < subfields.length - 1; ++i) {
-            Mapper mapper = objectMapper.getMapper(subfields[i]);
+            mapper = objectMapper.getMapper(subfields[i]);
             if (mapper == null || (mapper instanceof ObjectMapper) == false) {
                 return null;
             }

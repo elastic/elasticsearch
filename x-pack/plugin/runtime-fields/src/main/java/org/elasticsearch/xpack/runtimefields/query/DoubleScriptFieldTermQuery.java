@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 
 import java.util.Objects;
 
 public class DoubleScriptFieldTermQuery extends AbstractDoubleScriptFieldQuery {
     private final double term;
 
-    public DoubleScriptFieldTermQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName, double term) {
+    public DoubleScriptFieldTermQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName, double term) {
         super(script, leafFactory, fieldName);
         this.term = term;
     }

@@ -70,7 +70,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockPainlessScriptEngine.TestPlugin.class,
+        return Arrays.asList(LocalStateMonitoring.class, MockClusterAlertScriptEngine.TestPlugin.class,
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
     }
 
@@ -178,9 +178,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     private void awaitIndexExists(final String index) throws Exception {
-        assertBusy(() -> {
-            assertIndicesExists(index);
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertIndicesExists(index), 30, TimeUnit.SECONDS);
     }
 
     private void assertIndicesExists(String... indices) {

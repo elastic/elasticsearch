@@ -164,6 +164,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
             TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
         this.transport = transport;
+        transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
@@ -183,6 +184,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             if (remoteClusterClient) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
+            clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,

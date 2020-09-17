@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +52,8 @@ public class InboundHandler {
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
+    private volatile long slowLogThresholdMs = Long.MAX_VALUE;
+
     InboundHandler(ThreadPool threadPool, OutboundHandler outboundHandler, NamedWriteableRegistry namedWriteableRegistry,
                    TransportHandshaker handshaker, TransportKeepAlive keepAlive, Transport.RequestHandlers requestHandlers,
                    Transport.ResponseHandlers responseHandlers) {
@@ -71,21 +74,26 @@ public class InboundHandler {
         }
     }
 
+    void setSlowLogThreshold(TimeValue slowLogThreshold) {
+        this.slowLogThresholdMs = slowLogThreshold.getMillis();
+    }
+
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
-        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logInboundMessage(channel, message);
 
         if (message.isPing()) {
             keepAlive.receiveKeepAlive(channel);
         } else {
-            messageReceived(channel, message);
+            messageReceived(channel, message, startTime);
         }
     }
 
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
-    private void messageReceived(TcpChannel channel, InboundMessage message) throws IOException {
+    private void messageReceived(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
@@ -137,6 +145,13 @@ public class InboundHandler {
                         handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
                     }
                 }
+            }
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn("handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        message, took, logThreshold);
             }
         }
     }

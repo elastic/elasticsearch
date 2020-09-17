@@ -23,9 +23,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -41,14 +41,14 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext, SearchLookup lookup) {
-        FetchFieldsContext fetchFieldsContext = searchContext.fetchFieldsContext();
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext, SearchLookup lookup) {
+        FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
             return null;
         }
         FieldValueRetriever retriever = fetchFieldsContext.fieldValueRetriever(
-            searchContext.indexShard().shardId().getIndexName(),
-            searchContext.mapperService(),
+            fetchContext.getIndexName(),
+            fetchContext.mapperService(),
             lookup
         );
         return new FetchSubPhaseProcessor() {

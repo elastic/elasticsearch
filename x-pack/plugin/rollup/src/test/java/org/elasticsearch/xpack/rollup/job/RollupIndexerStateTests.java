@@ -69,7 +69,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             // TODO Should use InternalComposite constructor but it is package protected in core.
             Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
                 @Override
@@ -160,14 +160,14 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             assert latch != null;
             try {
                 latch.await();
             } catch (InterruptedException e) {
                 throw new IllegalStateException(e);
             }
-            super.doNextSearch(request, nextPhase);
+            super.doNextSearch(waitTimeInNanos, nextPhase);
         }
     }
 
@@ -200,7 +200,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             assert latch != null;
             try {
                 latch.await();
@@ -209,7 +209,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(request);
+                SearchResponse response = searchFunction.apply(buildSearchRequest());
                 nextPhase.onResponse(response);
             } catch (Exception e) {
                 nextPhase.onFailure(e);
@@ -376,14 +376,14 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+                protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
                     try {
                         latch.await();
                     } catch (InterruptedException e) {
                         throw new IllegalStateException(e);
                     }
                     state.set(IndexerState.ABORTING);   // <-- Set to aborting right before we return the (empty) search response
-                    super.doNextSearch(request, nextPhase);
+                    super.doNextSearch(waitTimeInNanos, nextPhase);
                 }
 
                 @Override
@@ -424,7 +424,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+                protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
                     try {
                         doNextSearchLatch.await();
                     } catch (InterruptedException e) {

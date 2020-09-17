@@ -516,7 +516,7 @@
       eql.search:
         index: simple-data-stream1
         body:
-          query: "process where user = 'SYSTEM'"
+          query: 'process where user = "SYSTEM"'
 
   - match: {timed_out: false}
   - match: {hits.total.value: 1}
@@ -527,7 +527,7 @@
       eql.search:
         index: simple-data-s*
         body:
-          query: "process where user = 'SYSTEM'"
+          query: 'process where user = "SYSTEM"'
 
   - match: {timed_out: false}
   - match: {hits.total.value: 1}

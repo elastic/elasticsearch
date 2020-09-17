@@ -86,7 +86,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             org.elasticsearch.common.collect.Map.of(BooleanFieldMapper.CONTENT_TYPE, (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 BooleanFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), BooleanFieldScript.CONTEXT);
-                return new ScriptBooleanMappedFieldType(
+                return new BooleanScriptMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -103,7 +103,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                     locale = Locale.ROOT;
                 }
                 DateFormatter dateTimeFormatter = DateFormatter.forPattern(format).withLocale(locale);
-                return new ScriptDateMappedFieldType(
+                return new DateScriptMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -113,7 +113,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             }, NumberType.DOUBLE.typeName(), (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 DoubleFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), DoubleFieldScript.CONTEXT);
-                return new ScriptDoubleMappedFieldType(
+                return new DoubleScriptMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -122,7 +122,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             }, IpFieldMapper.CONTENT_TYPE, (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 IpFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), IpFieldScript.CONTEXT);
-                return new ScriptIpMappedFieldType(
+                return new IpScriptMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -131,7 +131,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             }, KeywordFieldMapper.CONTENT_TYPE, (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 StringFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), StringFieldScript.CONTEXT);
-                return new ScriptKeywordMappedFieldType(
+                return new KeywordScriptMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -140,7 +140,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             }, NumberType.LONG.typeName(), (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 LongFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), LongFieldScript.CONTEXT);
-                return new ScriptLongMappedFieldType(
+                return new LongScriptMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,

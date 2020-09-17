@@ -195,6 +195,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1476,9 +1477,11 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get() + 1),
             searcherFactory));
 
-        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+        final VersionConflictEngineException versionConflictEngineException = expectThrows(VersionConflictEngineException.class,
+                    () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo() + 1).setIfPrimaryTerm(primaryTerm.get() + 1),
             searcherFactory));
+        assertThat(versionConflictEngineException.getStackTrace(), emptyArray());
     }
 
     public void testVersioningNewIndex() throws IOException {
@@ -2028,6 +2031,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 } else {
                     final Engine.IndexResult result;
                     if (versionedOp) {
@@ -2065,6 +2069,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 } else {
                     final Engine.DeleteResult result;
                     long correctSeqNo = docDeleted ? UNASSIGNED_SEQ_NO : lastOpSeqNo;
@@ -2169,6 +2174,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 }
             } else {
                 final Engine.Delete delete = (Engine.Delete) op;
@@ -2187,6 +2193,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 }
             }
             if (randomBoolean()) {
@@ -4358,6 +4365,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(operation, result.getFailure(), Matchers.instanceOf(VersionConflictEngineException.class));
         VersionConflictEngineException exception = (VersionConflictEngineException) result.getFailure();
         assertThat(operation, exception.getMessage(), containsString("but no document was found"));
+        assertThat(exception.getStackTrace(), emptyArray());
     }
 
     /*

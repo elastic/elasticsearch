@@ -177,33 +177,32 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.nullField("field")));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
-
-        mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("null_value", "");
-        }));
-
-        doc = mapper.parse(source(b -> b.nullField("field")));
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
-
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+        
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(Version.CURRENT, fieldMapping(b -> {
             b.field("type", "ip");
             b.field("null_value", ":1");
         })));
         assertEquals(e.getMessage(),
             "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal.");
+
+        createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> {
+            b.field("type", "ip");
+            b.field("null_value", ":1");
+        }));
+        assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        IpFieldMapper mapper = new IpFieldMapper.Builder("field", true).build(context);
+        IpFieldMapper mapper = new IpFieldMapper.Builder("field", true, Version.CURRENT).build(context);
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field", true)
+        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field", true, Version.CURRENT)
             .nullValue("2001:db8:0:0:0:0:2:7")
             .build(context);
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));

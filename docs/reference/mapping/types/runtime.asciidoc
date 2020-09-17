@@ -1,5 +1,42 @@
 [[runtime]]
 === Runtime
-Typically, you must index fields before they can be retrieved, aggregated, or
-searched. Runtime fields provide flexibility in determining which fields to
-index over time, rather than indexing all of your data up front.
+Typically, you must index fields to {es} before they can be retrieved,
+aggregated, or searched. With runtime fields, you can explicitly define a field
+in the mapping and access it at runtime without indexing your data. This
+flexibility allows you to more quickly ingest raw data into the Elastic Stack
+and immediately access it. By dynamically evaluating runtime fields at query
+time, you can choose which fields to index and optimize disk space.
+
+include::{es-ref-dir}/mapping/types.asciidoc[tag=runtime-fields-description]
+
+Each runtime field is of the `runtime` data type, and has its own
+<<mapping-types,field type>>, such as `boolean`, `integer`, or `keyword`. In
+the following example, the data type is `runtime` and the runtime field type is
+`integer`.
+
+[source,console]
+----
+PUT /my-index/_mappings
+{
+  “properties” : {
+    “age” : {
+      “type” : “runtime”,
+      “runtime_type” : “integer”,
+      “script” : {
+          “source” : "now - doc['date_of_birth'].value"
+      }
+   }
+  }
+}
+----
+
+==== Retrieving runtime fields
+Because runtime fields are not part of the
+<<mapping-source-field,`_source` field>>, they are not returned in search hits
+by default. You can request runtime fields by using the
+<<search-fields,`fields` API>>, or by using the
+<<docvalue-fields,`docvalue_fields`>> parameter to return `doc_values` for one
+or more fields in the search response. Then, use the
+<<search-field-caps,field capabilities API>> to return runtime fields as
+fields that can be searched and aggregated, including the cost of these
+operations.

@@ -31,6 +31,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -300,6 +301,33 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Settings settings =
                 client().admin().indices().prepareGetIndex().setIndices(restoredIndex).get().getSettings().get(restoredIndex);
         assertEquals(settings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), "1");
+    }
+
+    public void testMasterFailoverDuringClone() throws Exception {
+        // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
+        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createSingleShardIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final String targetSnapshot1 = "target-snapshot";
+        blockMasterOnShardClone(repoName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture = dataNodeClient().admin().cluster()
+                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(testIndex).execute();
+        awaitNSnapshotsInProgress(1);
+        final String masterNode = internalCluster().getMasterName();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        internalCluster().restartNode(masterNode);
+        expectThrows(SnapshotException.class, cloneFuture::actionGet);
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+
+        final Collection<SnapshotId> snapshotIds = getRepositoryData(repoName).getSnapshotIds();
+        assertThat(snapshotIds, hasSize(2));
     }
 
     private void blockMasterOnShardClone(String repoName) {

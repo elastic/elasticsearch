@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -48,7 +49,28 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, CardinalityAggregator::new, true);
+        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.ALL_CORE,
+            (name, valuesSourceConfig, precision, context, parent, metadata) -> {
+                // super hacky but it shows the point of the approach
+                if (valuesSourceConfig.hasValues()) {
+                    ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
+                    if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
+                        ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+                        // is this call expensive? I hope not
+                        final long maxOrd = source.globalMaxOrd(context.searcher());
+                        final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                        final long ordinalsMemoryUsage = maxOrd * 4;
+                        // better heuristic? Currently we pay the price of the bitSet but it should be small
+                        if (ordinalsMemoryUsage < countsMemoryUsage) {
+                            return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
+                                context, parent, metadata);
+                        }
+                    }
+                }
+                // fall back in default aggregator
+                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+            }, true);
     }
 
     @Override

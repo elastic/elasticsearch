@@ -188,7 +188,10 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = org.elasticsearch.common.collect.List.of(
+            sourceIndexMetadata.getIndex(),
+            writeIndexMetadata.getIndex()
+        );
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder()
                 .put(sourceIndexMetadata, true)

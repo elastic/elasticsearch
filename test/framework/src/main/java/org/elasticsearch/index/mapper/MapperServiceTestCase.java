@@ -73,7 +73,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected Settings getIndexSettings() {
-        return Settings.EMPTY;
+        return SETTINGS;
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {

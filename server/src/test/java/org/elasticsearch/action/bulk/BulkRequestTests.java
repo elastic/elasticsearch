@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.contains;
@@ -330,5 +331,62 @@ public class BulkRequestTests extends ESTestCase {
         bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null,
                 XContentType.JSON);
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
+
+    public void testBulkGlobalDefaultsSetIndexRequest() {
+        DocWriteRequest<?> requestNoSettings = new IndexRequest();
+        DocWriteRequest<?> requestWithSettings = new IndexRequest("foo")
+            .setPipeline("foo-pipeline")
+            .setRequireAlias(false)
+            .routing("bar");
+
+        BulkRequest bulkRequest = new BulkRequest("bar").pipeline("global-pipeline").routing("global-routing").requireAlias(true);
+        bulkRequest.add(requestNoSettings).add(requestWithSettings);
+
+        List<IndexRequest> requests = bulkRequest.requests().stream().map(d -> (IndexRequest)d).collect(Collectors.toList());
+        assertThat(requests.get(0).getRequireAlias(), equalTo(true));
+        assertThat(requests.get(0).getPipeline(), equalTo("global-pipeline"));
+        assertThat(requests.get(0).index(), equalTo("bar"));
+        assertThat(requests.get(0).routing(), equalTo("global-routing"));
+
+        assertThat(requests.get(1).getRequireAlias(), equalTo(false));
+        assertThat(requests.get(1).getPipeline(), equalTo("foo-pipeline"));
+        assertThat(requests.get(1).index(), equalTo("foo"));
+        assertThat(requests.get(1).routing(), equalTo("bar"));
+    }
+
+    public void testBulkGlobalDefaultsSetUpdateRequest() {
+        DocWriteRequest<?> requestNoSettings = new UpdateRequest();
+        DocWriteRequest<?> requestWithSettings = new UpdateRequest("foo", "doc_id")
+            .setRequireAlias(false)
+            .routing("bar");
+
+        BulkRequest bulkRequest = new BulkRequest("bar").pipeline("global-pipeline").routing("global-routing").requireAlias(true);
+        bulkRequest.add(requestNoSettings).add(requestWithSettings);
+
+        List<UpdateRequest> requests = bulkRequest.requests().stream().map(d -> (UpdateRequest)d).collect(Collectors.toList());
+        assertThat(requests.get(0).getRequireAlias(), equalTo(true));
+        assertThat(requests.get(0).index(), equalTo("bar"));
+        assertThat(requests.get(0).routing(), equalTo("global-routing"));
+
+        assertThat(requests.get(1).getRequireAlias(), equalTo(false));
+        assertThat(requests.get(1).index(), equalTo("foo"));
+        assertThat(requests.get(1).routing(), equalTo("bar"));
+    }
+
+    public void testBulkGlobalDefaultsSetDeleteRequest() {
+        DocWriteRequest<?> requestNoSettings = new DeleteRequest();
+        DocWriteRequest<?> requestWithSettings = new DeleteRequest("foo", "doc_id")
+            .routing("bar");
+
+        BulkRequest bulkRequest = new BulkRequest("bar").pipeline("global-pipeline").routing("global-routing").requireAlias(true);
+        bulkRequest.add(requestNoSettings).add(requestWithSettings);
+
+        List<DeleteRequest> requests = bulkRequest.requests().stream().map(d -> (DeleteRequest)d).collect(Collectors.toList());
+        assertThat(requests.get(0).index(), equalTo("bar"));
+        assertThat(requests.get(0).routing(), equalTo("global-routing"));
+
+        assertThat(requests.get(1).index(), equalTo("foo"));
+        assertThat(requests.get(1).routing(), equalTo("bar"));
     }
 }

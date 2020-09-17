@@ -124,7 +124,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
-    private boolean requireAlias = false;
+    private Boolean requireAlias;
 
     @Nullable
     private IndexRequest doc;
@@ -162,9 +162,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            requireAlias = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                requireAlias = in.readOptionalBoolean();
+            } else {
+                requireAlias = in.readBoolean();
+            }
         } else {
-            requireAlias = false;
+            requireAlias = null;
         }
     }
 
@@ -814,12 +818,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
-    @Override
-    public boolean isRequireAlias() {
+    public Boolean getRequireAlias() {
         return requireAlias;
     }
 
-    public UpdateRequest setRequireAlias(boolean requireAlias) {
+    @Override
+    public boolean isRequireAlias() {
+        return requireAlias != null && requireAlias;
+    }
+
+    public UpdateRequest setRequireAlias(Boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;
     }
@@ -884,7 +892,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(requireAlias);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalBoolean(requireAlias);
+            } else {
+                out.writeBoolean(requireAlias != null && requireAlias);
+            }
         }
     }
 

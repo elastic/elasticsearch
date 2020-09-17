@@ -145,7 +145,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     BulkRequest internalAdd(IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
-
+        request.routing(valueOrDefault(request.routing(), globalRouting));
+        request.setPipeline(valueOrDefault(request.getPipeline(), globalPipeline));
+        request.setRequireAlias(valueOrDefault(request.getRequireAlias(), globalRequireAlias));
         requests.add(request);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
@@ -163,6 +165,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     BulkRequest internalAdd(UpdateRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
+
+        request.routing(valueOrDefault(request.routing(), globalRouting));
+        request.setRequireAlias(valueOrDefault(request.getRequireAlias(), globalRequireAlias));
 
         requests.add(request);
         if (request.doc() != null) {
@@ -184,6 +189,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     public BulkRequest add(DeleteRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
+        request.routing(valueOrDefault(request.routing(), globalRouting));
 
         requests.add(request);
         sizeInBytes += REQUEST_OVERHEAD;

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -318,6 +319,10 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         assertThat(bulkRequest.requests().size(), equalTo(1));
+        assertThat(bulkRequest.requireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            assertThat(request.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
+        }
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
@@ -358,6 +363,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         IndexRequest indexRequest = indexRequestCaptor.getValue();
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
     }
 

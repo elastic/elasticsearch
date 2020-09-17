@@ -63,7 +63,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
 
     private <T extends EvaluationMetric> void checkRequiredFieldsAreSet(List<T> metrics) {
         assert (metrics == null || metrics.isEmpty()) == false;
-        for (Tuple<String, String> requiredField : getFields().listAll()) {
+        for (Tuple<String, String> requiredField : getFields().listPotentiallyRequiredFields()) {
             String fieldDescriptor = requiredField.v1();
             String field = requiredField.v2();
             if (field == null) {
@@ -95,19 +95,19 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             // Verify existence of the predicted field if required for this evaluation
             boolQuery.filter(QueryBuilders.existsQuery(getFields().getPredictedField()));
         }
-        if (getFields().getResultsNestedField() != null) {
-            // Verify existence of the results nested field if required for this evaluation
-            QueryBuilder resultsNestedFieldExistsQuery = QueryBuilders.existsQuery(getFields().getResultsNestedField());
+        if (getFields().getTopClassesField() != null) {
+            // Verify existence of the top classes field if required for this evaluation
+            QueryBuilder topClassesFieldExistsQuery = QueryBuilders.existsQuery(getFields().getTopClassesField());
             boolQuery.filter(
-                QueryBuilders.nestedQuery(getFields().getResultsNestedField(), resultsNestedFieldExistsQuery, ScoreMode.None)
+                QueryBuilders.nestedQuery(getFields().getTopClassesField(), topClassesFieldExistsQuery, ScoreMode.None)
                     .ignoreUnmapped(true));
         }
         if (getFields().getPredictedClassField() != null) {
-            assert getFields().getResultsNestedField() != null;
+            assert getFields().getTopClassesField() != null;
             // Verify existence of the predicted class name field if required for this evaluation
             QueryBuilder predictedClassFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassField());
             boolQuery.filter(
-                QueryBuilders.nestedQuery(getFields().getResultsNestedField(), predictedClassFieldExistsQuery, ScoreMode.None)
+                QueryBuilders.nestedQuery(getFields().getTopClassesField(), predictedClassFieldExistsQuery, ScoreMode.None)
                     .ignoreUnmapped(true));
         }
         if (getFields().getPredictedProbabilityField() != null) {
@@ -115,9 +115,9 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             QueryBuilder predictedProbabilityFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedProbabilityField());
             // predicted probability field may be either nested (just like in case of classification evaluation) or non-nested (just like
             // in case of outlier detection evaluation). Here we support both modes.
-            if (getFields().getResultsNestedField() != null) {
+            if (getFields().getTopClassesField() != null) {
                 boolQuery.filter(
-                    QueryBuilders.nestedQuery(getFields().getResultsNestedField(), predictedProbabilityFieldExistsQuery, ScoreMode.None)
+                    QueryBuilders.nestedQuery(getFields().getTopClassesField(), predictedProbabilityFieldExistsQuery, ScoreMode.None)
                         .ignoreUnmapped(true));
             } else {
                 boolQuery.filter(predictedProbabilityFieldExistsQuery);
@@ -143,7 +143,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
         Objects.requireNonNull(searchResponse);
         if (searchResponse.getHits().getTotalHits().value == 0) {
             String requiredFieldsString =
-                getFields().listAll().stream()
+                getFields().listPotentiallyRequiredFields().stream()
                     .map(Tuple::v2)
                     .filter(Objects::nonNull)
                     .collect(joining(", "));

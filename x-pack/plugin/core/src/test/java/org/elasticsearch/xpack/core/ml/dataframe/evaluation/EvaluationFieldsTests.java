@@ -20,7 +20,7 @@ public class EvaluationFieldsTests extends ESTestCase {
         EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e");
         assertThat(fields.getActualField(), is(equalTo("a")));
         assertThat(fields.getPredictedField(), is(equalTo("b")));
-        assertThat(fields.getResultsNestedField(), is(equalTo("c")));
+        assertThat(fields.getTopClassesField(), is(equalTo("c")));
         assertThat(fields.getPredictedClassField(), is(equalTo("d")));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("e")));
     }
@@ -29,18 +29,18 @@ public class EvaluationFieldsTests extends ESTestCase {
         EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e");
         assertThat(fields.getActualField(), is(equalTo("a")));
         assertThat(fields.getPredictedField(), is(nullValue()));
-        assertThat(fields.getResultsNestedField(), is(equalTo("c")));
+        assertThat(fields.getTopClassesField(), is(equalTo("c")));
         assertThat(fields.getPredictedClassField(), is(nullValue()));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("e")));
     }
 
-    public void testListAll() {
+    public void testListPotentiallyRequiredFields() {
         EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e");
-        assertThat(fields.listAll().stream().map(Tuple::v2).collect(toList()), contains("a", "b", "c", "d", "e"));
+        assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", "b", "d", "e"));
     }
 
-    public void testListAll_WithNullValues() {
+    public void testListPotentiallyRequiredFields_WithNullValues() {
         EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e");
-        assertThat(fields.listAll().stream().map(Tuple::v2).collect(toList()), contains("a", null, "c", null, "e"));
+        assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", null, null, "e"));
     }
 }

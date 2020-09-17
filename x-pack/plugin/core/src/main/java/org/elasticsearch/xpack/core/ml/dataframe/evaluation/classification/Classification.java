@@ -27,7 +27,6 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFie
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_CLASS_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_PROBABILITY_FIELD;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.RESULTS_NESTED_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -43,13 +42,11 @@ public class Classification implements Evaluation {
     public static final ConstructingObjectParser<Classification, Void> PARSER =
         new ConstructingObjectParser<>(
             NAME.getPreferredName(),
-            a -> new Classification(
-                (String) a[0], (String) a[1], (String) a[2], (String) a[3], (String) a[4], (List<EvaluationMetric>) a[5]));
+            a -> new Classification((String) a[0], (String) a[1], (String) a[2], (String) a[3], (List<EvaluationMetric>) a[4]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_NESTED_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_CLASS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_PROBABILITY_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
@@ -64,8 +61,7 @@ public class Classification implements Evaluation {
      * The collection of fields in the index being evaluated.
      *   fields.getActualField() is assumed to be a ground truth label.
      *   fields.getPredictedField() is assumed to be a predicted label.
-     *   fields.getPredictedClassField() is assumed to be nested under fields.getResultsNestedField().
-     *   fields.getPredictedProbabilityField() is assumed to be nested under fields.getResultsNestedField().
+     *   fields.getPredictedClassField() and fields.getPredictedProbabilityField() are assumed to be properties under the same nested field.
      */
     private final EvaluationFields fields;
 
@@ -76,33 +72,40 @@ public class Classification implements Evaluation {
 
     public Classification(String actualField,
                           @Nullable String predictedField,
-                          @Nullable String resultsNestedField,
                           @Nullable String predictedClassField,
                           @Nullable String predictedProbabilityField,
                           @Nullable List<EvaluationMetric> metrics) {
-        if (resultsNestedField != null) {
-            if (predictedClassField != null && predictedClassField.startsWith(resultsNestedField) == false) {
+        String topClassesField = null;
+        if (predictedClassField != null && predictedProbabilityField != null) {
+            int predictedClassFieldLastDot = predictedClassField.lastIndexOf(".");
+            int predictedProbabilityFieldLastDot = predictedProbabilityField.lastIndexOf(".");
+            if (predictedClassFieldLastDot == -1) {
                 throw ExceptionsHelper.badRequestException(
-                    "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
+                    "The value of [{}] must contain a dot ('.') but it didn't ([{}])",
+                    PREDICTED_CLASS_FIELD.getPreferredName(), predictedClassField);
+            }
+            if (predictedProbabilityFieldLastDot == -1) {
+                throw ExceptionsHelper.badRequestException(
+                    "The value of [{}] must contain a dot ('.') but it didn't ([{}])",
+                    PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField);
+            }
+            String predictedClassFieldPrefix = predictedClassField.substring(0, predictedClassFieldLastDot);
+            String predictedProbabilityFieldPrefix = predictedProbabilityField.substring(0, predictedProbabilityFieldLastDot);
+            if (predictedClassFieldPrefix.equals(predictedProbabilityFieldPrefix) == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "The values of [{}] and [{}] must start with the same prefix but they didn't ([{}] vs [{}])",
                     PREDICTED_CLASS_FIELD.getPreferredName(),
-                    RESULTS_NESTED_FIELD.getPreferredName(),
-                    predictedClassField,
-                    resultsNestedField);
-            }
-            if (predictedProbabilityField != null && predictedProbabilityField.startsWith(resultsNestedField) == false) {
-                throw ExceptionsHelper.badRequestException(
-                    "The value of [{}] must start with the value of [{}] but it didn't ([{}] is not a prefix of [{}])",
                     PREDICTED_PROBABILITY_FIELD.getPreferredName(),
-                    RESULTS_NESTED_FIELD.getPreferredName(),
-                    predictedProbabilityField,
-                    resultsNestedField);
+                    predictedClassFieldPrefix,
+                    predictedProbabilityFieldPrefix);
             }
+            topClassesField = predictedClassFieldPrefix;
         }
         this.fields =
             new EvaluationFields(
                 ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
                 predictedField,
-                resultsNestedField,
+                topClassesField,
                 predictedClassField,
                 predictedProbabilityField);
         this.metrics = initMetrics(metrics, Classification::defaultMetrics);
@@ -148,7 +151,7 @@ public class Classification implements Evaluation {
         out.writeString(fields.getActualField());
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalString(fields.getPredictedField());
-            out.writeOptionalString(fields.getResultsNestedField());
+            out.writeOptionalString(fields.getTopClassesField());
             out.writeOptionalString(fields.getPredictedClassField());
             out.writeOptionalString(fields.getPredictedProbabilityField());
         } else {
@@ -163,9 +166,6 @@ public class Classification implements Evaluation {
         builder.field(ACTUAL_FIELD.getPreferredName(), fields.getActualField());
         if (fields.getPredictedField() != null) {
             builder.field(PREDICTED_FIELD.getPreferredName(), fields.getPredictedField());
-        }
-        if (fields.getResultsNestedField() != null) {
-            builder.field(RESULTS_NESTED_FIELD.getPreferredName(), fields.getResultsNestedField());
         }
         if (fields.getPredictedClassField() != null) {
             builder.field(PREDICTED_CLASS_FIELD.getPreferredName(), fields.getPredictedClassField());

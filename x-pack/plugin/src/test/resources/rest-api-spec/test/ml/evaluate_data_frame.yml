@@ -644,26 +644,6 @@ setup:
             }
           }
 ---
-"Test classification auc_roc with missing results_nested_field":
-  - do:
-      catch: /\[classification\] must define \[results_nested_field\] as required by the following metrics \[auc_roc\]/
-      ml.evaluate_data_frame:
-        body: >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "predicted_field": "classification_field_pred.keyword",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "fish"
-                  }
-                }
-              }
-            }
-          }
----
 "Test classification auc_roc with missing predicted_class_field":
   - do:
       catch: /\[classification\] must define \[predicted_class_field\] as required by the following metrics \[auc_roc\]/
@@ -675,7 +655,6 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_probability_field": "ml.top_classes.class_probability",
                 "metrics": {
                   "auc_roc": {
@@ -697,7 +676,6 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.class_name",
                 "metrics": {
                   "auc_roc": {
@@ -719,7 +697,6 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.class_name",
                 "predicted_probability_field": "ml.top_classes.class_probability",
                 "metrics": {
@@ -739,7 +716,6 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.class_name",
                 "predicted_probability_field": "ml.top_classes.class_probability",
                 "metrics": {
@@ -761,7 +737,6 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.class_name",
                 "predicted_probability_field": "ml.top_classes.class_probability",
                 "metrics": {
@@ -782,7 +757,6 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.class_name",
                 "predicted_probability_field": "ml.top_classes.class_probability",
                 "metrics": {
@@ -1023,9 +997,9 @@ setup:
           }
 
 ---
-"Test classification given missing results_nested_field":
+"Test classification given missing top_classes_field":
   - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, missing, missing.class_name, missing.class_probability\]/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, missing.class_name, missing.class_probability\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -1034,7 +1008,6 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "results_nested_field": "missing",
                 "predicted_class_field": "missing.class_name",
                 "predicted_probability_field": "missing.class_probability"
               }
@@ -1044,7 +1017,7 @@ setup:
 ---
 "Test classification given missing predicted_class_field":
   - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes, ml.top_classes.missing, ml.top_classes.class_probability\]/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes.missing, ml.top_classes.class_probability\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -1053,7 +1026,6 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.missing",
                 "predicted_probability_field": "ml.top_classes.class_probability"
               }
@@ -1063,7 +1035,7 @@ setup:
 ---
 "Test classification given missing predicted_probability_field":
   - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes, ml.top_classes.class_name, ml.top_classes.missing\]/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, classification_field_pred.keyword, ml.top_classes.class_name, ml.top_classes.missing\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -1072,7 +1044,6 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "results_nested_field": "ml.top_classes",
                 "predicted_class_field": "ml.top_classes.class_name",
                 "predicted_probability_field": "ml.top_classes.missing"
               }

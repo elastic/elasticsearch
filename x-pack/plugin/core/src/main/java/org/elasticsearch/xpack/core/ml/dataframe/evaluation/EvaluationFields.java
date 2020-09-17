@@ -20,7 +20,6 @@ public final class EvaluationFields {
 
     public static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
     public static final ParseField PREDICTED_FIELD = new ParseField("predicted_field");
-    public static final ParseField RESULTS_NESTED_FIELD = new ParseField("results_nested_field");
     public static final ParseField PREDICTED_CLASS_FIELD = new ParseField("predicted_class_field");
     public static final ParseField PREDICTED_PROBABILITY_FIELD = new ParseField("predicted_probability_field");
 
@@ -35,9 +34,9 @@ public final class EvaluationFields {
     private final String predictedField;
 
     /**
-     * The field containing the array of prediction results
+     * The field containing the array of top classes
      */
-    private final String resultsNestedField;
+    private final String topClassesField;
 
     /**
      * The field containing the predicted class name value
@@ -51,13 +50,13 @@ public final class EvaluationFields {
 
     public EvaluationFields(@Nullable String actualField,
                             @Nullable String predictedField,
-                            @Nullable String resultsNestedField,
+                            @Nullable String topClassesField,
                             @Nullable String predictedClassField,
                             @Nullable String predictedProbabilityField) {
 
         this.actualField = actualField;
         this.predictedField = predictedField;
-        this.resultsNestedField = resultsNestedField;
+        this.topClassesField = topClassesField;
         this.predictedClassField = predictedClassField;
         this.predictedProbabilityField = predictedProbabilityField;
     }
@@ -77,10 +76,10 @@ public final class EvaluationFields {
     }
 
     /**
-     * Returns the field containing the array of prediction results
+     * Returns the field containing the array of top classes
      */
-    public String getResultsNestedField() {
-        return resultsNestedField;
+    public String getTopClassesField() {
+        return topClassesField;
     }
 
     /**
@@ -97,11 +96,10 @@ public final class EvaluationFields {
         return predictedProbabilityField;
     }
 
-    public List<Tuple<String, String>> listAll() {
+    public List<Tuple<String, String>> listPotentiallyRequiredFields() {
         return Arrays.asList(
             Tuple.tuple(ACTUAL_FIELD.getPreferredName(), actualField),
             Tuple.tuple(PREDICTED_FIELD.getPreferredName(), predictedField),
-            Tuple.tuple(RESULTS_NESTED_FIELD.getPreferredName(), resultsNestedField),
             Tuple.tuple(PREDICTED_CLASS_FIELD.getPreferredName(), predictedClassField),
             Tuple.tuple(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField));
     }
@@ -113,13 +111,13 @@ public final class EvaluationFields {
         EvaluationFields that = (EvaluationFields) o;
         return Objects.equals(that.actualField, this.actualField)
             && Objects.equals(that.predictedField, this.predictedField)
-            && Objects.equals(that.resultsNestedField, this.resultsNestedField)
+            && Objects.equals(that.topClassesField, this.topClassesField)
             && Objects.equals(that.predictedClassField, this.predictedClassField)
             && Objects.equals(that.predictedProbabilityField, this.predictedProbabilityField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualField, predictedField, resultsNestedField, predictedClassField, predictedProbabilityField);
+        return Objects.hash(actualField, predictedField, topClassesField, predictedClassField, predictedProbabilityField);
     }
 }

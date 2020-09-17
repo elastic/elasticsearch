@@ -120,7 +120,6 @@ public class AucRoc extends AbstractAucRoc {
     public Set<String> getRequiredFields() {
         return Sets.newHashSet(
             EvaluationFields.ACTUAL_FIELD.getPreferredName(),
-            EvaluationFields.RESULTS_NESTED_FIELD.getPreferredName(),
             EvaluationFields.PREDICTED_CLASS_FIELD.getPreferredName(),
             EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
     }
@@ -156,7 +155,7 @@ public class AucRoc extends AbstractAucRoc {
                 .percentiles(percentiles);
         AggregationBuilder nestedAgg =
             AggregationBuilders
-                .nested(NESTED_AGG_NAME, fields.getResultsNestedField())
+                .nested(NESTED_AGG_NAME, fields.getTopClassesField())
                 .subAggregation(
                     AggregationBuilders
                         .filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassField(), className))

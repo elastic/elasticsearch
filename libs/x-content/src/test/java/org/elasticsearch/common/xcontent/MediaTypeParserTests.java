@@ -32,26 +32,26 @@ public class MediaTypeParserTests extends ESTestCase {
     MediaTypeParser<XContentType> mediaTypeParser = XContentType.mediaTypeParser;
 
     public void testJsonWithParameters() throws Exception {
-        String mediaType = "application/json";
+        String mediaType = "application/vnd.elasticsearch+json";
         assertThat(mediaTypeParser.parseMediaType(mediaType).getParameters(),
             equalTo(Collections.emptyMap()));
         assertThat(mediaTypeParser.parseMediaType(mediaType + ";").getParameters(),
             equalTo(Collections.emptyMap()));
         assertThat(mediaTypeParser.parseMediaType(mediaType + "; charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8")));
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123;charset=UTF-8").getParameters(),
-            equalTo(Map.of("charset", "utf-8", "custom", "123")));
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; compatible-with=123;charset=UTF-8").getParameters(),
+            equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
     }
 
     public void testWhiteSpaceInTypeSubtype() {
-        String mediaType = " application/json ";
+        String mediaType = " application/vnd.elasticsearch+json ";
         assertThat(mediaTypeParser.parseMediaType(mediaType).getMediaType(),
             equalTo(XContentType.JSON));
 
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123; charset=UTF-8").getParameters(),
-            equalTo(Map.of("charset", "utf-8", "custom", "123")));
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; custom=123;\n charset=UTF-8").getParameters(),
-            equalTo(Map.of("charset", "utf-8", "custom", "123")));
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; compatible-with=123; charset=UTF-8").getParameters(),
+            equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
+        assertThat(mediaTypeParser.parseMediaType(mediaType + "; compatible-with=123;\n charset=UTF-8").getParameters(),
+            equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
 
         mediaType = " application / json ";
         assertThat(mediaTypeParser.parseMediaType(mediaType),
@@ -59,7 +59,7 @@ public class MediaTypeParserTests extends ESTestCase {
     }
 
     public void testInvalidParameters() {
-        String mediaType = "application/json";
+        String mediaType = "application/vnd.elasticsearch+json";
         assertThat(mediaTypeParser.parseMediaType(mediaType + "; keyvalueNoEqualsSign"),
             is(nullValue()));
 

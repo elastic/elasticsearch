@@ -15,7 +15,7 @@ setup:
         body:  >
           {
             "indices": [
-              { "names": ["simple*"], "privileges": ["read", "write", "create_index", "view_index_metadata", "monitor", "delete_index"] }
+              { "names": ["simple*", "easy*"], "privileges": ["read", "write", "create_index", "view_index_metadata", "monitor", "delete_index"] }
             ]
           }
 
@@ -66,7 +66,7 @@ setup:
       indices.put_index_template:
         name: my-template1
         body:
-          index_patterns: [s*, create-doc-data-stream1, write-data-stream1]
+          index_patterns: [s*, easy-data-stream1, create-doc-data-stream1, write-data-stream1]
           template:
             mappings:
               properties:
@@ -174,27 +174,27 @@ teardown:
 
   - do: # superuser
       indices.create_data_stream:
-        name: simple-data-stream1
+        name: easy-data-stream1
   - is_true: acknowledged
 
   - do: # superuser
       indices.create:
-        index: simple-index
+        index: easy-index
         body:
           aliases:
-            simple-alias: {}
+            easy-alias: {}
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       indices.get_alias:
-        name: simple*
+        name: easy*
 
-  - match: {simple-index.aliases.simple-alias: {}}
-  - is_false: simple-data-stream1
+  - match: {easy-index.aliases.easy-alias: {}}
+  - is_false: easy-data-stream1
 
   - do: # superuser
       indices.delete_data_stream:
-        name: simple-data-stream1
+        name: easy-data-stream1
   - is_true: acknowledged
 
 ---

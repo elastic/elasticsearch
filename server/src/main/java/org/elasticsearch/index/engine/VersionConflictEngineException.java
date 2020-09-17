@@ -57,4 +57,10 @@ public class VersionConflictEngineException extends EngineException {
     public VersionConflictEngineException(StreamInput in) throws IOException {
         super(in);
     }
+
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        // This is on the hot path for updates; stack traces are expensive to compute and not very useful for VCEEs, so don't fill it in.
+        return this;
+    }
 }

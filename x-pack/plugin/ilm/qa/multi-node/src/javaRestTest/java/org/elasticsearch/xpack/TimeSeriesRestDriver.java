@@ -231,7 +231,7 @@ public final class TimeSeriesRestDriver {
     @SuppressWarnings("unchecked")
     public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
-        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
             response.getEntity().getContent(), false);
         responseEntity = (Map<String, Object>) responseEntity.get("indices");

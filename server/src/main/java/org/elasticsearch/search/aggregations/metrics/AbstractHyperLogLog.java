@@ -784,17 +784,6 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         addRunLen(bucketOrd, index, runLen);
     }
 
-    public void merge(long thisBucketOrd, AbstractHyperLogLog other, long otherBucketOrd) {
-        if (p != other.p) {
-            throw new IllegalArgumentException();
-        }
-        RunLenIterator iterator = other.getRunLens(otherBucketOrd);
-        for (int i = 0; i < m; ++i) {
-            iterator.next();
-            addRunLen(thisBucketOrd, i, iterator.value());
-        }
-    }
-
     static long index(long hash, int p) {
         return hash >>> (64 - p);
     }

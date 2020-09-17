@@ -157,13 +157,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (counts == null || owningBucketOrdinal >= counts.maxBucket() || counts.cardinality(owningBucketOrdinal) == 0) {
+        if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after
         // this Aggregator (and its HLL++ counters) is released.
-        HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
-        copy.merge(0, counts, owningBucketOrdinal);
+        AbstractHyperLogLogPlusPlus copy = counts.clone(owningBucketOrdinal, BigArrays.NON_RECYCLING_INSTANCE);
         return new InternalCardinality(name, copy, metadata());
     }
 

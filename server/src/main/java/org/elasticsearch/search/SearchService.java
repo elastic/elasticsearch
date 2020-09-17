@@ -1029,9 +1029,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                if (context.version()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [version] is requested");
-                }
                 if (context.sourceRequested()) {
                     throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
                 }

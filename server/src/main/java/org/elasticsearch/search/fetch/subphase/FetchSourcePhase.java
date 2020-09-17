@@ -28,7 +28,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ import java.util.Map;
 public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
         if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
             return null;

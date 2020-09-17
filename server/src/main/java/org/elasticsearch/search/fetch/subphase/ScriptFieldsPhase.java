@@ -22,9 +22,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.FieldScript;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -36,8 +36,8 @@ import java.util.List;
 public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context, SearchLookup lookup) {
-        if (context.hasScriptFields() == false) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+        if (context.scriptFields() == null) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();

@@ -30,9 +30,11 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -100,6 +102,7 @@ public class FetchPhase {
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
         }
+        // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
@@ -114,6 +117,8 @@ public class FetchPhase {
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
+        CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
+        boolean hasSequentialDocs = hasSequentialDocs(docs);
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
                 throw new TaskCancelledException("cancelled");
@@ -124,6 +129,17 @@ public class FetchPhase {
                 if (currentReaderIndex != readerIndex) {
                     currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                     currentReaderIndex = readerIndex;
+                    if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader
+                            && hasSequentialDocs && docs.length >= 10) {
+                        // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                        // for random access and don't optimize for sequential access - except for merging.
+                        // So we do a little hack here and pretend we're going to do merges in order to
+                        // get better sequential access.
+                        SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
+                        fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+                    } else {
+                        fieldReader = currentReaderContext.reader()::document;
+                    }
                     for (FetchSubPhaseProcessor processor : processors) {
                         processor.setNextReader(currentReaderContext);
                     }
@@ -136,6 +152,7 @@ public class FetchPhase {
                     docId,
                     storedToRequestedFields,
                     currentReaderContext,
+                    fieldReader,
                     sharedCache
                 );
                 for (FetchSubPhaseProcessor processor : processors) {
@@ -249,9 +266,14 @@ public class FetchPhase {
         return -1;
     }
 
-    private HitContext prepareHitContext(SearchContext context, SearchLookup lookup, FieldsVisitor fieldsVisitor, int docId,
+    private HitContext prepareHitContext(SearchContext context,
+                                         SearchLookup lookup,
+                                         FieldsVisitor fieldsVisitor,
+                                         int docId,
                                          Map<String, Set<String>> storedToRequestedFields,
-                                         LeafReaderContext subReaderContext, Map<String, Object> sharedCache) throws IOException {
+                                         LeafReaderContext subReaderContext,
+                                         CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
+                                         Map<String, Object> sharedCache) throws IOException {
         int rootDocId = findRootDocumentIfNested(context, subReaderContext, docId - subReaderContext.docBase);
         if (rootDocId == -1) {
             return prepareNonNestedHitContext(
@@ -261,10 +283,12 @@ public class FetchPhase {
                 docId,
                 storedToRequestedFields,
                 subReaderContext,
+                storedFieldReader,
                 sharedCache
             );
         } else {
-            return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields, subReaderContext, sharedCache);
+            return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields,
+                subReaderContext, storedFieldReader, sharedCache);
         }
     }
 
@@ -281,6 +305,7 @@ public class FetchPhase {
                                    int docId,
                                    Map<String, Set<String>> storedToRequestedFields,
                                    LeafReaderContext subReaderContext,
+                                   CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
                                    Map<String, Object> sharedCache) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
@@ -288,7 +313,7 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
         } else {
             SearchHit hit;
-            loadStoredFields(context.mapperService(), subReaderContext, fieldsVisitor, subDocId);
+            loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -320,6 +345,7 @@ public class FetchPhase {
                                                int rootDocId,
                                                Map<String, Set<String>> storedToRequestedFields,
                                                LeafReaderContext subReaderContext,
+                                               CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
                                                Map<String, Object> sharedCache) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
@@ -343,7 +369,7 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.mapperService(), subReaderContext, rootFieldsVisitor, rootDocId);
+            loadStoredFields(context.mapperService(), storedFieldReader, rootFieldsVisitor, rootDocId);
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
@@ -358,7 +384,7 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context.mapperService(), subReaderContext, nestedFieldsVisitor, nestedDocId);
+            loadStoredFields(context.mapperService(), storedFieldReader, nestedFieldsVisitor, nestedDocId);
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -493,10 +519,10 @@ public class FetchPhase {
     }
 
     private void loadStoredFields(MapperService mapperService,
-                                  LeafReaderContext readerContext,
+                                  CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
                                   FieldsVisitor fieldVisitor, int docId) throws IOException {
         fieldVisitor.reset();
-        readerContext.reader().document(docId, fieldVisitor);
+        fieldReader.accept(docId, fieldVisitor);
         fieldVisitor.postProcess(mapperService);
     }
 
@@ -522,5 +548,13 @@ public class FetchPhase {
                 }
             }
         }
+    }
+
+    /**
+     * Returns <code>true</code> if the provided <code>docs</code> are
+     * stored sequentially (Dn = Dn-1 + 1).
+     */
+    static boolean hasSequentialDocs(DocIdToIndex[] docs) {
+        return docs.length > 0 && docs[docs.length-1].docId - docs[0].docId == docs.length - 1;
     }
 }

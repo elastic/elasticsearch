@@ -124,11 +124,8 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
         // catch old method of ?" and ?' to define unescaped strings
         if (text.startsWith("?")) {
-            checkForSingleQuotedString(source, text, 1);
-            if (text.charAt(1) == '"') {
-                throw new ParsingException(source,
-                        "Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]");
-            }
+            throw new ParsingException(source,
+                "Use triple double quotes [\"\"\"] to define unescaped string literals, not [?{}]", text.charAt(1));
         }
 
         // unescaped strings can be interpreted directly

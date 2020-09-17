@@ -98,10 +98,10 @@ public class ExpressionTests extends ESTestCase {
 
     public void testSingleQuotedUnescapedStringForbidden() {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
-        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
+        assertEquals("line 1:2: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
                 e.getMessage());
         e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        assertEquals("line 1:21: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
                 e.getMessage());
     }
 
@@ -130,6 +130,8 @@ public class ExpressionTests extends ESTestCase {
         Expression parsed = expr("-5.2");
         Expression expected = new Neg(null, new Literal(null, 5.2, DataTypes.DOUBLE));
         assertEquals(expected, parsed);
+
+        expr("1 = 1 = 1");
     }
 
     public void testBackQuotedAttribute() {

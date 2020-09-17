@@ -2104,6 +2104,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             try (InputStream stream = maybeRateLimitRestores(new SlicedInputStream(fileInfo.numberOfParts()) {
                                 @Override
                                 protected InputStream openSlice(int slice) throws IOException {
+                                    ensureNotClosing(store);
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {

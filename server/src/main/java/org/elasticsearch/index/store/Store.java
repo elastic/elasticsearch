@@ -411,8 +411,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * @return true if the {@link Store#close()} method has been called indicating that the current store is being closed but potentially
-     * not yet fully closed and released. You might prefer to use {@link Store#ensureOpen()} instead.
+     * @return true if the {@link Store#close()} method has been called. This indicates that the current
+     * store is either closed or being closed waiting for all references to it to be released.
+     * You might prefer to use {@link Store#ensureOpen()} instead.
      */
     public boolean isClosing() {
         return isClosed.get();

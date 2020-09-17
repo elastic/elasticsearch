@@ -307,11 +307,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        createRepository(repoName, type, randomRepositorySettings());
+    }
+
+    protected Settings.Builder randomRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
-            settings = settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+            settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
-        createRepository(repoName, type, settings);
+        return settings;
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {

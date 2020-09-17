@@ -230,38 +230,38 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitComparison(EqlBaseParser.ComparisonContext ctx);
   /**
-   * Enter a parse tree produced by the {@code defaultExpressionDefault}
-   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * Enter a parse tree produced by the {@code operatorExpressionDefault}
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
-  void enterDefaultExpressionDefault(EqlBaseParser.DefaultExpressionDefaultContext ctx);
+  void enterOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx);
   /**
-   * Exit a parse tree produced by the {@code defaultExpressionDefault}
-   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * Exit a parse tree produced by the {@code operatorExpressionDefault}
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
-  void exitDefaultExpressionDefault(EqlBaseParser.DefaultExpressionDefaultContext ctx);
+  void exitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx);
   /**
    * Enter a parse tree produced by the {@code arithmeticBinary}
-   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void enterArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx);
   /**
    * Exit a parse tree produced by the {@code arithmeticBinary}
-   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void exitArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx);
   /**
    * Enter a parse tree produced by the {@code arithmeticUnary}
-   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void enterArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);
   /**
    * Exit a parse tree produced by the {@code arithmeticUnary}
-   * labeled alternative in {@link EqlBaseParser#defaultExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);

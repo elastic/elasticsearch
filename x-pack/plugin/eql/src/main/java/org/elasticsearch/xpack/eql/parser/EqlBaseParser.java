@@ -28,7 +28,7 @@ class EqlBaseParser extends Parser {
     RULE_query = 3, RULE_sequenceParams = 4, RULE_sequence = 5, RULE_join = 6, 
     RULE_pipe = 7, RULE_joinKeys = 8, RULE_joinTerm = 9, RULE_sequenceTerm = 10, 
     RULE_subquery = 11, RULE_eventQuery = 12, RULE_eventFilter = 13, RULE_expression = 14, 
-    RULE_booleanExpression = 15, RULE_valueExpression = 16, RULE_defaultExpression = 17, 
+    RULE_booleanExpression = 15, RULE_valueExpression = 16, RULE_operatorExpression = 17, 
     RULE_predicate = 18, RULE_primaryExpression = 19, RULE_functionExpression = 20, 
     RULE_constant = 21, RULE_comparisonOperator = 22, RULE_booleanValue = 23, 
     RULE_qualifiedName = 24, RULE_identifier = 25, RULE_timeUnit = 26, RULE_number = 27, 
@@ -37,7 +37,7 @@ class EqlBaseParser extends Parser {
     "singleStatement", "singleExpression", "statement", "query", "sequenceParams", 
     "sequence", "join", "pipe", "joinKeys", "joinTerm", "sequenceTerm", "subquery", 
     "eventQuery", "eventFilter", "expression", "booleanExpression", "valueExpression", 
-    "defaultExpression", "predicate", "primaryExpression", "functionExpression", 
+    "operatorExpression", "predicate", "primaryExpression", "functionExpression", 
     "constant", "comparisonOperator", "booleanValue", "qualifiedName", "identifier", 
     "timeUnit", "number", "string"
   };
@@ -1332,8 +1332,8 @@ class EqlBaseParser extends Parser {
     }
   }
   public static class ValueExpressionDefaultContext extends ValueExpressionContext {
-    public DefaultExpressionContext defaultExpression() {
-      return getRuleContext(DefaultExpressionContext.class,0);
+    public OperatorExpressionContext operatorExpression() {
+      return getRuleContext(OperatorExpressionContext.class,0);
     }
     public ValueExpressionDefaultContext(ValueExpressionContext ctx) { copyFrom(ctx); }
     @Override
@@ -1351,16 +1351,16 @@ class EqlBaseParser extends Parser {
     }
   }
   public static class ComparisonContext extends ValueExpressionContext {
-    public DefaultExpressionContext left;
-    public DefaultExpressionContext right;
+    public OperatorExpressionContext left;
+    public OperatorExpressionContext right;
     public ComparisonOperatorContext comparisonOperator() {
       return getRuleContext(ComparisonOperatorContext.class,0);
     }
-    public List<DefaultExpressionContext> defaultExpression() {
-      return getRuleContexts(DefaultExpressionContext.class);
+    public List<OperatorExpressionContext> operatorExpression() {
+      return getRuleContexts(OperatorExpressionContext.class);
     }
-    public DefaultExpressionContext defaultExpression(int i) {
-      return getRuleContext(DefaultExpressionContext.class,i);
+    public OperatorExpressionContext operatorExpression(int i) {
+      return getRuleContext(OperatorExpressionContext.class,i);
     }
     public ComparisonContext(ValueExpressionContext ctx) { copyFrom(ctx); }
     @Override
@@ -1390,7 +1390,7 @@ class EqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 1);
         {
         setState(187);
-        defaultExpression(0);
+        operatorExpression(0);
         }
         break;
       case 2:
@@ -1398,11 +1398,11 @@ class EqlBaseParser extends Parser {
         enterOuterAlt(_localctx, 2);
         {
         setState(188);
-        ((ComparisonContext)_localctx).left = defaultExpression(0);
+        ((ComparisonContext)_localctx).left = operatorExpression(0);
         setState(189);
         comparisonOperator();
         setState(190);
-        ((ComparisonContext)_localctx).right = defaultExpression(0);
+        ((ComparisonContext)_localctx).right = operatorExpression(0);
         }
         break;
       }
@@ -1418,55 +1418,55 @@ class EqlBaseParser extends Parser {
     return _localctx;
   }
 
-  public static class DefaultExpressionContext extends ParserRuleContext {
-    public DefaultExpressionContext(ParserRuleContext parent, int invokingState) {
+  public static class OperatorExpressionContext extends ParserRuleContext {
+    public OperatorExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_defaultExpression; }
+    @Override public int getRuleIndex() { return RULE_operatorExpression; }
    
-    public DefaultExpressionContext() { }
-    public void copyFrom(DefaultExpressionContext ctx) {
+    public OperatorExpressionContext() { }
+    public void copyFrom(OperatorExpressionContext ctx) {
       super.copyFrom(ctx);
     }
   }
-  public static class DefaultExpressionDefaultContext extends DefaultExpressionContext {
+  public static class OperatorExpressionDefaultContext extends OperatorExpressionContext {
     public PrimaryExpressionContext primaryExpression() {
       return getRuleContext(PrimaryExpressionContext.class,0);
     }
     public PredicateContext predicate() {
       return getRuleContext(PredicateContext.class,0);
     }
-    public DefaultExpressionDefaultContext(DefaultExpressionContext ctx) { copyFrom(ctx); }
+    public OperatorExpressionDefaultContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EqlBaseListener ) ((EqlBaseListener)listener).enterDefaultExpressionDefault(this);
+      if ( listener instanceof EqlBaseListener ) ((EqlBaseListener)listener).enterOperatorExpressionDefault(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EqlBaseListener ) ((EqlBaseListener)listener).exitDefaultExpressionDefault(this);
+      if ( listener instanceof EqlBaseListener ) ((EqlBaseListener)listener).exitOperatorExpressionDefault(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EqlBaseVisitor ) return ((EqlBaseVisitor<? extends T>)visitor).visitDefaultExpressionDefault(this);
+      if ( visitor instanceof EqlBaseVisitor ) return ((EqlBaseVisitor<? extends T>)visitor).visitOperatorExpressionDefault(this);
       else return visitor.visitChildren(this);
     }
   }
-  public static class ArithmeticBinaryContext extends DefaultExpressionContext {
-    public DefaultExpressionContext left;
+  public static class ArithmeticBinaryContext extends OperatorExpressionContext {
+    public OperatorExpressionContext left;
     public Token operator;
-    public DefaultExpressionContext right;
-    public List<DefaultExpressionContext> defaultExpression() {
-      return getRuleContexts(DefaultExpressionContext.class);
+    public OperatorExpressionContext right;
+    public List<OperatorExpressionContext> operatorExpression() {
+      return getRuleContexts(OperatorExpressionContext.class);
     }
-    public DefaultExpressionContext defaultExpression(int i) {
-      return getRuleContext(DefaultExpressionContext.class,i);
+    public OperatorExpressionContext operatorExpression(int i) {
+      return getRuleContext(OperatorExpressionContext.class,i);
     }
     public TerminalNode ASTERISK() { return getToken(EqlBaseParser.ASTERISK, 0); }
     public TerminalNode SLASH() { return getToken(EqlBaseParser.SLASH, 0); }
     public TerminalNode PERCENT() { return getToken(EqlBaseParser.PERCENT, 0); }
     public TerminalNode PLUS() { return getToken(EqlBaseParser.PLUS, 0); }
     public TerminalNode MINUS() { return getToken(EqlBaseParser.MINUS, 0); }
-    public ArithmeticBinaryContext(DefaultExpressionContext ctx) { copyFrom(ctx); }
+    public ArithmeticBinaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EqlBaseListener ) ((EqlBaseListener)listener).enterArithmeticBinary(this);
@@ -1481,14 +1481,14 @@ class EqlBaseParser extends Parser {
       else return visitor.visitChildren(this);
     }
   }
-  public static class ArithmeticUnaryContext extends DefaultExpressionContext {
+  public static class ArithmeticUnaryContext extends OperatorExpressionContext {
     public Token operator;
-    public DefaultExpressionContext defaultExpression() {
-      return getRuleContext(DefaultExpressionContext.class,0);
+    public OperatorExpressionContext operatorExpression() {
+      return getRuleContext(OperatorExpressionContext.class,0);
     }
     public TerminalNode MINUS() { return getToken(EqlBaseParser.MINUS, 0); }
     public TerminalNode PLUS() { return getToken(EqlBaseParser.PLUS, 0); }
-    public ArithmeticUnaryContext(DefaultExpressionContext ctx) { copyFrom(ctx); }
+    public ArithmeticUnaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EqlBaseListener ) ((EqlBaseListener)listener).enterArithmeticUnary(this);
@@ -1504,17 +1504,17 @@ class EqlBaseParser extends Parser {
     }
   }
 
-  public final DefaultExpressionContext defaultExpression() throws RecognitionException {
-    return defaultExpression(0);
+  public final OperatorExpressionContext operatorExpression() throws RecognitionException {
+    return operatorExpression(0);
   }
 
-  private DefaultExpressionContext defaultExpression(int _p) throws RecognitionException {
+  private OperatorExpressionContext operatorExpression(int _p) throws RecognitionException {
     ParserRuleContext _parentctx = _ctx;
     int _parentState = getState();
-    DefaultExpressionContext _localctx = new DefaultExpressionContext(_ctx, _parentState);
-    DefaultExpressionContext _prevctx = _localctx;
+    OperatorExpressionContext _localctx = new OperatorExpressionContext(_ctx, _parentState);
+    OperatorExpressionContext _prevctx = _localctx;
     int _startState = 34;
-    enterRecursionRule(_localctx, 34, RULE_defaultExpression, _p);
+    enterRecursionRule(_localctx, 34, RULE_operatorExpression, _p);
     int _la;
     try {
       int _alt;
@@ -1532,7 +1532,7 @@ class EqlBaseParser extends Parser {
       case DECIMAL_VALUE:
       case IDENTIFIER:
         {
-        _localctx = new DefaultExpressionDefaultContext(_localctx);
+        _localctx = new OperatorExpressionDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
 
@@ -1565,7 +1565,7 @@ class EqlBaseParser extends Parser {
           consume();
         }
         setState(200);
-        defaultExpression(3);
+        operatorExpression(3);
         }
         break;
       default:
@@ -1585,9 +1585,9 @@ class EqlBaseParser extends Parser {
           switch ( getInterpreter().adaptivePredict(_input,24,_ctx) ) {
           case 1:
             {
-            _localctx = new ArithmeticBinaryContext(new DefaultExpressionContext(_parentctx, _parentState));
+            _localctx = new ArithmeticBinaryContext(new OperatorExpressionContext(_parentctx, _parentState));
             ((ArithmeticBinaryContext)_localctx).left = _prevctx;
-            pushNewRecursionContext(_localctx, _startState, RULE_defaultExpression);
+            pushNewRecursionContext(_localctx, _startState, RULE_operatorExpression);
             setState(203);
             if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
             setState(204);
@@ -1599,14 +1599,14 @@ class EqlBaseParser extends Parser {
               consume();
             }
             setState(205);
-            ((ArithmeticBinaryContext)_localctx).right = defaultExpression(3);
+            ((ArithmeticBinaryContext)_localctx).right = operatorExpression(3);
             }
             break;
           case 2:
             {
-            _localctx = new ArithmeticBinaryContext(new DefaultExpressionContext(_parentctx, _parentState));
+            _localctx = new ArithmeticBinaryContext(new OperatorExpressionContext(_parentctx, _parentState));
             ((ArithmeticBinaryContext)_localctx).left = _prevctx;
-            pushNewRecursionContext(_localctx, _startState, RULE_defaultExpression);
+            pushNewRecursionContext(_localctx, _startState, RULE_operatorExpression);
             setState(206);
             if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
             setState(207);
@@ -1618,7 +1618,7 @@ class EqlBaseParser extends Parser {
               consume();
             }
             setState(208);
-            ((ArithmeticBinaryContext)_localctx).right = defaultExpression(2);
+            ((ArithmeticBinaryContext)_localctx).right = operatorExpression(2);
             }
             break;
           }
@@ -2550,7 +2550,7 @@ class EqlBaseParser extends Parser {
     case 15:
       return booleanExpression_sempred((BooleanExpressionContext)_localctx, predIndex);
     case 17:
-      return defaultExpression_sempred((DefaultExpressionContext)_localctx, predIndex);
+      return operatorExpression_sempred((OperatorExpressionContext)_localctx, predIndex);
     }
     return true;
   }
@@ -2563,7 +2563,7 @@ class EqlBaseParser extends Parser {
     }
     return true;
   }
-  private boolean defaultExpression_sempred(DefaultExpressionContext _localctx, int predIndex) {
+  private boolean operatorExpression_sempred(OperatorExpressionContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
       return precpred(_ctx, 2);

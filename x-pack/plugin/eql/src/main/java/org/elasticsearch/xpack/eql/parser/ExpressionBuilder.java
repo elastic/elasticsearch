@@ -84,7 +84,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitArithmeticUnary(ArithmeticUnaryContext ctx) {
-        Expression expr = expression(ctx.defaultExpression());
+        Expression expr = expression(ctx.operatorExpression());
         Source source = source(ctx);
         int type = ctx.operator.getType();
 
@@ -148,7 +148,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitDefaultExpressionDefault(EqlBaseParser.DefaultExpressionDefaultContext ctx) {
+    public Object visitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) {
         Expression expr = expression(ctx.primaryExpression());
         Source source = source(ctx);
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;

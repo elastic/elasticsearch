@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -120,11 +119,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return Long.parseLong(value.toString());
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override

@@ -836,18 +836,12 @@ public class WildcardFieldMapper extends FieldMapper {
             return KeywordFieldMapper.CONTENT_TYPE;
         }
 
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
-        }
-
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             String searchTerm = BytesRefs.toString(value);
             return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
         }
-        
+
         private String escapeWildcardSyntax(String term) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < term.length();) {

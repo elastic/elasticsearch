@@ -104,6 +104,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
+            //TODO how can this work if this field never has doc_values?
             return new DocValuesFieldExistsQuery(name());
         }
 

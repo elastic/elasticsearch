@@ -21,10 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -128,15 +125,6 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override

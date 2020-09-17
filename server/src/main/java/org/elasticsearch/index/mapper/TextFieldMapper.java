@@ -41,7 +41,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -658,15 +657,6 @@ public class TextFieldMapper extends FieldMapper {
                     new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
-            }
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (indexedFieldType.omitNorms()) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
             }
         }
 

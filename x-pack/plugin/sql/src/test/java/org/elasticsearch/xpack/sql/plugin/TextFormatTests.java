@@ -24,7 +24,9 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.sql.plugin.TextFormat.*;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.hamcrest.CoreMatchers.is;
 
 public class TextFormatTests extends ESTestCase {

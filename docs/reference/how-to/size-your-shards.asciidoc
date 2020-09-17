@@ -84,7 +84,7 @@ sharding strategy.
 [[delete-indices-not-documents]]
 ==== Delete indices, not documents
 
-Individually deleted documents aren't immediately removed from the file system.
+Deleted documents aren't immediately removed from {es}'s file system.
 Instead, {es} marks the document as deleted on each related shard. The marked
 document will continue to use resources until it's removed during a periodic
 <<index-modules-merge,segment merge>>.

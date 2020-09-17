@@ -124,10 +124,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         }
     }
 
-    @Override
-    protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            // Indexer is single-threaded, and only place that the ID scheme can get upgraded is doSaveState(), so
-            // we can pass down the boolean value rather than the atomic here
+    protected SearchRequest buildSearchRequest() {
         final Map<String, Object> position = getPosition();
         SearchSourceBuilder searchSource = new SearchSourceBuilder()
                 .size(0)
@@ -135,7 +132,9 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                 // make sure we always compute complete buckets that appears before the configured delay
                 .query(createBoundaryQuery(position))
                 .aggregation(compositeBuilder.aggregateAfter(position));
-        return new SearchRequest(job.getConfig().getIndexPattern()).source(searchSource);
+        return new SearchRequest(job.getConfig().getIndexPattern())
+                .allowPartialSearchResults(false)
+                .source(searchSource);
     }
 
     @Override

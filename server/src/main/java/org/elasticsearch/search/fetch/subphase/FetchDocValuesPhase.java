@@ -23,11 +23,10 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +43,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         FetchDocValuesContext dvContext = context.docValuesContext();
         if (dvContext == null) {
             return null;
@@ -70,7 +69,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 continue;
             }
             String format = USE_DEFAULT_FORMAT.equals(fieldAndFormat.format) ? null : fieldAndFormat.format;
-            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(format, null), lookup.doc().getForField(ft));
+            ValueFetcher fetcher = new DocValueFetcher(
+                ft.docValueFormat(format, null),
+                context.searchLookup().doc().getForField(ft)
+            );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 

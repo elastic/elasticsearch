@@ -114,8 +114,7 @@ public class FetchPhase {
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
         Map<String, Object> sharedCache = new HashMap<>();
 
-        SearchLookup lookup = context.getQueryShardContext().newFetchLookup();
-        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), lookup, fetchContext);
+        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
@@ -136,7 +135,7 @@ public class FetchPhase {
                 assert currentReaderContext != null;
                 HitContext hit = prepareHitContext(
                     context,
-                    lookup,
+                    fetchContext.searchLookup(),
                     fieldsVisitor,
                     docId,
                     storedToRequestedFields,
@@ -160,11 +159,11 @@ public class FetchPhase {
 
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, SearchLookup lookup, FetchContext context) {
+    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context) {
         try {
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
-                FetchSubPhaseProcessor processor = fsp.getProcessor(context, lookup);
+                FetchSubPhaseProcessor processor = fsp.getProcessor(context);
                 if (processor != null) {
                     processors.add(processor);
                 }

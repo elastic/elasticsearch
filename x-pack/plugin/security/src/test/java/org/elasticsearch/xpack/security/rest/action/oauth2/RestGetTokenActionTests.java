@@ -71,7 +71,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
         CreateTokenResponse createTokenResponse =
                 new CreateTokenResponse(randomAlphaOfLengthBetween(1, 256), TimeValue.timeValueHours(1L), null, randomAlphaOfLength(4),
-                        randomAlphaOfLength(5), null);
+                        randomAlphaOfLength(5));
         listener.onResponse(createTokenResponse);
 
         RestResponse response = responseSetOnce.get();

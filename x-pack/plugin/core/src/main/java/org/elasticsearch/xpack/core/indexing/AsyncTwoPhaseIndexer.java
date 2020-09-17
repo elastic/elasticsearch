@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -288,17 +287,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract IterationResult<JobPosition> doProcess(SearchResponse searchResponse);
 
     /**
-     * Called to build the next search request.
-     *
-     * In case the indexer is throttled waitTimeInNanos can be used as hint for building a less resource hungry
-     * search request.
-     *
-     * @param waitTimeInNanos duration in nanoseconds the indexer has waited due to throttling.
-     * @return SearchRequest to be passed to the search phase.
-     */
-    protected abstract SearchRequest buildSearchRequest(long waitTimeInNanos);
-
-    /**
      * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
      * internal state is {@link IndexerState#STARTED}.
      *
@@ -310,15 +298,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onStart(long now, ActionListener<Boolean> listener);
 
     /**
-     * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
+     * Executes the next search and calls <code>nextPhase</code> with the
      * response or the exception if an error occurs.
      *
-     * @param request
-     *            The search request to execute
+     * In case the indexer is throttled waitTimeInNanos can be used as hint for doing a less resource hungry
+     * search.
+     *
+     * @param waitTimeInNanos
+     *            Duration in nanoseconds the indexer has waited due to throttling
      * @param nextPhase
      *            Listener for the next phase
      */
-    protected abstract void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase);
+    protected abstract void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase);
 
     /**
      * Executes the {@link BulkRequest} and calls <code>nextPhase</code> with the
@@ -575,10 +566,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         stats.markStartSearch();
         lastSearchStartTimeNanos = getTimeNanos();
 
-        // ensure that partial results are not accepted and cause a search failure
-        SearchRequest searchRequest = buildSearchRequest(waitTimeInNanos).allowPartialSearchResults(false);
-
-        doNextSearch(searchRequest, searchResponseListener);
+        doNextSearch(waitTimeInNanos, searchResponseListener);
     }
 
     /**

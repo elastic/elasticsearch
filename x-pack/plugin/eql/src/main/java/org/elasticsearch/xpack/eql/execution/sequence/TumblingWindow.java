@@ -301,8 +301,9 @@ public class TumblingWindow implements Executable {
             return;
         }
 
-        client.get(hits(completed), ActionListeners.map(listener, hits -> {
-            SequencePayload payload = new SequencePayload(completed, hits, false, timeTook());
+        // get results through search (to keep using PIT)
+        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
+            SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
             close(listener);
             return payload;
         }));

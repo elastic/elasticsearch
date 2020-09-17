@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 
@@ -25,7 +24,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     private String refreshToken;
     private String realm;
     private TimeValue expiresIn;
-    private Authentication authentication;
 
     public SamlAuthenticateResponse(StreamInput in) throws IOException {
         super(in);
@@ -36,16 +34,14 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         tokenString = in.readString();
         refreshToken = in.readString();
         expiresIn = in.readTimeValue();
-        authentication = null;
     }
 
-    public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
-        this.principal = authentication.getUser().principal();
-        this.realm = authentication.getAuthenticatedBy().getName();
+    public SamlAuthenticateResponse(String principal, String realm, String tokenString, String refreshToken, TimeValue expiresIn) {
+        this.principal = principal;
+        this.realm = realm;
         this.tokenString = tokenString;
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;
-        this.authentication = authentication;
     }
 
     public String getPrincipal() {
@@ -67,8 +63,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     public TimeValue getExpiresIn() {
         return expiresIn;
     }
-
-    public Authentication getAuthentication() { return authentication; }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

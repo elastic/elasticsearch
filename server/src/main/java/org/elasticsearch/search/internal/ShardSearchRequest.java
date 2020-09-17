@@ -224,7 +224,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             this.keepAlive = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        assert (readerId != null) == (keepAlive != null);
+        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {

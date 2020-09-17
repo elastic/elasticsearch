@@ -565,7 +565,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public static ShardSnapshotStatus readFrom(StreamInput in) throws IOException {
             String nodeId = in.readOptionalString();
-            final ShardState state = ShardState.readFrom(in);
+            final ShardState state = ShardState.fromValue(in.readByte());
             final String generation = in.readOptionalString();
             final String reason = in.readOptionalString();
             if (state == ShardState.QUEUED) {
@@ -604,7 +604,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
-            state.writeTo(out);
+            out.writeByte(state.value);
             out.writeOptionalString(generation);
             out.writeOptionalString(reason);
         }
@@ -766,11 +766,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder;
     }
 
-    public static RepositoryShardId repoShardId(IndexId indexId, int shard) {
-        return new RepositoryShardId(indexId, shard);
-    }
-
-    public enum ShardState implements Writeable {
+    public enum ShardState {
         INIT((byte) 0, false, false),
         SUCCESS((byte) 2, true, false),
         FAILED((byte) 3, true, true),
@@ -805,8 +801,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return failed;
         }
 
-        public static ShardState readFrom(StreamInput in) throws IOException {
-            final byte value = in.readByte();
+        public static ShardState fromValue(byte value) {
             switch (value) {
                 case 0:
                     return INIT;
@@ -825,11 +820,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 default:
                     throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
             }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(value);
         }
     }
 }

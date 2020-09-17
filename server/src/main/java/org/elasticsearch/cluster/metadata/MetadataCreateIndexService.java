@@ -502,6 +502,12 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
+        ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
+        if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
+           throw new IllegalArgumentException("cannot create index with name [" + request.index() +
+               "], because it matches with template [" + templateName + "] that creates data streams only");
+        }
+
         final List<Map<String, Object>> mappings =
             collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.index());
         final Settings aggregatedIndexSettings =

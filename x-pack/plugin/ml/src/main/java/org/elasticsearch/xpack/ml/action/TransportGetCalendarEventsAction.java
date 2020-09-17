@@ -42,7 +42,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetCalendarEventsAction.Request request,
                              ActionListener<GetCalendarEventsAction.Response> listener) {
-        final String[] calendarId = Strings.tokenizeToStringArray(request.getCalendarId(), ",");
+        final String[] calendarId = Strings.splitStringByCommaToArray(request.getCalendarId());
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
                     ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()

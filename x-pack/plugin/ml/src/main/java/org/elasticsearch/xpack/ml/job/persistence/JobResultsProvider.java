@@ -1020,7 +1020,7 @@ public class JobResultsProvider {
                                String snapshotId,
                                Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
-        String[] snapshotIds = Strings.split(snapshotId, ",");
+        String[] snapshotIds = Strings.splitStringByCommaToArray(snapshotId);
         QueryBuilder qb = new ResultsFilterBuilder()
             .resourceTokenFilers(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
             .timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs)

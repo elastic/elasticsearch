@@ -97,7 +97,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         final String jobId = request.getJobId();
 
         final String forecastsExpression = request.getForecastId();
-        final String[] forecastIds = Strings.tokenizeToStringArray(forecastsExpression, ",");
+        final String[] forecastIds = Strings.splitStringByCommaToArray(forecastsExpression);
 
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, request, listener),

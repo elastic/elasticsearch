@@ -31,7 +31,7 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
 
     @Override
     protected void doExecute(Task task, GetCalendarsAction.Request request, ActionListener<GetCalendarsAction.Response> listener) {
-        final String[] calendarIds = Strings.tokenizeToStringArray(request.getCalendarId(), ",");
+        final String[] calendarIds = Strings.splitStringByCommaToArray(request.getCalendarId());
         PageParams pageParams = request.getPageParams();
         if (pageParams == null) {
             pageParams = PageParams.defaultParams();

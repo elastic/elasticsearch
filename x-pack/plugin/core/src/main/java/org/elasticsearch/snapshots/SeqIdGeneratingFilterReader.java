@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
@@ -108,7 +110,12 @@ final class SeqIdGeneratingFilterReader extends FilterDirectoryReader {
         public LeafReader wrap(LeafReader reader) {
             LeafReaderContext leafReaderContext = ctxMap.get(reader);
             final int docBase = leafReaderContext.docBase;
-            return new FilterLeafReader(reader) {
+            return new SequentialStoredFieldsLeafReader(reader) {
+
+                @Override
+                protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                    return reader;
+                }
 
                 @Override
                 public NumericDocValues getNumericDocValues(String field) throws IOException {

@@ -8,7 +8,7 @@ To protect against hardware failure and increase capacity, {es} stores copies of
 an index’s data across multiple shards on multiple nodes. The number and size of
 these shards can have a significant impact on your cluster's health. One common
 problem is _oversharding_, a situation in which a cluster with a large number of
-shards has degraded stability.
+shards becomes unstable.
 
 [discrete]
 [[create-a-sharding-strategy]]
@@ -28,8 +28,8 @@ on production hardware using the same queries and indexing loads you'd see in
 production. For our recommended methodology, watch the
 https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[quantitative
 cluster sizing video]. As you test different shard configurations, use {kib}'s
-{kibana-ref}/elasticsearch-metrics.html[{es} monitoring] to track your cluster's
-stability and performance.
+{kibana-ref}/elasticsearch-metrics.html[{es} monitoring tools] to track your
+cluster's stability and performance.
 
 The following sections provide some reminders and guidelines you should consider
 when designing your sharding strategy. If your cluster has shard-related
@@ -46,7 +46,7 @@ Keep the following considerations in mind for your sharding strategy.
 ==== Searches run on a single thread per shard
 
 Most searches hit multiple shards. Each shard runs the search on a single
-thread. While a shard can run multiple concurrent searches, searches across a
+CPU thread. While a shard can run multiple concurrent searches, searches across a
 large number of shards can deplete a node's <<modules-threadpool,search
 thread pool>>. This can result in low throughput and slow search speeds.
 
@@ -54,7 +54,7 @@ thread pool>>. This can result in low throughput and slow search speeds.
 [[each-shard-has-overhead]]
 ==== Each shard has overhead
 
-Every shard uses file handles, memory, and CPU resources. In most cases, a small
+Every shard uses memory and CPU resources. In most cases, a small
 set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
@@ -84,11 +84,10 @@ sharding strategy.
 [[delete-indices-not-documents]]
 ==== Delete indices, not documents
 
-Deleting individual documents often increases shard overhead. Deleted documents
-aren't immediately removed from the file system. Instead, {es} marks the
-document as deleted on each related shard. The marked document will continue to
-use resources until it's removed during a periodic <<index-modules-merge,segment
-merge>>.
+Individually deleted documents aren't immediately removed from the file system.
+Instead, {es} marks the document as deleted on each related shard. The marked
+document will continue to use resources until it's removed during a periodic
+<<index-modules-merge,segment merge>>.
 
 When possible, delete entire indices instead. {es} can immediately remove
 deleted indices directly from the file system and free up resources.
@@ -99,7 +98,7 @@ deleted indices directly from the file system and free up resources.
 
 <<data-streams,Data streams>> let you store time series data across multiple,
 time-based backing indices. You can use <<index-lifecycle-management,{ilm}
-({ilm-init})>> policies to automatically manage these backing indices.
+({ilm-init})>> to automatically manage these backing indices.
 
 [role="screenshot"]
 image:images/ilm/index-lifecycle-policies.png[]

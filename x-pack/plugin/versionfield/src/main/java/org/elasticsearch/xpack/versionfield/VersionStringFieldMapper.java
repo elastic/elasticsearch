@@ -301,14 +301,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
-
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : lower,
-                upperTerm == null ? null : upper,
-                includeLower,
-                includeUpper
-            );
+            return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
         }
     }
 

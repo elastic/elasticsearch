@@ -50,6 +50,11 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("      \"_doc\" :"));
         assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
         assertThat(readLine(), startsWith("      }"));
+        assertThat(readLine(), startsWith("    },"));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"_index\" :"));
+        assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
+        assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  ]"));
         assertThat(readLine(), startsWith("}]"));
@@ -108,6 +113,11 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("      \"_doc\" :"));
         assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
         assertThat(readLine(), startsWith("      }"));
+        assertThat(readLine(), startsWith("    },"));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"_index\" :"));
+        assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
+        assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  ]"));
         assertThat(readLine(), startsWith("}]"));
@@ -146,6 +156,11 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("  \"sort\" : ["));
         assertThat(readLine(), startsWith("    {"));
         assertThat(readLine(), startsWith("      \"_doc\" :"));
+        assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
+        assertThat(readLine(), startsWith("      }"));
+        assertThat(readLine(), startsWith("    },"));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"_index\" :"));
         assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
         assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));

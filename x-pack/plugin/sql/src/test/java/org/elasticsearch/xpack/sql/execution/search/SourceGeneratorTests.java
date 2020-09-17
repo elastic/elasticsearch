@@ -84,7 +84,7 @@ public class SourceGeneratorTests extends ESTestCase {
     public void testSortNoneSpecified() {
         QueryContainer container = new QueryContainer();
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(singletonList(fieldSort("_doc")), sourceBuilder.sorts());
+        assertEquals(List.of(fieldSort("_doc"), fieldSort("_index")), sourceBuilder.sorts());
     }
 
     public void testSelectScoreForcesTrackingScore() {
@@ -101,7 +101,7 @@ public class SourceGeneratorTests extends ESTestCase {
         QueryContainer container = new QueryContainer()
                 .addSort("id", new ScoreSort(Direction.DESC, null));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(List.of(scoreSort(), fieldSort("_doc")), sourceBuilder.sorts());
+        assertEquals(List.of(scoreSort(), fieldSort("_doc"), fieldSort("_index")), sourceBuilder.sorts());
     }
 
     public void testSortFieldSpecified() {
@@ -111,18 +111,20 @@ public class SourceGeneratorTests extends ESTestCase {
                 .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.ASC, Missing.LAST));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(List.of(sortField.order(SortOrder.ASC).missing("_last"), fieldSort("_doc")), sourceBuilder.sorts());
+        assertEquals(List.of(sortField.order(SortOrder.ASC).missing("_last"), fieldSort("_doc"), fieldSort("_index")),
+            sourceBuilder.sorts());
 
         container = new QueryContainer()
                 .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.DESC, Missing.FIRST));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(List.of(sortField.order(SortOrder.DESC).missing("_first"), fieldSort("_doc")), sourceBuilder.sorts());
+        assertEquals(List.of(sortField.order(SortOrder.DESC).missing("_first"), fieldSort("_doc"), fieldSort("_index")),
+            sourceBuilder.sorts());
     }
 
     public void testNoSort() {
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(new QueryContainer(), null, randomIntBetween(1, 10));
-        assertEquals(singletonList(fieldSort("_doc").order(SortOrder.ASC)), sourceBuilder.sorts());
+        assertEquals(List.of(fieldSort("_doc").order(SortOrder.ASC), fieldSort("_index").order(SortOrder.ASC)), sourceBuilder.sorts());
     }
 
     public void testTrackHits() {

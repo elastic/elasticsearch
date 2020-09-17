@@ -39,6 +39,7 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         assertEquals(
                 singletonList(new FieldAndFormat("date", "epoch_millis")),
                 source.docValueFields());
-        assertEquals(List.of(fieldSort("count").missing("_last").unmappedType("long"), fieldSort("_doc")), source.sorts());
+        assertEquals(List.of(fieldSort("count").missing("_last").unmappedType("long"), fieldSort("_doc"), fieldSort("_index")),
+            source.sorts());
     }
 }

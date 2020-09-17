@@ -1426,7 +1426,8 @@ public class QueryTranslatorTests extends ESTestCase {
                         +
                         "InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0)," +
                         "params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"Z\"," +
-                        "\"v2\":\"YEAR\"}},\"type\":\"number\",\"order\":\"asc\"}},{\"_doc\":{\"order\":\"asc\"}}]}"));
+                        "\"v2\":\"YEAR\"}},\"type\":\"number\",\"order\":\"asc\"}},{\"_doc\":{\"order\":\"asc\"}}," +
+                        "{\"_index\":{\"order\":\"asc\"}}]}"));
     }
 
     public void testGroupByHistogramWithDate() {
@@ -1812,7 +1813,7 @@ public class QueryTranslatorTests extends ESTestCase {
             endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils" +
                         ".cast(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"TIME\"}},\"type\":\"string\",\"order\":\"asc\"}},{\"int\":{\"order\":\"asc\"," +
-                "\"missing\":\"_last\",\"unmapped_type\":\"integer\"}},{\"_doc\":{\"order\":\"asc\"}}]}")
+                "\"missing\":\"_last\",\"unmapped_type\":\"integer\"}},{\"_doc\":{\"order\":\"asc\"}},{\"_index\":{\"order\":\"asc\"}}]}")
         );
     }
 

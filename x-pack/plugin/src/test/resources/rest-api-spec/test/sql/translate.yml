@@ -29,3 +29,5 @@
               unmapped_type: long
           - _doc:
               order: asc
+          - _index:
+              order: asc

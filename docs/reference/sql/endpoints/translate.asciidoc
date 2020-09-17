@@ -48,6 +48,11 @@ Which returns:
       "_doc": {
         "order": "asc"
       }
+    },
+    {
+      "_index": {
+        "order": "asc"
+      }
     }
   ]
 }

@@ -142,7 +142,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
         if (hasAggs) {
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = reducePhase.aggregations.getBinarySize() - breakerSize;
+            long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]",
                 pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
@@ -191,9 +191,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             for (QuerySearchResult result : toConsume) {
                 aggsList.add(result.consumeAggs().expand());
             }
-            InternalAggregations result = InternalAggregations.topLevelReduce(aggsList,
-                aggReduceContextBuilder.forPartialReduction());
-            newAggs = result;
+            newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
         } else {
             newAggs = null;
         }
@@ -206,7 +204,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
         progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
-        return new MergeResult(processedShards, newTopDocs, newAggs, hasAggs ? newAggs.getBinarySize() : 0);
+        // we leave the results un-serialized because serializing is slow but we compute the serialized
+        // size as an estimate of the memory used by the newly reduced aggregations.
+        long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
+        return new MergeResult(processedShards, newTopDocs, newAggs, hasAggs ? serializedSize : 0);
     }
 
     public int getNumReducePhases() {
@@ -289,6 +290,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (hasAggs == false) {
                 return 0;
             }
+            assert result.aggregations().isSerialized() : "shard aggregations result is not in serialized form";
             return result.aggregations()
                 .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
                 .ramBytesUsed();

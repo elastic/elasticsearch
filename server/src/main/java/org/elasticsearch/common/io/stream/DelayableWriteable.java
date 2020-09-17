@@ -78,7 +78,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * {@code true} if the {@linkplain Writeable} is being stored in
      * serialized form, {@code false} otherwise.
      */
-    abstract boolean isSerialized();
+    public abstract boolean isSerialized();
 
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private final T reference;

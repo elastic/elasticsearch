@@ -107,9 +107,9 @@ public class InternalAggregationsTests extends ESTestCase {
         writeToAndReadFrom(aggregations, Version.CURRENT, 0);
     }
 
-    public void testBinarySize() throws Exception {
+    public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        assertThat(aggregations.getBinarySize(),
+        assertThat(aggregations.getSerializedSize(),
             equalTo((long) serialize(aggregations, Version.CURRENT).length));
     }
 

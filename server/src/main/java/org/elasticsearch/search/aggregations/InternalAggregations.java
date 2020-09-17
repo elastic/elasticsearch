@@ -171,7 +171,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     /**
      * Returns the number of bytes required to serialize these aggregations in binary form.
      */
-    public long getBinarySize() {
+    public long getSerializedSize() {
         try (CountingStreamOutput out = new CountingStreamOutput()) {
             out.setVersion(Version.CURRENT);
             writeTo(out);

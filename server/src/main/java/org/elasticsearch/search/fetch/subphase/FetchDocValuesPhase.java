@@ -22,11 +22,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +39,7 @@ import java.util.List;
 public final class FetchDocValuesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         FetchDocValuesContext dvContext = context.docValuesContext();
         if (dvContext == null) {
             return null;
@@ -57,7 +56,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             if (ft == null) {
                 continue;
             }
-            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(fieldAndFormat.format, null), lookup.doc().getForField(ft));
+            ValueFetcher fetcher = new DocValueFetcher(
+                ft.docValueFormat(fieldAndFormat.format, null),
+                context.searchLookup().doc().getForField(ft)
+            );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
@@ -91,11 +90,6 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     private NestedPathFieldMapper(Settings settings) {
         super(new NestedPathFieldType(settings));
-    }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {
-        doParse(context);
     }
 
     @Override

@@ -169,11 +169,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        doParse(context);
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

@@ -68,11 +68,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        doParse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         // see InternalEngine.updateVersion to see where the real version value is set
         final Field version = new NumericDocValuesField(NAME, -1L);
         context.version(version);

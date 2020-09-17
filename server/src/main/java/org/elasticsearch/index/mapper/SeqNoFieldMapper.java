@@ -182,11 +182,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        doParse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
         SequenceIDFields seqID = SequenceIDFields.emptySeqID();

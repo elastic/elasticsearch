@@ -84,11 +84,6 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        doParse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
             context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }

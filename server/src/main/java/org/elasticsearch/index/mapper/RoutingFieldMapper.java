@@ -117,11 +117,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        doParse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
             context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));

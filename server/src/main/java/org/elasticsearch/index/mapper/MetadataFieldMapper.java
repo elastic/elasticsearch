@@ -165,7 +165,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     }
 
     /**
-     * Do the actual parse of the field by calling {@link FieldMapper#parse(ParseContext)}
+     * Do the actual parsing of the field by calling {@link FieldMapper#parse(ParseContext)}
      */
     protected void doParse(ParseContext context) throws IOException {
         super.parse(context);

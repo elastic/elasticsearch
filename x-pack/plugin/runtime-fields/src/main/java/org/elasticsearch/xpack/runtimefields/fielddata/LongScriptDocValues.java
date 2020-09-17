@@ -6,17 +6,16 @@
 
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 
-import java.io.IOException;
 import java.util.Arrays;
 
-public final class ScriptDoubleDocValues extends SortedNumericDoubleValues {
-    private final DoubleFieldScript script;
+public final class LongScriptDocValues extends AbstractSortedNumericDocValues {
+    private final AbstractLongFieldScript script;
     private int cursor;
 
-    ScriptDoubleDocValues(DoubleFieldScript script) {
+    LongScriptDocValues(AbstractLongFieldScript script) {
         this.script = script;
     }
 
@@ -32,7 +31,7 @@ public final class ScriptDoubleDocValues extends SortedNumericDoubleValues {
     }
 
     @Override
-    public double nextValue() throws IOException {
+    public long nextValue() {
         return script.values()[cursor++];
     }
 

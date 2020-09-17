@@ -17,31 +17,31 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
 
 import java.io.IOException;
 
-public final class ScriptDateFieldData extends IndexNumericFieldData {
+public final class LongScriptFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final DateFieldScript.LeafFactory leafFactory;
+        private final LongFieldScript.LeafFactory leafFactory;
 
-        public Builder(String name, DateFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, LongFieldScript.LeafFactory leafFactory) {
             this.name = name;
             this.leafFactory = leafFactory;
         }
 
         @Override
-        public ScriptDateFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ScriptDateFieldData(name, leafFactory);
+        public LongScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new LongScriptFieldData(name, leafFactory);
         }
     }
 
     private final String fieldName;
-    private final DateFieldScript.LeafFactory leafFactory;
+    private final LongFieldScript.LeafFactory leafFactory;
 
-    private ScriptDateFieldData(String fieldName, DateFieldScript.LeafFactory leafFactory) {
+    private LongScriptFieldData(String fieldName, LongFieldScript.LeafFactory leafFactory) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
     }
@@ -53,11 +53,11 @@ public final class ScriptDateFieldData extends IndexNumericFieldData {
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return CoreValuesSourceType.DATE;
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override
-    public ScriptDateLeafFieldData load(LeafReaderContext context) {
+    public LongScriptLeafFieldData load(LeafReaderContext context) {
         try {
             return loadDirect(context);
         } catch (Exception e) {
@@ -66,13 +66,13 @@ public final class ScriptDateFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public ScriptDateLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new ScriptDateLeafFieldData(new ScriptLongDocValues(leafFactory.newInstance(context)));
+    public LongScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+        return new LongScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)));
     }
 
     @Override
     public NumericType getNumericType() {
-        return NumericType.DATE;
+        return NumericType.LONG;
     }
 
     @Override
@@ -80,17 +80,17 @@ public final class ScriptDateFieldData extends IndexNumericFieldData {
         return true;
     }
 
-    public static class ScriptDateLeafFieldData extends LeafLongFieldData {
-        private final ScriptLongDocValues scriptLongDocValues;
+    public static class LongScriptLeafFieldData extends LeafLongFieldData {
+        private final LongScriptDocValues longScriptDocValues;
 
-        ScriptDateLeafFieldData(ScriptLongDocValues scriptLongDocValues) {
-            super(0, NumericType.DATE);
-            this.scriptLongDocValues = scriptLongDocValues;
+        LongScriptLeafFieldData(LongScriptDocValues longScriptDocValues) {
+            super(0, NumericType.LONG);
+            this.longScriptDocValues = longScriptDocValues;
         }
 
         @Override
         public SortedNumericDocValues getLongValues() {
-            return scriptLongDocValues;
+            return longScriptDocValues;
         }
     }
 }

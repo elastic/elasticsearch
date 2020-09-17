@@ -39,7 +39,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.DoubleScriptFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+public class DoubleScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1.2), equalTo("1.2"));
@@ -69,8 +69,8 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptDoubleMappedFieldType ft = build("add_param", org.elasticsearch.common.collect.Map.of("param", 1));
-                ScriptDoubleFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                DoubleScriptMappedFieldType ft = build("add_param", org.elasticsearch.common.collect.Map.of("param", 1));
+                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -108,7 +108,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptDoubleFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1.1]}"));
@@ -245,7 +245,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
     }
 
     @Override
-    protected ScriptDoubleMappedFieldType simpleMappedFieldType() throws IOException {
+    protected DoubleScriptMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", org.elasticsearch.common.collect.Map.of());
     }
 
@@ -259,11 +259,11 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         return "double";
     }
 
-    private static ScriptDoubleMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static DoubleScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static ScriptDoubleMappedFieldType build(Script script) throws IOException {
+    private static DoubleScriptMappedFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -329,7 +329,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
-            return new ScriptDoubleMappedFieldType("test", script, factory, emptyMap());
+            return new DoubleScriptMappedFieldType("test", script, factory, emptyMap());
         }
     }
 }

@@ -25,9 +25,9 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -39,13 +39,11 @@ import java.util.Map;
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context, SearchLookup lookup) throws IOException {
-        if (context.docIdsToLoadSize() == 0 ||
-            // in case the request has only suggest, parsed query is null
-            context.parsedQuery() == null) {
-            return null;
+    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) throws IOException {
+        Map<String, Query> namedQueries = new HashMap<>();
+        if (context.parsedQuery() != null) {
+            namedQueries.putAll(context.parsedQuery().namedFilters());
         }
-        Map<String, Query> namedQueries = new HashMap<>(context.parsedQuery().namedFilters());
         if (context.parsedPostFilter() != null) {
             namedQueries.putAll(context.parsedPostFilter().namedFilters());
         }

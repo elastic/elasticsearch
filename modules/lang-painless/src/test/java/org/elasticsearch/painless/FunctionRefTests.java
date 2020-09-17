@@ -205,16 +205,14 @@ public class FunctionRefTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false);
         });
-        assertThat(e.getMessage(), endsWith("Variable [Bogus] is not defined."));
+        assertThat(e.getMessage(), endsWith("variable [Bogus] is not defined"));
     }
 
     public void testQualifiedClassMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(org.joda.time.BogusDateTime::bogus); return l.get(0);", false);
         });
-        /* Because the type isn't known and we use the lexer hack this fails to parse. I find this error message confusing but it is the one
-         * we have... */
-        assertEquals("invalid sequence of tokens near ['::'].", e.getMessage());
+        assertEquals("variable [org.joda.time.BogusDateTime] is not defined", e.getMessage());
     }
 
     public void testNotFunctionalInterface() {

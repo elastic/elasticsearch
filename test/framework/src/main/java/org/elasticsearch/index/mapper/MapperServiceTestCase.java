@@ -102,7 +102,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        return createMapperService(getIndexSettings(), mappings);
+        return createMapperService(Version.CURRENT, mappings);
     }
 
     protected final MapperService createMapperService(String type, String mappings) throws IOException {
@@ -114,13 +114,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     /**
      * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createMapperService(Settings settings, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+            .settings(Settings.builder().put("index.version.created", version))
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(meta, getIndexSettings());
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
@@ -128,7 +128,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             Settings.EMPTY,
             getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
         );
-        ScriptService scriptService = new ScriptService(settings, scriptModule.engines, scriptModule.contexts);
+        ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
         MapperService mapperService = new MapperService(
             indexSettings,

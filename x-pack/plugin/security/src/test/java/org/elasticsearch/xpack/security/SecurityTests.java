@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -33,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -72,6 +74,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -94,18 +98,7 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
-        if (security != null) {
-            throw new IllegalStateException("Security object already exists (" + security + ")");
-        }
-        Settings.Builder builder = Settings.builder()
-            .put("xpack.security.enabled", true)
-            .put(testSettings)
-            .put("path.home", createTempDir());
-        if (inFipsJvm()) {
-            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
-        }
-        Settings settings = builder.build();
+    private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(settings, env);
@@ -135,6 +128,36 @@ public class SecurityTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
             xContentRegistry(), env, new IndexNameExpressionResolver());
+    }
+
+    private Collection<Object> createComponentsWithSecurityNotExplicitlyEnabled(Settings testSettings, SecurityExtension... extensions)
+        throws Exception {
+        if (security != null) {
+            throw new IllegalStateException("Security object already exists (" + security + ")");
+        }
+        Settings.Builder builder = Settings.builder()
+            .put(testSettings)
+            .put("path.home", createTempDir());
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder.build();
+        return createComponentsUtil(settings, extensions);
+    }
+
+    private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
+        if (security != null) {
+            throw new IllegalStateException("Security object already exists (" + security + ")");
+        }
+        Settings.Builder builder = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put(testSettings)
+            .put("path.home", createTempDir());
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings = builder.build();
+        return createComponentsUtil(settings, extensions);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -489,5 +512,17 @@ public class SecurityTests extends ESTestCase {
             .build();
         Security.validateForFips(settings);
         // no exception thrown
+    }
+
+    private void logAndFail(Exception e) {
+        logger.error("unexpected exception", e);
+        fail("unexpected exception " + e.getMessage());
+    }
+
+    private void VerifyBasicAuthenticationHeader(Exception e) {
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"),
+            hasItem("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 }

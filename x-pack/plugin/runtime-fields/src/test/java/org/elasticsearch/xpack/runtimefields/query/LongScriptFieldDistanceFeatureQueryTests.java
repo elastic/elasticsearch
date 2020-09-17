@@ -18,8 +18,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +29,7 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFieldQueryTestCase<LongScriptFieldDistanceFeatureQuery> {
-    private final Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory = ctx -> null;
+    private final Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> null;
 
     @Override
     protected LongScriptFieldDistanceFeatureQuery createTestInstance() {
@@ -90,7 +90,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory = ctx -> new DateScriptFieldScript(
+                Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Collections.emptyMap(),
                     new SearchLookup(null, null, null),

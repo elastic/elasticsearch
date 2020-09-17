@@ -968,9 +968,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
-            String indexName = context.indexShard().shardId().getIndexName();
-            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
-                indexName, context.mapperService(), source.fetchFields());
+            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {
@@ -1032,9 +1030,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                if (context.version()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [version] is requested");
-                }
                 if (context.sourceRequested()) {
                     throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
                 }

@@ -26,11 +26,11 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
         if (searchContext.innerHits() == null) {
             return null;
         }

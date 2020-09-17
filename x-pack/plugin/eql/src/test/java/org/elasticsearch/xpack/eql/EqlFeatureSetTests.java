@@ -51,19 +51,15 @@ public class EqlFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        EqlFeatureSet featureSet = new EqlFeatureSet(Settings.EMPTY, licenseState, client);
+        EqlFeatureSet featureSet = new EqlFeatureSet(licenseState, client);
         boolean available = randomBoolean();
         when(licenseState.isAllowed(XPackLicenseState.Feature.EQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
     public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.eql.enabled", enabled);
-
-        EqlFeatureSet featureSet = new EqlFeatureSet(settings.build(), licenseState, client);
-        assertThat(featureSet.enabled(), is(enabled));
+        EqlFeatureSet featureSet = new EqlFeatureSet(licenseState, client);
+        assertThat(featureSet.enabled(), is(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -94,7 +90,7 @@ public class EqlFeatureSetTests extends ESTestCase {
         }).when(client).execute(eq(EqlStatsAction.INSTANCE), any(), any());
 
         PlainActionFuture<EqlFeatureSet.Usage> future = new PlainActionFuture<>();
-        new EqlFeatureSet(Settings.builder().put("xpack.eql.enabled", true).build(), licenseState, client).usage(future);
+        new EqlFeatureSet(licenseState, client).usage(future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", eqlUsage.stats());

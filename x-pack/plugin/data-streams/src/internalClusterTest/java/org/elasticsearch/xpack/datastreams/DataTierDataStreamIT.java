@@ -24,7 +24,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class DataTierDataStreamIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
@@ -34,7 +34,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
     }
 
     public void testDefaultDataStreamAllocateToHot() {
-        internalCluster().startNode();
+        startHotOnlyNode();
         ensureGreen();
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(
@@ -81,5 +81,10 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));
+    }
+
+    public void startHotOnlyNode() {
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
+        internalCluster().startNode(nodeSettings);
     }
 }

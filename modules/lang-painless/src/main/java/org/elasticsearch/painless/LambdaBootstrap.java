@@ -194,6 +194,7 @@ public final class LambdaBootstrap {
      *                            if the value is '1' if the delegate is an interface and '0'
      *                            otherwise; note this is an int because the bootstrap method
      *                            cannot convert constants to boolean
+     * @param injections Optionally add injectable constants into a method reference
      * @return A {@link CallSite} linked to a factory method for creating a lambda class
      * that implements the expected functional interface
      * @throws LambdaConversionException Thrown when an illegal type conversion occurs at link time
@@ -208,9 +209,8 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType,
             int isDelegateInterface,
-            Object... constants) // TODO(stu): add object array of injections, need to know offset argument as well
+            Object... injections)
             throws LambdaConversionException {
-        // TODO(stu): this is non-def method references
         Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
@@ -234,7 +234,7 @@ public final class LambdaBootstrap {
 
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
-            delegateMethodName, delegateMethodType, isDelegateInterface == 1, captures, constants);
+            delegateMethodName, delegateMethodType, isDelegateInterface == 1, captures, injections);
 
         endLambdaClass(cw);
 
@@ -380,7 +380,7 @@ public final class LambdaBootstrap {
             MethodType delegateMethodType,
             boolean isDelegateInterface,
             Capture[] captures,
-            Object[] constants)
+            Object... injections)
             throws LambdaConversionException {
 
         String lamDesc = interfaceMethodType.toMethodDescriptorString();
@@ -442,19 +442,20 @@ public final class LambdaBootstrap {
                 "unexpected invocation type [" + delegateInvokeType + "]");
         }
 
-        // TODO(stu): update delegate method type
         Handle delegateHandle =
             new Handle(delegateInvokeType, delegateClassType.getInternalName(),
                 delegateMethodName, delegateMethodType.toMethodDescriptorString(),
                 isDelegateInterface);
-        // Fill in constant injections, always add the delegate handle and whether it's static or not
-        Object[] args = new Object[2 + constants.length];
+        // Fill in args for indy. Always add the delegate handle and
+        // whether it's static or not then injections as necessary.
+        Object[] args = new Object[2 + injections.length];
         args[0] = delegateHandle;
-        args[1] = delegateInvokeType == H_INVOKESTATIC ? 1 : 0; // JVM has no boolean type, convert to int
-        System.arraycopy(constants, 0, args, 1, constants.length);
-        // TODO(stu): fix interface method type
-        iface.invokeDynamic(delegateMethodName, Type.getMethodType(interfaceMethodType
-                .toMethodDescriptorString()).getDescriptor(), DELEGATE_BOOTSTRAP_HANDLE,
+        args[1] = delegateInvokeType == H_INVOKESTATIC ? 0 : 1;
+        System.arraycopy(injections, 0, args, 2, injections.length);
+        iface.invokeDynamic(
+                delegateMethodName,
+                Type.getMethodType(interfaceMethodType.toMethodDescriptorString()).getDescriptor(),
+                DELEGATE_BOOTSTRAP_HANDLE,
                 args);
 
         iface.returnValue();
@@ -528,18 +529,13 @@ public final class LambdaBootstrap {
                                              String delegateMethodName,
                                              MethodType interfaceMethodType,
                                              MethodHandle delegateMethodHandle,
-                                             int isStatic,
-                                             Object... constants) {
-        int injectPosition = isStatic == 1 ? 0 : 1;
-        Class<?>[] drop = new Class<?>[constants.length];
-        for (int i = 0; i < constants.length; i++) {
-            drop[i] = constants[i].getClass();
+                                             int isVirtual,
+                                             Object... injections) {
+
+        for (int i = 0; i < injections.length; i++) {
+            delegateMethodHandle = MethodHandles.insertArguments(delegateMethodHandle, i + isVirtual, injections[i]);
         }
-        MethodHandles.dropArguments(delegateMethodHandle, injectPosition, drop);
-        delegateMethodHandle = delegateMethodHandle.asType(interfaceMethodType);
-        for (int i = 0; i < constants.length; i++) {
-            delegateMethodHandle = MethodHandles.insertArguments(delegateMethodHandle, isStatic == 1 ? i : i + 1, constants[i]);
-        }
-        return new ConstantCallSite(delegateMethodHandle);
+
+        return new ConstantCallSite(delegateMethodHandle.asType(interfaceMethodType));
     }
 }

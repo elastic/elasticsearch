@@ -45,8 +45,6 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * lambda function.
  */
 public class FunctionRef {
-    // TODO(stu): capture the wrapped arguments here
-
     /**
      * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
      * @param painlessLookup the whitelist against which this script is being compiled
@@ -56,9 +54,10 @@ public class FunctionRef {
      * @param typeName the left hand side of a method reference expression
      * @param methodName the right hand side of a method reference expression
      * @param numberOfCaptures number of captured arguments
+     * @param constants constants used for injection when necessary
      */
     public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
-            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> compilerSettings) {
+            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> constants) {
 
         Objects.requireNonNull(painlessLookup);
         Objects.requireNonNull(targetClass);
@@ -83,11 +82,11 @@ public class FunctionRef {
             int delegateInvokeType;
             String delegateMethodName;
             MethodType delegateMethodType;
+            Object[] delegateInjections;
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
             int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
-            Object[] constants = new Object[0];
 
             if ("this".equals(typeName)) {
                 Objects.requireNonNull(functionTable);
@@ -111,6 +110,7 @@ public class FunctionRef {
                 delegateInvokeType = H_INVOKESTATIC;
                 delegateMethodName = localFunction.getFunctionName();
                 delegateMethodType = localFunction.getMethodType();
+                delegateInjections = new Object[0];
 
                 delegateMethodReturnType = localFunction.getReturnType();
                 delegateMethodParameters = localFunction.getTypeParameters();
@@ -132,6 +132,7 @@ public class FunctionRef {
                 delegateInvokeType = H_NEWINVOKESPECIAL;
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
                 delegateMethodType = painlessConstructor.methodType;
+                delegateInjections = new Object[0];
 
                 delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
                 delegateMethodParameters = painlessConstructor.typeParameters;
@@ -154,13 +155,10 @@ public class FunctionRef {
                                 "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
                                 "not found");
                     }
-                    constants = Def.getInjections(painlessMethod, compilerSettings);
                 } else if (captured) {
                     throw new IllegalStateException("internal error");
                 }
 
-                // TODO(stu): get the annotation from painless method here, and save into function ref statics
-                // painlessMethod.annotations.get(InjectConstantAnnotation.class).injects.get(0), pass in compilerSettings as map here
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
                 isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
 
@@ -174,6 +172,7 @@ public class FunctionRef {
 
                 delegateMethodName = painlessMethod.javaMethod.getName();
                 delegateMethodType = painlessMethod.methodType;
+                delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
                 delegateMethodReturnType = painlessMethod.returnType;
 
@@ -201,11 +200,9 @@ public class FunctionRef {
                     delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
-            // TODO(stu): fetch injected constants Weds 09/26
-
             return new FunctionRef(interfaceMethodName, interfaceMethodType,
-                    delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType,
-                    factoryMethodType, constants
+                    delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
+                    factoryMethodType
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -230,16 +227,16 @@ public class FunctionRef {
     public final String delegateMethodName;
     /** delegate method signature */
     public final MethodType delegateMethodType;
+    /** injected constants */
+    public final Object[] delegateInjections;
     /** factory (CallSite) method signature */
     public final MethodType factoryMethodType;
-    /** injected constants */
-    public final Object[] injections;
 
     private FunctionRef(
             String interfaceMethodName, MethodType interfaceMethodType,
             String delegateClassName, boolean isDelegateInterface,
-            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType,
-            MethodType factoryMethodType, Object[] injections) {
+            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
+            MethodType factoryMethodType) {
 
         this.interfaceMethodName = interfaceMethodName;
         this.interfaceMethodType = interfaceMethodType;
@@ -248,7 +245,7 @@ public class FunctionRef {
         this.delegateInvokeType = delegateInvokeType;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType;
+        this.delegateInjections = delegateInjections;
         this.factoryMethodType = factoryMethodType;
-        this.injections = injections;
     }
 }

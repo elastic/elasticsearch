@@ -33,6 +33,7 @@ class org.elasticsearch.painless.FeatureTestObject @no_import {
   void listInput(List)
   int injectTimesX(int, int) @inject_constant[1="foo"]
   int timesSupplier(Function, int, int)
+  int injectWithLambda(int, Function, int) @inject_constant[1="foo"]
   int org.elasticsearch.painless.FeatureTestAugmentationObject getTotal()
   int org.elasticsearch.painless.FeatureTestAugmentationObject addToTotal(int)
 }

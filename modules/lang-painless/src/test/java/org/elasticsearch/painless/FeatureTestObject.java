@@ -102,6 +102,10 @@ public class FeatureTestObject {
         return fn.apply(fnArg) * userArg;
     }
 
+    public int injectWithLambda(int injected, Function<Integer, Integer> fn, int arg) {
+        return this.x*fn.apply(arg)*injected;
+    }
+
     public Double mixedAdd(int i, Byte b, char c, Float f) {
         return (double)(i + b + c + f);
     }

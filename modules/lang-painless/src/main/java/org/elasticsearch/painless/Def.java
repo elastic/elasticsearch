@@ -191,11 +191,10 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> compilerSettings,
-            MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object args[])
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object[] args)
             throws Throwable {
-        // TODO(stu): lookup method
-        // TODO(stu): look up constants, this handles all def calls without lambdas
+
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
@@ -208,18 +207,21 @@ public final class Def {
                          "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
              }
 
-             // TODO(stu): modify to bind injected constants, DONE
-             Object[] injects = getInjections(painlessMethod, compilerSettings);
-             if (injects.length > 0) {
-                 MethodHandle modified = painlessMethod.methodHandle;
-                 for (int i = 0; i < injects.length; i++) {
+             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
+
+             if (injections.length > 0) {
+                 MethodHandle injected = painlessMethod.methodHandle;
+
+                 for (int i = 0; i < injections.length; i++) {
                      // We know this a def type, so start injecting at 1 because there are no static defs
                      // TODO(stu): ensure static objects aren't here and bail
                      // TODO(stu): test multiple injections
-                     modified = MethodHandles.insertArguments(modified, i + 1, injects[i]);
+                     injected = MethodHandles.insertArguments(injected, i + 1, injections[i]);
                  }
-                 return modified;
+
+                 return injected;
              }
+
              return painlessMethod.methodHandle;
          }
 
@@ -272,31 +274,25 @@ public final class Def {
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,
                                                       functions,
+                                                      constants,
                                                       methodHandlesLookup,
                                                       interfaceType,
                                                       type,
                                                       call,
-                                                      numCaptures,
-                                                      getInjections(
-                                                          painlessLookup.lookupRuntimePainlessMethod(
-                                                              // TODO(stu): the number of arguments is wrong here. - Weds 9/16
-                                                              receiverClass, name, numArguments - 1
-                                                          ),
-                                                          compilerSettings
-                                                      )
+                                                      numCaptures
                      );
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
-                     Class<?> captures[] = new Class<?>[numCaptures];
+                     Class<?>[] captures = new Class<?>[numCaptures];
                      for (int capture = 0; capture < captures.length; capture++) {
                          captures[capture] = callSiteType.parameterType(i + 1 + capture);
                      }
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(painlessLookup,
                                                               functions,
-                                                              compilerSettings,
+                                                              constants,
                                                               methodHandlesLookup,
                                                               call,
                                                               nestedType,
@@ -324,9 +320,10 @@ public final class Def {
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-    static MethodHandle lookupReference(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name,
-            Map<String, Object> compilerSettings) throws Throwable {
+    static MethodHandle lookupReference(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name)
+            throws Throwable {
+
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
         if (interfaceType == null) {
             throw new IllegalArgumentException("type [" + interfaceClass + "] not found");
@@ -342,38 +339,29 @@ public final class Def {
                     "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
         }
 
-        return lookupReferenceInternal(painlessLookup, functions, methodHandlesLookup,
-            interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-            implMethod.javaMethod.getName(), 1, getInjections(implMethod, compilerSettings));
-     }
-
-     static Object[] getInjections(PainlessMethod painlessMethod, Map<String, Object> compilerSettings) {
-        if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
-            return new Object[0];
-        }
-        List<String> injectNames = ((InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
-        Object[] injects = new Object[injectNames.size()];
-        for (int i = 0; i < injectNames.size(); i++) {
-            injects[i] = compilerSettings.get(injectNames.get(i));
-        }
-        return injects;
+        return lookupReferenceInternal(painlessLookup, functions, constants,
+                methodHandlesLookup, interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+                implMethod.javaMethod.getName(), 1);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures,
-            Map<String, Object> compilerSettings) throws Throwable {
-        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures, compilerSettings);
+    private static MethodHandle lookupReferenceInternal(
+            PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures
+            ) throws Throwable {
+
+        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures, constants);
         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
-            methodHandlesLookup,
-            ref.interfaceMethodName,
-            ref.factoryMethodType,
-            ref.interfaceMethodType,
-            ref.delegateClassName,
-            ref.delegateInvokeType,
-            ref.delegateMethodName,
-            ref.delegateMethodType,
-            ref.isDelegateInterface ? 1 : 0
+                methodHandlesLookup,
+                ref.interfaceMethodName,
+                ref.factoryMethodType,
+                ref.interfaceMethodType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateMethodType,
+                ref.isDelegateInterface ? 1 : 0,
+                ref.delegateInjections
         );
         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
      }

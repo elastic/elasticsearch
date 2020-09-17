@@ -235,7 +235,14 @@ public class AugmentationTests extends ScriptTestCase {
 
     public void testInstanceInjection() {
         assertEquals(123000,
-            exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(100, 0); f.injectTimesX(5)"));
+            exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(100, 0); " +
+                    "f.injectTimesX(5)"));
+    }
+
+    public void testInstanceInjectWithLambda() {
+        assertEquals(123000,
+                exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(100, 0); " +
+                        "f.injectWithLambda(x -> 2*x, 5)"));
     }
 
     public void testInjectionOnDefNoInject() {
@@ -243,16 +250,14 @@ public class AugmentationTests extends ScriptTestCase {
             exec("def d = new org.elasticsearch.painless.FeatureTestObject(100, 0); d.injectTimesX(5)"));
     }
 
-    // TODO(stu): fix
     public void testAugmentedMethodReference() {
         assertEquals(6.0,
             exec("double applyF(Supplier s) { return s.get(); } ArrayList al = new ArrayList(); al.add(1); al.add(2); al.add(3);" +
                 "return applyF(al::sum);"));
     }
 
-    // TODO(stu): fix
     public void testInjectionOnMethodReference() {
-        assertEquals(30,
+        assertEquals(7380,
             exec(
                 "def ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
                     "org.elasticsearch.painless.FeatureTestObject ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
@@ -260,11 +265,19 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public void testInjectionOnMethodReference2() {
-        assertEquals(30,
+        assertEquals(7380,
             exec(
                 "org.elasticsearch.painless.FeatureTestObject ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
                     "def ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
                     "ft1.timesSupplier(ft0::injectTimesX, 3, 5)"));
+    }
+
+    public void testInjectionOnMethodReference3() {
+        assertEquals(7380,
+                exec(
+                        "def ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
+                                "def ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
+                                "ft1.timesSupplier(ft0::injectTimesX, 3, 5)"));
     }
 
     private static class SplitCase {

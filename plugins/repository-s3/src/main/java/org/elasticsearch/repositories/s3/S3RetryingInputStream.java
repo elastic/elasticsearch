@@ -231,7 +231,7 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isEof() {
-        return eof | start + currentOffset == currentStreamLastOffset;
+        return eof || start + currentOffset == currentStreamLastOffset;
     }
 
     // package-private for tests

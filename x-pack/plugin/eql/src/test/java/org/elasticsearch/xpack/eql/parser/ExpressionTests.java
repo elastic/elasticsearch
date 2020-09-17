@@ -64,14 +64,14 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("hello\\\nworld", unquoteString(source("\"hello\\\\\\nworld\"")));
         assertEquals("hello\\\"world", unquoteString(source("\"hello\\\\\\\"world\"")));
 
-        // test for unescaped strings: ?"...."
-        assertEquals("hello\"world", unquoteString(source("?\"hello\"world\"")));
-        assertEquals("hello\\\"world", unquoteString(source("?\"hello\\\"world\"")));
-        assertEquals("hello'world", unquoteString(source("?\"hello'world\"")));
-        assertEquals("hello\\nworld", unquoteString(source("?\"hello\\nworld\"")));
-        assertEquals("hello\\\\nworld", unquoteString(source("?\"hello\\\\nworld\"")));
-        assertEquals("hello\\\\\\nworld", unquoteString(source("?\"hello\\\\\\nworld\"")));
-        assertEquals("hello\\\\\\\"world", unquoteString(source("?\"hello\\\\\\\"world\"")));
+        // test for unescaped strings: """...."""
+        assertEquals("hello\"world", unquoteString(source("\"\"\"hello\"world\"\"\"")));
+        assertEquals("hello\\\"world", unquoteString(source("\"\"\"hello\\\"world\"\"\"")));
+        assertEquals("hello'world", unquoteString(source("\"\"\"hello'world\"\"\"")));
+        assertEquals("hello\\nworld", unquoteString(source("\"\"\"hello\\nworld\"\"\"")));
+        assertEquals("hello\\\\nworld", unquoteString(source("\"\"\"hello\\\\nworld\"\"\"")));
+        assertEquals("hello\\\\\\nworld", unquoteString(source("\"\"\"hello\\\\\\nworld\"\"\"")));
+        assertEquals("hello\\\\\\\"world", unquoteString(source("\"\"\"hello\\\\\\\"world\"\"\"")));
     }
 
     public void testLiterals() {
@@ -105,9 +105,18 @@ public class ExpressionTests extends ESTestCase {
                 e.getMessage());
     }
 
-    public void testDoubleQuotedUnescapedString() {
-        // "hello \" world"
-        Expression parsed = expr("?\"hello \\\" world!\"");
+    public void testDoubleQuotedUnescapedStringForbidden() {
+        ParsingException e = expectThrows(ParsingException.class, () -> expr("?\"hello world\""));
+        assertEquals("line 1:2: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
+                e.getMessage());
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?\"hello world\""));
+        assertEquals("line 1:21: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
+                e.getMessage());
+    }
+
+    public void testTripleDoubleQuotedUnescapedString() {
+        // """hello \" world"""
+        Expression parsed = expr("\"\"\"hello \\\" world!\"\"\"");
         Expression expected = new Literal(null, "hello \\\" world!", DataTypes.KEYWORD);
         assertEquals(expected, parsed);
     }

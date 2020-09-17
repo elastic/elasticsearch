@@ -27,12 +27,12 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
+import static org.elasticsearch.gradle.test.rest.RestTestUtil.registerTask;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupRunnerTask;
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupTask;
 
 /**
  * Apply this plugin to run the Java based REST tests.
@@ -53,10 +53,7 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
         // setup the javaRestTest task
-        RestIntegTestTask javaRestTestTask = setupTask(project, SOURCE_SET_NAME);
-
-        // setup the runner task
-        setupRunnerTask(project, javaRestTestTask, javaTestSourceSet);
+        Provider<RestIntegTestTask> javaRestTestTask = registerTask(project, javaTestSourceSet);
 
         // setup dependencies
         setupDependencies(project, javaTestSourceSet);

@@ -288,7 +288,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * IO buffer size hint for reading and writing to the underlying blob store.
      */
-    private final int bufferSize;
+    protected final int bufferSize;
 
     /**
      * Constructs new BlobStoreRepository
@@ -442,10 +442,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public ThreadPool threadPool() {
         return threadPool;
-    }
-
-    protected int bufferSize() {
-        return bufferSize;
     }
 
     // package private, only use for testing
@@ -2108,7 +2104,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {
-                                final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize(), fileInfo.length()))];
+                                final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;
                                 while ((length = stream.read(buffer)) > 0) {
                                     ensureNotClosing(store);

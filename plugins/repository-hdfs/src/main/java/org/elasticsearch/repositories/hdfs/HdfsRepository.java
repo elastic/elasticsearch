@@ -135,7 +135,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             path);
 
         try {
-            return new HdfsBlobStore(fileContext, path, bufferSize(), isReadOnly(), haEnabled);
+            return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
         } catch (IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
         }

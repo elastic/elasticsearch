@@ -50,8 +50,8 @@ request. See <<specify-a-timestamp-or-event-category-field>>.
 == Run an EQL search
 
 You can use the <<eql-search-api,EQL search API>> to run an EQL search. For
-supported query syntax, see <<eql-syntax>>. Note the `==` and `!=` operators are
-case-insensitive.
+supported query syntax, see <<eql-syntax>>. Note that most EQL operators, such
+as `==` and `!=`, are case-insensitive.
 
 The following request searches `my-index-000001` for events with an
 `event.category` of `process` and a `process.name` of `regsvr32.exe`. Each

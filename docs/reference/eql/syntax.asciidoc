@@ -75,11 +75,13 @@ You can specify and combine these criteria using the following operators:
 ====
 `<` (less than)::
 Returns `true` if the value to the left of the operator is less than the value
-to the right. Otherwise returns `false`.
+to the right. Otherwise returns `false`. When comparing strings, the operator
+uses a case-sensitive lexographic order.
 
 `<=` (less than or equal) ::
 Returns `true` if the value to the left of the operator is less than or equal to
-the value to the right. Otherwise returns `false`.
+the value to the right. Otherwise returns `false`. When comparing strings, the
+operator uses a case-sensitive lexographic order.
 
 `==` (equal)::
 Returns `true` if the values to the left and right of the operator are equal.
@@ -91,14 +93,18 @@ equal. Otherwise returns `false`. Matching is case-insensitive.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
-to the value to the right. Otherwise returns `false`.
+to the value to the right. Otherwise returns `false`. When comparing strings,
+the operator uses a case-sensitive lexographic order.
 
 `>` (greater than)::
 Returns `true` if the value to the left of the operator is greater than the
-value to the right. Otherwise returns `false`.
+value to the right. Otherwise returns `false`. When comparing strings, the
+operator uses a case-sensitive lexographic order.
 ====
 
-IMPORTANT: The `==` and `!=` operators are case-insensitive.
+IMPORTANT: When comparing strings, the `==` and `!=` operators are
+case-insensitive. Other comparison operators, such as `>` and `<=`, use a
+case-sensitive lexographic order when comparing strings.
 
 You cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a
@@ -581,7 +587,8 @@ until [ process where event.type == "stop" ]
 === Functions
 
 {es} supports several of EQL's built-in functions. You can use these functions
-to convert data types, perform math, manipulate strings, and more.
+to convert data types, perform math, manipulate strings, and more. By default,
+most EQL functions are case-insensitive.
 
 For a list of supported functions, see <<eql-function-ref>>.
 

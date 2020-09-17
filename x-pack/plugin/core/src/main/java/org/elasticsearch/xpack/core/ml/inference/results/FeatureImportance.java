@@ -113,7 +113,13 @@ public class FeatureImportance implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalDouble(importance);
         } else {
-            out.writeDouble(importance);
+            if (importance == null) {
+                double totalImportance = classImportance == null ?
+                    0.0 : classImportance.stream().mapToDouble(ClassImportance::getImportance).map(Math::abs).sum();
+                out.writeDouble(totalImportance);
+            } else {
+                out.writeDouble(importance);
+            }
         }
         out.writeBoolean(classImportance != null);
         if (classImportance != null) {

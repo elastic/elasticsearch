@@ -28,14 +28,14 @@ import java.util.Properties;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
+import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of scroll cleanup
-        assertNoSearchContexts();
+        assertNoSearchContexts(client());
     }
 
     /**

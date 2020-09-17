@@ -107,6 +107,23 @@ setup:
   - match: {hits.total.value: 1}
 
 ---
+"Case insensitive query":
+  - skip:
+      features: headers
+      version: " - 7.9.99"
+      reason: "Case insensitive flag added in 7.10"
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            regexp:
+              my_wildcard: {value: ".*Worl.*", case_insensitive: true}
+
+
+  - match: {hits.total.value: 3}
+
+---
 "null query":
   - do:
       search:
@@ -233,7 +250,7 @@ setup:
           query:
             prefix:
               my_wildcard:
-                value: "hell*"
+                value: "hell"
 
 
   - match: {hits.total.value: 1}

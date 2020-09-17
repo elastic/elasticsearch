@@ -53,7 +53,7 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
-            this.bodyContentType = XContentType.fromMediaTypeOrFormat(contentType);
+            this.bodyContentType = XContentType.fromMediaType(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 //skip parsing if we got text back (e.g. if we called _cat apis)

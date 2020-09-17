@@ -16,8 +16,8 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -83,7 +83,7 @@ class HttpExportBulk extends ExportBulk {
             if (docs != null && docs.isEmpty() == false) {
                 final BytesStreamOutput scratch = new BytesStreamOutput();
                 final CountingOutputStream countingStream;
-                try (StreamOutput payload = CompressorFactory.COMPRESSOR.streamOutput(scratch)) {
+                try (OutputStream payload = CompressorFactory.COMPRESSOR.threadLocalOutputStream(scratch)) {
                     countingStream = new CountingOutputStream(payload);
                     for (MonitoringDoc monitoringDoc : docs) {
                         writeDocument(monitoringDoc, countingStream);
@@ -108,8 +108,10 @@ class HttpExportBulk extends ExportBulk {
                 request.addParameter(param.getKey(), param.getValue());
             }
             try {
+                // Don't use a thread-local decompressing stream since the HTTP client does not give strong guarantees about
+                // thread-affinity when reading and closing the request entity
                 request.setEntity(new InputStreamEntity(
-                        CompressorFactory.COMPRESSOR.streamInput(payload.streamInput()), payloadLength, ContentType.APPLICATION_JSON));
+                        DeflateCompressor.inputStream(payload.streamInput(), false), payloadLength, ContentType.APPLICATION_JSON));
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;

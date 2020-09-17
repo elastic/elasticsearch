@@ -6,9 +6,9 @@
 ++++
 
 A _data stream_ is a convenient, scalable way to ingest, search, and manage
-continuously generated time-series data.
+continuously generated time series data.
 
-Time-series data, such as logs, tends to grow over time. While storing an entire
+Time series data, such as logs, tends to grow over time. While storing an entire
 time series in a single {es} index is simpler, it is often more efficient and
 cost-effective to store large volumes of data across multiple, time-based
 indices. Multiple indices let you move indices containing older, less frequently
@@ -38,10 +38,10 @@ budget, performance, resiliency, and retention needs.
 
 We recommend using data streams if you:
 
-* Use {es} to ingest, search, and manage large volumes of time-series data
+* Use {es} to ingest, search, and manage large volumes of time series data
 * Want to scale and reduce costs by using {ilm-init} to automate the management
   of your indices
-* Index large volumes of time-series data in {es} but rarely delete or update
+* Index large volumes of time series data in {es} but rarely delete or update
   individual documents
 
 
@@ -161,7 +161,7 @@ manually perform a rollover. See <<manually-roll-over-a-data-stream>>.
 [[data-streams-append-only]]
 == Append-only
 
-For most time-series use cases, existing data is rarely, if ever, updated.
+For most time series use cases, existing data is rarely, if ever, updated.
 Because of this, data streams are designed to be append-only.
 
 You can send <<add-documents-to-a-data-stream,indexing requests for new

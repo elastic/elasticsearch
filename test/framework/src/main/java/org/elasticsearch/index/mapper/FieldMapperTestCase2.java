@@ -202,8 +202,12 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
             assertSerializes(builder1);
             assertSerializes(builder2);
         }
+        assertSerializationWarnings();
     }
 
+    protected void assertSerializationWarnings() {
+        // Most mappers don't emit any warnings
+    }
 
     protected void assertSerializes(T builder) throws IOException {
         Mapper.BuilderContext context = new Mapper.BuilderContext(getIndexSettings(), new ContentPath(1));
@@ -223,5 +227,10 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
     private XContentBuilder mappingsToJson(ToXContent builder, boolean includeDefaults) throws IOException {
         ToXContent.Params params = includeDefaults ? new ToXContent.MapParams(Map.of("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
         return mapping(b -> builder.toXContent(b, params));
+    }
+
+    @Override
+    public void testMinimalToMaximal() {
+        assumeFalse("`include_defaults` includes unsupported properties in non-parametrized mappers", false);
     }
 }

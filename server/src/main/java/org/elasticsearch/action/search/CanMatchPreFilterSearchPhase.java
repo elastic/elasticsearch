@@ -23,8 +23,8 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -77,9 +77,9 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
-    protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+    protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                        SearchActionListener<CanMatchResponse> listener) {
-        getSearchTransport().sendCanMatch(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
+        getSearchTransport().sendCanMatch(getConnection(shard.getClusterAlias(), shard.getNodeId()),
             buildShardSearchRequest(shardIt), getTask(), listener);
     }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTranspor
 
 import java.util.Collections;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62298")
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
 
     @Override

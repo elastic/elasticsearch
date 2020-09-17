@@ -78,7 +78,10 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         return query;
     }
 
-    public void setQuery(BytesReference query) {
+    // package private for testing only
+    void setQuery(BytesReference query) {
+        assert query == null || XContentHelper.xContentType(query) == XContentType.JSON :
+                "Only accepts JSON encoded query but received [" + Strings.toString(query) + "]";
         this.query = query;
     }
 
@@ -106,7 +109,7 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
             {
                 builder.field(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
                 if (query != null) {
-                    builder.field(NamedPolicy.QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
+                    builder.field(NamedPolicy.QUERY_FIELD.getPreferredName(), asMap(query, XContentType.JSON));
                 }
                 builder.field(NamedPolicy.MATCH_FIELD_FIELD.getPreferredName(), matchField);
                 builder.field(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);

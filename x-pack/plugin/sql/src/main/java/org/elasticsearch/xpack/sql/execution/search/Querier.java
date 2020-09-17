@@ -154,7 +154,7 @@ public class Querier {
             @Override
             public void onResponse(OpenPointInTimeResponse openPointInTimeResponse) {
                 String searchContextId = openPointInTimeResponse.getSearchContextId();
-                search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, keepAlive));
+                search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, null));
                 client.search(search, listener);
             }
 

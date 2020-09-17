@@ -27,3 +27,5 @@
               order: asc
               missing: _last
               unmapped_type: long
+          - _doc:
+              order: asc

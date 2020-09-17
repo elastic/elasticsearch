@@ -43,6 +43,11 @@ Which returns:
         "missing": "_first",
         "unmapped_type": "short"
       }
+    },
+    {
+      "_doc": {
+        "order": "asc"
+      }
     }
   ]
 }

@@ -200,7 +200,7 @@ class S3RetryingInputStream extends InputStream {
      * suppressing all thrown exceptions.
      */
     private void maybeAbort(S3ObjectInputStream stream) {
-        if (eof) {
+        if (isEof()) {
             return;
         }
         try {
@@ -231,7 +231,7 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isEof() {
-        return eof;
+        return eof || start + currentOffset == currentStreamLastOffset;
     }
 
     // package-private for tests

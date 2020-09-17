@@ -103,14 +103,14 @@ process where cidrMatch(source_address, "10.0.0.0/8") != false
 ;
 
 twoFunctionsEqualsBooleanLiterals-caseSensitive
-process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
+process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") == false
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
 {"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 twoFunctionsEqualsBooleanLiterals-caseInsensitive
-process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
+process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") == false
 ;
 "bool":{"must":[{"term":{"event.category":{"value":"process"
 "must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
@@ -122,21 +122,21 @@ InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),pa
 ;
 
 endsWithKeywordFieldFunction-caseSensitive
-process where endsWith(user_name, 'c')
+process where endsWith(user_name, "c")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"wildcard":{"user_name":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
 ;
 
 endsWithWildcardSubFieldFunction-caseSensitive
-process where endsWith(hostname, 'c')
+process where endsWith(hostname, "c")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"wildcard":{"hostname.keyword":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
 ;
 
 endsWithFunction-caseInsensitive
-process where endsWith(user_name, 'c')
+process where endsWith(user_name, "c")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
@@ -168,7 +168,7 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 ;
 
 startsWithFunction-caseInsensitive
-process where startsWith(user_name, 'A')
+process where startsWith(user_name, "A")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
@@ -176,14 +176,14 @@ InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
 ;
 
 startsWithFunctionSimple-caseSensitive
-process where startsWith(user_name, 'A')
+process where startsWith(user_name, "A")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
 ;
 
 startsWithFunctionWithCondition-caseSensitive
-process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
+process where startsWith(user_name, "A") or startsWith(user_name, "B")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
@@ -222,7 +222,7 @@ InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),par
 ;
 
 indexOfFunction-caseSensitive
-process where indexOf(user_name, 'A', 2) > 0
+process where indexOf(user_name, "A", 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
@@ -230,7 +230,7 @@ InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),par
 ;
 
 indexOfFunction-caseInsensitive
-process where indexOf(user_name, 'A', 2) > 0
+process where indexOf(user_name, "A", 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
@@ -238,7 +238,7 @@ InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),par
 ;
 
 substringFunction
-process where substring(file_name, -4) == '.exe'
+process where substring(file_name, -4) == ".exe"
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",

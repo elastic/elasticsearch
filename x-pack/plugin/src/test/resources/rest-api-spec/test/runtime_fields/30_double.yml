@@ -84,6 +84,25 @@ setup:
   - match: {sensor.mappings.properties.voltage_percent.script.lang: painless }
 
 ---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [voltage_percent, voltage_percent_from_source, voltage_sqrts]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
+  - match: {hits.hits.0.fields.voltage_percent_from_source: [0.6896551724137931] }
+  # Scripts that scripts that emit multiple values are supported and their results are sorted
+  - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
+  - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
+  - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }
+  - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
+  - match: {hits.hits.4.fields.voltage_percent: [1.0] }
+  - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+
+---
 "docvalue_fields":
   - do:
       search:

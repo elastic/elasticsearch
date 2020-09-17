@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTem
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -49,7 +50,12 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").setWaitForActiveShards(0).get();
+        client().prepareIndex(index, MapperService.SINGLE_MAPPING_NAME)
+            .setCreate(true)
+            .setId("1")
+            .setSource("@timestamp", "2020-09-09")
+            .setWaitForActiveShards(0)
+            .get();
 
         Settings idxSettings = client().admin()
             .indices()

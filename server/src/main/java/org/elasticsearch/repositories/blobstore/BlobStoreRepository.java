@@ -104,6 +104,7 @@ import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryOperation;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -397,16 +398,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, @Nullable String shardGeneration,
-                                   ActionListener<String> listener) {
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId,
+                                   @Nullable String shardGeneration, ActionListener<String> listener) {
+        final IndexId index = shardId.index();
+        final int shardNum = shardId.shardId();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(listener, () -> {
-            final BlobContainer shardContainer = shardContainer(index, shardId);
+            final BlobContainer shardContainer = shardContainer(index, shardNum);
             final BlobStoreIndexShardSnapshots existingSnapshots =
                     buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
             for (SnapshotFiles existingSnapshot : existingSnapshots) {
                 if (existingSnapshot.snapshot().equals(target.getName())) {
-                    throw new RepositoryException(metadata.name(), "Can't create clone of [" + index + "][" + shardId + "] for snapshot ["
+                    throw new RepositoryException(metadata.name(), "Can't create clone of [" + shardId + "] for snapshot ["
                             + target + "]. A snapshot by that name already exists for this shard.");
                 }
             }

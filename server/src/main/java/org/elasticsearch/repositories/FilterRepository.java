@@ -150,9 +150,9 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, String shardGeneration,
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
                                    ActionListener<String> listener) {
-        in.cloneShardSnapshot(source, target, index, shardId, shardGeneration, listener);
+        in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
     }
 
     @Override

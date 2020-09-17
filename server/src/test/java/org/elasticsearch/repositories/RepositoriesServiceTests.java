@@ -288,7 +288,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, String shardGeneration,
+        public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
                                        ActionListener<String> listener) {
 
         }

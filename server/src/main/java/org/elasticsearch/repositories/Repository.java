@@ -267,12 +267,11 @@ public interface Repository extends LifecycleComponent {
      *
      * @param source          source snapshot
      * @param target          target snapshot
-     * @param index           index for shard
-     * @param shardGeneration shard generation in repo
      * @param shardId         shard id
+     * @param shardGeneration shard generation in repo
      * @param listener        listener to complete with new shard generation once clone has completed
      */
-    void cloneShardSnapshot(SnapshotId source, SnapshotId target, IndexId index, int shardId, @Nullable String shardGeneration,
+    void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
                             ActionListener<String> listener);
 
     /**

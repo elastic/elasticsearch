@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -136,7 +137,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable
         private final SnapshotId source;
 
-        private final ImmutableOpenMap<RepoShardId, ShardSnapshotStatus> clones;
+        private final ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones;
 
         @Nullable private final Map<String, Object> userMetadata;
         @Nullable private final String failure;
@@ -146,7 +147,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                      List<String> dataStreams, long startTime, long repositoryStateId,
                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
                      Version version, @Nullable SnapshotId source,
-                     @Nullable ImmutableOpenMap<RepoShardId, ShardSnapshotStatus> clones) {
+                     @Nullable ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -188,7 +189,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             if (in.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
                 source = in.readOptionalWriteable(SnapshotId::new);
-                clones = in.readImmutableMap(RepoShardId::new, ShardSnapshotStatus::readFrom);
+                clones = in.readImmutableMap(RepositoryShardId::new, ShardSnapshotStatus::readFrom);
             } else {
                 source = null;
                 clones = ImmutableOpenMap.of();
@@ -227,7 +228,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     userMetadata, version, source, clones);
         }
 
-        public Entry withClones(ImmutableOpenMap<RepoShardId, ShardSnapshotStatus> updatedClones) {
+        public Entry withClones(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
             if (updatedClones.equals(clones)) {
                 return this;
             }
@@ -363,7 +364,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return source;
         }
 
-        public ImmutableOpenMap<RepoShardId, ShardSnapshotStatus> clones() {
+        public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones() {
             return clones;
         }
 
@@ -485,7 +486,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * @return true if all shards have completed (either successfully or failed), false otherwise
      */
     public static boolean completed(ObjectContainer<ShardSnapshotStatus> shards,
-                                    ImmutableOpenMap<RepoShardId, ShardSnapshotStatus> clones) {
+                                    ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
         for (ObjectCursor<ShardSnapshotStatus> status : shards) {
             if (status.value.state().completed == false) {
                 return false;
@@ -753,60 +754,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return builder;
     }
 
-    public static RepoShardId repoShardId(IndexId indexId, int shard) {
-        return new RepoShardId(indexId, shard);
-    }
-
-    public static final class RepoShardId implements Writeable {
-
-        private final IndexId index;
-
-        private final int shard;
-
-        private RepoShardId(IndexId index, int shard) {
-            assert index != null;
-            this.index = index;
-            this.shard = shard;
-        }
-
-        private RepoShardId(StreamInput in) throws IOException {
-            this(new IndexId(in), in.readVInt());
-        }
-
-        public IndexId index() {
-            return index;
-        }
-
-        public String indexName() {
-            return index.getName();
-        }
-
-        public int shardId() {
-            return shard;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(index, shard);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj instanceof RepoShardId == false) {
-                return false;
-            }
-            final RepoShardId that = (RepoShardId) obj;
-            return that.index.equals(index) && that.shard == shard;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            index.writeTo(out);
-            out.writeVInt(shard);
-        }
+    public static RepositoryShardId repoShardId(IndexId indexId, int shard) {
+        return new RepositoryShardId(indexId, shard);
     }
 
     public enum ShardState implements Writeable {

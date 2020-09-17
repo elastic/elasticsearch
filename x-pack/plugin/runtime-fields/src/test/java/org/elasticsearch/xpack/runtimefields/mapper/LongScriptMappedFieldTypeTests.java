@@ -40,7 +40,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.LongScriptFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
@@ -68,8 +68,8 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptLongMappedFieldType ft = build("add_param", Map.of("param", 1));
-                ScriptLongFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                LongScriptMappedFieldType ft = build("add_param", Map.of("param", 1));
+                LongScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -107,7 +107,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptLongFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
@@ -124,7 +124,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptLongFieldData ifd = build("millis_ago", Map.of()).fielddataBuilder("test", mockContext()::lookup)
+                LongScriptFieldData ifd = build("millis_ago", Map.of()).fielddataBuilder("test", mockContext()::lookup)
                     .build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
@@ -247,12 +247,12 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    protected ScriptLongMappedFieldType simpleMappedFieldType() throws IOException {
+    protected LongScriptMappedFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected ScriptLongMappedFieldType loopFieldType() throws IOException {
+    protected LongScriptMappedFieldType loopFieldType() throws IOException {
         return build("loop", Map.of());
     }
 
@@ -261,11 +261,11 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         return "long";
     }
 
-    private static ScriptLongMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static LongScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static ScriptLongMappedFieldType build(Script script) throws IOException {
+    private static LongScriptMappedFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -339,7 +339,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             LongFieldScript.Factory factory = scriptService.compile(script, LongFieldScript.CONTEXT);
-            return new ScriptLongMappedFieldType("test", script, factory, emptyMap());
+            return new LongScriptMappedFieldType("test", script, factory, emptyMap());
         }
     }
 }

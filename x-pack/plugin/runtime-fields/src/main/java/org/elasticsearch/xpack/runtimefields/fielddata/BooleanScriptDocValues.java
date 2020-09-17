@@ -7,37 +7,33 @@
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
-import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 
 import java.io.IOException;
-import java.util.Arrays;
 
-public final class ScriptLongDocValues extends AbstractSortedNumericDocValues {
-    private final AbstractLongFieldScript script;
+public final class BooleanScriptDocValues extends AbstractSortedNumericDocValues {
+    private final BooleanFieldScript script;
     private int cursor;
 
-    ScriptLongDocValues(AbstractLongFieldScript script) {
+    BooleanScriptDocValues(BooleanFieldScript script) {
         this.script = script;
     }
 
     @Override
     public boolean advanceExact(int docId) {
         script.runForDoc(docId);
-        if (script.count() == 0) {
-            return false;
-        }
-        Arrays.sort(script.values(), 0, script.count());
         cursor = 0;
-        return true;
+        return script.trues() > 0 || script.falses() > 0;
     }
 
     @Override
     public long nextValue() throws IOException {
-        return script.values()[cursor++];
+        // Emit all false values before all true values
+        return cursor++ < script.falses() ? 0 : 1;
     }
 
     @Override
     public int docValueCount() {
-        return script.count();
+        return script.trues() + script.falses();
     }
 }

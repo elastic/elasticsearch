@@ -10,14 +10,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
-import java.io.IOException;
 import java.util.Arrays;
 
-public final class ScriptIpDocValues extends SortedBinaryDocValues {
+public final class IpScriptDocValues extends SortedBinaryDocValues {
     private final IpFieldScript script;
     private int cursor;
 
-    ScriptIpDocValues(IpFieldScript script) {
+    IpScriptDocValues(IpFieldScript script) {
         this.script = script;
     }
 
@@ -33,7 +32,7 @@ public final class ScriptIpDocValues extends SortedBinaryDocValues {
     }
 
     @Override
-    public BytesRef nextValue() throws IOException {
+    public BytesRef nextValue() {
         return script.values()[cursor++];
     }
 

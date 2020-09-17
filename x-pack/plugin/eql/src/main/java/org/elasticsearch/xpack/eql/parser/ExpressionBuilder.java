@@ -253,6 +253,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitString(EqlBaseParser.StringContext ctx) {
-        return new Literal(source(ctx), unquoteString(ctx.getText()), DataTypes.KEYWORD);
+        Source source = source(ctx);
+        return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
     }
 }

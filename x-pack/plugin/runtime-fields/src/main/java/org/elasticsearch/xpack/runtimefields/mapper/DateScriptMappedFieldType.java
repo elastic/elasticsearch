@@ -21,7 +21,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDateFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.DateScriptFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
@@ -35,10 +35,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
+public class DateScriptMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
 
-    ScriptDateMappedFieldType(
+    DateScriptMappedFieldType(
         String name,
         Script script,
         DateFieldScript.Factory scriptFactory,
@@ -76,8 +76,8 @@ public class ScriptDateMappedFieldType extends AbstractScriptMappedFieldType<Dat
     }
 
     @Override
-    public ScriptDateFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new ScriptDateFieldData.Builder(name(), leafFactory(lookup.get()));
+    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
+        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()));
     }
 
     @Override

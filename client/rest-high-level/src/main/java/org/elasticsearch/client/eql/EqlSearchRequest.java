@@ -158,8 +158,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     public EqlSearchRequest size(int size) {
         this.size = size;
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be greater than 0");
+        if (fetchSize < 0) {
+            throw new IllegalArgumentException("size must be greater than or equal to 0");
         }
         return this;
     }

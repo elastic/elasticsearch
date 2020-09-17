@@ -137,8 +137,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("event category field is null or empty", validationException);
         }
 
-        if (size <= 0) {
-            validationException = addValidationError("size must be greater than 0", validationException);
+        if (size < 0) {
+            validationException = addValidationError("size must be greater than or equal to 0", validationException);
         }
 
         if (fetchSize < 2) {

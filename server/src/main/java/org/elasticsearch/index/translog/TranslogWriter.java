@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DirectPool;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,7 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
-@SuppressForbidden(reason = "Channel#write")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private static final int FORCE_WRITE_THRESHOLD = 4 * 1024 * 1024;
@@ -81,14 +79,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final LongConsumer persistedSequenceNumberConsumer;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
-    // lock order synchronized(syncLock) -> synchronized(this)
-    private final Object syncLock = new Object();
     // lock order synchronized(writeLock) -> synchronized(this)
     private final Object writeLock = new Object();
+    // lock order synchronized(syncLock) -> synchronized(writeLock) -> synchronized(this)
+    private final Object syncLock = new Object();
 
-    private ArrayList<ReleasableBytesReference> bufferedOps = new ArrayList<>();
+    private final ArrayList<Operation> bufferedOps = new ArrayList<>();
     private long bufferedBytes = 0L;
-    private LongArrayList nonFsyncedSequenceNumbers;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -99,7 +96,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel checkpointChannel,
         final Path path,
         final Path checkpointPath,
-        final ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer)
@@ -121,14 +117,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.nonFsyncedSequenceNumbers = new LongArrayList(64);
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
     }
 
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
-                                        ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
+                                        final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
                                         final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer)
         throws IOException {
@@ -154,7 +149,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             } else {
                 writerGlobalCheckpointSupplier = globalCheckpointSupplier;
             }
-            return new TranslogWriter(shardId, checkpoint, channel, checkpointChannel, file, checkpointFile, bufferSize,
+            return new TranslogWriter(shardId, checkpoint, channel, checkpointChannel, file, checkpointFile,
                 writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -190,14 +185,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final long offset = totalOffset;
             totalOffset += data.length();
             bufferedBytes += data.length();
-            bufferedOps.add(data);
+            bufferedOps.add(new Operation(seqNo, data.retain()));
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            nonFsyncedSequenceNumbers.add(seqNo);
 
             operationCounter++;
 
@@ -319,6 +313,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public TranslogReader closeIntoReader() throws IOException {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
+        // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where
+        // the write lock is acquired first followed by synchronize(this).
         //
         // Note: While this is not strictly needed as this method is called while blocking all ops on the translog,
         //       we do this to for correctness and preventing future issues.
@@ -355,15 +351,19 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public TranslogSnapshot newSnapshot() {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
+        // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where
+        // the write lock is acquired first followed by synchronize(this).
         synchronized (syncLock) {
-            synchronized (this) {
-                ensureOpen();
-                try {
-                    sync();
-                } catch (IOException e) {
-                    throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
+            synchronized (writeLock) {
+                synchronized (this) {
+                    ensureOpen();
+                    try {
+                        sync();
+                    } catch (IOException e) {
+                        throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
+                    }
+                    return super.newSnapshot();
                 }
-                return super.newSnapshot();
             }
         }
     }
@@ -385,19 +385,21 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
                     final LongArrayList flushedSequenceNumbers;
-                    final ArrayDeque<ReleasableBytesReference> toWrite;
+                    final ArrayDeque<Operation> toWrite;
                     synchronized (writeLock) {
                         synchronized (this) {
                             ensureOpen();
                             checkpointToSync = getCheckpoint();
-                            flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList(64);
                             toWrite = pollOpsToWrite();
+                        }
+                        flushedSequenceNumbers = new LongArrayList(toWrite.size());
+                        for (Operation operation : toWrite) {
+                            flushedSequenceNumbers.add(operation.seqNo);
                         }
 
                         try {
                             // Write ops will release operations.
-                            writeOps(toWrite);
+                            writeAndReleaseOps(toWrite);
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);
                             throw ex;
@@ -426,29 +428,34 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private void writeBufferedOps(long offset) throws IOException {
         synchronized (writeLock) {
             if (offset > getWrittenOffset()) {
-                writeOps(pollOpsToWrite());
+                try {
+                    writeAndReleaseOps(pollOpsToWrite());
+                } catch (IOException e){
+                    closeWithTragicEvent(e);
+                    throw e;
+                }
             }
         }
     }
 
-    private synchronized ArrayDeque<ReleasableBytesReference> pollOpsToWrite() {
+    private synchronized ArrayDeque<Operation> pollOpsToWrite() {
         ensureOpen();
-        final ArrayDeque<ReleasableBytesReference> operationsToWrite = new ArrayDeque<>(bufferedOps.size());
+        final ArrayDeque<Operation> operationsToWrite = new ArrayDeque<>(bufferedOps.size());
         operationsToWrite.addAll(bufferedOps);
         bufferedOps.clear();
         bufferedBytes = 0;
         return operationsToWrite;
     }
 
-    private void writeOps(final ArrayDeque<ReleasableBytesReference> operationsToWrite) throws IOException {
+    private void writeAndReleaseOps(final ArrayDeque<Operation> operationsToWrite) throws IOException {
         try {
             assert Thread.holdsLock(writeLock);
             ByteBuffer ioBuffer = DirectPool.getIoBuffer();
 
-            ReleasableBytesReference operation;
+            Operation operation;
             while ((operation = operationsToWrite.pollFirst()) != null) {
                 try (Releasable toClose = operation) {
-                    BytesRefIterator iterator = operation.iterator();
+                    BytesRefIterator iterator = operation.bytesReference.iterator();
                     BytesRef current;
                     while ((current = iterator.next()) != null) {
                         int currentBytesConsumed = 0;
@@ -472,14 +479,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
+    @SuppressForbidden(reason = "Channel#write")
     private void writeToFile(ByteBuffer ioBuffer) throws IOException {
-        try {
-            while (ioBuffer.remaining() > 0) {
-                channel.write(ioBuffer);
-            }
-        } catch (final Exception ex) {
-            closeWithTragicEvent(ex);
-            throw ex;
+        while (ioBuffer.remaining() > 0) {
+            channel.write(ioBuffer);
         }
     }
 
@@ -535,5 +538,21 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
+    }
+
+    private static class Operation implements Releasable {
+
+        private final long seqNo;
+        private final ReleasableBytesReference bytesReference;
+
+        private Operation(long seqNo, ReleasableBytesReference bytesReference) {
+            this.seqNo = seqNo;
+            this.bytesReference = bytesReference;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeWhileHandlingException(bytesReference);
+        }
     }
 }

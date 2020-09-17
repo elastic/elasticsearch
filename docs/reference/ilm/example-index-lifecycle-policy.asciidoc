@@ -53,7 +53,7 @@ node.attr.data: "warm"
 --------------------------------------------------------------------------------
 
 * A server with {filebeat} installed and configured to send logs to the `elasticsearch`
-output as described in {filebeat-ref}/filebeat-getting-started.html[Getting Started with {filebeat}].
+output as described in the {filebeat-ref}/filebeat-installation-configuration.html[{filebeat} quick start].
 
 [discrete]
 [[example-using-index-lifecycle-policy-view-fb-ilm-policy]]

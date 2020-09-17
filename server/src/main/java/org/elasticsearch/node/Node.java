@@ -386,9 +386,11 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
-            clusterService.addLocalNodeMasterListener(
-                    new ConsistentSettingsService(settings, clusterService, settingsModule.getConsistentSettings())
-                            .newHashPublisher());
+            final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
+            if (consistentSettings.isEmpty() == false) {
+                clusterService.addLocalNodeMasterListener(
+                        new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher());
+            }
             final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
                 scriptService, analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class), client);

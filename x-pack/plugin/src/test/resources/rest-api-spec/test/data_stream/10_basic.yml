@@ -399,3 +399,31 @@ setup:
       indices.delete_data_stream:
         name: logs-foobar
   - is_true: acknowledged
+
+---
+"Create index into a namespace that is governed by a data stream template":
+  - skip:
+      version: " - 7.99.99"
+      reason: "adjust until #62527 is fully backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+
+  # test response status code
+  - do:
+      catch: bad_request
+      indices.create:
+        index: logs-foobar
+
+  # test error message
+  - do:
+      catch: /cannot create index with name \[logs-foobar\], because it matches with template \[generic_logs_template\] that creates data streams only, use create data stream api instead/
+      indices.create:
+        index: logs-foobar

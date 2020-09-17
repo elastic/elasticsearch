@@ -26,12 +26,11 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,16 +47,16 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.highlight() == null) {
             return null;
         }
 
-        return getProcessor(context.getQueryShardContext(), context.shardTarget(), context.highlight(), context.parsedQuery().query());
+        return getProcessor(context, context.highlight(), context.parsedQuery().query());
     }
 
-    public FetchSubPhaseProcessor getProcessor(QueryShardContext qsc, SearchShardTarget target, SearchHighlightContext hc, Query query) {
-        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(qsc, target, hc, query);
+    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchHighlightContext highlightContext, Query query) {
+        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(context, highlightContext, query);
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
@@ -65,7 +64,7 @@ public class HighlightPhase implements FetchSubPhase {
             }
 
             @Override
-            public void process(HitContext hitContext) {
+            public void process(HitContext hitContext) throws IOException {
                 Map<String, HighlightField> highlightFields = new HashMap<>();
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
@@ -97,22 +96,21 @@ public class HighlightPhase implements FetchSubPhase {
         return highlighter;
     }
 
-    private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(QueryShardContext context,
-                                                                                     SearchShardTarget shardTarget,
-                                                                                     SearchHighlightContext highlight,
+    private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(FetchContext context,
+                                                                                     SearchHighlightContext highlightContext,
                                                                                      Query query) {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
-        for (SearchHighlightContext.Field field : highlight.fields()) {
+        for (SearchHighlightContext.Field field : highlightContext.fields()) {
             Highlighter highlighter = getHighlighter(field);
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                fieldNamesToHighlight = context.getMapperService().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = context.mapperService().simpleMatchToFullName(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }
 
-            if (highlight.forceSource(field)) {
-                SourceFieldMapper sourceFieldMapper = context.getMapperService().documentMapper().sourceMapper();
+            if (highlightContext.forceSource(field)) {
+                SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper().sourceMapper();
                 if (sourceFieldMapper.enabled() == false) {
                     throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight
                         + " but _source is disabled");
@@ -121,7 +119,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
-                MappedFieldType fieldType = context.getMapperService().fieldType(fieldName);
+                MappedFieldType fieldType = context.mapperService().fieldType(fieldName);
                 if (fieldType == null) {
                     continue;
                 }
@@ -146,9 +144,9 @@ public class HighlightPhase implements FetchSubPhase {
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
-                boolean forceSource = highlight.forceSource(field);
+                boolean forceSource = highlightContext.forceSource(field);
                 builders.put(fieldName,
-                    hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, shardTarget, context, hc,
+                    hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, context, hc,
                         highlightQuery == null ? query : highlightQuery, forceSource));
             }
         }

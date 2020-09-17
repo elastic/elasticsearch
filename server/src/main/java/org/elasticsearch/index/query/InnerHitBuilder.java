@@ -395,7 +395,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      * @param format an optional format string used when formatting values, for example a date format.
      */
     public InnerHitBuilder addFetchField(String name, @Nullable String format) {
-        if (fetchFields == null) {
+        if (fetchFields == null || fetchFields.isEmpty()) {
             fetchFields = new ArrayList<>();
         }
         fetchFields.add(new FieldAndFormat(name, format));

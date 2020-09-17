@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -192,7 +193,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             return null;
         }
 

@@ -6,6 +6,11 @@
 
 package org.elasticsearch.xpack.ql;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
@@ -20,11 +25,15 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.ZoneId;
+import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.junit.Assert.assertEquals;
 
 public final class TestUtils {
 
@@ -90,5 +99,41 @@ public final class TestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+
+    //
+    // Common methods / assertions
+    //
+
+    public static void assertNoSearchContexts(RestClient client) throws IOException {
+        Map<String, Object> stats = searchStats(client);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
+        for (String index : indicesStats.keySet()) {
+            if (index.startsWith(".") == false) { // We are not interested in internal indices
+                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
+            }
+        }
+    }
+
+    public static int getNumberOfSearchContexts(RestClient client, String index) throws IOException {
+        return getOpenContexts(searchStats(client), index);
+    }
+
+    private static Map<String, Object> searchStats(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_stats/search"));
+        try (InputStream content = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int getOpenContexts(Map<String, Object> stats, String index) {
+        stats = (Map<String, Object>) stats.get("indices");
+        stats = (Map<String, Object>) stats.get(index);
+        stats = (Map<String, Object>) stats.get("total");
+        stats = (Map<String, Object>) stats.get("search");
+        return (Integer) stats.get("open_contexts");
     }
 }

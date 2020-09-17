@@ -33,7 +33,7 @@ public class DataTierIT extends ESIntegTestCase {
         return Collections.singleton(LocalStateCompositeXPackPlugin.class);
     }
 
-    public void testDefaultAllocateToHot() {
+    public void testDefaultIndexAllocateToContent() {
         startWarmOnlyNode();
         startColdOnlyNode();
         ensureGreen();
@@ -41,14 +41,19 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
 
         // index should be red
         assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
             equalTo(ClusterHealthStatus.RED));
 
-        logger.info("--> starting hot node");
-        startHotOnlyNode();
+        if (randomBoolean()) {
+            logger.info("--> starting content node");
+            startContentOnlyNode();
+        } else {
+            logger.info("--> starting hot node");
+            startDataNode();
+        }
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
@@ -187,6 +192,20 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE), equalTo(false));
 
         ensureYellow(index);
+    }
+
+    public void startDataNode() {
+        Settings nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data", "ingest"))
+            .build();
+        internalCluster().startNode(nodeSettings);
+    }
+
+    public void startContentOnlyNode() {
+        Settings nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data_content", "ingest"))
+            .build();
+        internalCluster().startNode(nodeSettings);
     }
 
     public void startHotOnlyNode() {

@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,14 +29,8 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -56,11 +48,10 @@ import java.util.Set;
  *
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
  */
-public final class HyperLogLogPlusPlus implements Releasable {
+public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private static final float MAX_LOAD_FACTOR = 0.75f;
-    private static final boolean LINEAR_COUNTING = false;
-    private static final boolean HYPERLOGLOG = true;
+
     public static final int DEFAULT_PRECISION = 14;
 
     private final BitArray algorithm;
@@ -85,35 +76,103 @@ public final class HyperLogLogPlusPlus implements Releasable {
         return 1L << precision;
     }
 
-
     public HyperLogLogPlusPlus(int precision, BigArrays bigArrays, long initialBucketCount) {
+        super(precision);
         hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
         lc = new LinearCounting(bigArrays, initialBucketCount, precision, hll);
         algorithm = new BitArray(1, bigArrays);
     }
 
-    public int precision() {
-        return hll.precision();
-    }
-
-    public long maxBucket() {
+    @Override
+    public long maxOrd() {
         return hll.runLens.size() >>> hll.precision();
     }
 
-    public void merge(long thisBucket, HyperLogLogPlusPlus other, long otherBucket) {
+    @Override
+    public long cardinality(long bucketOrd) {
+        if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
+            return lc.cardinality(bucketOrd);
+        } else {
+            return hll.cardinality(bucketOrd);
+        }
+    }
+
+    @Override
+    protected boolean getAlgorithm(long bucketOrd) {
+        return algorithm.get(bucketOrd);
+    }
+
+    @Override
+    protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
+        return lc.values(bucketOrd);
+    }
+
+    @Override
+    protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
+        return hll.getRunLens(bucketOrd);
+    }
+
+    @Override
+    public void collect(long bucket, long hash) {
+        hll.ensureCapacity(bucket + 1);
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
+            final int newSize = lc.collect(bucket, hash);
+            if (newSize > lc.threshold) {
+                upgradeToHll(bucket);
+            }
+        } else {
+            hll.collect(bucket, hash);
+        }
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(algorithm, hll, lc);
+    }
+
+    protected void addRunLen(long bucketOrd, int register, int runLen) {
+        if (algorithm.get(bucketOrd) == LINEAR_COUNTING) {
+            upgradeToHll(bucketOrd);
+        }
+        hll.addRunLen(0, register, runLen);
+    }
+
+    void upgradeToHll(long bucketOrd) {
+        hll.ensureCapacity(bucketOrd + 1);
+        final AbstractLinearCounting.HashesIterator hashes = lc.values(bucketOrd);
+        // We need to copy values into an arrays as we will override
+        // the values on the buffer
+        final IntArray values = lc.bigArrays.newIntArray(hashes.size());
+        try {
+            int i = 0;
+            while (hashes.next()) {
+                values.set(i++, hashes.value());
+            }
+            assert i == hashes.size();
+            hll.reset(bucketOrd);
+            for (long j = 0; j < values.size(); ++j) {
+                final int encoded = values.get(j);
+                hll.collectEncoded(bucketOrd, encoded);
+            }
+            algorithm.set(bucketOrd);
+        } finally {
+            Releasables.close(values);
+        }
+    }
+
+    public void merge(long thisBucket, AbstractHyperLogLogPlusPlus other, long otherBucket) {
         if (precision() != other.precision()) {
             throw new IllegalArgumentException();
         }
         hll.ensureCapacity(thisBucket + 1);
-        if (other.algorithm.get(otherBucket) == LINEAR_COUNTING) {
-            merge(thisBucket, other.lc, otherBucket);
+        if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
+            merge(thisBucket, other.getLinearCounting(otherBucket));
         } else {
-            merge(thisBucket, other.hll, otherBucket);
+            merge(thisBucket, other.getHyperLogLog(otherBucket));
         }
     }
 
-    private void merge(long thisBucket, AbstractLinearCounting other, long otherBucket) {
-        final AbstractLinearCounting.HashesIterator values = other.values(otherBucket);
+    private void merge(long thisBucket, AbstractLinearCounting.HashesIterator values) {
         while (values.next()) {
             final int encoded = values.value();
             if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
@@ -127,123 +186,22 @@ public final class HyperLogLogPlusPlus implements Releasable {
         }
     }
 
-    private void merge(long thisBucket, AbstractHyperLogLog other, long otherBucket) {
+    private void merge(long thisBucket, AbstractHyperLogLog.RunLenIterator runLens) {
         if (algorithm.get(thisBucket) != HYPERLOGLOG) {
             upgradeToHll(thisBucket);
         }
-        hll.merge(thisBucket, other, otherBucket);
-    }
-
-    public void collect(long bucket, long hash) {
-        hll.ensureCapacity(bucket + 1);
-        if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            final int newSize = lc.collect(bucket, hash);
-            if (newSize > lc.threshold) {
-                upgradeToHll(bucket);
-            }
-        } else {
-            hll.collect(bucket, hash);
+        for (int i = 0; i < hll.m; ++i) {
+            runLens.next();
+            hll.addRunLen(thisBucket, i, runLens.value());
         }
-    }
-
-    public long cardinality(long bucket) {
-        if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            return lc.cardinality(bucket);
-        } else {
-            return hll.cardinality(bucket);
-        }
-    }
-
-    void upgradeToHll(long bucket) {
-        hll.ensureCapacity(bucket + 1);
-        final AbstractLinearCounting.HashesIterator hashes = lc.values(bucket);
-        // We need to copy values into an arrays as we will override
-        // the values on the buffer
-        final IntArray values = lc.bigArrays.newIntArray(hashes.size());
-        try {
-            int i = 0;
-            while (hashes.next()) {
-                values.set(i++, hashes.value());
-            }
-            assert i == hashes.size();
-            hll.reset(bucket);
-            for (long j = 0; j < values.size(); ++j) {
-                final int encoded = values.get(j);
-                hll.collectEncoded(bucket, encoded);
-            }
-            algorithm.set(bucket);
-        } finally {
-            Releasables.close(values);
-        }
-    }
-
-    @Override
-    public void close() {
-        Releasables.close(algorithm, hll, lc);
-    }
-
-    private Object getComparableData(long bucket) {
-        if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            return lc.getComparableData(bucket);
-        } else {
-            return hll.getComparableData(bucket);
-        }
-    }
-
-    public int hashCode(long bucket) {
-        return Objects.hash(precision(), algorithm.get(bucket), getComparableData(bucket));
-    }
-
-    public boolean equals(long bucket, HyperLogLogPlusPlus other) {
-        return Objects.equals(precision(), other.precision())
-            && Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket))
-            && Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
-    }
-
-    public void writeTo(long bucket, StreamOutput out) throws IOException {
-        out.writeVInt(precision());
-        if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            out.writeBoolean(LINEAR_COUNTING);
-            AbstractLinearCounting.HashesIterator hashes = lc.values(bucket);
-            out.writeVLong(hashes.size());
-            while (hashes.next()) {
-                out.writeInt(hashes.value());
-            }
-        } else {
-            out.writeBoolean(HYPERLOGLOG);
-            AbstractHyperLogLog.RunLenIterator iterator = hll.getRunLens(bucket);
-            while (iterator.next()){
-                out.writeByte(iterator.value());
-            }
-        }
-    }
-
-    public static HyperLogLogPlusPlus readFrom(StreamInput in, BigArrays bigArrays) throws IOException {
-        final int precision = in.readVInt();
-        HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(precision, bigArrays, 1);
-        final boolean algorithm = in.readBoolean();
-        if (algorithm == LINEAR_COUNTING) {
-            counts.algorithm.clear(0);
-            final long size = in.readVLong();
-            for (long i = 0; i < size; ++i) {
-                final int encoded = in.readInt();
-                counts.lc.addEncoded(0, encoded);
-            }
-        } else {
-            counts.algorithm.set(0);
-            for (int i = 0; i < counts.hll.m; ++i) {
-                counts.hll.addRunLen(0, i, in.readByte());
-            }
-        }
-        return counts;
     }
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
-
         private final BigArrays bigArrays;
         private final HyperLogLogIterator iterator;
         // array for holding the runlens.
         private ByteArray runLens;
+
 
         HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
             super(precision);
@@ -268,20 +226,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
             runLens.fill(bucketOrd << p, (bucketOrd << p) + m, (byte) 0);
         }
 
-        protected Object getComparableData(long bucketOrd) {
-            Map<Byte, Integer> values = new HashMap<>();
-            for (long i = 0; i < runLens.size(); i++) {
-                byte runLength = runLens.get((bucketOrd << p) + i);
-                Integer numOccurances = values.get(runLength);
-                if (numOccurances == null) {
-                    values.put(runLength, 1);
-                } else {
-                    values.put(runLength, numOccurances + 1);
-                }
-            }
-            return values;
-        }
-
         protected void ensureCapacity(long numBuckets) {
             runLens = bigArrays.grow(runLens, numBuckets << p);
         }
@@ -296,8 +240,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
         private final HyperLogLog hll;
         private final int m, p;
-        private int pos;
-        private long start;
+        int pos;
+        long start;
         private byte value;
 
         HyperLogLogIterator(HyperLogLog hll, int p, int m) {
@@ -386,15 +330,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
             return iterator;
         }
 
-        protected Object getComparableData(long bucketOrd) {
-            Set<Integer> values = new HashSet<>();
-            HashesIterator iteratorValues = values(bucketOrd);
-            while (iteratorValues.next()) {
-                values.add(iteratorValues.value());
-            }
-            return values;
-        }
-
         private long index(long bucketOrd, int index) {
             return (bucketOrd << p) + (index << 2);
         }
@@ -430,8 +365,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
         private final LinearCounting lc;
         private final int capacity;
-        private int pos;
-        private long size, bucketOrd;
+        private int pos, size;
+        private long bucketOrd;
         private int value;
 
         LinearCountingIterator(LinearCounting lc, int capacity) {
@@ -439,14 +374,14 @@ public final class HyperLogLogPlusPlus implements Releasable {
             this.capacity = capacity;
         }
 
-        void reset(long bucketOrd, long size) {
+        void reset(long bucketOrd, int size) {
             this.bucketOrd = bucketOrd;
             this.size = size;
             this.pos = size == 0 ? capacity : 0;
         }
 
         @Override
-        public long size() {
+        public int size() {
             return size;
         }
 

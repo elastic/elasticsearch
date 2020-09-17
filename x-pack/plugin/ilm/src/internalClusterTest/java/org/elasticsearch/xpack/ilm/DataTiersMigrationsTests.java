@@ -29,7 +29,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -92,7 +91,9 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(
+            policy, org.elasticsearch.common.collect.Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
+        );
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);

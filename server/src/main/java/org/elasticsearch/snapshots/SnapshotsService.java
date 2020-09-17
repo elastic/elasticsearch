@@ -482,8 +482,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         break;
                     }
                 }
-                return updateWithSnapshots(
-                        currentState, changed ? SnapshotsInProgress.of(updatedEntries) : null, null);
+                return updateWithSnapshots(currentState, changed ? SnapshotsInProgress.of(updatedEntries) : null, null);
             }
 
             @Override

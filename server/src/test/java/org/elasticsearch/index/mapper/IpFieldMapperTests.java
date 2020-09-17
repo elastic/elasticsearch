@@ -177,7 +177,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.nullField("field")));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
-        
+
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> createDocumentMapper(Version.CURRENT, fieldMapping(b -> {
             b.field("type", "ip");

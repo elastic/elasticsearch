@@ -99,12 +99,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             }
             try {
                 return InetAddresses.forString(nullValueAsString);
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
-                }
-                else {
+                } else {
                     DEPRECATION_LOGGER.deprecate("ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
                         + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;

@@ -238,8 +238,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             try {
                 return fieldType.parse(nullValue.getValue());
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.DataTier;
 
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -39,6 +41,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final String INDEX_ROUTING_REQUIRE = "index.routing.allocation.require._tier";
     public static final String INDEX_ROUTING_INCLUDE = "index.routing.allocation.include._tier";
     public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
+    public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.prefer._tier";
 
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -51,6 +54,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = Setting.simpleString(INDEX_ROUTING_PREFER,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
@@ -101,7 +106,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
             return decision;
         }
 
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require tier filters");
+        decision = shouldIndexPreferTier(indexMetadata, node, allocation);
+        if (decision != null) {
+            return decision;
+        }
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require/prefer tier filters");
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
@@ -115,7 +125,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
             return decision;
         }
 
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require tier filters");
+        decision = shouldIndexPreferTier(allocation.metadata().getIndexSafe(shardRouting.index()), node, allocation);
+        if (decision != null) {
+            return decision;
+        }
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require/prefer tier filters");
     }
 
     private Decision shouldFilter(IndexMetadata indexMd, DiscoveryNode node, RoutingAllocation allocation) {
@@ -129,7 +144,37 @@ public class DataTierAllocationDecider extends AllocationDecider {
             return decision;
         }
 
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require tier filters");
+        decision = shouldIndexPreferTier(indexMd, node, allocation);
+        if (decision != null) {
+            return decision;
+        }
+
+        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require/prefer tier filters");
+    }
+
+    private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        Settings indexSettings = indexMetadata.getSettings();
+        String tierPreference = INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
+
+        if (Strings.hasText(tierPreference)) {
+            Optional<String> tier = preferredTier(tierPreference, allocation);
+            if (tier.isPresent()) {
+                String tierName = tier.get();
+                // The OpType doesn't actually matter here, because we have
+                // selected only a single tier as our "preferred" tier
+                if (allocationAllowed(OpType.AND, tierName, node)) {
+                    return allocation.decision(Decision.YES, NAME,
+                        "index has a preference for tiers [%s] and node has tier [%s]", tierPreference, tierName);
+                } else {
+                    return allocation.decision(Decision.NO, NAME,
+                        "index has a preference for tiers [%s] and node does not meet the required [%s] tier", tierPreference, tierName);
+                }
+            } else {
+                return allocation.decision(Decision.NO, NAME, "index has a preference for tiers [%s], " +
+                    "but no nodes for any of those tiers are available in the cluster", tierPreference);
+            }
+        }
+        return null;
     }
 
     private Decision shouldIndexFilter(IndexMetadata indexMd, DiscoveryNode node, RoutingAllocation allocation) {
@@ -185,6 +230,29 @@ public class DataTierAllocationDecider extends AllocationDecider {
         AND,
         OR
     }
+
+    /**
+     * Given a string of comma-separated prioritized tiers (highest priority
+     * first) and an allocation, find the highest priority tier for which nodes
+     * exist. If no nodes for any of the tiers are available, returns an empty
+     * {@code Optional<String>}.
+     */
+    private static Optional<String> preferredTier(String prioritizedTiers, RoutingAllocation allocation) {
+        String[] tiers = Strings.tokenizeToStringArray(prioritizedTiers, ",");
+        return Arrays.stream(tiers).filter(tier -> tierNodesPresent(tier, allocation)).findFirst();
+    }
+
+    private static boolean tierNodesPresent(String singleTier, RoutingAllocation allocation) {
+        for (ObjectCursor<DiscoveryNode> node : allocation.nodes().getNodes().values()) {
+            if (node.value.getRoles().stream()
+                .map(DiscoveryNodeRole::roleName)
+                .anyMatch(s -> s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     private static boolean allocationAllowed(OpType opType, String tierSetting, DiscoveryNode node) {
         String[] values = Strings.tokenizeToStringArray(tierSetting, ",");

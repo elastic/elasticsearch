@@ -250,13 +250,14 @@ process where ( 4.0 / process.args_count ) == 1
 [[eql-syntax-strings]]
 ==== Strings
 
-Strings are enclosed with double quotes (`"`) or single quotes (`'`).
+Strings are enclosed with double quotes (`"`).
 
 [source,eql]
 ----
 "hello world"
-"hello world with 'substring'"
 ----
+
+Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-wildcards]]
@@ -315,9 +316,12 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |`\t`             | A tab character
 |`\\`             | A backslash (`\`) character
 |`\"`             | A double quote (`"`) character
-|`\'`             | A single quote (`'`) character
 |====
 ====
+
+IMPORTANT: The single quote (`'`) character is reserved for future use. You
+cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
+double quote (`\"`) instead. 
 
 [discrete]
 [[eql-syntax-raw-strings]]
@@ -328,11 +332,11 @@ literal characters.
 
 [source,eql]
 ----
-?"String with a literal 'blackslash' \ character included"
+?"String with a literal blackslash \ character included"
 ----
 
-You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
-the backslash remains in the resulting string.
+You can escape double quotes (`"`) with a backslash, but the backslash remains
+in the resulting string.
 
 [source,eql]
 ----
@@ -669,6 +673,17 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 You cannot use EQL to search the values of a <<nested,`nested`>> field or the
 sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
+
+[discrete]
+[[single-quote-strings]]
+==== Single quote strings
+
+In {es} EQL, the single quote (`'`) character is reserved for future use. 
+Strings enclosed in single quotes are not supported. Enclose strings in
+double quotes (`"`) instead.
+
+You cannot use an escaped single quote (`\'`) for literal strings. Use an
+escaped double quote (`\"`) instead. 
 
 [discrete]
 [[eql-unsupported-syntax]]

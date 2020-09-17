@@ -90,7 +90,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     @Override
     protected InternalCardinality mutateInstance(InternalCardinality instance) {
         String name = instance.getName();
-        HyperLogLogPlusPlus state = instance.getState();
+        AbstractHyperLogLogPlusPlus state = instance.getState();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -99,9 +99,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         case 1:
             HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(state.precision(),
                     new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 0);
-            newState.merge(0, state, 0);
-            int extraValues = between(10, 100);
-            for (int i = 0; i < extraValues; i++) {
+            for (int i = 0; i < 10; i++) {
                 newState.collect(0, BitMixer.mix64(randomIntBetween(500, 10000)));
             }
             algos.add(newState);

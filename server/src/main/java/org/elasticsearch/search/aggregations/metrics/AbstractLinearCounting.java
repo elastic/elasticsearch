@@ -35,7 +35,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
     private static final int P2 = 25;
 
     public AbstractLinearCounting(int precision) {
-       super(precision);
+        super(precision);
     }
 
     /**
@@ -59,6 +59,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         return addEncoded(bucketOrd, k);
     }
 
+    @Override
     public long cardinality(long bucketOrd) {
         final long m = 1 << P2;
         final long v = m - size(bucketOrd);
@@ -92,7 +93,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         /**
          * number of elements in the iterator
          */
-        long size();
+        int size();
 
         /**
          * Moves the iterator to the next element if it exists.

@@ -341,7 +341,7 @@ public class BooleanScriptMappedFieldTypeTests extends AbstractNonTextScriptMapp
         }
     }
 
-    public void randomTermsQueryDegeneratesIntoMatchNone() throws IOException {
+    public void testEmptyTermsQueryDegeneratesIntoMatchNone() throws IOException {
         assertThat(
             simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(), mockContext()),
             instanceOf(MatchNoDocsQuery.class)

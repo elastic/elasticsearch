@@ -41,14 +41,29 @@ The following parameters can be specified in the body of a POST or PUT request:
 (Optional, array-of-role-descriptor) An array of role descriptors for this API
 key. This parameter is optional. When it is not specified or is an empty array,
 then the API key will have a _point in time snapshot of permissions of the 
-authenticated user_. If you supply role descriptors then the resultant permissions
-would be an intersection of API keys permissions and authenticated user's permissions
-thereby limiting the access scope for API keys.
-The structure of role descriptor is the same as the request for create role API.
-For more details, see <<security-api-roles,role management APIs>>.
+authenticated user_. If you supply role descriptors then the resultant
+permissions would be an intersection of API keys permissions and authenticated
+user's permissions thereby limiting the access scope for API keys. The structure
+of role descriptor is the same as the request for create role API. For more
+details, see <<security-api-roles,role management APIs>>.
++
+--
+NOTE: Due to the way in which this permission intersection is calculated, it is
+not possible to create an API key that is a child of another API key, unless the 
+derived key is created without any privileges. In this case, you must explicitly 
+specify a role descriptor with no privileges. The derived API key can be used
+for authentication; it will not have authority to call {es} APIs.
+
+--
 
 `expiration`::
 (string) Optional expiration time for the API key. By default, API keys never expire.
+
+==== Authorization
+
+IMPORTANT: If the credential that is used to authenticate this request is
+an API key, the derived API key cannot have any privileges. If you specify
+privileges, the API returns an error. See the note under `role_descriptors`.
 
 ==== Examples
 

@@ -130,4 +130,3 @@ include::constant-keyword.asciidoc[]
 
 include::wildcard.asciidoc[]
 
-include::version.asciidoc[]

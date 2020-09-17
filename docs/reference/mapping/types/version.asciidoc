@@ -1,8 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
-[discrete]
-[[version-field-type]]
+[[version]]
 === Version field type
+++++
+<titleabbrev>Version</titleabbrev>
+++++
 
 The `version` field type is a specialization of the `keyword` field for
 handling software version values and to support specialized precedence

@@ -34,7 +34,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
     }
 
     public void testDefaultDataStreamAllocateToHot() {
-        startHotOnlyNode();
+        internalCluster().startNode();
         ensureGreen();
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(
@@ -81,10 +81,5 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));
-    }
-
-    public void startHotOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
-        internalCluster().startNode(nodeSettings);
     }
 }

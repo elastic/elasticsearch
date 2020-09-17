@@ -118,9 +118,9 @@ setup:
           sort: timestamp
           fields: [tomorrow, tomorrow_from_source, the_past, all_week, formatted_tomorrow]
   - match: {hits.total.value: 6}
-  - match: {hits.hits.0.fields.tomorrow: [2018-01-19T17:41:34.000Z] }
-  - match: {hits.hits.0.fields.tomorrow_from_source: [2018-01-19T17:41:34.000Z] }
-  - match: {hits.hits.0.fields.the_past: [2018-01-18T17:41:33.000Z] }
+  - match: {hits.hits.0.fields.tomorrow: ["2018-01-19T17:41:34.000Z"] }
+  - match: {hits.hits.0.fields.tomorrow_from_source: ["2018-01-19T17:41:34.000Z"] }
+  - match: {hits.hits.0.fields.the_past: ["2018-01-18T17:41:33.000Z"] }
   - match:
       hits.hits.0.fields.all_week:
         - 2018-01-18T17:41:34.000Z

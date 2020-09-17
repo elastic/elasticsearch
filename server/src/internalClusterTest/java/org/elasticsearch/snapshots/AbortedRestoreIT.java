@@ -23,28 +23,16 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.hamcrest.Matcher;
 
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.StreamSupport;
 
@@ -57,13 +45,6 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(BlockingDataFileReadsRepository.Plugin.class);
-        return plugins;
-    }
-
     public void testAbortedRestoreAlsoAbortFileRestores() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -75,10 +56,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         forceMerge();
 
         final String repositoryName = "repository";
-        createRepository(repositoryName, BlockingDataFileReadsRepository.TYPE,
-            Settings.builder()
-                .put(randomRepositorySettings().build())
-                .put("fail_reads_after_unblock", true));
+        createRepository(repositoryName, "mock");
 
         final String snapshotName = "snapshot";
         createFullSnapshot(repositoryName, snapshotName);
@@ -86,6 +64,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> blocking all data nodes for repository [{}]", repositoryName);
         blockAllDataNodes(repositoryName);
+        failReadsAllDataNodes(repositoryName);
 
         logger.info("--> starting restore");
         final ActionFuture<RestoreSnapshotResponse> future = client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName)
@@ -141,46 +120,5 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
             .filter(threadPool -> threadPool.getName().equals(threadPoolName))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Failed to find thread pool " + threadPoolName));
-    }
-
-    /**
-     * A blob store repository that blocks read operations on {@link InputStream} when the {@code blockStreams} flag
-     * is set to true. It also keep track of the number of bytes read from {@link InputStream} it opens.
-     */
-    public static class BlockingDataFileReadsRepository extends MockRepository {
-
-        static final String TYPE = "block_on_data_file_reads";
-
-        public BlockingDataFileReadsRepository(
-            RepositoryMetadata metadata,
-            Environment environment,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            RecoverySettings recoverySettings
-        ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
-        }
-
-        @Override
-        protected int bufferSize() {
-            if (rarely()) {
-                return randomIntBetween(10, 100);
-            }
-            return super.bufferSize();
-        }
-
-        public static class Plugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
-
-            @Override
-            public Map<String, Factory> getRepositories(
-                Environment env,
-                NamedXContentRegistry registry,
-                ClusterService clusterService,
-                RecoverySettings recoverySettings
-            ) {
-                return Collections.singletonMap(TYPE, (metadata) ->
-                    new BlockingDataFileReadsRepository(metadata, env, registry, clusterService, recoverySettings));
-            }
-        }
     }
 }

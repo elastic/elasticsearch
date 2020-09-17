@@ -126,7 +126,7 @@ public class MockRepository extends FsRepository {
     /**
      * Reading blobs will fail with an {@link AssertionError} once the repository has been blocked once.
      */
-    private final boolean failReadsAfterUnblock;
+    private volatile boolean failReadsAfterUnblock;
     private volatile boolean throwReadErrorAfterUnblock = false;
 
     private volatile boolean blocked = false;
@@ -144,7 +144,6 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
-        failReadsAfterUnblock = metadata.settings().getAsBoolean("fail_reads_after_unblock", false);
         env = environment;
         logger.info("starting mock repository with random prefix {}", randomPrefix);
     }
@@ -213,6 +212,10 @@ public class MockRepository extends FsRepository {
         blockOnDeleteIndexN = true;
     }
 
+    public void setFailReadsAfterUnblock(boolean failReadsAfterUnblock) {
+        this.failReadsAfterUnblock = failReadsAfterUnblock;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -236,6 +239,7 @@ public class MockRepository extends FsRepository {
         }
         logger.debug("[{}] Unblocking execution", metadata.name());
         if (wasBlocked && failReadsAfterUnblock) {
+            logger.debug("[{}] Next read operations will fail", metadata.name());
             this.throwReadErrorAfterUnblock = true;
         }
         return wasBlocked;

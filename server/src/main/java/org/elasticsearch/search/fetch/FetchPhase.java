@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -88,8 +89,12 @@ public class FetchPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
 
-        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+        if (context.docIdsToLoadSize() == 0) {
+            // no individual hits to process, so we shortcut
+            context.fetchResult().hits(new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(),
+                context.queryResult().getMaxScore()));
+            return;
+        }
 
         DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
@@ -97,11 +102,16 @@ public class FetchPhase {
         }
         Arrays.sort(docs);
 
+        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+
+        FetchContext fetchContext = new FetchContext(context);
+
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
         Map<String, Object> sharedCache = new HashMap<>();
 
-            SearchLookup lookup = context.getQueryShardContext().newFetchLookup();
-        List<FetchSubPhaseProcessor> processors = getProcessors(context, lookup);
+        SearchLookup lookup = context.getQueryShardContext().newFetchLookup();
+        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), lookup, fetchContext);
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
@@ -146,7 +156,7 @@ public class FetchPhase {
 
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(SearchContext context, SearchLookup lookup) {
+    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, SearchLookup lookup, FetchContext context) {
         try {
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
@@ -157,7 +167,7 @@ public class FetchPhase {
             }
             return processors;
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(context.shardTarget(), "Error building fetch sub-phases", e);
+            throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
         }
     }
 

@@ -25,15 +25,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -56,11 +55,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext, SearchLookup lookup) throws IOException {
-        if (searchContext.highlight() == null) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext, SearchLookup lookup) {
+        if (fetchContext.highlight() == null) {
             return null;
         }
-        List<PercolateQuery> percolateQueries = locatePercolatorQuery(searchContext.query());
+        List<PercolateQuery> percolateQueries = locatePercolatorQuery(fetchContext.query());
         if (percolateQueries.isEmpty()) {
             return null;
         }
@@ -69,7 +68,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             LeafReaderContext ctx;
 
             @Override
-            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            public void setNextReader(LeafReaderContext readerContext) {
                 this.ctx = readerContext;
             }
 
@@ -101,10 +100,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             );
                             subContext.sourceLookup().setSource(document);
                             // force source because MemoryIndex does not store fields
-                            SearchHighlightContext highlight = new SearchHighlightContext(searchContext.highlight().fields(), true);
-                            QueryShardContext shardContext = new QueryShardContext(searchContext.getQueryShardContext());
-                            FetchSubPhaseProcessor processor = highlightPhase.getProcessor(shardContext, searchContext.shardTarget(),
-                                highlight, query);
+                            SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);
+                            FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);
                             processor.process(subContext);
                             for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {
                                 if (percolateQuery.getDocuments().size() == 1) {

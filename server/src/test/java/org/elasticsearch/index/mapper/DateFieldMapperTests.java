@@ -384,7 +384,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         assertFalse(dvField.fieldType().stored());
     }
 
-    public void testBadNullValue() throws IOException {
+    public void testBadFormat() throws IOException {
 
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
@@ -400,6 +400,28 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
 
         assertThat(e.getMessage(),
             equalTo("Error parsing [format] on field [field]: No date pattern provided"));
+    }
+
+    public void testBadNullValue() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "date")
+            .field("null_value", "foo")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()),
+            XContentType.JSON));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]; [null_value] will be ignored");
     }
 
     public void testTimeZoneParsing() throws Exception {

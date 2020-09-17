@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -35,6 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -56,6 +58,8 @@ import java.util.Map;
 
 /** A {@link FieldMapper} for ip addresses. */
 public class IpFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(IpFieldMapper.class));
 
     public static final String CONTENT_TYPE = "ip";
 
@@ -125,7 +129,14 @@ public class IpFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(InetAddresses.forString(propNode.toString()));
+                    try {
+                        builder.nullValue(InetAddresses.forString(propNode.toString()));
+                    }
+                    catch (Exception e) {
+                        DEPRECATION_LOGGER.deprecatedAndMaybeLog("ip_field_null_value",
+                            "Error parsing [{}] as IP in [null_value] on field [{}]; [null_value] will be ignored",
+                            propNode.toString(), name);
+                    }
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));

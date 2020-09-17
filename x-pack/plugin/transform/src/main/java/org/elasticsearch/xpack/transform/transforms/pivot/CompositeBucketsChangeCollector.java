@@ -381,6 +381,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         Map<String, FieldCollector> fieldCollectors = new HashMap<>();
 
         for (Entry<String, SingleGroupSource> entry : groups.entrySet()) {
+            // skip any fields that use scripts
+            if (entry.getValue().getScriptConfig() != null) {
+                continue;
+            }
+
             switch (entry.getValue().getType()) {
                 case TERMS:
                     fieldCollectors.put(

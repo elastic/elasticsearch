@@ -22,7 +22,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.fielddata.ScriptIpFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.IpScriptFieldData;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldTermQuery;
@@ -36,8 +36,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType<IpFieldScript.LeafFactory> {
-    ScriptIpMappedFieldType(String name, Script script, IpFieldScript.Factory scriptFactory, Map<String, String> meta) {
+public final class IpScriptMappedFieldType extends AbstractScriptMappedFieldType<IpFieldScript.LeafFactory> {
+    IpScriptMappedFieldType(String name, Script script, IpFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 
@@ -68,8 +68,8 @@ public final class ScriptIpMappedFieldType extends AbstractScriptMappedFieldType
     }
 
     @Override
-    public ScriptIpFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new ScriptIpFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public IpScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
     @Override

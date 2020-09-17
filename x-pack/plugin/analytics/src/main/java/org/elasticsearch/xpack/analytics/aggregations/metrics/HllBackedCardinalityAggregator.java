@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,7 +34,6 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
     private final int precision;
     private final int fieldPrecision;
     private final ValuesSource valuesSource;
-    @Nullable
     private final HyperLogLog counts;
 
     public HllBackedCardinalityAggregator(
@@ -52,12 +50,11 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
         this.precision = precision;
         this.fieldPrecision = fieldPrecision;
         this.counts = new HyperLogLog(precision, context.bigArrays(), 1);
-
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
@@ -73,7 +70,7 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public double metric(long owningBucketOrd) {
-        return counts == null ? 0 : counts.cardinality(owningBucketOrd);
+        return counts.cardinality(owningBucketOrd);
     }
 
     @Override

@@ -21,7 +21,7 @@ public class EvaluationFieldsTests extends ESTestCase {
         assertThat(fields.getActualField(), is(equalTo("a")));
         assertThat(fields.getPredictedField(), is(equalTo("b")));
         assertThat(fields.getResultsNestedField(), is(equalTo("c")));
-        assertThat(fields.getPredictedClassNameField(), is(equalTo("d")));
+        assertThat(fields.getPredictedClassField(), is(equalTo("d")));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("e")));
     }
 
@@ -30,7 +30,7 @@ public class EvaluationFieldsTests extends ESTestCase {
         assertThat(fields.getActualField(), is(equalTo("a")));
         assertThat(fields.getPredictedField(), is(nullValue()));
         assertThat(fields.getResultsNestedField(), is(equalTo("c")));
-        assertThat(fields.getPredictedClassNameField(), is(nullValue()));
+        assertThat(fields.getPredictedClassField(), is(nullValue()));
         assertThat(fields.getPredictedProbabilityField(), is(equalTo("e")));
     }
 

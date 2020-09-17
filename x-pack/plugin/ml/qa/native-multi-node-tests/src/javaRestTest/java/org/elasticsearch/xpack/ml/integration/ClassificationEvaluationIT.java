@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
@@ -27,7 +26,6 @@ import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
@@ -155,14 +153,12 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(recallResult.getAvgRecall(), equalTo(0.0));
     }
 
-    private AucRoc.Result evaluateAucRoc(String actualField,
-                                         String predictedProbabilityField,
-                                         boolean includeCurve) {
+    private AucRoc.Result evaluateAucRoc(boolean includeCurve) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
                 new Classification(
-                    actualField,
+                    ANIMAL_NAME_KEYWORD_FIELD,
                     null,
                     ML_TOP_CLASSES_FIELD,
                     ML_TOP_CLASSES_FIELD + ".class_name",
@@ -178,14 +174,14 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_AucRoc_DoNotIncludeCurve() {
-        AucRoc.Result aucrocResult = evaluateAucRoc(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_PROB_FIELD, false);
+        AucRoc.Result aucrocResult = evaluateAucRoc(false);
         assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
         assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
         assertThat(aucrocResult.getCurve(), hasSize(0));
     }
 
     public void testEvaluate_AucRoc_IncludeCurve() {
-        AucRoc.Result aucrocResult = evaluateAucRoc(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_PROB_FIELD, true);
+        AucRoc.Result aucrocResult = evaluateAucRoc(true);
         assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
         assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
         assertThat(aucrocResult.getCurve(), hasSize(greaterThan(0)));

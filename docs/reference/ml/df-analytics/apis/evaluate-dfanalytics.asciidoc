@@ -160,7 +160,7 @@ belongs.
 `results_nested_field`::
   (Optional, string) The field of the `index` which is a nested array of results.
 
-`predicted_class_name_field`::
+`predicted_class_field`::
   (Optional, string) The field of the `index` which contains the predicted class name.
   Must be nested under `results_nested_field`.
 

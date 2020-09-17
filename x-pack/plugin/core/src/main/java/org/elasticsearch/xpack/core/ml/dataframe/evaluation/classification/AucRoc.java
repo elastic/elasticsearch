@@ -121,7 +121,7 @@ public class AucRoc extends AbstractAucRoc {
         return Sets.newHashSet(
             EvaluationFields.ACTUAL_FIELD.getPreferredName(),
             EvaluationFields.RESULTS_NESTED_FIELD.getPreferredName(),
-            EvaluationFields.PREDICTED_CLASS_NAME_FIELD.getPreferredName(),
+            EvaluationFields.PREDICTED_CLASS_FIELD.getPreferredName(),
             EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
     }
 
@@ -159,7 +159,7 @@ public class AucRoc extends AbstractAucRoc {
                 .nested(NESTED_AGG_NAME, fields.getResultsNestedField())
                 .subAggregation(
                     AggregationBuilders
-                        .filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassNameField(), className))
+                        .filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassField(), className))
                         .subAggregation(percentilesAgg));
         QueryBuilder actualIsTrueQuery = QueryBuilders.termQuery(fields.getActualField(), className);
         AggregationBuilder percentilesForClassValueAgg =
@@ -191,7 +191,7 @@ public class AucRoc extends AbstractAucRoc {
         if (classNestedFilter.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have the value [{}]",
-                getName(), fields.get().getPredictedClassNameField(), className);
+                getName(), fields.get().getPredictedClassField(), className);
         }
         Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
         double[] tpPercentiles = percentilesArray(classPercentiles);
@@ -207,7 +207,7 @@ public class AucRoc extends AbstractAucRoc {
         if (restNestedFilter.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have the value [{}]",
-                getName(), fields.get().getPredictedClassNameField(), className);
+                getName(), fields.get().getPredictedClassField(), className);
         }
         Percentiles restPercentiles = restNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
         double[] fpPercentiles = percentilesArray(restPercentiles);

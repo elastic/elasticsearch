@@ -102,25 +102,25 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
                 QueryBuilders.nestedQuery(getFields().getResultsNestedField(), resultsNestedFieldExistsQuery, ScoreMode.None)
                     .ignoreUnmapped(true));
         }
-        if (getFields().getPredictedClassNameField() != null) {
+        if (getFields().getPredictedClassField() != null) {
             assert getFields().getResultsNestedField() != null;
             // Verify existence of the predicted class name field if required for this evaluation
-            QueryBuilder classNameFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassNameField());
+            QueryBuilder predictedClassFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassField());
             boolQuery.filter(
-                QueryBuilders.nestedQuery(getFields().getResultsNestedField(), classNameFieldExistsQuery, ScoreMode.None)
+                QueryBuilders.nestedQuery(getFields().getResultsNestedField(), predictedClassFieldExistsQuery, ScoreMode.None)
                     .ignoreUnmapped(true));
         }
         if (getFields().getPredictedProbabilityField() != null) {
             // Verify existence of the predicted probability field if required for this evaluation
-            QueryBuilder probabilityFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedProbabilityField());
+            QueryBuilder predictedProbabilityFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedProbabilityField());
             // predicted probability field may be either nested (just like in case of classification evaluation) or non-nested (just like
             // in case of outlier detection evaluation). Here we support both modes.
             if (getFields().getResultsNestedField() != null) {
                 boolQuery.filter(
-                    QueryBuilders.nestedQuery(getFields().getResultsNestedField(), probabilityFieldExistsQuery, ScoreMode.None)
+                    QueryBuilders.nestedQuery(getFields().getResultsNestedField(), predictedProbabilityFieldExistsQuery, ScoreMode.None)
                         .ignoreUnmapped(true));
             } else {
-                boolQuery.filter(probabilityFieldExistsQuery);
+                boolQuery.filter(predictedProbabilityFieldExistsQuery);
             }
         }
         // Apply user-provided query

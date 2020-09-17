@@ -116,7 +116,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             assertThat(
                 e.getMessage(),
                 is(equalTo(
-                    "The value of [predicted_class_name_field] must start with the value of [results_nested_field] "
+                    "The value of [predicted_class_field] must start with the value of [results_nested_field] "
                     + "but it didn't ([class_name] is not a prefix of [results])")));
         }
         {

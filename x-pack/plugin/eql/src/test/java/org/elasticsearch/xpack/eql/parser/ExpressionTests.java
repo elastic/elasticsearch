@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -96,7 +97,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testSingleQuotedUnescapedStringForbidden() {
+    public void testSingleQuotedUnescapedStringDisallowed() {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
         assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
@@ -222,7 +223,25 @@ public class ExpressionTests extends ESTestCase {
             () -> expr("name in ()"));
     }
 
-    public void testChainedComparisons() {
+    public void testComplexComparison() {
+        String comparison;
+        if (randomBoolean()) {
+            comparison = "1 * -2 <= -3 * 4";
+        } else {
+            comparison = "(1 * -2) <= (-3 * 4)";
+        }
+
+        Mul left = new Mul(null,
+                new Literal(null, 1, DataTypes.INTEGER),
+                new Neg(null, new Literal(null, 2, DataTypes.INTEGER)));
+        Mul right = new Mul(null,
+                new Neg(null, new Literal(null, 3, DataTypes.INTEGER)),
+                new Literal(null, 4, DataTypes.INTEGER));
+
+        assertEquals(new LessThanOrEqual(null, left, right, UTC), expr(comparison));
+    }
+
+    public void testChainedComparisonsDisallowed() {
         int noComparisions = randomIntBetween(2, 20);
         String firstComparator = "";
         String secondComparator = "";

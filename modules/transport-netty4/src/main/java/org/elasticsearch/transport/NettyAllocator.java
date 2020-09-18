@@ -50,8 +50,7 @@ public class NettyAllocator {
             DESCRIPTION = "[name=netty_default, factors={es.unsafe.use_netty_default_allocator=true}]";
         } else {
             ByteBufAllocator delegate;
-//            if (useUnpooled(heapSizeInBytes, g1gcRegionSizeInBytes)) {
-            if (false) {
+            if (useUnpooled(heapSizeInBytes, g1gcRegionSizeInBytes)) {
                 delegate = UnpooledByteBufAllocator.DEFAULT;
                 DESCRIPTION = "[name=unpooled, factors={es.unsafe.use_unpooled_allocator=" + userForcedUnpooled()
                     + ", g1gc_region_size=" + g1gcRegionSize + ", heap_size=" + heapSize + "}]";

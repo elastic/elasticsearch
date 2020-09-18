@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -157,7 +158,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
         String tierPreference = INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
 
         if (Strings.hasText(tierPreference)) {
-            Optional<String> tier = preferredTier(tierPreference, allocation);
+            Optional<String> tier = preferredAvailableTier(tierPreference, allocation.nodes());
             if (tier.isPresent()) {
                 String tierName = tier.get();
                 // The OpType doesn't actually matter here, because we have
@@ -237,13 +238,15 @@ public class DataTierAllocationDecider extends AllocationDecider {
      * exist. If no nodes for any of the tiers are available, returns an empty
      * {@code Optional<String>}.
      */
-    private static Optional<String> preferredTier(String prioritizedTiers, RoutingAllocation allocation) {
+    static Optional<String> preferredAvailableTier(String prioritizedTiers, DiscoveryNodes nodes) {
         String[] tiers = Strings.tokenizeToStringArray(prioritizedTiers, ",");
-        return Arrays.stream(tiers).filter(tier -> tierNodesPresent(tier, allocation)).findFirst();
+        return Arrays.stream(tiers).filter(tier -> tierNodesPresent(tier, nodes)).findFirst();
     }
 
-    private static boolean tierNodesPresent(String singleTier, RoutingAllocation allocation) {
-        for (ObjectCursor<DiscoveryNode> node : allocation.nodes().getNodes().values()) {
+    static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
+        assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
+            "tier " + singleTier + " is an invalid tier name";
+        for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
             if (node.value.getRoles().stream()
                 .map(DiscoveryNodeRole::roleName)
                 .anyMatch(s -> s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier))) {

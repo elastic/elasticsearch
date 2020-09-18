@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.DataTier;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -47,6 +48,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE));
     private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE));
     private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DataTier.DATA_COLD_NODE_ROLE));
+    private static final DiscoveryNode CONTENT_NODE = newNode("node-content", Collections.singleton(DataTier.DATA_CONTENT_NODE_ROLE));
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);
@@ -403,6 +405,60 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canRemain(shard, node, allocation);
             assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
         }
+    }
+
+    public void testTierNodesPresent() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().build();
+
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+
+        nodes = DiscoveryNodes.builder()
+            .add(WARM_NODE)
+            .add(CONTENT_NODE)
+            .build();
+
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+
+        nodes = DiscoveryNodes.builder()
+            .add(DATA_NODE)
+            .build();
+
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+    }
+
+    public void testPreferredTierAvailable() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().build();
+
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_warm", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_warm,data_content", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_cold", nodes), equalTo(Optional.empty()));
+
+        nodes = DiscoveryNodes.builder()
+            .add(WARM_NODE)
+            .add(CONTENT_NODE)
+            .build();
+
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_warm", nodes), equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_warm,data_content", nodes), equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_content,data_warm", nodes), equalTo(Optional.of("data_content")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_content,data_warm", nodes),
+            equalTo(Optional.of("data_content")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_cold,data_warm", nodes),
+            equalTo(Optional.of("data_warm")));
     }
 
     private ClusterState prepareState(ClusterState initialState) {

@@ -506,7 +506,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         // a number of watches are mocked as present
         final int existingWatches = randomIntBetween(0, EXPECTED_WATCHES);
 
-        // For completeness's sake. GET/PUT watches wont be called by the resources. Instead it tries to DELETE the watches ignoring them not existing.
+        // For completeness's sake. GET/PUT watches wont be called by the resources.
+        // Instead it tries to DELETE the watches ignoring them not existing.
         whenGetWatches(existingWatches, EXPECTED_WATCHES - existingWatches);
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")), exception);
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),

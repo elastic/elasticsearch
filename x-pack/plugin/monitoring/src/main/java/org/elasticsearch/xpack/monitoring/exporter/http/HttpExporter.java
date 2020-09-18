@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 
-import javax.management.monitor.Monitor;
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;

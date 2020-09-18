@@ -62,7 +62,7 @@ public class MockClusterAlertScriptEngine extends MockPainlessScriptEngine {
 
         private final MockDeterministicScript script;
 
-        public MockWatcherConditionScript(MockDeterministicScript script) {
+        MockWatcherConditionScript(MockDeterministicScript script) {
             this.script = script;
         }
 
@@ -84,7 +84,7 @@ public class MockClusterAlertScriptEngine extends MockPainlessScriptEngine {
 
         private final MockDeterministicScript script;
 
-        public MockWatcherTransformScript(MockDeterministicScript script) {
+        MockWatcherTransformScript(MockDeterministicScript script) {
             this.script = script;
         }
 

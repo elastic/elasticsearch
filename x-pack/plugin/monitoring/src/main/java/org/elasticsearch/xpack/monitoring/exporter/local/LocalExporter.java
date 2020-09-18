@@ -467,7 +467,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
-            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false && decommissionClusterAlerts == false;
+            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false &&
+                decommissionClusterAlerts == false;
 
             // we aren't sure if no watches exist yet, so add them
             if (indexExists) {

@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;

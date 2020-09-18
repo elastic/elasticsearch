@@ -289,7 +289,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void postCollect() throws IOException {
-            try (final BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
+            try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                     final BitArray bits = visitedOrds.get(bucket);
                     if (bits != null) {

@@ -34,10 +34,11 @@ public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf buf, List<Object> out) {
-        // If max fast writeable bytes is greater than the number of readable bytes, this buffers is at least
+        // If max fast writeable bytes is greater than the number of readable bytes, this buffer is at least
         // twice as big as necessary to contain the data. If that is the case, allocate a new buffer and
         // copy.
-        if (buf.capacity() > 1024 && buf.maxFastWritableBytes() >= buf.readableBytes()) {
+        int estimatedSize = buf.maxFastWritableBytes() + buf.writerIndex();
+        if (estimatedSize > 1024 && buf.maxFastWritableBytes() >= buf.readableBytes()) {
             ByteBuf newBuffer = ctx.alloc().heapBuffer(buf.readableBytes());
             newBuffer.writeBytes(buf);
             out.add(newBuffer);

@@ -147,13 +147,25 @@ public final class KeywordScriptMappedFieldType extends AbstractScriptMappedFiel
     @Override
     public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldTermQuery(script, leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)),true);
+        return new StringScriptFieldTermQuery(
+            script,
+            leafFactory(context),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value)),
+            true
+        );
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldTermQuery(script, leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)), false);
+        return new StringScriptFieldTermQuery(
+            script,
+            leafFactory(context),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value)),
+            false
+        );
     }
 
     @Override

@@ -38,6 +38,20 @@
               "type": "keyword"
             }
           }
+        },
+        "host": {
+          "properties": {
+            "ip": {
+              "type": "ip"
+            }
+          }
+        },
+        "observer": {
+          "properties": {
+            "ip": {
+              "type": "ip"
+            }
+          }
         }
       }
     }

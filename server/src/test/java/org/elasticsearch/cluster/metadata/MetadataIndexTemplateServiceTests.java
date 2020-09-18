@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -1552,16 +1551,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         @Override
         public ParametrizedFieldMapper.Builder getMergeBuilder() {
             return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        public void preParse(ParseContext context) {
-
-        }
-
-        @Override
-        protected void parseCreateField(ParseContext context) {
-
         }
 
         @Override

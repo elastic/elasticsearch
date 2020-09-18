@@ -679,7 +679,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final Path repositoryLocation = randomRepoPath();
         createFsRepository(repositoryName, repositoryLocation);
 
-        final SnapshotId snapshotOne = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, Collections.singletonList(indexName));
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         final SnapshotStatus snapshotOneStatus = client().admin()
@@ -695,7 +695,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
         ensureGreen(indexName);
 
-        final SnapshotId snapshotTwo = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotId snapshotTwo = createSnapshot(repositoryName, Collections.singletonList(indexName));
         final SnapshotStatus snapshotTwoStatus = client().admin()
             .cluster()
             .prepareSnapshotStatus(repositoryName)

@@ -786,17 +786,21 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockNodeOnAnyFiles(blockedRepoName, masterNode);
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteFromNonMasterClient(blockedRepoName, "*");
         waitForBlock(masterNode, blockedRepoName, TimeValue.timeValueSeconds(30L));
+        awaitNDeletionsInProgress(1);
         final ActionFuture<CreateSnapshotResponse> createBlockedSnapshot =
             startFullSnapshotFromNonMasterClient(blockedRepoName, "queued-snapshot");
+        awaitNSnapshotsInProgress(1);
 
         final long generation = getRepositoryData(repoName).getGenId();
         blockNodeOnAnyFiles(repoName, masterNode);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        awaitNSnapshotsInProgress(2);
 
         corruptIndexN(repoPath, generation);
 
         final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshotFromNonMasterClient(repoName, "snapshot-four");
+        awaitNSnapshotsInProgress(3);
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster(3);
 

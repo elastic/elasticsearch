@@ -84,11 +84,15 @@ booleanExpression
 
 
 valueExpression
-    : primaryExpression predicate?                                                      #valueExpressionDefault
-    | operator=(MINUS | PLUS) valueExpression                                           #arithmeticUnary
-    | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
-    | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
-    | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    : operatorExpression                                                                      #valueExpressionDefault
+    | left=operatorExpression comparisonOperator right=operatorExpression                     #comparison
+    ;
+
+operatorExpression
+    : primaryExpression predicate?                                                            #operatorExpressionDefault
+    | operator=(MINUS | PLUS) operatorExpression                                              #arithmeticUnary
+    | left=operatorExpression operator=(ASTERISK | SLASH | PERCENT) right=operatorExpression  #arithmeticBinary
+    | left=operatorExpression operator=(PLUS | MINUS) right=operatorExpression                #arithmeticBinary
     ;
 
 // workaround for

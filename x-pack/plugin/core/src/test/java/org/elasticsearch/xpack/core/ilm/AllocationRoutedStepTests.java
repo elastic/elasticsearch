@@ -31,6 +31,9 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.allShardsActiveAllocationInfo;
+import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
+
 public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRoutedStep> {
 
     @Override
@@ -117,7 +120,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, Settings.builder(), indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
+            new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
@@ -139,7 +142,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, Settings.builder(), indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
+            new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
     public void testIncludeConditionMetOnlyOneCopyAllocated() {
@@ -161,7 +164,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, Settings.builder(), indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
+            new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
     public void testConditionNotMetDueToRelocation() {
@@ -190,7 +193,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 2, true)));
+            new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 2)));
     }
 
     public void testExecuteAllocateNotComplete() throws Exception {
@@ -227,7 +230,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
+                new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
     public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
@@ -266,7 +269,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
+                new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
     public void testExecuteAllocateUnassigned() throws Exception {
@@ -304,7 +307,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, -1, false)));
+                new ClusterStateWaitStep.Result(false, waitingForActiveShardsAllocationInfo(0)));
     }
 
     /**
@@ -343,7 +346,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 1, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(1, -1, false)));
+            new ClusterStateWaitStep.Result(false, waitingForActiveShardsAllocationInfo(1)));
     }
 
     public void testExecuteIndexMissing() throws Exception {

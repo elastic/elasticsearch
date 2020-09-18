@@ -26,8 +26,10 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -81,9 +83,17 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
         final String[] routings = generateRandomStringArray(5, 10, false, true);
+        ShardSearchContextId shardSearchContextId = null;
+        TimeValue keepAlive = null;
+        if (randomBoolean()) {
+            shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+            if (randomBoolean()) {
+                keepAlive = TimeValue.timeValueSeconds(randomIntBetween(0, 120));
+            }
+        }
         ShardSearchRequest req = new ShardSearchRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
             randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
-            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings);
+            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings, shardSearchContextId, keepAlive);
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
             req.setBottomSortValues(SearchSortValuesAndFormatsTests.randomInstance());

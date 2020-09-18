@@ -26,7 +26,7 @@ import java.util.Collections;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
-    protected RootFlatObjectFieldType createDefaultFieldType() {
+    private static RootFlatObjectFieldType createDefaultFieldType() {
         return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
     }
 

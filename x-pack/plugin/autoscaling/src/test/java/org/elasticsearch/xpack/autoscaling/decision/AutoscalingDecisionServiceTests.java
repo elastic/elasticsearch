@@ -66,7 +66,7 @@ public class AutoscalingDecisionServiceTests extends AutoscalingTestCase {
             int nodes = configuration.nodes();
             assertThat(deciderDecision.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes)));
             assertThat(
-                deciderDecision.reason().getSummary(),
+                deciderDecision.reason().summary(),
                 equalTo("fixed storage [" + storage + "] memory [" + memory + "] nodes [" + nodes + "]")
             );
 

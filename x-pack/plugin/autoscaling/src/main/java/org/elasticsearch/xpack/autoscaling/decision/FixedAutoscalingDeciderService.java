@@ -68,7 +68,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         }
 
         @Override
-        public String getSummary() {
+        public String summary() {
             return "fixed storage [" + storage + "] memory [" + memory + "] nodes [" + nodes + "]";
         }
 

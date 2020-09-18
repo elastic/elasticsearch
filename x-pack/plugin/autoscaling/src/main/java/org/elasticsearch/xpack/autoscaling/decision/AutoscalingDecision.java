@@ -25,7 +25,7 @@ public class AutoscalingDecision implements ToXContent, Writeable {
     private final Reason reason;
 
     public interface Reason extends ToXContent, NamedWriteable {
-        String getSummary();
+        String summary();
     }
 
     /**
@@ -64,7 +64,7 @@ public class AutoscalingDecision implements ToXContent, Writeable {
         }
 
         if (reason != null) {
-            builder.field("reason_summary", reason.getSummary());
+            builder.field("reason_summary", reason.summary());
             builder.field("reason_details", reason);
         }
 

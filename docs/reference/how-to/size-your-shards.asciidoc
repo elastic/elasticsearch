@@ -203,7 +203,7 @@ If you're using {ilm-init}, you can do this by increasing the `max_age`
 threshold for the <<ilm-rollover,rollover action>>.
 
 If your retention policy allows it, you can also create larger indices by
-omitting the `max_age` threshold and using `max_docs` and/or `max_size`
+omitting a `max_age` threshold and using `max_docs` and/or `max_size`
 thresholds instead.
 
 [discrete]

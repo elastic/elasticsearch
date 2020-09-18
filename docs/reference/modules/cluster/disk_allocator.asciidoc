@@ -40,7 +40,7 @@ Controls the flood stage watermark, which defaults to 95%. {es} enforces a read-
 (`index.blocks.read_only_allow_delete`) on every index that has one or more
 shards allocated on the node, and that has at least one disk exceeding the flood
 stage. This setting is a last resort to prevent nodes from running out of disk space.
-The index block is automatically released when the disk utilization falls below
+The index block must be released manually when the disk utilization falls below
 the high watermark.
 
 NOTE: You cannot mix the usage of percentage values and byte values within

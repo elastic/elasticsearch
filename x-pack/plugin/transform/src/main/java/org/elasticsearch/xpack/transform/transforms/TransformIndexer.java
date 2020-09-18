@@ -518,19 +518,32 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         context.shutdown();
     }
 
-    void stopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        IndexerState indexerState = getState();
-
-        // in case shouldStopAtCheckpoint has already the desired value or the indexer isn't running, respond immediately
-        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
-            || indexerState == IndexerState.STOPPED
-            || indexerState == IndexerState.STOPPING) {
+    /**
+     *
+     */
+    synchronized void stopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        // in case the indexer isn't running, respond immediately
+        if (getState() != IndexerState.INDEXING) {
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
 
         saveStateListeners.getAndUpdate(currentListeners -> {
+            // check the state again (optimistic locking), while we checked the last time, the indexing thread could have
+            // saved the state and is finishing. As it first set the state and _than_ gets saveStateListeners, it's safe
+            // to just check the indexer state again
+            if (getState() != IndexerState.INDEXING) {
+                shouldStopAtCheckpointListener.onResponse(null);
+                return null;
+            }
+
             if (currentListeners == null) {
+                // in case shouldStopAtCheckpoint has already the desired value _and_ we know its _persisted_, respond immediately
+                if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+                    shouldStopAtCheckpointListener.onResponse(null);
+                    return null;
+                }
+
                 currentListeners = new ArrayList<>();
             }
             currentListeners.add(shouldStopAtCheckpointListener);

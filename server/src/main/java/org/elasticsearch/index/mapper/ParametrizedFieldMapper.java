@@ -571,7 +571,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                         + "] on mapper [" + name + "] of type [" + type + "]");
                 }
                 if (Objects.equals("boost", propName)) {
-                    deprecationLogger.deprecate("boost", "Parameter [boost] on field [{}] is deprecated", name);
+                    deprecationLogger.deprecate(
+                        "boost",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                        name);
                 }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException("[" + propName + "] on mapper [" + name

@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -252,6 +253,23 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return asyncTask;
     }
 
+    /**
+     * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+     * is registered in the task manager, <code>null</code> otherwise.
+     *
+     */
+    <T extends AsyncTask> T getTaskStatus(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) {
+        Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
+        if (tClass.isInstance(task) == false) {
+            return null;
+        }
+        @SuppressWarnings("unchecked") T asyncTask = (T) task;
+        if (asyncTask.getExecutionId().equals(asyncExecutionId) == false) {
+            return null;
+        }
+        return asyncTask;
+    }
+
     private void getEncodedResponse(AsyncExecutionId asyncExecutionId,
                                       boolean restoreResponseHeaders,
                                       ActionListener<Tuple<String, Long>> listener) {
@@ -303,6 +321,35 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             ActionListener<R> listener) {
         getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
             (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
+            listener::onFailure
+        ));
+    }
+
+
+    /**
+     * Gets the status response of the async search from the index.
+     * This should be called after unsuccessful attempt to retrieve a status from the Task Manager.
+     * As the corresponding task doest' exist, we assume that the async search request
+     * has been completed, and for a status response we are only interested in its expiration time.
+     * @param asyncExecutionId – id of the async search
+     * @param completedStatusProducer – a producer of the status response of the completed async task,
+     *   where necessary fields are only id and expiration time.
+     * @param listener – listener to report result to
+     */
+    public void getStatusResponse(
+        AsyncExecutionId asyncExecutionId, BiFunction<String, Long, R> completedStatusProducer, ActionListener<R> listener) {
+        GetRequest internalGet = new GetRequest(index)
+            .preference(asyncExecutionId.getEncoded())
+            .id(asyncExecutionId.getDocId());
+        client.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    return;
+                }
+                Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
+                listener.onResponse(completedStatusProducer.apply(asyncExecutionId.getEncoded(), expirationTime));
+            },
             listener::onFailure
         ));
     }

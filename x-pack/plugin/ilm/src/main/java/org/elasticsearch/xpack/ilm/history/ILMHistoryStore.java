@@ -10,8 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -19,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,19 +28,18 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
 
 /**
@@ -70,20 +66,14 @@ public class ILMHistoryStore implements Closeable {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
                     ClusterState state = clusterService.state();
+
                     if (LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(state.getMetadata().settings()) == false) {
                         throw new ElasticsearchException("can not index ILM history items when ILM history is disabled");
                     }
-                    // Prior to actually performing the bulk, we should ensure the data stream exists, and
-                    // if we were unable to create it we should not attempt to index documents.
-                    try {
-                        final CompletableFuture<Boolean> dsCreated = new CompletableFuture<>();
-                        ensureHistoryDataStream(client, state, ActionListener.wrap(dsCreated::complete,
-                            ex -> {
-                                logger.warn("failed to create ILM history store data stream prior to issuing bulk request", ex);
-                                dsCreated.completeExceptionally(ex);
-                            }));
-                        dsCreated.get(2, TimeUnit.MINUTES);
-                    } catch (Exception e) {
+
+                    if (state.getMetadata().dataStreams().containsKey(ILM_HISTORY_DATA_STREAM) == false &&
+                        state.getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                        ElasticsearchException e = new ElasticsearchException("no template");
                         logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
                             request.requests().stream()
                                 .filter(dwr -> (dwr instanceof IndexRequest))
@@ -91,8 +81,9 @@ public class ILMHistoryStore implements Closeable {
                                 .map(IndexRequest::sourceAsMap)
                                 .map(Object::toString)
                                 .collect(Collectors.joining("\n"))), e);
-                        throw new ElasticsearchException(e);
+                        throw e;
                     }
+
                     if (logger.isTraceEnabled()) {
                         logger.info("about to index: {}",
                             request.requests().stream()
@@ -165,41 +156,6 @@ public class ILMHistoryStore implements Closeable {
         } catch (IOException exception) {
             logger.error(new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]",
                 ILM_HISTORY_DATA_STREAM, item), exception);
-        }
-    }
-
-    /**
-     * Checks if the ILM history data stream exists, and if not, creates it.
-     *
-     * @param client  The client to use to create the data stream if needed
-     * @param state   The current cluster state, to determine if the alias exists
-     * @param listener Called after the data stream has been created. `onResponse` called with `true` if the data stream was created,
-     *                `false` if it already existed.
-     */
-    static void ensureHistoryDataStream(Client client, ClusterState state, ActionListener<Boolean> listener) {
-        if (state.getMetadata().dataStreams().containsKey(ILM_HISTORY_DATA_STREAM)) {
-            listener.onResponse(false);
-        } else {
-            logger.debug("creating ILM history data stream [{}]", ILM_HISTORY_DATA_STREAM);
-            client.execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(ILM_HISTORY_DATA_STREAM),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        listener.onResponse(true);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof ResourceAlreadyExistsException) {
-                            listener.onResponse(false);
-                            logger.debug(
-                                "data stream [{}] was created after checking for its existence, likely due to a concurrent call",
-                                ILM_HISTORY_DATA_STREAM);
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
         }
     }
 

@@ -6,13 +6,11 @@
 
 package org.elasticsearch.xpack.ilm.history;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -20,30 +18,31 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.hamcrest.Matchers;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 
-import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,6 +50,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.TEMPLATE_ILM_HISTORY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -62,10 +63,19 @@ public class ILMHistoryStoreTests extends ESTestCase {
     private ILMHistoryStore historyStore;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        byte[] templateBytes = TEMPLATE_ILM_HISTORY.loadBytes();
+        BytesArray templateBytesArray = new BytesArray(templateBytes, 0, templateBytes.length);
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateBytesArray, XContentType.JSON)) {
+            ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
+            Metadata.Builder metadataBuilder = Metadata.builder().indexTemplates(Map.of(ILM_TEMPLATE_NAME, template));
+            ClusterState state = ClusterState.builder(clusterService.state()).metadata(metadataBuilder).build();
+            ClusterServiceUtils.setState(clusterService, state);
+        }
         historyStore = new ILMHistoryStore(client, clusterService, threadPool);
     }
 
@@ -78,8 +88,12 @@ public class ILMHistoryStoreTests extends ESTestCase {
     }
 
     public void testNoActionIfDisabled() throws Exception {
-        Settings settings = Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(client, null, threadPool)) {
+        ClusterState state = clusterService.state();
+        Metadata.Builder builder = Metadata.builder(state.metadata());
+        builder.transientSettings(Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), "false").build());
+        state = ClusterState.builder(state).metadata(builder).build();
+        ClusterServiceUtils.setState(clusterService, state);
+        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(client, clusterService, threadPool)) {
             String policyId = randomAlphaOfLength(5);
             final long timestamp = randomNonNegativeLong();
             ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);
@@ -169,78 +183,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
             historyStore.putAsync(record);
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
-    }
-
-    public void testHistoryIndexNeedsCreation() throws InterruptedException {
-        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder())
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            assertThat(a, instanceOf(CreateDataStreamAction.class));
-            assertThat(r, instanceOf(CreateDataStreamAction.Request.class));
-            CreateDataStreamAction.Request request = (CreateDataStreamAction.Request) r;
-            assertThat(request.getName(), equalTo(ILM_HISTORY_DATA_STREAM));
-            return new AcknowledgedResponse(true);
-        });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryDataStream(client, state, new LatchedActionListener<>(ActionListener.wrap(
-            Assert::assertTrue,
-            ex -> {
-                logger.error(ex);
-                fail("should have called onResponse, not onFailure");
-            }), latch));
-
-        ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
-    }
-
-    public void testHistoryIndexProperlyExistsAlready() throws InterruptedException {
-        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .dataStreams(Collections.singletonMap(ILM_HISTORY_DATA_STREAM,
-                    new DataStream(ILM_HISTORY_DATA_STREAM, new TimestampField("@timestamp"),
-                        Collections.singletonList(new Index(DataStream.getDefaultBackingIndexName(ILM_HISTORY_DATA_STREAM, 1), ""))))))
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("no client calls should have been made");
-            return null;
-        });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryDataStream(client, state, new LatchedActionListener<>(ActionListener.wrap(
-            Assert::assertFalse,
-            ex -> {
-                logger.error(ex);
-                fail("should have called onResponse, not onFailure");
-            }), latch));
-
-        ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
-    }
-
-    public void testHistoryIndexCreatedConcurrently() throws InterruptedException {
-        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder())
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            assertThat(a, instanceOf(CreateDataStreamAction.class));
-            assertThat(r, instanceOf(CreateDataStreamAction.Request.class));
-            CreateDataStreamAction.Request request = (CreateDataStreamAction.Request) r;
-            assertThat(request.getName(), equalTo(ILM_HISTORY_DATA_STREAM));
-            throw new ResourceAlreadyExistsException("that data stream already exists");
-        });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ILMHistoryStore.ensureHistoryDataStream(client, state, new LatchedActionListener<>(ActionListener.wrap(
-            Assert::assertFalse,
-            ex -> {
-                logger.error(ex);
-                fail("should have called onResponse, not onFailure");
-            }), latch));
-
-        ElasticsearchAssertions.awaitLatch(latch, 10, TimeUnit.SECONDS);
     }
 
     /**

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -19,7 +19,7 @@ public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
 
     public LongScriptFieldTermsQuery(
         Script script,
-        Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory,
+        Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
         LongSet terms
     ) {

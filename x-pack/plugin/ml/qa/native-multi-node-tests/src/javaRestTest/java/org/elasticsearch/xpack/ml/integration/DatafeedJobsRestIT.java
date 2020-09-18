@@ -33,7 +33,6 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -128,6 +127,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "          \"keyword\":{\"type\":\"keyword\"}"
                 + "         }"
                 + "       },"
+                + "      \"airline_lowercase_rt\": { "
+                + "        \"type\":\"runtime\","
+                + "        \"runtime_type\": \"keyword\","
+                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
+                + "      },"
                 + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
@@ -290,6 +294,13 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 .setScriptedFields(
                     "{\"scripted_airline\":{\"script\":{\"lang\":\"painless\",\"source\":\"doc['airline.keyword'].value\"}}}")
             .setAirlineVariant("scripted_airline")
+            .execute();
+    }
+
+    public void testLookbackOnlyWithRuntimeFields() throws Exception {
+        new LookbackOnlyTestHelper("test-lookback-only-with-runtime-fields", "airline-data")
+            .setAirlineVariant("airline_lowercase_rt")
+            .setShouldSucceedProcessing(true)
             .execute();
     }
 
@@ -462,7 +473,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackOnlyGivenEmptyIndex() throws Exception {
         new LookbackOnlyTestHelper("test-lookback-only-given-empty-index", "airline-data-empty")
-                .setShouldSucceedInput(false).setShouldSucceedProcessing(false).execute();
+            .setShouldSucceedInput(false).setShouldSucceedProcessing(false).execute();
     }
 
     public void testInsufficientSearchPrivilegesOnPut() throws Exception {
@@ -1084,9 +1095,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private class LookbackOnlyTestHelper {
-        private String jobId;
+        private final String jobId;
+        private final String dataIndex;
         private String airlineVariant;
-        private String dataIndex;
         private String scriptedFields;
         private boolean shouldSucceedInput;
         private boolean shouldSucceedProcessing;
@@ -1121,7 +1132,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         }
 
         public void execute() throws Exception {
-            createJob(jobId, airlineVariant);
+            Response jobResponse = createJob(jobId, airlineVariant);
+            assertThat(jobResponse.getStatusLine().getStatusCode(), equalTo(200));
             String datafeedId = "datafeed-" + jobId;
             new DatafeedBuilder(datafeedId, jobId, dataIndex).setScriptedFields(scriptedFields).build();
             openJob(client(), jobId);

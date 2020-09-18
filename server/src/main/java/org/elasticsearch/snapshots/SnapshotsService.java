@@ -99,6 +99,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1141,7 +1142,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private boolean reusedExistingDelete = false;
 
-            private final Collection<SnapshotsInProgress.Entry> completedSnapshots = new ArrayList<>();
+            // Snapshots that had all of their shard snapshots in queued state and thus were removed from the
+            // cluster state right away
+            private final Collection<Snapshot> completedNoCleanup = new ArrayList<>();
+
+            // Snapshots that were aborted and that already wrote data to the repository and now have to be deleted
+            // from the repository after the cluster state update
+            private final Collection<SnapshotsInProgress.Entry> completedWithCleanup = new ArrayList<>();
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -1172,18 +1179,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
                     }
                 }
+                // Snapshot ids that will have to be physically deleted from the repository
+                final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);
                 final SnapshotsInProgress updatedSnapshots = SnapshotsInProgress.of(snapshots.entries().stream()
                         .map(existing -> {
-                            // snapshot is started - mark every non completed shard as aborted
-                            if (existing.state() == State.STARTED && snapshotIds.contains(existing.snapshot().getSnapshotId())) {
+                            if (existing.state() == State.STARTED &&
+                                    snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
+                                // snapshot is started - mark every non completed shard as aborted
                                 final SnapshotsInProgress.Entry abortedEntry = existing.abort();
-                                if (abortedEntry.state().completed()) {
-                                    completedSnapshots.add(abortedEntry);
+                                if (abortedEntry == null) {
+                                    // No work has been done for this snapshot yet so we remove it from the cluster state directly
+                                    final Snapshot existingNotYetStartedSnapshot = existing.snapshot();
+                                    // Adding the snapshot to #endingSnapshots since we still have to resolve its listeners to not trip
+                                    // any leaked listener assertions
+                                    if (endingSnapshots.add(existingNotYetStartedSnapshot)) {
+                                        completedNoCleanup.add(existingNotYetStartedSnapshot);
+                                    }
+                                    snapshotIdsRequiringCleanup.remove(existingNotYetStartedSnapshot.getSnapshotId());
+                                } else if (abortedEntry.state().completed()) {
+                                    completedWithCleanup.add(abortedEntry);
                                 }
                                 return abortedEntry;
                             }
                             return existing;
-                        }).collect(Collectors.toUnmodifiableList()));
+                        }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList()));
+                if (snapshotIdsRequiringCleanup.isEmpty()) {
+                    // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
+                    return updateWithSnapshots(currentState, updatedSnapshots, null);
+                }
                 // add the snapshot deletion to the cluster state
                 final SnapshotDeletionsInProgress.Entry replacedEntry = deletionsInProgress.getEntries().stream().filter(entry ->
                         entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.WAITING)
@@ -1198,9 +1221,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         reusedExistingDelete = true;
                         return currentState;
                     }
-                    ensureBelowConcurrencyLimit(repoName, snapshotIds.get(0).getName(), snapshots, deletionsInProgress);
+                    final List<SnapshotId> toDelete = List.copyOf(snapshotIdsRequiringCleanup);
+                    ensureBelowConcurrencyLimit(repoName, toDelete.get(0).getName(), snapshots, deletionsInProgress);
                     newDelete = new SnapshotDeletionsInProgress.Entry(
-                            snapshotIds,
+                            toDelete,
                             repoName,
                             threadPool.absoluteTimeInMillis(),
                             repositoryData.getGenId(),
@@ -1210,7 +1234,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     repoName.equals(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.STARTED)
                                     ? SnapshotDeletionsInProgress.State.STARTED : SnapshotDeletionsInProgress.State.WAITING);
                 } else {
-                    newDelete = replacedEntry.withAddedSnapshots(snapshotIds);
+                    newDelete = replacedEntry.withAddedSnapshots(snapshotIdsRequiringCleanup);
                 }
                 return updateWithSnapshots(currentState, updatedSnapshots,
                         (replacedEntry == null ? deletionsInProgress : deletionsInProgress.withRemovedEntry(replacedEntry.uuid()))
@@ -1219,11 +1243,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
+                endingSnapshots.removeAll(completedNoCleanup);
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                for (Snapshot snapshot : completedNoCleanup) {
+                    failSnapshotCompletionListeners(snapshot,
+                        new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT));
+                }
                 if (newDelete == null) {
                     listener.onResponse(null);
                 } else {
@@ -1238,7 +1267,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             logger.trace("Delete [{}] could not execute directly and was queued", newDelete);
                         }
                     } else {
-                        for (SnapshotsInProgress.Entry completedSnapshot : completedSnapshots) {
+                        for (SnapshotsInProgress.Entry completedSnapshot : completedWithCleanup) {
                             endSnapshot(completedSnapshot, newState.metadata(), repositoryData);
                         }
                     }

@@ -19,26 +19,22 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -114,7 +110,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) {
+        public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
             return new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {
@@ -122,13 +118,13 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void process(HitContext hitContext) {
+                public void process(HitContext hitContext) throws IOException {
                     hitExecute(searchContext, hitContext);
                 }
             };
         }
 
-        private void hitExecute(SearchContext context, HitContext hitContext) {
+        private void hitExecute(FetchContext context, HitContext hitContext) throws IOException {
             TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;
@@ -139,19 +135,18 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
                 hitContext.hit().setDocumentField(NAME, hitField);
             }
-            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
-                    hitContext.hit().getId());
-            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
-            try {
+            Terms terms = hitContext.reader().getTermVector(hitContext.docId(), field);
+            if (terms != null) {
+                TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();
-                TermsEnum terms = termVector.getFields().terms(field).iterator();
                 BytesRef term;
-                while ((term = terms.next()) != null) {
-                    tv.put(term.utf8ToString(), terms.postings(null, PostingsEnum.ALL).freq());
+                PostingsEnum pe = null;
+                while ((term = te.next()) != null) {
+                    pe = te.postings(pe, PostingsEnum.FREQS);
+                    pe.nextDoc();
+                    tv.put(term.utf8ToString(), pe.freq());
                 }
                 hitField.getValues().add(tv);
-            } catch (IOException e) {
-                LogManager.getLogger(FetchSubPhasePluginIT.class).info("Swallowed exception", e);
             }
         }
     }

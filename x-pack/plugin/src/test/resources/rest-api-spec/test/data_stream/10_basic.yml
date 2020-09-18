@@ -404,7 +404,7 @@ setup:
 "Create index into a namespace that is governed by a data stream template":
   - skip:
       version: " - 7.9.1"
-      reason: "data streams only supported in 7.9+"
+      reason: "validation added in 7.9.2"
       features: allowed_warnings
 
   - do:

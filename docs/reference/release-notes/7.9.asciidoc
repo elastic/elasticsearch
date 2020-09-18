@@ -58,7 +58,9 @@ Features/Java High Level REST Client::
 
 Machine Learning::
 * Add null checks for C++ log handler {es-pull}62238[#62238]
-* Persist progress when setting DFA task to failed {es-pull}61782[#61782]
+* Persist progress when setting data frame analytics task to failed {es-pull}61782[#61782]
+* Fix reporting of peak memory usage in memory stats for data frame analytics {ml-pull}1468[#1468]
+* Fix reporting of peak memory usage in model size stats for anomaly detection {ml-pull}1484[#1484]
 
 Mapping::
 * Allow empty null values for date and IP field mappers {es-pull}62487[#62487] (issues: {es-issue}57666[#57666], {es-issue}62363[#62363])
@@ -72,7 +74,7 @@ Search::
 * Search memory leak {es-pull}61788[#61788]
 
 Transform::
-* Disable optimizations when using scripts in group_by {es-pull}60724[#60724] (issues: {es-issue}57332[#57332], {es-issue}59591[#59591])
+* Disable optimizations when using scripts in group_by {es-pull}60724[#60724] (issue: {es-issue}57332[#57332])
 
 
 

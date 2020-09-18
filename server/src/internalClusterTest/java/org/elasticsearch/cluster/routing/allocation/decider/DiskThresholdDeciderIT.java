@@ -25,7 +25,6 @@ import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -129,7 +128,7 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class);
     }
 
-    public void testHighWatermarkNotExceeded() throws InterruptedException {
+    public void testHighWatermarkNotExceeded() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -152,12 +151,12 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
         refreshDiskUsage();
-        assertThat(getShardRoutings(dataNode0Id), empty());
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id), empty()));
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
         refreshDiskUsage();
-        assertThat(getShardRoutings(dataNode0Id), hasSize(1));
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id), hasSize(1)));
     }
 
     private Set<ShardRouting> getShardRoutings(String nodeId) {
@@ -202,11 +201,11 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
     }
 
     private void refreshDiskUsage() {
-        ((InternalClusterInfoService) internalCluster().getMasterNodeInstance(ClusterInfoService.class)).refresh();
+        final ClusterInfoService clusterInfoService = internalCluster().getMasterNodeInstance(ClusterInfoService.class);
+        ((InternalClusterInfoService) clusterInfoService).refresh();
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
-        final ClusterInfo clusterInfo = internalCluster().getMasterNodeInstance(ClusterInfoService.class).getClusterInfo();
-        if (StreamSupport.stream(clusterInfo.getNodeMostAvailableDiskUsages().values().spliterator(), false)
+        if (StreamSupport.stream(clusterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().values().spliterator(), false)
             .allMatch(cur -> cur.value.getFreeBytes() > WATERMARK_BYTES)) {
             assertAcked(client().admin().cluster().prepareReroute());
         }

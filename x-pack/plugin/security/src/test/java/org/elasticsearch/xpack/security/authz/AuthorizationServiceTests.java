@@ -552,32 +552,36 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUserWithNoRolesOpenPointInTimeWithRemoteIndices() {
-        final boolean hasLocalIndices = randomBoolean();
-        final String[] indices = new String[]{
-            hasLocalIndices ? randomAlphaOfLength(5) : "other_cluster:" + randomAlphaOfLength(5),
-            "other_cluster:" + randomAlphaOfLength(5)
-        };
-        final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(
-            indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, TimeValue.timeValueMinutes(randomLongBetween(1, 10)),
-            randomAlphaOfLength(5), randomAlphaOfLength(5)
-        );
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        if (hasLocalIndices) {
-            assertThrowsAuthorizationException(
-                () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
-                "indices:data/read/open_point_in_time", "test user"
+        for (final boolean hasLocalIndices: List.of(true, false)) {
+            final String[] indices = new String[] {
+                hasLocalIndices ?
+                    randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*") :
+                    "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*"),
+                "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*")
+            };
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(
+                indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, TimeValue.timeValueMinutes(randomLongBetween(1, 10)),
+                randomAlphaOfLength(5), randomAlphaOfLength(5)
             );
-            verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
-                                            eq("indices:data/read/open_point_in_time"), eq(openPointInTimeRequest),
-                                            authzInfoRoles(Role.EMPTY.names()));
-        } else {
-            authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest);
-            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(OpenPointInTimeAction.NAME), eq(openPointInTimeRequest),
-                                             authzInfoRoles(Role.EMPTY.names()));
+            if (hasLocalIndices) {
+                assertThrowsAuthorizationException(
+                    () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
+                    "indices:data/read/open_point_in_time", "test user"
+                );
+                verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
+                                                eq("indices:data/read/open_point_in_time"), eq(openPointInTimeRequest),
+                                                authzInfoRoles(Role.EMPTY.names()));
+            } else {
+                authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest);
+                verify(auditTrail).accessGranted(eq(requestId), eq(authentication),
+                                                 eq("indices:data/read/open_point_in_time"), eq(openPointInTimeRequest),
+                                                 authzInfoRoles(Role.EMPTY.names()));
+            }
+            verifyNoMoreInteractions(auditTrail);
         }
-        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testUserWithNoRolesCanClosePointInTime() {
@@ -586,7 +590,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, ClosePointInTimeAction.NAME, closePointInTimeRequest);
-        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(indices:data/read/close_point_in_time), eq(closePointInTimeRequest),
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication),
+                                         eq("indices:data/read/close_point_in_time"), eq(closePointInTimeRequest),
                                          authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }

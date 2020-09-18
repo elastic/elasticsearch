@@ -143,7 +143,7 @@ teardown:
   - match: { hits.hits.1._source.f: "r4" }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
       close_point_in_time:
         body:
           id: "$pit_id"

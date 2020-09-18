@@ -246,6 +246,10 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
+                deprecationLogger.deprecate(
+                    "boost",
+                    "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                    name);
                 iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
@@ -398,8 +402,11 @@ public class TypeParsers {
         return copyFields;
     }
 
-    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
+    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, Object value) {
+        if (value == null) {
+            return null;    // use default
+        }
+        SimilarityProvider similarityProvider = parserContext.getSimilarity(value.toString());
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
         }

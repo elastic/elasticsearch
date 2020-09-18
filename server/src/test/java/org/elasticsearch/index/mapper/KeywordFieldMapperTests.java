@@ -131,6 +131,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         b.field("type", "keyword");
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -235,6 +240,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testBoost() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
         assertThat(mapperService.fieldType("field").boost(), equalTo(2f));
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     public void testEnableNorms() throws IOException {
@@ -248,6 +254,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         IndexableField[] fieldNamesFields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.length);
+    }
+
+    public void testConfigureSimilarity() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
+        );
+        MappedFieldType ft = mapperService.documentMapper().fieldTypes().get("field");
+        assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("similarity", "BM25"))));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [similarity] from [boolean] to [BM25]"));
     }
 
     public void testNormalizer() throws IOException {
@@ -389,7 +407,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

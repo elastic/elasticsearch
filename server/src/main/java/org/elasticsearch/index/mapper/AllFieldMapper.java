@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -102,25 +101,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
     private AllFieldMapper(Explicit<Boolean> enabled) {
         super(new AllFieldType());
         this.enabled = enabled;
-    }
-
-    @Override
-    public void preParse(ParseContext context) {
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in post parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        // noop mapper
     }
 
     @Override

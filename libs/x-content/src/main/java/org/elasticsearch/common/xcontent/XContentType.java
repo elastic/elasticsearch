@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -117,10 +118,10 @@ public enum XContentType implements MediaType {
      * 1. Media type with a version - requires a custom vnd.elasticsearch subtype and a compatible-with parameter
      * i.e. application/vnd.elasticsearch+json;compatible-with
      * 2. Media type without a version - for users not using compatible API i.e. application/json
-     * //public scope for testing //todo pg consider a getter?
      */
-     public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
-        .withMediaTypesNoParams(XContentType.values())//todo pg maybe we could explicitly add cbor and smile?
+     private static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
+        .withMediaTypeAndParams("application/smile", SMILE, Collections.emptyMap())
+        .withMediaTypeAndParams("application/cbor", CBOR, Collections.emptyMap())
         .withMediaTypeAndParams("application/json", JSON, Map.of("charset", "UTF-8"))
         .withMediaTypeAndParams("application/yaml", YAML, Map.of("charset", "UTF-8"))
         .withMediaTypeAndParams("application/*", JSON, Map.of("charset", "UTF-8"))

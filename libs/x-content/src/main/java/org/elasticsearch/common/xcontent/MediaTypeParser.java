@@ -132,14 +132,6 @@ public class MediaTypeParser<T extends MediaType> {
         private final Map<String, T> typeMap = new HashMap<>();
         private final Map<String, Map<String, String>> parametersMap = new HashMap<>();
 
-        public Builder<T> withMediaTypesNoParams(T[] acceptedMediaTypes) {
-            for (T mediaType : acceptedMediaTypes) {
-                typeMap.put(mediaType.typeWithSubtype(), mediaType);
-                formatMap.put(mediaType.format(), mediaType);
-            }
-            return this;
-        }
-
         public Builder<T> withMediaTypeNoParams(String alternativeMediaType, T mediaType) {
             typeMap.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
             formatMap.put(mediaType.format(), mediaType);

@@ -72,7 +72,7 @@ public final class BitArray implements Releasable {
             return index + Long.numberOfTrailingZeros(word);
         }
 
-        while(++wordNum < bits.size()) {
+        while (++wordNum < bits.size()) {
             word = bits.get(wordNum);
             if (word != 0) {
                 return (wordNum << 6) + Long.numberOfTrailingZeros(word);

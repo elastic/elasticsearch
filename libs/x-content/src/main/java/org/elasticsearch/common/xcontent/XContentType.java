@@ -130,6 +130,7 @@ public enum XContentType implements MediaType {
         .withMediaTypeAndParams("application/vnd.elasticsearch+smile", SMILE, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
         .withMediaTypeAndParams("application/vnd.elasticsearch+yaml", YAML, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
         .withMediaTypeAndParams("application/vnd.elasticsearch+cbor", CBOR, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+x-ndjson", JSON, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
         .build();
 
     /**

@@ -95,7 +95,7 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType("gobbly;goop"), nullValue());
     }
 
-    public void testMediaType() {
+    public void testVersionedMediaType() {
         String version = String.valueOf(Math.abs(randomByte()));
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
             equalTo(XContentType.JSON));
@@ -106,6 +106,8 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+yaml;compatible-with=" + version),
             equalTo(XContentType.YAML));
         assertThat(XContentType.fromMediaType("application/json"),
+            equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
             equalTo(XContentType.JSON));
 
 
@@ -122,6 +124,8 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
             equalTo(version));
         assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
             equalTo(version));
         assertThat(XContentType.parseVersion("application/json"),
             nullValue());

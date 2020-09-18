@@ -62,7 +62,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
-        this.counts = new HyperLogLogPlusPlusSparse(precision, context.bigArrays(), maxOrd, 1);
+        this.counts = new HyperLogLogPlusPlusSparse(precision, context.bigArrays());
         this.collector = new OrdinalsCollector(counts, context.bigArrays(), maxOrd);
     }
 
@@ -115,7 +115,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         super.collectDebugInfo(add);
         add.accept("empty_collectors_used", 0);
         add.accept("numeric_collectors_used", 0);
-        add.accept("ordinals_collectors_used", 0);
+        add.accept("ordinals_collectors_used", 1);
         add.accept("ordinals_collectors_overhead_too_high", 0);
         add.accept("string_hashing_collectors_used", 0);
     }
@@ -175,6 +175,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
+                            counts.ensureSize(bucket, bits.cardinality());
                             for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
                                  ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
                                 counts.collect(bucket, hashes.get(ord));

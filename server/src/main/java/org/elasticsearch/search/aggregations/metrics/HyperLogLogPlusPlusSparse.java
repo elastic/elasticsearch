@@ -145,7 +145,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             // This assumes that ensureSize has been called before
             IntArray array = values.get(bucketOrd);
             int size = sizes.get(bucketOrd);
-            ensureSize(bucketOrd, size + 1);
             array.set(size, value);
             return sizes.increment(bucketOrd, 1);
         }

@@ -45,7 +45,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldNamesFieldMapper.class);
 
-
     public static final String NAME = "_field_names";
 
     public static final String CONTENT_TYPE = "_field_names";
@@ -91,6 +90,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             this.indexVersionCreated = indexVersionCreated;
         }
 
+        @Override
         protected List<Parameter<?>> getParameters() {
             return Collections.singletonList(enabled);
         }
@@ -179,7 +179,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             @Override
             public Iterator<String> iterator() {
                 return new Iterator<String>() {
-
                     int endIndex = nextEndIndex(0);
 
                     private int nextEndIndex(int index) {

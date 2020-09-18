@@ -172,7 +172,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }
-
     }
 
     /**

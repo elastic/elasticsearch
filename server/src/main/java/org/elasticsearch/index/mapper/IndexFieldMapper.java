@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Supplier;
 
@@ -72,12 +71,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public IndexFieldMapper() {
         super(IndexFieldType.INSTANCE);
     }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {}
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {}
 
     @Override
     protected String contentType() {

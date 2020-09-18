@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -24,8 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,13 +51,9 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.hamcrest.Matchers;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,8 +70,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -88,8 +81,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -673,10 +664,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     public void testSnapshotMountedIndexLeavesBlobsUntouched() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numShards = between(1, 3);
         createAndPopulateIndex(
             indexName,
             Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
         );
@@ -688,33 +680,32 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         createFsRepository(repositoryName, repositoryLocation);
 
         final SnapshotId snapshotOne = createSnapshot(repositoryName, List.of(indexName));
-        final Set<Tuple<String, Long>> snapshotOneDataBlobs = listDataBlobsInRepository(repositoryLocation);
-        assertThat(snapshotOneDataBlobs, hasSize(greaterThan(0)));
         assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final SnapshotStatus snapshotOneStatus = client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshotOne.getName())
+            .get()
+            .getSnapshots()
+            .get(0);
+        final int snapshotOneTotalFileCount = snapshotOneStatus.getStats().getTotalFileCount();
+        assertThat(snapshotOneTotalFileCount, greaterThan(0));
 
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
         ensureGreen(indexName);
 
-        createSnapshot(repositoryName, List.of(indexName));
-        final Set<Tuple<String, Long>> snapshotTwoDataBlobs = listDataBlobsInRepository(repositoryLocation);
-        assertThat(snapshotTwoDataBlobs.containsAll(snapshotOneDataBlobs), is(true));
-        assertThat(snapshotTwoDataBlobs, hasSize(snapshotOneDataBlobs.size()));
-    }
-
-    private static Set<Tuple<String, Long>> listDataBlobsInRepository(final Path path) throws IOException {
-        final Set<Tuple<String, Long>> files = new HashSet<>();
-        Files.walkFileTree(path, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                if (file.getFileName().toString().startsWith("__")) {
-                    final CheckedInputStream checkedStream = new CheckedInputStream(Files.newInputStream(file), new CRC32());
-                    Streams.readFully(new BufferedInputStream(checkedStream));
-                    files.add(Tuple.tuple(file.toAbsolutePath().toString(), checkedStream.getChecksum().getValue()));
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
-        return files;
+        final SnapshotId snapshotTwo = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotStatus snapshotTwoStatus = client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshotTwo.getName())
+            .get()
+            .getSnapshots()
+            .get(0);
+        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(snapshotOneTotalFileCount));
+        assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(numShards)); // one segment_N per shard
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

@@ -799,8 +799,9 @@ If the 1st argument is of type `time`, then pattern specified by the 2nd argumen
 It will return the fractional part of seconds, and the number of digits will be same as of the number of `Fs` provided as input (up to 9 digits).
 Result will contain `0` appended in the end to match with number of `F` provided.
 e.g.: for a time part `10:20:30.1234` and pattern `HH:mm:ss.FFFFFF`, the output string of the function would be: `10:20:30.123400`.
-- Format Specifier `y` will be working similar to `yyyy`. eg.: For year `2009`, `y` will be returning `2009` instead of `9`.
-- Special characters like `"` , `\` and `%` will be returned as it is without any change. eg.: formatting year `17-sep-2020` with `%M` will return `%9`
+- Format Specifier `y` will return year-of-era instead of one/two low-order digits.
+eg.: For year `2009`, `y` will be returning `2009` instead of `9`. For year `43`, `y` format specifier will return `43`.
+- Special characters like `"` , `\` and `%` will be returned as it is without any change. eg.: formatting date `17-sep-2020` with `%M` will return `%9`
 
 [source, sql]
 --------------------------------------------------

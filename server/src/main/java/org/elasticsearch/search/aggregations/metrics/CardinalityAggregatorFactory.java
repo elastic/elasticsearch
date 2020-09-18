@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -57,12 +59,14 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                     ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
                     if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
                         ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                        // is this call expensive? I hope not
-                        final long maxOrd = source.globalMaxOrd(context.searcher());
+                        // we compute the total number of terms across all segments
+                        final long totalNonDistinctTerms = totalNonDistinctTerms(context, source);
                         final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-                        final long ordinalsMemoryUsage = maxOrd * 4;
-                        // better heuristic? Currently we pay the price of the bitSet but it should be small
+                        //  we assume there are 25% of repeated values
+                        final long ordinalsMemoryUsage = totalNonDistinctTerms * 3;
+                        // we do not consider the size if the bitSet, I think at most they can be ~1MB per bucket
                         if (ordinalsMemoryUsage < countsMemoryUsage) {
+                            final long maxOrd = source.globalMaxOrd(context.searcher());
                             return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
                                 context, parent, metadata);
                         }
@@ -71,6 +75,15 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // fall back in default aggregator
                 return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
             }, true);
+    }
+
+    private static long totalNonDistinctTerms(SearchContext context, ValuesSource.Bytes.WithOrdinals source) throws IOException {
+        List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+        long total = 0;
+        for (LeafReaderContext leaf : leaves) {
+            total += source.ordinalsValues(leaf).getValueCount();
+        }
+        return total;
     }
 
     @Override

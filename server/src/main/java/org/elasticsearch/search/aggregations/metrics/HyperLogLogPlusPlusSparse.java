@@ -98,7 +98,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             this.bigArrays = bigArrays;
             this.capacity = capacity;
             values = bigArrays.newIntArray(initialSize * capacity);
-            sizes = bigArrays.newIntArray(initialSize * capacity);
+            sizes = bigArrays.newIntArray(initialSize);
             iterator = new LinearCountingIterator(this, capacity);
         }
 

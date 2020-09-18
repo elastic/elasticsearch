@@ -14,23 +14,23 @@ Executes an existing <<enrich-policy,enrich policy>>.
 ----
 PUT /users/_doc/1?refresh
 {
-    "email": "mardy.brown@asciidocsmith.com",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "web": "mardy.asciidocsmith.com"
+  "email": "mardy.brown@asciidocsmith.com",
+  "first_name": "Mardy",
+  "last_name": "Brown",
+  "city": "New Orleans",
+  "county": "Orleans",
+  "state": "LA",
+  "zip": 70116,
+  "web": "mardy.asciidocsmith.com"
 }
 
 PUT /_enrich/policy/my-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 ----
 // TESTSETUP

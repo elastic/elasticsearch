@@ -36,7 +36,7 @@ public class AutoCreateActionTests extends ESTestCase {
         Metadata metadata;
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
-            DataStreamTemplate dataStreamTemplate = new DataStreamTemplate("@timestamp");
+            DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
             mdBuilder.put("1", new ComposableIndexTemplate(List.of("legacy-logs-*"), null, null, 10L, null, null, null));
             mdBuilder.put("2", new ComposableIndexTemplate(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate));
             mdBuilder.put("3", new ComposableIndexTemplate(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate));

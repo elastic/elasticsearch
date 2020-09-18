@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -38,12 +39,14 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A field mapper for boolean fields.
@@ -74,16 +77,16 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> docValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  true);
-        private final Parameter<Boolean> indexed = Parameter.boolParam("index", false, m -> toType(m).indexed, true);
-        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
-        private final Parameter<Boolean> nullValue
-            = new Parameter<>("null_value", false, null, (n, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
+        private final Parameter<Boolean> nullValue = new Parameter<>("null_value", false, () -> null,
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue)
+            .acceptsNull();
 
-        private final Parameter<Float> boost = Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
-        private final Parameter<Map<String, String>> meta
-            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
+        private final Parameter<Float> boost = Parameter.boostParam();
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
             super(name);
@@ -102,15 +105,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -120,15 +115,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         public BooleanFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
-        }
-
-        protected BooleanFieldType(BooleanFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new BooleanFieldType(this);
         }
 
         @Override
@@ -186,9 +172,9 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(NumericType.BOOLEAN);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN);
         }
 
         @Override
@@ -264,6 +250,25 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         } else {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected Boolean parseSourceValue(Object value) {
+                if (value instanceof Boolean) {
+                    return (Boolean) value;
+                } else {
+                    String textValue = value.toString();
+                    return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                }
+            }
+        };
     }
 
     @Override

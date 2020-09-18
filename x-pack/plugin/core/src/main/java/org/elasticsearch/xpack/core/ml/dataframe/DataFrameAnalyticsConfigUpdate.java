@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
 
@@ -66,11 +67,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         this.description = in.readOptionalString();
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.allowLazyStart = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.maxNumThreads = in.readOptionalVInt();
-        } else {
-            this.maxNumThreads = null;
-        }
+        this.maxNumThreads = in.readOptionalVInt();
     }
 
     @Override
@@ -79,9 +76,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         out.writeOptionalString(description);
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeOptionalBoolean(allowLazyStart);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalVInt(maxNumThreads);
-        }
+        out.writeOptionalVInt(maxNumThreads);
     }
 
     public String getId() {
@@ -157,6 +152,23 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
     public boolean requiresRestart(DataFrameAnalyticsConfig source) {
         return (getModelMemoryLimit() != null && getModelMemoryLimit().equals(source.getModelMemoryLimit()) == false)
             || (getMaxNumThreads() != null && getMaxNumThreads().equals(source.getMaxNumThreads()) == false);
+    }
+
+    public Set<String> getUpdatedFields() {
+        Set<String> updatedFields = new TreeSet<>();
+        if (description != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.DESCRIPTION.getPreferredName());
+        }
+        if (modelMemoryLimit != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT.getPreferredName());
+        }
+        if (allowLazyStart != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.ALLOW_LAZY_START.getPreferredName());
+        }
+        if (maxNumThreads != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName());
+        }
+        return updatedFields;
     }
 
     @Override

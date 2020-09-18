@@ -39,11 +39,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static TransformConfig randomTransformConfig() {
-        return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
+    public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
+        return randomTransformConfigWithoutHeaders(Version.CURRENT, id);
     }
 
-    public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
+    public static TransformConfig randomTransformConfigWithoutHeaders(Version version, String id) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -51,7 +51,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
-            PivotConfigTests.randomPivotConfig(),
+            PivotConfigTests.randomPivotConfig(version),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
             null,
@@ -59,7 +59,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
+    public static TransformConfig randomTransformConfig() {
+        return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
+    }
+
     public static TransformConfig randomTransformConfig(String id) {
+        return randomTransformConfig(Version.CURRENT, id);
+    }
+
+    public static TransformConfig randomTransformConfig(Version version, String id) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -67,7 +75,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
-            PivotConfigTests.randomPivotConfig(),
+            PivotConfigTests.randomPivotConfig(version),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),

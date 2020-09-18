@@ -4,47 +4,6 @@
       features: allowed_warnings
 
   - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template1
-        body:
-          index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
-  - do:
-      allowed_warnings:
-        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template2
-        body:
-          index_patterns: [simple-data-stream2]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream1
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream2
-
-  - do:
-      indices.rollover:
-        alias: "simple-data-stream2"
-
-  - do:
       indices.create:
         index: single_doc_index
         body:
@@ -123,18 +82,6 @@
                       nested2:
                         type: keyword
                         doc_values: false
-
-  - do:
-      indices.create:
-        index: closed_index
-        body:
-          aliases:
-            aliased_closed_index: {}
-
-  - do:
-      indices.close:
-        index: closed_index
-
   - do:
       indices.create:
         index: test_index

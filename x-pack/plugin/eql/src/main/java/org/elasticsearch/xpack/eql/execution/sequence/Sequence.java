@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.ql.util.Check;
 
@@ -32,7 +32,7 @@ public class Sequence {
 
     private int currentStage = 0;
 
-    public Sequence(SequenceKey key, int stages, Ordinal ordinal, SearchHit firstHit) {
+    public Sequence(SequenceKey key, int stages, Ordinal ordinal, HitReference firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
         this.stages = stages;
@@ -40,7 +40,7 @@ public class Sequence {
         this.matches[0] = new Match(ordinal, firstHit);
     }
 
-    public int putMatch(int stage, SearchHit hit, Ordinal ordinal) {
+    public int putMatch(int stage, Ordinal ordinal, HitReference hit) {
         if (stage == currentStage + 1) {
             int previousStage = currentStage;
             currentStage = stage;
@@ -62,8 +62,8 @@ public class Sequence {
         return matches[0].ordinal();
     }
 
-    public List<SearchHit> hits() {
-        List<SearchHit> hits = new ArrayList<>(matches.length);
+    public List<HitReference> hits() {
+        List<HitReference> hits = new ArrayList<>(matches.length);
         for (Match m : matches) {
             hits.add(m.hit());
         }

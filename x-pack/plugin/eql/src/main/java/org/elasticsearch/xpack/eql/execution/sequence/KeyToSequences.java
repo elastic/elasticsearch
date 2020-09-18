@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.xpack.eql.execution.assembler.KeyAndOrdinal;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.LinkedHashMap;
@@ -30,7 +29,7 @@ class KeyToSequences {
         this.keyToUntil = new LinkedHashMap<>();
     }
 
-    private SequenceGroup[] group(SequenceKey key) {
+    private SequenceGroup[] groups(SequenceKey key) {
         return keyToSequences.computeIfAbsent(key, k -> new SequenceGroup[listSize]);
     }
 
@@ -45,12 +44,30 @@ class KeyToSequences {
 
     void add(int stage, Sequence sequence) {
         SequenceKey key = sequence.key();
-        SequenceGroup[] groups = group(key);
+        SequenceGroup[] groups = groups(key);
         // create the group on demand
         if (groups[stage] == null) {
             groups[stage] = new SequenceGroup(key);
         }
         groups[stage].add(sequence);
+    }
+
+    void resetGroupInsertPosition() {
+        for (SequenceGroup[] groups : keyToSequences.values()) {
+            for (SequenceGroup group : groups) {
+                if (group != null) {
+                    group.resetInsertPosition();
+                }
+            }
+        }
+    }
+
+    void resetUntilInsertPosition() {
+        for (UntilGroup until : keyToUntil.values()) {
+            if (until != null) {
+                until.resetInsertPosition();
+            }
+        }
     }
 
     void until(Iterable<KeyAndOrdinal> until) {
@@ -112,5 +129,4 @@ class KeyToSequences {
     public String toString() {
         return LoggerMessageFormat.format(null, "Keys=[{}], Until=[{}]", keyToSequences.size(), keyToUntil.size());
     }
-
 }

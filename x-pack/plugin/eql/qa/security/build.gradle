@@ -1,19 +1,11 @@
-import org.elasticsearch.gradle.info.BuildParams
-
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('eql'))
-  testImplementation project(path: xpackModule('eql:qa:common'))
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
-  if (BuildParams.isSnapshotBuild()) {
-    setting 'xpack.eql.enabled', 'true'
-  }
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.security.enabled', 'true'

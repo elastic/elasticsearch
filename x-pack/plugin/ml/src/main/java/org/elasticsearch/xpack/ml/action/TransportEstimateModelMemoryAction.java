@@ -57,7 +57,7 @@ public class TransportEstimateModelMemoryAction
         long answer = BASIC_REQUIREMENT.getBytes();
         answer = addNonNegativeLongsWithMaxValueCap(answer, calculateDetectorsRequirementBytes(analysisConfig, overallCardinality));
         answer = addNonNegativeLongsWithMaxValueCap(answer, calculateInfluencerRequirementBytes(analysisConfig, maxBucketCardinality));
-        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateCategorizationRequirementBytes(analysisConfig));
+        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateCategorizationRequirementBytes(analysisConfig, overallCardinality));
 
         listener.onResponse(new EstimateModelMemoryAction.Response(roundUpToNextMb(answer)));
     }
@@ -194,14 +194,29 @@ public class TransportEstimateModelMemoryAction
         return multiplyNonNegativeLongsWithMaxValueCap(BYTES_PER_INFLUENCER_VALUE, totalInfluencerCardinality);
     }
 
-    static long calculateCategorizationRequirementBytes(AnalysisConfig analysisConfig) {
+    static long calculateCategorizationRequirementBytes(AnalysisConfig analysisConfig, Map<String, Long> overallCardinality) {
 
         if (analysisConfig.getCategorizationFieldName() == null) {
             return 0;
         }
+
+        long relevantPartitionFieldCardinalityEstimate = 1;
+        if (analysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
+            // It is enforced that only one partition field name be configured when per-partition categorization
+            // is enabled, so we can stop after finding a non-null partition field name
+            for (Detector detector : analysisConfig.getDetectors()) {
+                String partitionFieldName = detector.getPartitionFieldName();
+                if (partitionFieldName != null) {
+                    relevantPartitionFieldCardinalityEstimate = Math.max(1, cardinalityEstimate(
+                        Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true));
+                    break;
+                }
+            }
+        }
+
         // 5MB is a pretty conservative estimate of the memory requirement for categorization.
         // Often it is considerably less, but it's very hard to predict from simple statistics.
-        return new ByteSizeValue(5, ByteSizeUnit.MB).getBytes();
+        return new ByteSizeValue(5 * relevantPartitionFieldCardinalityEstimate, ByteSizeUnit.MB).getBytes();
     }
 
     static long cardinalityEstimate(String description, String fieldName, Map<String, Long> suppliedCardinailityEstimates,

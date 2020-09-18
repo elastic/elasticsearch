@@ -404,6 +404,50 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
+[[sql-functions-datetime-dateparse]]
+==== `DATE_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression as a string
+<2> parsing pattern
+
+*Output*: date
+
+*Description*: Returns a date by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string, then `null` is returned.
+
+[NOTE]
+If the parsing pattern does not contain all valid date units (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned
+as the function needs to return a value of `date` type which will contain date part.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse1]
+--------------------------------------------------
+
+[NOTE]
+====
+The resulting `date` will have the time zone specified by the user through the 
+<<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse2]
+--------------------------------------------------
+====
+
 [[sql-functions-datetime-datetimeformat]]
 ==== `DATETIME_FORMAT`
 
@@ -846,7 +890,7 @@ ISO_DAY_OF_WEEK(datetime_exp) <1>
 
 *Output*: integer
 
-*Description*: Extract the day of the week from a date/datetime, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
+*Description*: Extract the day of the week from a date/datetime, following the {wikipedia}/ISO_week_date[ISO 8601 standard].
 Monday is `1`, Tuesday is `2`, etc.
 
 [source, sql]
@@ -869,7 +913,7 @@ ISO_WEEK_OF_YEAR(datetime_exp) <1>
 
 *Output*: integer
 
-*Description*: Extract the week of the year from a date/datetime, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
+*Description*: Extract the week of the year from a date/datetime, following {wikipedia}/ISO_week_date[ISO 8601 standard]. The first week
 of a year is the first week with a majority (4 or more) of its days in January.
 
 [source, sql]

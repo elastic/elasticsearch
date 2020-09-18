@@ -43,8 +43,13 @@ public class TypedInterfaceReferenceNode extends ReferenceNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitTypedInterfaceReference(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitTypedInterfaceReference(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */

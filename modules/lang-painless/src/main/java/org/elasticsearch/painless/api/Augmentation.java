@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.api;
 
+import org.elasticsearch.common.hash.MessageDigests;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -664,5 +666,17 @@ public class Augmentation {
         String format = "Non-container [%s] at [%s], index [%d] in path [%s]";
         throw new IllegalArgumentException(
             String.format(Locale.ROOT, format, obj.getClass().getName(), elements[i], i, String.join(".", elements)));
+    }
+
+    public static String sha1(String source) {
+        return MessageDigests.toHexString(
+            MessageDigests.sha1().digest(source.getBytes(StandardCharsets.UTF_8))
+        );
+    }
+
+    public static String sha256(String source) {
+        return MessageDigests.toHexString(
+            MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8))
+        );
     }
 }

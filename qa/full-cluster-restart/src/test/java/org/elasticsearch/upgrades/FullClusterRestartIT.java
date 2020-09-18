@@ -19,23 +19,18 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -49,7 +44,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -616,7 +610,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
     }
 
-    int extractTotalHits(Map<?, ?> response) {
+    static int extractTotalHits(Map<?, ?> response) {
         return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
@@ -1392,7 +1386,176 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+    public void testCreateSystemIndexInOldVersion() throws Exception {
+        assumeTrue("only run on old cluster", isRunningAgainstOldCluster());
+        // create index
+        Request createTestIndex = new Request("PUT", "/test_index_old");
+        createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+        client().performRequest(createTestIndex);
+
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
+            "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+        client().performRequest(bulk);
+
+        // start a async reindex job
+        Request reindex = new Request("POST", "/_reindex");
+        reindex.setJsonEntity(
+            "{\n" +
+                "  \"source\":{\n" +
+                "    \"index\":\"test_index_old\"\n" +
+                "  },\n" +
+                "  \"dest\":{\n" +
+                "    \"index\":\"test_index_reindex\"\n" +
+                "  }\n" +
+                "}");
+        reindex.addParameter("wait_for_completion", "false");
+        Map<String, Object> response = entityAsMap(client().performRequest(reindex));
+        String taskId = (String) response.get("task");
+
+        // wait for task
+        Request getTask = new Request("GET", "/_tasks/" + taskId);
+        getTask.addParameter("wait_for_completion", "true");
+        client().performRequest(getTask);
+
+        // make sure .tasks index exists
+        assertBusy(() -> {
+            Request getTasksIndex = new Request("GET", "/.tasks");
+            assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
+        });
+    }
+
+    @SuppressWarnings("unchecked" +
+        "")
+    public void testSystemIndexGetsUpdatedMetadata() throws Exception {
+        assumeFalse("only run in upgraded cluster", isRunningAgainstOldCluster());
+
+        assertBusy(() -> {
+            Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
+            Map<String, Object> response = entityAsMap(client().performRequest(clusterStateRequest));
+            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
+            assertNotNull(metadata);
+            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
+            assertNotNull(indices);
+
+            Map<String, Object> tasksIndex = (Map<String, Object>) indices.get(".tasks");
+            assertNotNull(tasksIndex);
+            assertThat(tasksIndex.get("system"), is(true));
+
+            Map<String, Object> testIndex = (Map<String, Object>) indices.get("test_index_old");
+            assertNotNull(testIndex);
+            assertThat(testIndex.get("system"), is(false));
+        });
+    }
+
+    public void testEnableSoftDeletesOnRestore() throws Exception {
+        assumeTrue("soft deletes must be enabled on 8.0+", getOldClusterVersion().before(Version.V_8_0_0));
+        final String snapshot = "snapshot-" + index;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            // create repo
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings");
+                {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
+            // create snapshot
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
+            createSnapshot.addParameter("wait_for_completion", "true");
+            createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+            client().performRequest(createSnapshot);
+        } else {
+            String restoredIndex = "restored-" + index;
+            // Restore
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", restoredIndex);
+            restoreCommand.startObject("index_settings");
+            {
+                restoreCommand.field("index.soft_deletes.enabled", true);
+            }
+            restoreCommand.endObject();
+            restoreCommand.endObject();
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
+            restoreRequest.addParameter("wait_for_completion", "true");
+            restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+            client().performRequest(restoreRequest);
+            ensureGreen(restoredIndex);
+            int numDocs = countOfIndexedRandomDocuments();
+            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_search"))));
+        }
+    }
+
+    public void testForbidDisableSoftDeletesOnRestore() throws Exception {
+        final String snapshot = "snapshot-" + index;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            // create repo
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings");
+                {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
+            // create snapshot
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
+            createSnapshot.addParameter("wait_for_completion", "true");
+            createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+            client().performRequest(createSnapshot);
+        } else {
+            // Restore
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", "restored-" + index);
+            restoreCommand.startObject("index_settings");
+            {
+                restoreCommand.field("index.soft_deletes.enabled", false);
+            }
+            restoreCommand.endObject();
+            restoreCommand.endObject();
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
+            restoreRequest.addParameter("wait_for_completion", "true");
+            restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+            final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
+            assertThat(error.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+        }
+    }
+
+    public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);
         assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
@@ -1400,55 +1563,4 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testDataStreams() throws Exception {
-        assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
-        if (isRunningAgainstOldCluster()) {
-            String mapping = "{\n" +
-                "      \"properties\": {\n" +
-                "        \"@timestamp\": {\n" +
-                "          \"type\": \"date\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }";
-            Template template = new Template(null, new CompressedXContent(mapping), null);
-            createComposableTemplate(client(), "dst", "ds", template);
-
-            Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject()
-                .field("f", "v")
-                .field("@timestamp", new Date())
-                .endObject();
-            indexRequest.setJsonEntity(Strings.toString(builder));
-            assertOK(client().performRequest(indexRequest));
-        }
-
-        Request getDataStream = new Request("GET", "/_data_stream/ds");
-        Response response = client().performRequest(getDataStream);
-        assertOK(response);
-        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
-        assertEquals(1, dataStreams.size());
-        Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
-        List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
-        assertEquals("ds", ds.get("name"));
-        assertEquals(1, indices.size());
-        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
-        assertNumHits("ds", 1, 1);
-    }
-
-    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
-        throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        StringEntity templateJSON = new StringEntity(
-            String.format(Locale.ROOT, "{\n" +
-                "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": { \"timestamp_field\": \"@timestamp\" },\n" +
-                "  \"template\": %s\n" +
-                "}", indexPattern, Strings.toString(builder)),
-            ContentType.APPLICATION_JSON);
-        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
-        createIndexTemplateRequest.setEntity(templateJSON);
-        client.performRequest(createIndexTemplateRequest);
-    }
 }

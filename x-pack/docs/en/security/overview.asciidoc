@@ -19,7 +19,7 @@ Security protects {es} clusters by:
 * <<maintaining-audit-trail, Maintaining an audit trail>>
   so you know who's doing what to your cluster and the data it stores.  
 
-[float]
+[discrete]
 [[preventing-unauthorized-access]]
 === Preventing unauthorized access
 
@@ -48,7 +48,7 @@ can connect to the cluster based on <<ip-filtering,IP filters>>. You can
 block and allow specific IP addresses, subnets, or DNS domains to
 control network-level access to a cluster.
 
-[float]
+[discrete]
 [[preserving-data-integrity]]
 === Preserving data integrity
 
@@ -60,7 +60,7 @@ data by encrypting communications to, from, and within the cluster. See
 <<encrypting-communications>>. For even	greater protection, you can increase the
 <<ciphers,encryption strength>>.
 
-[float]
+[discrete]
 [[maintaining-audit-trail]]
 === Maintaining an audit trail
 

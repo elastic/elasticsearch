@@ -32,8 +32,17 @@ public class DoWhileLoopNode extends LoopNode {
     /* ---- begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitDoWhileLoop(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDoWhileLoop(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getBlockNode().visit(irTreeVisitor, scope);
+
+        if (getConditionNode() != null) {
+            getConditionNode().visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

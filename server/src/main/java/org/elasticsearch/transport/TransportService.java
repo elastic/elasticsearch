@@ -154,6 +154,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
         this.transport = transport;
+        transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
@@ -173,6 +174,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             if (remoteClusterClient) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
+            clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
@@ -560,37 +562,44 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
-                                                                TransportResponseHandler<T> handler) {
+                                                                final TransportResponseHandler<T> handler) {
         try {
+            final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
                 final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
-                final TransportResponseHandler<T> delegate = handler;
-                handler = new TransportResponseHandler<>() {
+                delegate = new TransportResponseHandler<>() {
                     @Override
                     public void handleResponse(T response) {
                         unregisterChildNode.close();
-                        delegate.handleResponse(response);
+                        handler.handleResponse(response);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         unregisterChildNode.close();
-                        delegate.handleException(exp);
+                        handler.handleException(exp);
                     }
 
                     @Override
                     public String executor() {
-                        return delegate.executor();
+                        return handler.executor();
                     }
 
                     @Override
                     public T read(StreamInput in) throws IOException {
-                        return delegate.read(in);
+                        return handler.read(in);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
                     }
                 };
+            } else {
+                delegate = handler;
             }
-            asyncSender.sendRequest(connection, action, request, options, handler);
+            asyncSender.sendRequest(connection, action, request, options, delegate);
         } catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler
             final TransportException te;

@@ -42,21 +42,21 @@ public abstract class GroupByKey extends Agg {
         if (script != null) {
             builder.script(script.toPainless());
             if (script.outputType().isInteger()) {
-                builder.valueType(ValueType.LONG);
+                builder.userValuetypeHint(ValueType.LONG);
             } else if (script.outputType().isRational()) {
-                builder.valueType(ValueType.DOUBLE);
+                builder.userValuetypeHint(ValueType.DOUBLE);
             } else if (DataTypes.isString(script.outputType())) {
-                builder.valueType(ValueType.STRING);
+                builder.userValuetypeHint(ValueType.STRING);
             } else if (script.outputType() == DATE) {
-                builder.valueType(ValueType.LONG);
+                builder.userValuetypeHint(ValueType.LONG);
             } else if (script.outputType() == TIME) {
-                builder.valueType(ValueType.LONG);
+                builder.userValuetypeHint(ValueType.LONG);
             } else if (script.outputType() == DATETIME) {
-                builder.valueType(ValueType.LONG);
+                builder.userValuetypeHint(ValueType.LONG);
             } else if (script.outputType() == BOOLEAN) {
-                builder.valueType(ValueType.BOOLEAN);
+                builder.userValuetypeHint(ValueType.BOOLEAN);
             } else if (script.outputType() == IP) {
-                builder.valueType(ValueType.IP);
+                builder.userValuetypeHint(ValueType.IP);
             }
         }
         // field based

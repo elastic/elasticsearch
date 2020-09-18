@@ -19,11 +19,13 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -139,7 +141,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected RepositoryData getRepositoryData(String repository) {
-        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
+        return getRepositoryData(internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repository));
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
@@ -232,6 +234,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return masterName;
     }
 
+    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
+        final String masterName = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
+            .repository(repositoryName)).setBlockOnDeleteIndexFile();
+    }
+
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
@@ -247,6 +255,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
         fail("No nodes for the index " + indexName + " found");
         return null;
+    }
+
+    public static void blockNodeOnAnyFiles(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).setBlockOnAnyFiles(true);
     }
 
     public static void blockDataNode(String repository, String nodeName) {
@@ -266,6 +279,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    public static void failReadsAllDataNodes(String repository) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+            mockRepository.setFailReadsAfterUnblock(true);
+        }
+    }
+
     public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
@@ -280,7 +300,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertTrue("No repository is blocked waiting on a data node", blocked);
     }
 
-    public static void unblockNode(final String repository, final String node) {
+    public void unblockNode(final String repository, final String node) {
+        logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
@@ -295,11 +316,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        createRepository(repoName, type, randomRepositorySettings());
+    }
+
+    protected Settings.Builder randomRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
-            settings = settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+            settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
-        createRepository(repoName, type, settings);
+        return settings;
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
@@ -416,7 +442,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 
-    private void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+    }
+
+    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
@@ -440,5 +470,53 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName,
+                                                                                      String dataNode) throws InterruptedException {
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        return fut;
+    }
+
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName) {
+        return startFullSnapshot(repoName, snapshotName, false);
+    }
+
+    protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
+        logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
+        return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                .setPartial(partial).execute();
+    }
+
+    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
+        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
+        awaitClusterState(state ->
+                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
+    }
+
+    protected static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+        final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        return snapshotInfo;
+    }
+
+    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
+
+    protected void createIndexWithContent(String indexName) {
+        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
+    }
+
+    protected void createIndexWithContent(String indexName, Settings indexSettings) {
+        logger.info("--> creating index [{}]", indexName);
+        createIndex(indexName, indexSettings);
+        ensureGreen(indexName);
+        indexDoc(indexName, "some_id", "foo", "bar");
+    }
+
+    protected ActionFuture<AcknowledgedResponse> startDeleteSnapshot(String repoName, String snapshotName) {
+        logger.info("--> deleting snapshot [{}] from repo [{}]", snapshotName, repoName);
+        return client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 }

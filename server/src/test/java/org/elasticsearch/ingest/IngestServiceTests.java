@@ -39,6 +39,9 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,6 +52,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -632,17 +636,27 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
-        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline(id).setFinalPipeline("_none");
+
+        BulkRequest bulkRequest = new BulkRequest();
+        final IndexRequest indexRequest1 =
+            new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_none").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 =
+            new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline(id).setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+
         final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
             assertThat(e.getCause(), instanceOf(IllegalStateException.class));
             assertThat(e.getCause().getMessage(), equalTo("error"));
             failure.set(true);
+            assertThat(slot, equalTo(1));
         };
 
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
+            completionHandler, indexReq -> {});
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -661,11 +675,15 @@ public class IngestServiceTests extends ESTestCase {
 
         BulkRequest bulkRequest = new BulkRequest();
 
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest1 =
+            new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_none").setFinalPipeline("_none");
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 =
-            new IndexRequest("_index").id("_id").source(Collections.emptyMap()).setPipeline("does_not_exist").setFinalPipeline("_none");
+            new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 =
+            new IndexRequest("_index").id("_id3").source(Collections.emptyMap()).setPipeline("does_not_exist").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -676,7 +694,7 @@ public class IngestServiceTests extends ESTestCase {
             argThat(new CustomTypeSafeMatcher<>("failure handler was not called with the expected arguments") {
                 @Override
                 protected boolean matchesSafely(Integer item) {
-                    return item == 1;
+                    return item == 2;
                 }
 
             }),
@@ -1172,18 +1190,27 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest =
-            new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+
+        BulkRequest bulkRequest = new BulkRequest();
+        final IndexRequest indexRequest1 =
+            new IndexRequest("_index").id("_id1").source(Collections.emptyMap()).setPipeline("_none").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+
+        IndexRequest indexRequest2 =
+            new IndexRequest("_index").id("_id2").source(Collections.emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final IntConsumer dropHandler = mock(IntConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, dropHandler);
+        ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
+            completionHandler, dropHandler);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        verify(dropHandler, times(1)).accept(0);
+        verify(dropHandler, times(1)).accept(1);
     }
 
     public void testIngestClusterStateListeners_orderOfExecution() {
@@ -1250,6 +1277,128 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));
+    }
+
+    public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
+        Metadata metadata = Metadata.builder().put(builder).build();
+
+        // index name matches with IDM:
+        IndexRequest indexRequest = new IndexRequest("idx");
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+
+        // alias name matches with IDM:
+        indexRequest = new IndexRequest("alias");
+        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+
+        // index name matches with ITMD:
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
+            .patterns(List.of("id*"))
+            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
+        metadata = Metadata.builder().put(templateBuilder).build();
+        indexRequest = new IndexRequest("idx");
+        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+    }
+
+    public void testResolveFinalPipeline() {
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
+        Metadata metadata = Metadata.builder().put(builder).build();
+
+        // index name matches with IDM:
+        IndexRequest indexRequest = new IndexRequest("idx");
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+
+        // alias name matches with IDM:
+        indexRequest = new IndexRequest("alias");
+        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+
+        // index name matches with ITMD:
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
+            .patterns(List.of("id*"))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
+        metadata = Metadata.builder().put(templateBuilder).build();
+        indexRequest = new IndexRequest("idx");
+        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+    }
+
+    public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
+        // no pipeline:
+        {
+            Metadata metadata = Metadata.builder().build();
+            IndexRequest indexRequest = new IndexRequest("idx");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(false));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+        }
+
+        // request pipeline:
+        {
+            Metadata metadata = Metadata.builder().build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
+        }
+
+        // request pipeline with default pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
+        }
+
+        // request pipeline with final pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
+            assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        }
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {

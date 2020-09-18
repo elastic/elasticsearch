@@ -41,8 +41,13 @@ public class ForEachLoopNode extends StatementNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitForEachLoop(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForEachLoop(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        conditionNode.visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

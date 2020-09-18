@@ -43,8 +43,15 @@ public class IfElseNode extends ConditionNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitIfElse(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitIfElse(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getConditionNode().visit(irTreeVisitor, scope);
+        getBlockNode().visit(irTreeVisitor, scope);
+        getElseBlockNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

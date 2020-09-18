@@ -498,9 +498,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint,
                                 LongConsumer persistedSequenceNumberConsumer) throws IOException {
-        final TranslogWriter newFile;
+        final TranslogWriter newWriter;
         try {
-            newFile = TranslogWriter.create(
+            newWriter = TranslogWriter.create(
                 shardId,
                 translogUUID,
                 fileGeneration,
@@ -513,7 +513,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
-        return newFile;
+        return newWriter;
     }
 
     /**
@@ -1161,7 +1161,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return (id.length() * 2) + source.length() + 12;
+            return (2 * id.length())
+                + source.length()
+                + (routing != null ? 2 * routing.length() : 0)
+                + (4 * Long.BYTES); // timestamp, seq_no, primary_term, and version
         }
 
         public String id() {
@@ -1328,7 +1331,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return 4 + (id.length() * 2) + 24;
+            return (2 * id.length())
+                + (3 * Long.BYTES); // seq_no, primary_term, and version;
         }
 
         public String id() {
@@ -1384,14 +1388,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             Delete delete = (Delete) o;
 
-            return version == delete.version &&
+            return id.equals(delete.id) &&
                 seqNo == delete.seqNo &&
-                primaryTerm == delete.primaryTerm;
+                primaryTerm == delete.primaryTerm &&
+                version == delete.version;
         }
 
         @Override
         public int hashCode() {
-            int result = Long.hashCode(seqNo);
+            int result = id.hashCode();
+            result += 31 * Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
             return result;
@@ -1477,7 +1483,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public int hashCode() {
-            return 31 * 31 * 31 + 31 * 31 * Long.hashCode(seqNo) + 31 * Long.hashCode(primaryTerm) + reason().hashCode();
+            return 31 * 31 * Long.hashCode(seqNo) + 31 * Long.hashCode(primaryTerm) + reason().hashCode();
         }
 
         @Override

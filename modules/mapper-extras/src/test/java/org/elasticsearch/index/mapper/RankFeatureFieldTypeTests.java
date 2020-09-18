@@ -23,11 +23,8 @@ import java.util.Collections;
 
 public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
-    private static MappedFieldType createDefaultFieldType() {
-        return new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), randomBoolean());
-    }
-
     public void testIsNotAggregatable() {
-        assertFalse(createDefaultFieldType().isAggregatable());
+        MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true);
+        assertFalse(fieldType.isAggregatable());
     }
 }

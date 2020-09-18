@@ -42,12 +42,12 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
 
     private static final Collator DEFAULT_COLLATOR = Collator.getInstance(ULocale.ROOT).freeze();
 
-    private static CollationFieldType createDefaultFieldType() {
+    private static CollationFieldType createFieldType() {
         return new CollationFieldType("field", DEFAULT_COLLATOR);
     }
 
     public void testIsFieldWithinQuery() throws IOException {
-        CollationFieldType ft = createDefaultFieldType();
+        CollationFieldType ft = createFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
             RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
@@ -93,35 +93,35 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("foo.*", 0, 0, 10, null, randomMockShardContext()));
         assertEquals("[regexp] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
         assertEquals("[fuzzy] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testPrefixQuery() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.prefixQuery("prefix", null, randomMockShardContext()));
         assertEquals("[prefix] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("foo*", null, randomMockShardContext()));
         assertEquals("[wildcard] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createFieldType();
         RawCollationKey aKey = DEFAULT_COLLATOR.getRawCollationKey("a", null);
         RawCollationKey bKey = DEFAULT_COLLATOR.getRawCollationKey("b", null);
 

@@ -49,7 +49,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         UNSEARCHABLE.freeze();
     }
 
-    private static SearchAsYouTypeFieldType createDefaultFieldType() {
+    private static SearchAsYouTypeFieldType createFieldType() {
         final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
             Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
@@ -60,7 +60,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType();
+        final MappedFieldType fieldType = createFieldType();
 
         assertThat(fieldType.termQuery("foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
@@ -71,7 +71,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType();
+        final MappedFieldType fieldType = createFieldType();
 
         assertThat(fieldType.termsQuery(asList("foo", "bar"), null),
             equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar")))));
@@ -84,7 +84,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPrefixQuery() {
-        final SearchAsYouTypeFieldType fieldType = createDefaultFieldType();
+        final SearchAsYouTypeFieldType fieldType = createFieldType();
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";

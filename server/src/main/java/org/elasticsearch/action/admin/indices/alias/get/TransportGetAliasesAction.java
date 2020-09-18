@@ -57,7 +57,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -67,7 +67,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases)));
     }

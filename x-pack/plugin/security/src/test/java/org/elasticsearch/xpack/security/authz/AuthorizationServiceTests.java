@@ -519,7 +519,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, ClosePointInTimeAction.NAME, closePointInTimeRequest);
-        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClosePointInTimeAction.NAME), eq(closePointInTimeRequest),
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(indices:data/read/close_point_in_time), eq(closePointInTimeRequest),
                                          authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }

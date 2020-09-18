@@ -123,7 +123,7 @@ teardown:
   - set: {id: pit_id}
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         sort: created_at

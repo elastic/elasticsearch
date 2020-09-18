@@ -558,7 +558,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (final boolean hasLocalIndices: List.of(true, false)) {
             final String[] indices = new String[] {
                 hasLocalIndices ?
-                    randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*") :
+                    randomAlphaOfLength(5) :
                     "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*"),
                 "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*")
             };

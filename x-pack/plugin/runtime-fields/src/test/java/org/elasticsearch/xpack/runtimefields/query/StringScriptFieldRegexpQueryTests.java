@@ -100,14 +100,14 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
         assertTrue(query.matches(org.elasticsearch.common.collect.List.of("astuffb", "fffff")));
 
         StringScriptFieldRegexpQuery ciQuery = new StringScriptFieldRegexpQuery(
-                randomScript(),
-                leafFactory,
-                "test",
-                "a.+b",
-                0,
-                RegExp.ASCII_CASE_INSENSITIVE,
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES
-            );
+            randomScript(),
+            leafFactory,
+            "test",
+            "a.+b",
+            0,
+            RegExp.ASCII_CASE_INSENSITIVE,
+            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+        );
         assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("astuffB")));
         assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("Astuffb", "fffff")));
     }

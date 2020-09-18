@@ -1,5 +1,14 @@
 [[runtime]]
 === Runtime
+
+////
+[source,console]
+----
+PUT /my-index
+----
+// TESTSETUP
+////
+
 Typically, you must index fields to {es} before they can be retrieved,
 aggregated, or searched. With runtime fields, you can explicitly define a field
 in the mapping and access it at runtime without indexing your data. This

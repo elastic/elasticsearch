@@ -305,6 +305,9 @@ public class SslDiagnostics {
 
     private static CharSequence describeSelfIssuedCertificate(X509Certificate certificate, String contextName,
                                                               @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+        if (trustedIssuers == null) {
+            return "self-issued";
+        }
         final StringBuilder message = new StringBuilder();
         final CertificateTrust trust = resolveCertificateTrust(trustedIssuers, certificate);
         message.append("self-issued; the [").append(certificate.getIssuerX500Principal().getName()).append("] certificate ")
@@ -346,6 +349,7 @@ public class SslDiagnostics {
     }
 
     private static CertificateTrust resolveCertificateTrust(Map<String, List<X509Certificate>> trustedIssuers, X509Certificate cert) {
+        assert trustedIssuers != null : "Do not call `resolveCertificateTrust` with null issuers";
         final List<X509Certificate> trustedCerts = trustedIssuers.get(cert.getSubjectX500Principal().getName());
         if (trustedCerts == null || trustedCerts.isEmpty()) {
             return CertificateTrust.noMatchingIssuer();

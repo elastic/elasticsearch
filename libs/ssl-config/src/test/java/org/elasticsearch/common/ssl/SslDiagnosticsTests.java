@@ -85,6 +85,34 @@ public class SslDiagnosticsTests extends ESTestCase {
             " which is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl])"));
     }
 
+    public void testDiagnosticMessageWithPartialChainAndUnknownTrustedIssuers() throws Exception {
+        X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
+        final SSLSession session = session("192.168.1.1");
+        final Map<String, List<X509Certificate>> trustIssuers = null;
+        final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
+            "xpack.http.ssl", trustIssuers);
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the server did not provide a copy of the issuing certificate in the certificate chain"));
+    }
+
+
+    public void testDiagnosticMessageWithFullChainAndUnknownTrustedIssuers() throws Exception {
+        X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
+        final SSLSession session = session("192.168.1.1");
+        final Map<String, List<X509Certificate>> trustIssuers = null;
+        final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
+            "xpack.http.ssl", trustIssuers);
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
+            " the certificate is issued by [CN=Test CA 1];" +
+            " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])" +
+            " which is self-issued"));
+    }
+
     public void testDiagnosticMessageWhenServerFullCertChainIsntTrustedButMimicIssuerExists() throws Exception {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");

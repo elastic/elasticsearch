@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -480,5 +481,15 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeUpper = true;
         assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
             ft.termQuery(value, context));
+    }
+    
+    public void testCaseInsensitiveQuery() throws Exception {
+        QueryShardContext context = createContext();
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+
+        Object value = nextFrom();
+        QueryShardException ex = expectThrows(QueryShardException.class,
+            () ->   ft.termQueryCaseInsensitive(value, context));
+        assertTrue(ex.getMessage().contains("does not support case insensitive term queries"));
     }
 }

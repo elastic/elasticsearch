@@ -16,16 +16,28 @@ import java.util.Objects;
 
 public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
     private final String term;
+    private final boolean caseInsensitive;
 
-    public StringScriptFieldTermQuery(Script script, StringFieldScript.LeafFactory leafFactory, String fieldName, String term) {
+    public StringScriptFieldTermQuery(
+        Script script,
+        StringFieldScript.LeafFactory leafFactory,
+        String fieldName,
+        String term,
+        boolean caseInsensitive
+    ) {
         super(script, leafFactory, fieldName);
         this.term = Objects.requireNonNull(term);
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     protected boolean matches(List<String> values) {
         for (String value : values) {
-            if (term.equals(value)) {
+            if (caseInsensitive) {
+                if (term.equalsIgnoreCase(value)) {
+                    return true;
+                }
+            } else if (term.equals(value)) {
                 return true;
             }
         }
@@ -47,7 +59,7 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), term);
+        return Objects.hash(super.hashCode(), term, caseInsensitive);
     }
 
     @Override
@@ -56,10 +68,14 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
             return false;
         }
         StringScriptFieldTermQuery other = (StringScriptFieldTermQuery) obj;
-        return term.equals(other.term);
+        return term.equals(other.term) && caseInsensitive == other.caseInsensitive;
     }
 
     String term() {
         return term;
+    }
+
+    boolean caseInsensitive() {
+        return caseInsensitive;
     }
 }

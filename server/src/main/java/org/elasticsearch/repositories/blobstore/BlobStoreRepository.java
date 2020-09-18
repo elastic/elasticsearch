@@ -26,6 +26,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -2087,6 +2088,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
+                    ensureNotClosing(store);
                     boolean success = false;
                     try (IndexOutput indexOutput =
                              store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
@@ -2098,12 +2100,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             try (InputStream stream = maybeRateLimitRestores(new SlicedInputStream(fileInfo.numberOfParts()) {
                                 @Override
                                 protected InputStream openSlice(int slice) throws IOException {
+                                    ensureNotClosing(store);
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {
                                 final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;
                                 while ((length = stream.read(buffer)) > 0) {
+                                    ensureNotClosing(store);
                                     indexOutput.writeBytes(buffer, 0, length);
                                     recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
                                 }
@@ -2126,6 +2130,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
                 }
+
+                void ensureNotClosing(final Store store) throws AlreadyClosedException {
+                    assert store.refCount() > 0;
+                    if (store.isClosing()) {
+                        throw new AlreadyClosedException("store is closing");
+                    }
+                }
+
             }.restore(snapshotFiles, store, l);
         }));
     }

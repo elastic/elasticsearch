@@ -10,14 +10,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
 import java.util.Objects;
 
 public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
     private final BytesRefHash terms;
 
-    public IpScriptFieldTermsQuery(Script script, IpScriptFieldScript.LeafFactory leafFactory, String fieldName, BytesRefHash terms) {
+    public IpScriptFieldTermsQuery(Script script, IpFieldScript.LeafFactory leafFactory, String fieldName, BytesRefHash terms) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
     }

@@ -218,7 +218,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
             OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(
                 new String[]{indexName},
                 OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
-                TimeValue.timeValueMinutes(between(1, 5)),
+                TimeValue.timeValueMinutes(between(5, 10)),
                 null,
                 null);
             pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();

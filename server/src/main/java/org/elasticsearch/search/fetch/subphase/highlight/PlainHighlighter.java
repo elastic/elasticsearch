@@ -38,7 +38,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class PlainHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         SearchHighlightContext.Field field = fieldContext.field;
-        QueryShardContext context = fieldContext.context;
+        FetchContext context = fieldContext.context;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         MappedFieldType fieldType = fieldContext.fieldType;
 
@@ -100,10 +100,10 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getMapperService().documentMapper().mappers().indexAnalyzer();
+        Analyzer analyzer = context.mapperService().documentMapper().mappers().indexAnalyzer();
         Integer keywordIgnoreAbove = null;
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) context.getMapperService().documentMapper()
+            KeywordFieldMapper mapper = (KeywordFieldMapper) context.mapperService().documentMapper()
                 .mappers().getMapper(fieldContext.fieldName);
             keywordIgnoreAbove = mapper.ignoreAbove();
         }
@@ -120,7 +120,7 @@ public class PlainHighlighter implements Highlighter {
             if (textLength > maxAnalyzedOffset) {
                 throw new IllegalArgumentException(
                     "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.index().getName() + "] index " +
+                        "] doc of [" + context.getIndexName() + "] index " +
                         "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                         "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
                         "] index level setting. " + "For large texts, indexing with offsets or term vectors, and highlighting " +

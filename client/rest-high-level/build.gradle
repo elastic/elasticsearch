@@ -96,7 +96,6 @@ testClusters.all {
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.transport.ssl.enabled', 'false'
-  setting 'xpack.eql.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'

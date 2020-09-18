@@ -84,6 +84,12 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean supportsInference();
 
     /**
+     * @return the percentage of data to use for training
+     */
+    default double getTrainingPercent() {
+        return 100.0;
+    }
+    /**
      * Summarizes information about the fields that is necessary for analysis to generate
      * the parameters needed for the process configuration.
      */

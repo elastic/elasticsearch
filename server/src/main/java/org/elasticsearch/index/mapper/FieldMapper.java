@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -278,7 +280,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
      */
-    public abstract ValueFetcher valueFetcher(MapperService mapperService, @Nullable String format);
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
 
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();

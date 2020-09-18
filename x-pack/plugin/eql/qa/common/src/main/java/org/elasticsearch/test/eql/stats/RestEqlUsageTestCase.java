@@ -178,7 +178,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 "  [process where serial_event_id < 4] by exit_code" + 
                 "  [process where opcode == 1] by user" + 
                 "  [process where opcode == 2] by user" + 
-                "  [file where parent_process_name == 'file_delete_event'] by exit_code" +
+                "  [file where parent_process_name == \\\"file_delete_event\\\"] by exit_code" +
                 " until [process where opcode=1] by ppid" + 
                 " | head 4" + 
                 " | tail 2");
@@ -216,7 +216,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
             runEql("sequence by user, ppid, exit_code with maxspan=1m" + 
                 "  [process where serial_event_id < 4]" + 
                 "  [process where opcode == 1]" + 
-                "  [file where parent_process_name == 'file_delete_event']" +
+                "  [file where parent_process_name == \\\"file_delete_event\\\"]" +
                 "  [process where serial_event_id < 4]" + 
                 "  [process where opcode == 1]" + 
                 "| tail 4");

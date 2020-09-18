@@ -29,7 +29,6 @@ public class ParsedScrollIdTests extends ESTestCase {
 
         boolean hasLocal = false;
         for (int i = 0; i < nResults; i++) {
-
             String clusterAlias = randomBoolean() ? randomAlphaOfLength(8) : null;
             hasLocal = hasLocal || (clusterAlias == null);
             searchContextIdForNodes[i] =

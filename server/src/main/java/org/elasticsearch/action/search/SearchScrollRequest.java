@@ -83,7 +83,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         return this;
     }
 
-    public ParsedScrollId parsedScrollId() {
+    public ParsedScrollId parseScrollId() {
         return TransportSearchHelper.parseScrollId(scrollId);
     }
 

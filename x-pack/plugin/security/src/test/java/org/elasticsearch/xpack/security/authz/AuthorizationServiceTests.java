@@ -479,29 +479,30 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testUserWithNoRolesPerformsRemoteSearchWithScroll() throws IOException {
+    public void testUserWithNoRolesPerformsRemoteSearchWithScroll() {
         final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
-        final boolean hasLocalIndices = randomBoolean();
-        when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
         final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
-        when(searchScrollRequest.parsedScrollId()).thenReturn(parsedScrollId);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        if (hasLocalIndices) {
-            assertThrowsAuthorizationException(
-                () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
-                "indices:data/read/scroll", "test user"
-            );
-            verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
-                                            eq("indices:data/read/scroll"), eq(searchScrollRequest),
-                                            authzInfoRoles(Role.EMPTY.names()));
-        } else {
-            authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
-            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
-                                             authzInfoRoles(Role.EMPTY.names()));
+        for (final boolean hasLocalIndices: List.of(true, false)) {
+            when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
+            if (hasLocalIndices) {
+                assertThrowsAuthorizationException(
+                    () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
+                    "indices:data/read/scroll", "test user"
+                );
+                verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
+                                                eq("indices:data/read/scroll"), eq(searchScrollRequest),
+                                                authzInfoRoles(Role.EMPTY.names()));
+            } else {
+                authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+                verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
+                                                 authzInfoRoles(Role.EMPTY.names()));
+            }
+            verifyNoMoreInteractions(auditTrail);
         }
-        verifyNoMoreInteractions(auditTrail);
     }
 
     /**
@@ -696,7 +697,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
         when(parsedScrollId.hasLocalIndices()).thenReturn(true);
         final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
-        when(searchScrollRequest.parsedScrollId()).thenReturn(parsedScrollId);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
         authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));

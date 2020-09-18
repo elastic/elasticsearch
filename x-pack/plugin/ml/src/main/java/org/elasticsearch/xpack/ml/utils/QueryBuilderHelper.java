@@ -24,8 +24,6 @@ public final class QueryBuilderHelper {
     /**
      * Helper function for adding OR type queries for a given identity field.
      *
-     * This adds a new filter to the passed `boolQueryBuilder`.
-     *
      * The filter consists of should clauses (i.e. "or" boolean queries).
      *
      * - When a token is a wildcard token, a wildcard query is added

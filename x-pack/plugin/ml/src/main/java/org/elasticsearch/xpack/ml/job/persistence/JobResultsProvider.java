@@ -1022,7 +1022,7 @@ public class JobResultsProvider {
                                Consumer<Exception> errorHandler) {
         String[] snapshotIds = Strings.splitStringByCommaToArray(snapshotId);
         QueryBuilder qb = new ResultsFilterBuilder()
-            .resourceTokenFilers(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
+            .resourceTokenFilters(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
             .timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs)
             .build();
 

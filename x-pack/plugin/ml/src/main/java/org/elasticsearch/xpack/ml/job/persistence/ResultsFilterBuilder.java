@@ -89,7 +89,7 @@ public class ResultsFilterBuilder {
         return this;
     }
 
-    public ResultsFilterBuilder resourceTokenFilers(String fieldName, String[] tokens) {
+    public ResultsFilterBuilder resourceTokenFilters(String fieldName, String[] tokens) {
         QueryBuilderHelper.buildTokenFilterQuery(fieldName, tokens).ifPresent(this::addQuery);
         return this;
     }

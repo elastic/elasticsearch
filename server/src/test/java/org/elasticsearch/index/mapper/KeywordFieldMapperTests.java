@@ -131,6 +131,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         b.field("type", "keyword");
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -235,6 +240,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testBoost() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
         assertThat(mapperService.fieldType("field").boost(), equalTo(2f));
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     public void testEnableNorms() throws IOException {

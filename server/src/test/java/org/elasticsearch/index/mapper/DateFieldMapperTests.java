@@ -49,6 +49,11 @@ public class DateFieldMapperTests extends MapperTestCase {
         b.field("type", "date");
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     public void testDefaults() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));

@@ -21,8 +21,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -277,18 +277,6 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         // The state documents count suffices are 1-based
         for (int i = 1; i <= snapshotDocCount; i++) {
             stateDocumentIds.add(ModelState.documentId(jobId, snapshotId, i));
-        }
-        return stateDocumentIds;
-    }
-
-    /**
-     * This is how the IDs were formed in v5.4
-     */
-    public List<String> legacyStateDocumentIds() {
-        List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
-        // The state documents count suffices are 1-based
-        for (int i = 1; i <= snapshotDocCount; i++) {
-            stateDocumentIds.add(ModelState.v54DocumentId(jobId, snapshotId, i));
         }
         return stateDocumentIds;
     }

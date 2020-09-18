@@ -139,14 +139,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException(
-                    "[prefix] queries cannot be executed when '"
-                        + ALLOW_EXPENSIVE_QUERIES.getKey()
-                        + "' is set to false. For optimised prefix queries on text "
-                        + "fields please enable [index_prefixes]."
-                );
-            }
             return wildcardQuery(value + "*", method, context);
         }
 
@@ -324,7 +316,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

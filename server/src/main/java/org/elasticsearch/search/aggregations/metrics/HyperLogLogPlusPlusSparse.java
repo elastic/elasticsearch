@@ -98,7 +98,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             this.bigArrays = bigArrays;
             this.capacity = capacity;
             values = bigArrays.newIntArray(initialSize * capacity);
-            sizes = bigArrays.newIntArray(initialSize * capacity);
+            sizes = bigArrays.newIntArray(initialSize);
             iterator = new LinearCountingIterator(this, capacity);
         }
 
@@ -140,7 +140,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             int size = size(bucketOrd);
             if (size == 0) {
                 sizes = bigArrays.grow(sizes, bucketOrd + 1);
-                values = bigArrays.grow(values, (bucketOrd * capacity)  + capacity);
+                values = bigArrays.grow(values, (bucketOrd * 1) * capacity);
             }
             values.set(index(bucketOrd, size), value);
             return sizes.increment(bucketOrd, 1);

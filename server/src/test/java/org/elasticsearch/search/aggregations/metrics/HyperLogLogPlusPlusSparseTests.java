@@ -23,6 +23,9 @@ import com.carrotsearch.hppc.BitMixer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
+import org.mockito.internal.matchers.Contains;
 
 import java.io.IOException;
 
@@ -30,6 +33,16 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.
 import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
 
 public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
+
+    public void testBasic()  {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        HyperLogLogPlusPlusSparse sparse  = new HyperLogLogPlusPlusSparse(p, BigArrays.NON_RECYCLING_INSTANCE, 10, 1);
+        AbstractLinearCounting.HashesIterator iterator = sparse.getLinearCounting(randomIntBetween(1, 10));
+        assertEquals(0, iterator.size());
+        IllegalArgumentException ex =
+            expectThrows(IllegalArgumentException.class, () -> sparse.getHyperLogLog(randomIntBetween(1, 10)));
+        assertThat(ex.getMessage(), Matchers.containsString("Implementation does not support HLL structures"));
+    }
 
     public void testEquivalence() throws IOException {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);

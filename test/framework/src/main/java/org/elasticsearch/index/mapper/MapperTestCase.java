@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -82,10 +83,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
-        assertParseMinimalWarnings();
+        assertParseMaximalWarnings();
     }
 
     protected void assertParseMinimalWarnings() {
+        // Most mappers don't emit any warnings
+    }
+
+    protected void assertParseMaximalWarnings() {
         // Most mappers don't emit any warnings
     }
 
@@ -130,6 +135,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
+    }
+
+    public final void testDeprecatedBoost() throws IOException {
+        try {
+            createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("boost", 2.0);
+            }));
+            assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        }
+        catch (MapperParsingException e) {
+            assertThat(e.getMessage(), anyOf(
+                containsString("unknown parameter [boost]"),
+                containsString("[boost : 2.0]")));
+        }
+        assertParseMinimalWarnings();
     }
 
     public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {

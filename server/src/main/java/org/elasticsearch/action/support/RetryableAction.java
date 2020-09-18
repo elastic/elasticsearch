@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A action that will be retried on failure if {@link RetryableAction#shouldRetry(Exception)} returns true.
@@ -42,7 +42,10 @@ public abstract class RetryableAction<Response> {
 
     private final Logger logger;
 
-    private final AtomicBoolean isDone = new AtomicBoolean(false);
+    private enum State {
+        waiting, running, cancelled, done;
+    }
+    private final AtomicReference<State> state = new AtomicReference<>(State.waiting);
     private final ThreadPool threadPool;
     private final long initialDelayMillis;
     private final long timeoutMillis;
@@ -51,6 +54,7 @@ public abstract class RetryableAction<Response> {
     private final String executor;
 
     private volatile Scheduler.ScheduledCancellable retryTask;
+    private Exception cancellationException;
 
     public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
                            ActionListener<Response> listener) {
@@ -78,7 +82,10 @@ public abstract class RetryableAction<Response> {
     }
 
     public void cancel(Exception e) {
-        if (isDone.compareAndSet(false, true)) {
+        if (state.get() != State.cancelled) {
+            cancellationException = e;
+        }
+        if (state.getAndUpdate(s -> s == State.waiting || s == State.done ? State.done : State.cancelled) == State.waiting) {
             Scheduler.ScheduledCancellable localRetryTask = this.retryTask;
             if (localRetryTask != null) {
                 localRetryTask.cancel();
@@ -95,7 +102,7 @@ public abstract class RetryableAction<Response> {
             protected void doRun() {
                 retryTask = null;
                 // It is possible that the task was cancelled in between the retry being dispatched and now
-                if (isDone.get() == false) {
+                if (state.compareAndSet(State.waiting, State.running)) {
                     tryAction(listener);
                 }
             }
@@ -131,7 +138,7 @@ public abstract class RetryableAction<Response> {
 
         @Override
         public void onResponse(Response response) {
-            if (isDone.compareAndSet(false, true)) {
+            if (state.getAndSet(State.done) != State.done) {
                 onFinished();
                 finalListener.onResponse(response);
             }
@@ -147,12 +154,11 @@ public abstract class RetryableAction<Response> {
                     onFinalFailure(e);
                 } else {
                     addException(e);
-
-                    final long nextDelayMillisBound = Math.min(delayMillisBound * 2, Integer.MAX_VALUE);
-                    final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
-                    final Runnable runnable = createRunnable(retryingListener);
-                    final long delayMillis = Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + 1;
-                    if (isDone.get() == false) {
+                    if (state.compareAndSet(State.running, State.waiting)) {
+                        final long nextDelayMillisBound = Math.min(delayMillisBound * 2, Integer.MAX_VALUE);
+                        final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
+                        final Runnable runnable = createRunnable(retryingListener);
+                        final long delayMillis = Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + 1;
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
                         try {
@@ -160,6 +166,9 @@ public abstract class RetryableAction<Response> {
                         } catch (EsRejectedExecutionException ree) {
                             onFinalFailure(ree);
                         }
+                    } else {
+                        assert state.get() == State.cancelled;
+                        onFinalFailure(cancellationException);
                     }
                 }
             } else {
@@ -169,7 +178,7 @@ public abstract class RetryableAction<Response> {
 
         private void onFinalFailure(Exception e) {
             addException(e);
-            if (isDone.compareAndSet(false, true)) {
+            if (state.getAndSet(State.done) != State.done) {
                 onFinished();
                 finalListener.onFailure(buildFinalException());
             }

@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestSqlSecurityIT extends SqlSecurityTestCase {
@@ -236,45 +235,6 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     @Override
     protected AuditLogAsserter createAuditLogAsserter() {
         return new RestAuditLogAsserter();
-    }
-
-    /**
-     * Test the hijacking a scroll fails. This test is only implemented for
-     * REST because it is the only API where it is simple to hijack a scroll.
-     * It should exercise the same code as the other APIs but if we were truly
-     * paranoid we'd hack together something to test the others as well.
-     */
-    @AwaitsFix(bugUrl = "PIT doesn't enforce creator user's exclusivity?") // TODO!
-    public void testHijackScrollFails() throws Exception {
-        createUser("full_access", "rest_minimal");
-        final String mode = randomMode();
-
-        Map<String, Object> adminResponse = RestActions.runSql(
-            null,
-            new StringEntity(query("SELECT * FROM test").mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
-            mode
-        );
-
-        String cursor = (String) adminResponse.remove("cursor");
-        assertNotNull(cursor);
-
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> RestActions.runSql(
-                "full_access",
-                new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
-                mode
-            )
-        );
-        // TODO return a better error message for bad scrolls
-        assertThat(e.getMessage(), containsString("No search context found for id"));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-
-        createAuditLogAsserter().expectSqlCompositeActionFieldCaps("test_admin", "test")
-            .expect(true, SQL_ACTION_NAME, "full_access", empty())
-            // one scroll access denied per shard
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
-            .assertLogs();
     }
 
     protected class RestAuditLogAsserter extends AuditLogAsserter {

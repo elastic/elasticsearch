@@ -41,8 +41,7 @@ import java.util.Map;
 /**
  * Results of the {@link TopHitsAggregator}.
  */
-public class
-InternalTopHits extends InternalAggregation implements TopHits {
+public class InternalTopHits extends InternalAggregation implements TopHits {
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocs;

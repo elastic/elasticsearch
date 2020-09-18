@@ -21,7 +21,6 @@ package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
@@ -51,7 +50,6 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Supplier;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -114,21 +112,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         notification.getKey().entity.onRemoval(notification);
     }
 
-    // NORELEASE The cacheKeyRenderer has been added in order to debug
-    // https://github.com/elastic/elasticsearch/issues/32827, it should be
-    // removed when this issue is solved
     BytesReference getOrCompute(CacheEntity cacheEntity, CheckedSupplier<BytesReference, IOException> loader,
-                                DirectoryReader reader, BytesReference cacheKey, Supplier<String> cacheKeyRenderer) throws Exception {
+                                DirectoryReader reader, BytesReference cacheKey) throws Exception {
         assert reader.getReaderCacheHelper() != null;
         final Key key =  new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            if (logger.isTraceEnabled()) {
-                logger.trace("Cache miss for reader version [{}], max_doc[{}] and request:\n {}",
-                    reader.getVersion(), reader.maxDoc(), cacheKeyRenderer.get());
-            }
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -139,10 +130,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
         } else {
             key.entity.onHit();
-            if (logger.isTraceEnabled()) {
-                logger.trace("Cache hit for reader version [{}], max_doc[{}] and request:\n {}",
-                    reader.getVersion(), reader.maxDoc(), cacheKeyRenderer.get());
-            }
         }
         return value;
     }

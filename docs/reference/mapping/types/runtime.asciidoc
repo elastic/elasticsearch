@@ -9,34 +9,77 @@ time, you can choose which fields to index and optimize disk space.
 
 include::{es-ref-dir}/mapping/types.asciidoc[tag=runtime-fields-description]
 
-Each runtime field is of the `runtime` data type, and has its own
-<<mapping-types,field type>>, such as `boolean`, `integer`, or `keyword`. In
-the following example, the data type is `runtime` and the runtime field type is
-`integer`.
+// Each runtime field is of the `runtime` data type, and has its own
+// <<mapping-types,field type>>, such as `boolean`, `long`, or `keyword`. The
+// field type identifies the data type In
+// the following example, the data type is `runtime` and the runtime field type is
+// `keyword`.
+
+==== Specifying runtime fields
+Runtime fields do not have access to the
+<<mapping-source-field,`_source` field>>. You specify runtime fields in the
+mapping by <<modules-scripting-using,defining a script>>, which always has
+access to the `source` field. At search time, the script runs and generates
+values for each scripted field.
+
+The script in the following request extracts the day of the week from the
+`timestamp` field, which is defined as a `date` data type.
 
 [source,console]
 ----
 PUT /my-index/_mappings
 {
-  “properties” : {
-    “age” : {
-      “type” : “runtime”,
-      “runtime_type” : “integer”,
-      “script” : {
-          “source” : "now - doc['date_of_birth'].value"
+  "properties" : {
+    "day_of_week" : {
+      "type" : "runtime", <1>
+      "runtime_type" : "keyword", <2>
+      "script" : {
+        "source" : "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
       }
-   }
+    }
   }
 }
 ----
 
+<1> Runtime fields are of the `runtime` data type.
+<2> Each runtime has its own field type, defined by `runtime_type`.
+
+[[runtime-params]]
+==== Parameters for `runtime` fields
+Runtime fields accept the following parameters:
+
+`type`::
+The type of runtime computation to perform at query time. Currently, runtime
+fields only support the `runtime` data type.
+
+`runtime_type`::
+The <<mapping-types,field type>> for each scripted field. {es}
+supports `boolean`, `date`, `double`, `ip`, `keyword`, and `long`.
+
 ==== Retrieving runtime fields
-Because runtime fields are not part of the
-<<mapping-source-field,`_source` field>>, they are not returned in search hits
-by default. You can request runtime fields by using the
-<<search-fields,`fields` API>>, or by using the
+Because runtime fields are not part of the `_source` field, they are not
+returned in search hits by default. You can request runtime fields by using the
+<<search-fields,`fields`>> parameter, or by using the
 <<docvalue-fields,`docvalue_fields`>> parameter to return `doc_values` for one
-or more fields in the search response. Then, use the
-<<search-field-caps,field capabilities API>> to return runtime fields as
-fields that can be searched and aggregated, including the cost of these
-operations.
+or more fields in the search response.
+
+Use the <<search-field-caps,field capabilities API>> to return runtime fields
+like any other field. For example, a runtime field with a `runtime_type` of
+`keyword` returns as any other field that belongs to the `keyword` family.
+
+The following request uses the search API to retrieve the `day_of_week` field
+that the previous request defined in the mapping.
+
+[source,console]
+----
+GET /my-index/_search
+{
+  "aggs": {
+    "days_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+----

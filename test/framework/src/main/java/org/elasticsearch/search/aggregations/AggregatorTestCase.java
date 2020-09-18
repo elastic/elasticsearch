@@ -994,6 +994,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
+        protected boolean mustReduceOnSingleInternalAgg() {
+            return true;
+        }
+
+        @Override
         public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
             return builder.array("cardinality", cardinality);
         }

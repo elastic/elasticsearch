@@ -163,6 +163,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -78,6 +77,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void pickType() {
         type = RandomPicks.randomFrom(random(), NumberFieldMapper.NumberType.values());
+    }
+
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new NumberFieldType("field", type);
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
+        return new NumberFieldType("field", type, randomBoolean(), true, Collections.emptyMap());
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
+        return new NumberFieldType("field", type, randomBoolean(), false, Collections.emptyMap());
     }
 
     public void testEqualsWithDifferentNumberTypes() {

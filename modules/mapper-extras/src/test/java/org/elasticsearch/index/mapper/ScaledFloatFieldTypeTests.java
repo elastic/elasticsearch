@@ -40,6 +40,22 @@ import java.util.Collections;
 
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new ScaledFloatFieldMapper.ScaledFloatFieldType("field", 0.1 + randomDouble() * 100);
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
+        return new ScaledFloatFieldMapper.ScaledFloatFieldType("field", randomBoolean(), true, Collections.emptyMap(),
+            0.1 + randomDouble() * 100);
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
+        return new ScaledFloatFieldMapper.ScaledFloatFieldType("field", randomBoolean(), false, Collections.emptyMap(),
+            0.1 + randomDouble() * 100);
+    }
 
     public void testTermQuery() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft

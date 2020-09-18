@@ -61,6 +61,23 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static final long nowInMillis = 0;
 
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new DateFieldType("field");
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
+        return new DateFieldType("field", randomBoolean(), true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS,
+            Collections.emptyMap());
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
+        return new DateFieldType("field", randomBoolean(), false, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS,
+            Collections.emptyMap());
+    }
+
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();

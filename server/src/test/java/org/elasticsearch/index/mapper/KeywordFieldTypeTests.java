@@ -51,6 +51,21 @@ import java.util.List;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new KeywordFieldType("field");
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
+        return new KeywordFieldType("field", randomBoolean(), true, Collections.emptyMap());
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
+        return new KeywordFieldType("field", randomBoolean(), false, Collections.emptyMap());
+    }
+
     public void testIsFieldWithinQuery() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field");
         // current impl ignores args and should always return INTERSECTS

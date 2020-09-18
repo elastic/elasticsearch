@@ -21,7 +21,29 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 
+import java.util.Collections;
+
 public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
+
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new GeoShapeFieldType("field");
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
+        return new GeoShapeFieldType("field", randomBoolean(), true, Collections.emptyMap());
+    }
+
+    @Override
+    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
+        return new GeoShapeFieldType("field", randomBoolean(), false, Collections.emptyMap());
+    }
+
+    @Override
+    protected boolean isAggregatableWhenDocValuesAreEnabled() {
+        return false;
+    }
 
     /**
      * Test for {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#setStrategy(SpatialStrategy)} that checks

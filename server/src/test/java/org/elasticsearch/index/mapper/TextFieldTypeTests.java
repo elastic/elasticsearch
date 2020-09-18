@@ -49,8 +49,25 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
+    @Override
+    protected boolean hasConfigurableDocValues() {
+        return false;
+    }
+
+    @Override
+    protected TextFieldType createDefaultFieldType() {
+        return new TextFieldType("field");
+    }
+
+    public void testIsAggregatableDependsOnFieldData() {
+        TextFieldType ft = createDefaultFieldType();
+        assertFalse(ft.isAggregatable());
+        ft.setFielddata(true);
+        assertTrue(ft.isAggregatable());
+    }
+
     public void testTermQuery() {
-        MappedFieldType ft = new TextFieldType("field");
+        MappedFieldType ft = createDefaultFieldType();
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
 
         MappedFieldType unsearchable = new TextFieldType("field", false, Collections.emptyMap());
@@ -60,7 +77,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new TextFieldType("field");
+        MappedFieldType ft = createDefaultFieldType();
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
@@ -74,7 +91,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = new TextFieldType("field");
+        MappedFieldType ft = createDefaultFieldType();
         assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
                 ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
 
@@ -85,7 +102,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = new TextFieldType("field");
+        MappedFieldType ft = createDefaultFieldType();
         assertEquals(new RegexpQuery(new Term("field","foo.*")),
                 ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
 
@@ -101,7 +118,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = new TextFieldType("field");
+        MappedFieldType ft = createDefaultFieldType();
         assertEquals(new FuzzyQuery(new Term("field","foo"), 2, 1, 50, true),
                 ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
 
@@ -118,7 +135,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIndexPrefixes() {
-        TextFieldType ft = new TextFieldType("field");
+        TextFieldType ft = createDefaultFieldType();
         ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft, "field._index_prefix", 2, 10, true));
 
         Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, randomMockShardContext());

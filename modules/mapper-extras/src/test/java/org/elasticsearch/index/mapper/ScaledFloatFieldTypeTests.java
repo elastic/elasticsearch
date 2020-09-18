@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
@@ -64,8 +65,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // make sure the accuracy loss of scaled floats only occurs at index time
         // this test checks that searching scaled floats yields the same results as
         // searching doubles that are rounded to the closest half float
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft
-            = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100);
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+                    "scaled_float", true, false, Collections.emptyMap(), 0.1 + randomDouble() * 100);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         final int numDocs = 1000;

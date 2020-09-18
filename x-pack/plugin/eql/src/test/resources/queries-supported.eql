@@ -1,5 +1,5 @@
 process where process_name == "svchost.exe" and command_line != "* -k *";
-process where process_name in ('ipconfig.exe', 'netstat.exe', 'systeminfo.exe', 'route.exe');
+process where process_name in ("ipconfig.exe", "netstat.exe", "systeminfo.exe", "route.exe");
 process where subtype.create and wildcard(command_line, "*.ost *", "*.pst *")
 ;
 
@@ -90,23 +90,10 @@ process where serial_event_id = 1;
 
 process where serial_event_id < 4;
 
+
 process where false;
 
 process where missing_field != null;
-
-process where serial_event_id <= 8 and serial_event_id > 7
-| filter serial_event_id == 8;
-
-process where true
-| filter serial_event_id <= 10
-| filter serial_event_id > 6;
-
-process where true
-| filter serial_event_id <= 10
-| filter serial_event_id > 6
-| head 2;
-
-process where process_name == "VMACTHLP.exe" and unique_pid == 12 | filter true;
 
 process where process_name == "impossible name" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
 ;
@@ -191,66 +178,66 @@ process where command_line == "*%*%*" ;
 process where command_line == "%*%*" ;
 
 
-process where match(?'.*?net1\s+localgroup\s+.*?', command_line)
+process where match(?".*?net1\s+localgroup\s+.*?", command_line)
 ;
 
-process where match(?'.*?net1\s+\w+\s+.*?', command_line)
+process where match(?".*?net1\s+\w+\s+.*?", command_line)
 ;
 
-process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+process where match(?".*?net1\s+\w{4,15}\s+.*?", command_line)
 ;
 
-process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+process where match(?".*?net1\s+\w{4,15}\s+.*?", command_line)
 ;
 
-process where match(?'.*?net1\s+[localgrup]{4,15}\s+.*?', command_line)
+process where match(?".*?net1\s+[localgrup]{4,15}\s+.*?", command_line)
 ;
 
-file where opcode=0 and startsWith(file_name, 'exploRER.')
+file where opcode=0 and startsWith(file_name, "exploRER.")
 ;
 
-file where opcode=0 and startsWith(file_name, 'expLORER.exe')
+file where opcode=0 and startsWith(file_name, "expLORER.exe")
 ;
 
-file where opcode=0 and endsWith(file_name, 'loREr.exe');
+file where opcode=0 and endsWith(file_name, "loREr.exe");
 
-file where opcode=0 and startsWith(file_name, 'explORER.EXE');
+file where opcode=0 and startsWith(file_name, "explORER.EXE");
 
-file where opcode=0 and startsWith('explorer.exeaaaaaaaa', file_name);
+file where opcode=0 and startsWith("explorer.exeaaaaaaaa", file_name);
 
-file where opcode=0 and serial_event_id = 88 and startsWith('explorer.exeaAAAA', 'EXPLORER.exe');
+file where opcode=0 and serial_event_id = 88 and startsWith("explorer.exeaAAAA", "EXPLORER.exe");
 
-file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)
+file where opcode=0 and stringContains("ABCDEFGHIexplorer.exeJKLMNOP", file_name)
 ;
 
-file where opcode=0 and indexOf(file_name, 'plore') == 2 and not indexOf(file_name, '.pf')
+file where opcode=0 and indexOf(file_name, "plore") == 2 and not indexOf(file_name, ".pf")
 ;
 
-file where opcode=0 and indexOf(file_name, 'explorer.') and indexOf(file_name, 'plore', 100)
+file where opcode=0 and indexOf(file_name, "explorer.") and indexOf(file_name, "plore", 100)
 ;
 
-file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2;
+file where opcode=0 and indexOf(file_name, "plorer.", 0) == 2;
 
-file where opcode=0 and indexOf(file_name, 'plorer.', 2);
+file where opcode=0 and indexOf(file_name, "plorer.", 2);
 
-file where opcode=0 and indexOf(file_name, 'plorer.', 4);
+file where opcode=0 and indexOf(file_name, "plorer.", 4);
 
-file where opcode=0 and indexOf(file_name, 'thing that never happened');
+file where opcode=0 and indexOf(file_name, "thing that never happened");
 
-file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2;
+file where opcode=0 and indexOf(file_name, "plorer.", 2) == 2;
 
-file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0;
+file where opcode=0 and indexOf(file_name, "explorer.", 0) == 0;
 
-file where serial_event_id=88 and substring(file_name, 0, 4) == 'expl'
+file where serial_event_id=88 and substring(file_name, 0, 4) == "expl"
 ;
 
-file where serial_event_id=88 and substring(file_name, 1, 3) == 'xp'
+file where serial_event_id=88 and substring(file_name, 1, 3) == "xp"
 ;
 
-file where serial_event_id=88 and substring(file_name, -4) == '.exe'
+file where serial_event_id=88 and substring(file_name, -4) == ".exe"
 ;
 
-file where serial_event_id=88 and substring(file_name, -4, -1) == '.ex'
+file where serial_event_id=88 and substring(file_name, -4, -1) == ".ex"
 ;
 
 process where add(serial_event_id, 0) == 1 and add(0, 1) == serial_event_id;
@@ -261,15 +248,15 @@ process where multiply(6, serial_event_id) == 30 and divide(30, 4.0) == 7.5;
 
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id;
 
-process where serial_event_id == number('5');
+process where serial_event_id == number("5");
 
-process where serial_event_id == number('0x32', 16);
+process where serial_event_id == number("0x32", 16);
 
-process where serial_event_id == number('32', 16);
+process where serial_event_id == number("32", 16);
 
 process where number(serial_event_id) == number(5);
 
-process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'
+process where concat(serial_event_id, ":", process_name, opcode) == "5:winINIT.exe3"
 ;
 
 
@@ -277,7 +264,7 @@ process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.e
 // network where safe(divide(process_name, process_name))
 //;
 
-file where serial_event_id == 82 and (true == (process_name in ('svchost.EXE', 'bad.exe', 'bad2.exe')))
+file where serial_event_id == 82 and (true == (process_name in ("svchost.EXE", "bad.exe", "bad2.exe")))
 ;
 
 
@@ -328,10 +315,10 @@ network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8")
 network where cidrMatch(source_address, "0.0.0.0/0")
 ;
 
-process where length(between(process_name, 'g', 'e')) > 0
+process where length(between(process_name, "g", "e")) > 0
 ;
 
-process where length(between(process_name, 'g', 'z')) > 0
+process where length(between(process_name, "g", "z")) > 0
 ;
 
 
@@ -555,7 +542,7 @@ until [process where opcode=2] by ppid,process_path
 ;
 
 sequence by unique_pid 
-    [process where opcode=1 and process_name == 'msbuild.exe'] 
+    [process where opcode=1 and process_name == "msbuild.exe"]
     [network where true]
 ;
 
@@ -583,6 +570,7 @@ sequence by pid with maxspan=2h
 // Pipes
 //
 
+
 security where event_id == 4624
 | tail 10
 ;
@@ -595,15 +583,11 @@ process where not (exit_code > -1)
 | head 10
 ;
 
+
 process where not (exit_code > -1) | head 7;
 
 process where not (-1 < exit_code) | head 7;
 
-process where true | filter true;
-
-process where 1==1 | filter abc == def;
-
-process where 1==1 | filter abc == def and 1 != 2;
 
 file where true
 | tail 3;
@@ -703,18 +687,3 @@ process where fake_field != "*"
 
 process where not (fake_field == "*")
 | head 4;
-
-process where 'net.EXE' == original_file_name
-| filter process_name="net*.exe"
-;
-
-process where process_name == original_file_name
-| filter process_name='net*.exe'
-;
-
-process where original_file_name == process_name
-| filter length(original_file_name) > 0
-;
-
-process where process_name != original_file_name
-| filter length(original_file_name) > 0;

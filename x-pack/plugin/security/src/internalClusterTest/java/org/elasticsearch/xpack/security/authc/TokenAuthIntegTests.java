@@ -429,6 +429,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("token has already been refreshed more than 30 seconds in the past"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
@@ -455,16 +456,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     return;
                 }
 
-                try (RestHighLevelClient threadRestClient = new TestRestHighLevelClient()){
+                try {
                     // safe to use same rest client across threads since it round robins between nodes
-                    CreateTokenResponse result = threadRestClient.security()
+                    CreateTokenResponse result = restClient.security()
                         .createToken(CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()), SECURITY_REQUEST_OPTIONS);
                     final Instant t2 = clock.instant();
                     if (t1.plusSeconds(30L).isBefore(t2)) {
                         logger.warn("Tokens [{}], [{}] were received more than 30 seconds after the request, not checking them",
                             result.getAccessToken(), result.getRefreshToken());
                     } else {
-                        authStatuses.add(getAuthenticationResponseCode(threadRestClient, result.getAccessToken()));
+                        authStatuses.add(getAuthenticationResponseCode(result.getAccessToken()));
                         tokens.add(result.getAccessToken() + result.getRefreshToken());
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.getAccessToken(), result.getRefreshToken());
@@ -616,10 +617,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
     }
 
-    private RestStatus getAuthenticationResponseCode(RestHighLevelClient client, String accessToken) throws IOException {
-
+    private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         try {
-            client.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
                 "Bearer " + accessToken).build());
             return RestStatus.OK;
         } catch (ElasticsearchStatusException esse) {

@@ -40,7 +40,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery87;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -526,6 +526,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
     }
 
+    /**
+     * Test that dissalowing leading wildcards causes exception
+     */
+    public void testAllowLeadingWildcard() throws Exception {
+        Query query = queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(true).toQuery(createShardContext());
+        assertThat(query, instanceOf(WildcardQuery.class));
+        QueryShardException ex = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(false).toQuery(createShardContext())
+        );
+        assertEquals("Failed to parse query [*test]", ex.getMessage());
+        assertEquals("Cannot parse '*test': '*' or '?' not allowed as first character in WildcardQuery", ex.getCause().getMessage());
+    }
+
     public void testToQueryDisMaxQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME, 2.2f)
             .field(KEYWORD_FIELD_NAME)
@@ -730,8 +744,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryStringQuery("/foo*bar/").defaultField(TEXT_FIELD_NAME)
             .maxDeterminizedStates(5000)
             .toQuery(createShardContext());
-        assertThat(query, instanceOf(RegexpQuery87.class));
-        RegexpQuery87 regexpQuery = (RegexpQuery87) query;
+        assertThat(query, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) query;
         assertTrue(regexpQuery.toString().contains("/foo*bar/"));
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 
@@ -51,8 +52,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 break;
             case UPGRADED:
                 assertUpgradedResultsMappings();
+                assertUpgradedAnnotationsMappings();
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
+                IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -121,6 +124,37 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             // to the most recent field we've added that is NOT of type "keyword"
             assertEquals("Incorrect type for peak_model_bytes in " + responseLevel, "long",
                 extractValue("mappings.properties.model_size_stats.properties.peak_model_bytes.type", indexLevel));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertUpgradedAnnotationsMappings() throws Exception {
+
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", ".ml-annotations-write/_mappings");
+            Response response = client().performRequest(getMappings);
+
+            Map<String, Object> responseLevel = entityAsMap(response);
+            assertNotNull(responseLevel);
+            Map<String, Object> indexLevel = null;
+            // The name of the concrete index underlying the annotations index write alias may or may not have been
+            // changed by the upgrade process (depending on what other tests are being run and the order they're run
+            // in), so navigating to the next level of the tree must account for both cases
+            for (Map.Entry<String, Object> entry : responseLevel.entrySet()) {
+                if (entry.getKey().startsWith(".ml-annotations-")) {
+                    indexLevel = (Map<String, Object>) entry.getValue();
+                    break;
+                }
+            }
+            assertNotNull(indexLevel);
+
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+
+            // TODO: as the years go by, the field we assert on here should be changed
+            // to the most recent field we've added that would be incorrectly mapped by dynamic
+            // mappings, for example a field we want to be "keyword" incorrectly mapped as "text"
+            assertEquals("Incorrect type for event in " + responseLevel, "keyword",
+                extractValue("mappings.properties.event.type", indexLevel));
         });
     }
 

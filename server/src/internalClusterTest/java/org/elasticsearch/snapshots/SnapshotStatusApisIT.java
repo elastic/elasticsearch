@@ -101,7 +101,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
-        awaitNSnapshotsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
         assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-snap").get().getSnapshots().get(0).getState());
 

@@ -490,7 +490,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .setPartial(partial).execute();
     }
 
-    protected void awaitNSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
         awaitClusterState(state ->
                 state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);

@@ -227,7 +227,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class KeyedFlatObjectFieldType extends StringFieldType {
         private final String key;
-        private boolean splitQueriesOnWhitespace;
 
         public KeyedFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, String key,
                                         boolean splitQueriesOnWhitespace, Map<String, String> meta) {
@@ -236,7 +235,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
-            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         private KeyedFlatObjectFieldType(String name, String key, RootFlatObjectFieldType ref) {
@@ -250,14 +248,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public String key() {
             return key;
-        }
-
-        public boolean splitQueriesOnWhitespace() {
-            return splitQueriesOnWhitespace;
-        }
-
-        public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         @Override
@@ -438,7 +428,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      * searches on the flat object field itself, e.g. 'my_flat_object: some_value'.
      */
     public static final class RootFlatObjectFieldType extends StringFieldType {
-        private boolean splitQueriesOnWhitespace;
+        private final boolean splitQueriesOnWhitespace;
 
         public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
                                        boolean splitQueriesOnWhitespace) {
@@ -451,14 +441,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        public boolean splitQueriesOnWhitespace() {
-            return splitQueriesOnWhitespace;
-        }
-
-        public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         @Override
@@ -596,8 +578,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             builder.field("null_value", nullValue);
         }
 
-        if (includeDefaults || fieldType().splitQueriesOnWhitespace()) {
-            builder.field("split_queries_on_whitespace", fieldType().splitQueriesOnWhitespace());
+        if (includeDefaults || fieldType().splitQueriesOnWhitespace) {
+            builder.field("split_queries_on_whitespace", fieldType().splitQueriesOnWhitespace);
         }
     }
 }

@@ -1,6 +1,24 @@
 setup:
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
+      headers:
+        Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        id: trained_model_metadata-a-regression-model-0
+        index: .ml-inference-000003
+        body:
+          model_id: "a-regression-model-0"
+          doc_type: "trained_model_metadata"
+          total_feature_importance:
+            - { feature_name: "foo", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 }}
+            - { feature_name: "bar", importance: { mean_magnitude: 6.0,min: -3.0,max: 3.0 }}
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -548,6 +566,20 @@ setup:
   - match: { count: 12 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
 ---
+"Test get models with include total feature importance":
+  - do:
+      ml.get_trained_models:
+        model_id: "a-regression-model-*"
+        include: "total_feature_importance"
+  - match: { count: 2 }
+  - length: { trained_model_configs: 2 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+  - is_true: trained_model_configs.0.metadata.total_feature_importance
+  - length: { trained_model_configs.0.metadata.total_feature_importance: 2 }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
+  - is_false: trained_model_configs.1.metadata.total_feature_importance
+
+---
 "Test delete given unused trained model":
   - do:
       ml.delete_trained_model:
@@ -824,7 +856,7 @@ setup:
       ml.get_trained_models:
         model_id: "a-regression-model-1"
         for_export: true
-        include_model_definition: true
+        include: "definition"
         decompress_definition: false
 
   - match: { trained_model_configs.0.description: "empty model for tests" }

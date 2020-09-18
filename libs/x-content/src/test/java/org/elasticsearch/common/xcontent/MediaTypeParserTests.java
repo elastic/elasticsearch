@@ -32,8 +32,8 @@ public class MediaTypeParserTests extends ESTestCase {
 
     MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
         .withMediaTypeAndParams("application/vnd.elasticsearch+json",
-            XContentType.JSON,Map.of("compatible-with","\\d+",
-            "charset","UTF-8"))
+            XContentType.JSON, Map.of("compatible-with", "\\d+",
+            "charset", "UTF-8"))
         .build();
 
     public void testJsonWithParameters() throws Exception {

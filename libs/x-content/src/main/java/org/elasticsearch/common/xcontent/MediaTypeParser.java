@@ -78,7 +78,7 @@ public class MediaTypeParser<T extends MediaType> {
                         }
                         String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT);
                         String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT);
-                        if(isValidParameter(typeWithSubtype,parameterName,parameterValue) == false) {
+                        if (isValidParameter(typeWithSubtype, parameterName, parameterValue) == false) {
                             return null;
                         }
                         parameters.put(parameterName, parameterValue);
@@ -92,9 +92,9 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     private boolean isValidParameter(String typeWithSubtype, String parameterName, String parameterValue) {
-        if(parametersMap.containsKey(typeWithSubtype)){
+        if (parametersMap.containsKey(typeWithSubtype)) {
             Map<String, String> parameters = parametersMap.get(typeWithSubtype);
-            if(parameters.containsKey(parameterName)){
+            if (parameters.containsKey(parameterName)) {
                 String regex = parameters.get(parameterName);
                 return parameterValue.matches(regex);//todo pg should we precompile regex?
             }

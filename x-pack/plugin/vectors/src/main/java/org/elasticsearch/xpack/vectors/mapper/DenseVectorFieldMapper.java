@@ -130,6 +130,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return false;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
@@ -230,7 +235,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected boolean docValuesByDefault() {
-        return false;
+        return true;
     }
 
     @Override

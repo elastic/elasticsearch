@@ -12,6 +12,7 @@ setup:
       index:
         id: trained_model_metadata-a-regression-model-0
         index: .ml-inference-000003
+        allow_system_index_access: true
         body:
           model_id: "a-regression-model-0"
           doc_type: "trained_model_metadata"

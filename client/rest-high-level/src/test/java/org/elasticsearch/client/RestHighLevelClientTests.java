@@ -705,7 +705,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(70, namedXContents.size());
+        assertEquals(71, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -731,7 +731,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(9), categories.get(LifecycleAction.class));
+        assertEquals(Integer.valueOf(10), categories.get(LifecycleAction.class));
         assertTrue(names.contains(UnfollowAction.NAME));
         assertTrue(names.contains(AllocateAction.NAME));
         assertTrue(names.contains(DeleteAction.NAME));

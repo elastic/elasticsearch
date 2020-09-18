@@ -100,6 +100,20 @@ setup:
         meta: {}
 
 ---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [day_of_week, day_of_week_from_source, day_of_week_letters, prefixed_node]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.day_of_week: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
+  - match: {hits.hits.0.fields.prefixed_node: [node_c] }
+
+---
 "docvalue_fields":
   - do:
       search:

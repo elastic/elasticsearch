@@ -437,9 +437,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // the loading occurred or which models are currently in the cache due to evictions.
         // Verify that we have at least loaded all three
         assertBusy(() -> {
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(false), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(false), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(false), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(false), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(false), eq(false), any());
         });
         assertBusy(() -> {
             assertThat(circuitBreaker.getUsed(), equalTo(10L));
@@ -553,10 +553,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), any());
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
             listener.onResponse(trainedModelConfig);
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), eq(false), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -564,20 +564,20 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (randomBoolean()) {
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
                 listener.onFailure(new ResourceNotFoundException(
                     Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return null;
-            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), eq(false), any());
         } else {
             TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
             when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(0L);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
                 listener.onResponse(trainedModelConfig);
                 return null;
-            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), eq(false), any());
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];

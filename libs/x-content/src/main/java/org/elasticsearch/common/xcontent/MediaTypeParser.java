@@ -22,16 +22,16 @@ package org.elasticsearch.common.xcontent;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class MediaTypeParser<T extends MediaType> {
     private final Map<String, T> formatToMediaType;
     private final Map<String, T> typeWithSubtypeToMediaType;
-    private final Map<String, Map<String, String>> parametersMap;
-
+    private final Map<String, Map<String, Pattern>> parametersMap;
 
     public MediaTypeParser(Map<String, T> formatToMediaType, Map<String, T> typeWithSubtypeToMediaType,
-                           Map<String, Map<String, String>> parametersMap) {
+                           Map<String, Map<String, Pattern>> parametersMap) {
         this.formatToMediaType = Map.copyOf(formatToMediaType);
         this.typeWithSubtypeToMediaType = Map.copyOf(typeWithSubtypeToMediaType);
         this.parametersMap = Map.copyOf(parametersMap);
@@ -93,10 +93,10 @@ public class MediaTypeParser<T extends MediaType> {
 
     private boolean isValidParameter(String typeWithSubtype, String parameterName, String parameterValue) {
         if (parametersMap.containsKey(typeWithSubtype)) {
-            Map<String, String> parameters = parametersMap.get(typeWithSubtype);
+            Map<String, Pattern> parameters = parametersMap.get(typeWithSubtype);
             if (parameters.containsKey(parameterName)) {
-                String regex = parameters.get(parameterName);
-                return parameterValue.matches(regex);//todo pg should we precompile regex?
+                Pattern regex = parameters.get(parameterName);
+                return regex.matcher(parameterValue).matches();
             }
         }
         return false;
@@ -130,7 +130,7 @@ public class MediaTypeParser<T extends MediaType> {
     public static class Builder<T extends MediaType> {
         private final Map<String, T> formatMap = new HashMap<>();
         private final Map<String, T> typeMap = new HashMap<>();
-        private final Map<String, Map<String, String>> parametersMap = new HashMap<>();
+        private final Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
         public Builder<T> withMediaTypeNoParams(String alternativeMediaType, T mediaType) {
             typeMap.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
@@ -141,10 +141,16 @@ public class MediaTypeParser<T extends MediaType> {
         public Builder<T> withMediaTypeAndParams(String alternativeMediaType, T mediaType, Map<String, String> paramNameAndValueRegex) {
             typeMap.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
             formatMap.put(mediaType.format(), mediaType);
-            //paramNameAndValueRegex all entries to lowercase
-            parametersMap.put(alternativeMediaType, paramNameAndValueRegex.entrySet().stream()
-                .collect(Collectors.toMap(entry -> entry.getKey().toLowerCase(Locale.ROOT),
-                    entry-> entry.getValue().toLowerCase(Locale.ROOT))));
+
+            Map<String, Pattern> parametersForMediaType = new HashMap<>(paramNameAndValueRegex.size());
+            for (Map.Entry<String, String> params : paramNameAndValueRegex.entrySet()) {
+                String parameterName = params.getKey().toLowerCase(Locale.ROOT);
+                String parameterRegex = params.getValue().toLowerCase(Locale.ROOT);
+                Pattern pattern = Pattern.compile(parameterRegex, Pattern.CASE_INSENSITIVE);
+                parametersForMediaType.put(parameterName, pattern);
+            }
+            parametersMap.put(alternativeMediaType, parametersForMediaType);
+
             return this;
         }
 

@@ -28,7 +28,7 @@ public class AutoscalingDecisionsTests extends AutoscalingTestCase {
             IllegalArgumentException.class,
             () -> new AutoscalingDecisions(
                 randomAlphaOfLength(10),
-                new AutoscalingCapacity(randomStorageAndMemory(), randomStorageAndMemory()),
+                new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
                 new TreeMap<>()
             )
         );

@@ -22,22 +22,22 @@ import java.util.Objects;
  */
 public class AutoscalingCapacity implements ToXContent, Writeable {
 
-    private final StorageAndMemory tier;
-    private final StorageAndMemory node;
+    private final AutoscalingResources tier;
+    private final AutoscalingResources node;
 
-    public static class StorageAndMemory implements ToXContent, Writeable {
+    public static class AutoscalingResources implements ToXContent, Writeable {
         private final ByteSizeValue storage;
         private final ByteSizeValue memory;
 
-        public static final StorageAndMemory ZERO = new StorageAndMemory(new ByteSizeValue(0), new ByteSizeValue(0));
+        public static final AutoscalingResources ZERO = new AutoscalingResources(new ByteSizeValue(0), new ByteSizeValue(0));
 
-        public StorageAndMemory(ByteSizeValue storage, ByteSizeValue memory) {
+        public AutoscalingResources(ByteSizeValue storage, ByteSizeValue memory) {
             assert storage != null || memory != null;
             this.storage = storage;
             this.memory = memory;
         }
 
-        public StorageAndMemory(StreamInput in) throws IOException {
+        public AutoscalingResources(StreamInput in) throws IOException {
             this.storage = in.readOptionalWriteable(ByteSizeValue::new);
             this.memory = in.readOptionalWriteable(ByteSizeValue::new);
         }
@@ -74,7 +74,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             out.writeOptionalWriteable(memory);
         }
 
-        public static StorageAndMemory max(StorageAndMemory sm1, StorageAndMemory sm2) {
+        public static AutoscalingResources max(AutoscalingResources sm1, AutoscalingResources sm2) {
             if (sm1 == null) {
                 return sm2;
             }
@@ -82,10 +82,10 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
                 return sm1;
             }
 
-            return new StorageAndMemory(max(sm1.storage, sm2.storage), max(sm1.memory, sm2.memory));
+            return new AutoscalingResources(max(sm1.storage, sm2.storage), max(sm1.memory, sm2.memory));
         }
 
-        public static StorageAndMemory sum(StorageAndMemory sm1, StorageAndMemory sm2) {
+        public static AutoscalingResources sum(AutoscalingResources sm1, AutoscalingResources sm2) {
             if (sm1 == null) {
                 return sm2;
             }
@@ -93,7 +93,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
                 return sm1;
             }
 
-            return new StorageAndMemory(add(sm1.storage, sm2.storage), add(sm1.memory, sm2.memory));
+            return new AutoscalingResources(add(sm1.storage, sm2.storage), add(sm1.memory, sm2.memory));
         }
 
         private static ByteSizeValue max(ByteSizeValue v1, ByteSizeValue v2) {
@@ -122,7 +122,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            StorageAndMemory that = (StorageAndMemory) o;
+            AutoscalingResources that = (AutoscalingResources) o;
             return Objects.equals(storage, that.storage) && Objects.equals(memory, that.memory);
         }
 
@@ -137,9 +137,9 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
     }
 
-    public static final AutoscalingCapacity ZERO = new AutoscalingCapacity(StorageAndMemory.ZERO, StorageAndMemory.ZERO);
+    public static final AutoscalingCapacity ZERO = new AutoscalingCapacity(AutoscalingResources.ZERO, AutoscalingResources.ZERO);
 
-    public AutoscalingCapacity(StorageAndMemory tier, StorageAndMemory node) {
+    public AutoscalingCapacity(AutoscalingResources tier, AutoscalingResources node) {
         assert tier != null : "Cannot provide capacity without specifying tier level capacity";
         assert node == null || node.memory == null
         // implies
@@ -153,15 +153,15 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
     }
 
     public AutoscalingCapacity(StreamInput in) throws IOException {
-        this.tier = new StorageAndMemory(in);
-        this.node = in.readOptionalWriteable(StorageAndMemory::new);
+        this.tier = new AutoscalingResources(in);
+        this.node = in.readOptionalWriteable(AutoscalingResources::new);
     }
 
-    public StorageAndMemory tier() {
+    public AutoscalingResources tier() {
         return tier;
     }
 
-    public StorageAndMemory node() {
+    public AutoscalingResources node() {
         return node;
     }
 
@@ -188,7 +188,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
     }
 
     public static AutoscalingCapacity upperBound(AutoscalingCapacity c1, AutoscalingCapacity c2) {
-        return new AutoscalingCapacity(StorageAndMemory.max(c1.tier, c2.tier), StorageAndMemory.max(c1.node, c2.node));
+        return new AutoscalingCapacity(AutoscalingResources.max(c1.tier, c2.tier), AutoscalingResources.max(c1.node, c2.node));
     }
 
     @Override
@@ -214,8 +214,8 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
     }
 
     public static class Builder {
-        private StorageAndMemory tier;
-        private StorageAndMemory node;
+        private AutoscalingResources tier;
+        private AutoscalingResources node;
 
         public Builder() {}
 
@@ -230,10 +230,10 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         public Builder tier(ByteSizeValue storage, ByteSizeValue memory) {
-            return tier(new StorageAndMemory(storage, memory));
+            return tier(new AutoscalingResources(storage, memory));
         }
 
-        public Builder tier(StorageAndMemory tier) {
+        public Builder tier(AutoscalingResources tier) {
             this.tier = tier;
             return this;
         }
@@ -243,10 +243,10 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         public Builder node(ByteSizeValue storage, ByteSizeValue memory) {
-            return node(new StorageAndMemory(storage, memory));
+            return node(new AutoscalingResources(storage, memory));
         }
 
-        public Builder node(StorageAndMemory node) {
+        public Builder node(AutoscalingResources node) {
             this.node = node;
             return this;
         }

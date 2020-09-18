@@ -47,15 +47,15 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         final SortedMap<String, AutoscalingDecision> decisions = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDecision()))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
-        AutoscalingCapacity capacity = new AutoscalingCapacity(randomStorageAndMemory(), randomStorageAndMemory());
+        AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
         return new AutoscalingDecisions(randomAlphaOfLength(10), capacity, decisions);
     }
 
     public static AutoscalingCapacity randomAutoscalingCapacity() {
-        AutoscalingCapacity.StorageAndMemory tier = randomNullValueStorageAndMemory();
+        AutoscalingCapacity.AutoscalingResources tier = randomNullValueAutoscalingResources();
         return new AutoscalingCapacity(
             tier,
-            randomBoolean() ? randomNullValueStorageAndMemory(tier.storage() != null, tier.memory() != null) : null
+            randomBoolean() ? randomNullValueAutoscalingResources(tier.storage() != null, tier.memory() != null) : null
         );
     }
 
@@ -63,19 +63,19 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return randomBoolean() ? randomAutoscalingCapacity() : null;
     }
 
-    protected static AutoscalingCapacity.StorageAndMemory randomStorageAndMemory() {
-        return new AutoscalingCapacity.StorageAndMemory(randomByteSizeValue(), randomByteSizeValue());
+    protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
+        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue());
     }
 
-    private static AutoscalingCapacity.StorageAndMemory randomNullValueStorageAndMemory() {
-        return randomNullValueStorageAndMemory(true, true);
+    private static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources() {
+        return randomNullValueAutoscalingResources(true, true);
     }
 
-    public static AutoscalingCapacity.StorageAndMemory randomNullValueStorageAndMemory(boolean allowStorage, boolean allowMemory) {
+    public static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources(boolean allowStorage, boolean allowMemory) {
         assert allowMemory || allowStorage;
         boolean addStorage = (allowStorage && randomBoolean()) || allowMemory == false;
         boolean addMemory = (allowMemory && randomBoolean()) || addStorage == false;
-        return new AutoscalingCapacity.StorageAndMemory(
+        return new AutoscalingCapacity.AutoscalingResources(
             addStorage ? randomByteSizeValue() : null,
             addMemory ? randomByteSizeValue() : null
         );

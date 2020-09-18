@@ -52,7 +52,10 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
             // mutate node
             if (instance.node() == null) {
                 builder.node(
-                    AutoscalingTestCase.randomNullValueStorageAndMemory(instance.tier().storage() != null, instance.tier().memory() != null)
+                    AutoscalingTestCase.randomNullValueAutoscalingResources(
+                        instance.tier().storage() != null,
+                        instance.tier().memory() != null
+                    )
                 );
             } else if (randomBoolean() && instance.tier().storage() != null || instance.tier().memory() == null) {
                 builder.node(randomByteSize(instance.node().memory() != null, instance.node().storage()), instance.node().memory());

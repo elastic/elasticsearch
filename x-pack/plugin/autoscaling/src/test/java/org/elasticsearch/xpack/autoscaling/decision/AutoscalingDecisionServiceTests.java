@@ -100,8 +100,8 @@ public class AutoscalingDecisionServiceTests extends AutoscalingTestCase {
             return null;
         } else {
             return new AutoscalingCapacity(
-                new AutoscalingCapacity.StorageAndMemory(totalStorage, totalMemory),
-                new AutoscalingCapacity.StorageAndMemory(configuration.storage(), configuration.memory())
+                new AutoscalingCapacity.AutoscalingResources(totalStorage, totalMemory),
+                new AutoscalingCapacity.AutoscalingResources(configuration.storage(), configuration.memory())
             );
         }
     }

@@ -32,18 +32,8 @@ import java.util.Collections;
 
 public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
-    }
-
     public void testIntervals() throws IOException {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
         NamedAnalyzer a = new NamedAnalyzer("name", AnalyzerScope.INDEX, new StandardAnalyzer());
         IntervalsSource source = ft.intervals("Donald Trump", 0, true, a, false);
         assertEquals(Intervals.phrase(Intervals.term("donald"), Intervals.term("trump")), source);

@@ -63,24 +63,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         nowInMillis = randomNonNegativeLong();
     }
 
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        if (type == RangeType.DATE) {
-            return new RangeFieldType("field", randomBoolean(), true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
-        }
-        return new RangeFieldType("field", type, randomBoolean(), true, Collections.emptyMap());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        if (type == RangeType.DATE) {
-            return new RangeFieldType("field", randomBoolean(), false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
-        }
-        return new RangeFieldType("field", type, randomBoolean(), false, Collections.emptyMap());
-    }
-
-    @Override
-    protected RangeFieldType createDefaultFieldType() {
+    private RangeFieldType createDefaultFieldType() {
         if (type == RangeType.DATE) {
             return new RangeFieldType("field", true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         }

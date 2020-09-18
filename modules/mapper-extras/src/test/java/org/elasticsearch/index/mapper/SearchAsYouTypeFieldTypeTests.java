@@ -49,13 +49,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         UNSEARCHABLE.freeze();
     }
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected SearchAsYouTypeFieldType createDefaultFieldType() {
+    private static SearchAsYouTypeFieldType createDefaultFieldType() {
         final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
             Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));

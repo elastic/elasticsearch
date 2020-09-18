@@ -7,19 +7,18 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Collections;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
+    public void testHasDocValues() {
+        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType("f", 1, Collections.emptyMap());
+        assertTrue(ft.hasDocValues());
     }
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new DenseVectorFieldMapper.DenseVectorFieldType("field", 1, Collections.emptyMap());
+    public void testIsAggregatable() {
+        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType("f", 1, Collections.emptyMap());
+        assertTrue(ft.isAggregatable());
     }
 }

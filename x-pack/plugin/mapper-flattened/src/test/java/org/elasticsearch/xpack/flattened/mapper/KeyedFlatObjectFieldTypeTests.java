@@ -17,7 +17,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 
 import java.util.ArrayList;
@@ -26,23 +25,7 @@ import java.util.List;
 
 public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return true;
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        return new KeyedFlatObjectFieldType("field", randomBoolean(), true, "key", randomBoolean(), Collections.emptyMap());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        return new KeyedFlatObjectFieldType("field", randomBoolean(), false, "key", randomBoolean(), Collections.emptyMap());
-    }
-
-    @Override
-    protected KeyedFlatObjectFieldType createDefaultFieldType() {
+    private static KeyedFlatObjectFieldType createDefaultFieldType() {
         return new KeyedFlatObjectFieldType("field", true, true, "key", false, Collections.emptyMap());
     }
 

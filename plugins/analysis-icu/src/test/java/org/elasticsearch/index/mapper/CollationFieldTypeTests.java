@@ -42,19 +42,8 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
 
     private static final Collator DEFAULT_COLLATOR = Collator.getInstance(ULocale.ROOT).freeze();
 
-    @Override
-    protected CollationFieldType createDefaultFieldType() {
+    private static CollationFieldType createDefaultFieldType() {
         return new CollationFieldType("field", DEFAULT_COLLATOR);
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        return new CollationFieldType("field", randomBoolean(), true, DEFAULT_COLLATOR, Collections.emptyMap());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        return new CollationFieldType("field", randomBoolean(), false, DEFAULT_COLLATOR, Collections.emptyMap());
     }
 
     public void testIsFieldWithinQuery() throws IOException {

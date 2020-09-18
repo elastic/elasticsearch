@@ -28,16 +28,6 @@ import org.elasticsearch.ElasticsearchException;
 
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return RoutingFieldMapper.RoutingFieldType.INSTANCE;
-    }
-
     public void testPrefixQuery() {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 

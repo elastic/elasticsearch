@@ -25,21 +25,6 @@ import java.util.Collections;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new BooleanFieldMapper.BooleanFieldType("field");
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        return new BooleanFieldMapper.BooleanFieldType("field", randomBoolean(), true, Collections.emptyMap());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        return new BooleanFieldMapper.BooleanFieldType("field", randomBoolean(), false, Collections.emptyMap());
-    }
-
     public void testValueFormat() {
         MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
         assertEquals(false, ft.docValueFormat(null, null).format(0));

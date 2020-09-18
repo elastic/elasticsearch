@@ -11,23 +11,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
 
 public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
-
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new ConstantKeywordFieldType("f", "foo");
-    }
 
     public void testTermQuery() {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");

@@ -32,21 +32,6 @@ import java.util.Collections;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new IpFieldMapper.IpFieldType("field");
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        return new IpFieldMapper.IpFieldType("field", randomBoolean(), true, Collections.emptyMap());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        return new IpFieldMapper.IpFieldType("field", randomBoolean(), false, Collections.emptyMap());
-    }
-
     public void testValueFormat() throws Exception {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
         String ip = "2001:db8::2:1";

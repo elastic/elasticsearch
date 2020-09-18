@@ -23,13 +23,7 @@ import java.util.Collections;
 
 public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
+    private static MappedFieldType createDefaultFieldType() {
         return new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), randomBoolean());
     }
 

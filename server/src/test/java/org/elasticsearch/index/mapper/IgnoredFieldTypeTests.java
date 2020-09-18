@@ -29,16 +29,6 @@ import org.elasticsearch.ElasticsearchException;
 
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
-    }
-
     public void testPrefixQuery() {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 

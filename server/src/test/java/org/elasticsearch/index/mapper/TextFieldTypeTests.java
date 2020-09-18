@@ -49,13 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected TextFieldType createDefaultFieldType() {
+    private static TextFieldType createDefaultFieldType() {
         return new TextFieldType("field");
     }
 

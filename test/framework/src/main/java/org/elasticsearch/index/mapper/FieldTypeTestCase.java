@@ -39,49 +39,4 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         return queryShardContext;
     }
-
-    protected boolean hasConfigurableDocValues() {
-        return true;
-    }
-
-    protected abstract MappedFieldType createDefaultFieldType();
-
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected boolean isAggregatableWhenDocValuesAreDisabled() {
-        return false;
-    }
-
-    protected boolean isAggregatableWhenDocValuesAreEnabled() {
-        return true;
-    }
-
-    public final void testIsAggregatable() {
-        if (hasConfigurableDocValues()) {
-            MappedFieldType fieldTypeWithDocValuesEnabled = createFieldTypeWithDocValuesEnabled();
-            assertTrue(fieldTypeWithDocValuesEnabled.hasDocValues());
-            if (isAggregatableWhenDocValuesAreEnabled()) {
-                assertTrue(fieldTypeWithDocValuesEnabled.isAggregatable());
-            } else {
-                assertFalse(fieldTypeWithDocValuesEnabled.isAggregatable());
-            }
-            MappedFieldType fieldTypeWithDocValuesDisabled = createFieldTypeWithDocValuesDisabled();
-            assertFalse(fieldTypeWithDocValuesDisabled.hasDocValues());
-            if (isAggregatableWhenDocValuesAreDisabled()) {
-                assertTrue(fieldTypeWithDocValuesDisabled.isAggregatable());
-            } else {
-                assertFalse(fieldTypeWithDocValuesDisabled.isAggregatable());
-            }
-        }
-        MappedFieldType defaultFieldType = createDefaultFieldType();
-        assertEquals(
-            (defaultFieldType.hasDocValues() && isAggregatableWhenDocValuesAreEnabled()) || isAggregatableWhenDocValuesAreDisabled(),
-            defaultFieldType.isAggregatable());
-    }
 }

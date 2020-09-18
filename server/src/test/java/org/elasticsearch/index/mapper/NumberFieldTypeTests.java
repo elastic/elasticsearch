@@ -79,21 +79,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         type = RandomPicks.randomFrom(random(), NumberFieldMapper.NumberType.values());
     }
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new NumberFieldType("field", type);
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        return new NumberFieldType("field", type, randomBoolean(), true, Collections.emptyMap());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        return new NumberFieldType("field", type, randomBoolean(), false, Collections.emptyMap());
-    }
-
     public void testEqualsWithDifferentNumberTypes() {
         NumberType type = randomFrom(NumberType.values());
         NumberFieldType fieldType = new NumberFieldType("foo", type);

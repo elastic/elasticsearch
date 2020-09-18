@@ -14,24 +14,14 @@ import java.util.Collections;
 
 public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return false;
-    }
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
-    }
-
     public void testDocValuesDisabled() {
-        MappedFieldType fieldType = createDefaultFieldType();
+        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
         expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index", null));
     }
 
     public void testIsNotAggregatable() {
-        MappedFieldType fieldType = createDefaultFieldType();
+        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.isAggregatable());
     }
 }

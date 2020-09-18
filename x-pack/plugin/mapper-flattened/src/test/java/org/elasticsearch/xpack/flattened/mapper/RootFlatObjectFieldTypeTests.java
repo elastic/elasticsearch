@@ -19,30 +19,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 
 import java.util.Collections;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected boolean hasConfigurableDocValues() {
-        return true;
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesEnabled() {
-        return new RootFlatObjectFieldType("field", randomBoolean(), true, Collections.emptyMap(), randomBoolean());
-    }
-
-    @Override
-    protected MappedFieldType createFieldTypeWithDocValuesDisabled() {
-        return new RootFlatObjectFieldType("field", randomBoolean(), false, Collections.emptyMap(), randomBoolean());
-    }
-
-    @Override
-    protected RootFlatObjectFieldType createDefaultFieldType() {
+    private static RootFlatObjectFieldType createDefaultFieldType() {
         return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
     }
 

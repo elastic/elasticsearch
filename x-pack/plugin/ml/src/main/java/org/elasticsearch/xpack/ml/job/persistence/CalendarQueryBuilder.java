@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -58,6 +60,14 @@ public class CalendarQueryBuilder {
     public CalendarQueryBuilder calendarIdTokens(String[] idTokens) {
         this.idTokens = idTokens;
         return this;
+    }
+
+    public boolean isForAllCalendars() {
+        return Strings.isAllOrWildcard(idTokens);
+    }
+
+    public Exception buildNotFoundException() {
+        return new ResourceNotFoundException("No calendar with id [" + Strings.arrayToCommaDelimitedString(idTokens) + "]");
     }
 
     /**

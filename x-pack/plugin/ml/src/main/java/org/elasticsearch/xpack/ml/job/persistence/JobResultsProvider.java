@@ -1470,6 +1470,10 @@ public class JobResultsProvider {
                             List<Calendar> calendars = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             try {
+                                if (queryBuilder.isForAllCalendars() == false && hits.length == 0) {
+                                    listener.onFailure(queryBuilder.buildNotFoundException());
+                                    return;
+                                }
                                 for (SearchHit hit : hits) {
                                     calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                                 }

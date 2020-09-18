@@ -6,13 +6,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete Expired Data API
+=== Delete expired data API
 Delete expired {ml} data.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Delete Expired Data Request
+==== Delete expired data request
 
 A `DeleteExpiredDataRequest` object does not require any arguments.
 
@@ -28,7 +28,7 @@ include-tagged::{doc-tests-file}[{api}-request]
     to run before they are canceled. Default value is `8h` (8 hours).
 
 [id="{upid}-{api}-response"]
-==== Delete Expired Data Response
+==== Delete expired data response
 
 The returned +{response}+ object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]

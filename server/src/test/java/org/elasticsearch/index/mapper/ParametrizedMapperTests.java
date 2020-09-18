@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -126,6 +127,9 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         protected Builder(String name) {
             super(name);
+            // only output search analyzer if different to analyzer
+            searchAnalyzer.setShouldSerialize(
+                () -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
         }
 
         @Override
@@ -189,7 +193,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             return null;
         }
 
@@ -215,7 +219,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, version, () -> null, null);
+        }, version, () -> null, null, null);
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
@@ -223,6 +227,16 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
     private static TestMapper fromMapping(String mapping) {
         return fromMapping(mapping, Version.CURRENT);
+    }
+
+    private String toStringWithDefaults(ToXContent value) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        ToXContent.Params params = new ToXContent.MapParams(Map.of("include_defaults", "true"));
+        builder.startObject();
+        value.toXContent(builder, params);
+        builder.endObject();
+        return Strings.toString(builder);
+
     }
 
     // defaults - create empty builder config, and serialize with and without defaults
@@ -235,16 +249,11 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        ToXContent.Params params = new ToXContent.MapParams(Map.of("include_defaults", "true"));
-        builder.startObject();
-        mapper.toXContent(builder, params);
-        builder.endObject();
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
                 "\"fixed2\":false,\"variable\":\"default\",\"index\":true," +
                 "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"_keyword\"," +
-                "\"search_analyzer\":\"_keyword\",\"required\":\"value\",\"restricted\":\"foo\"}}",
-            Strings.toString(builder));
+                "\"required\":\"value\",\"restricted\":\"foo\"}}",
+            toStringWithDefaults(mapper));
     }
 
     // merging - try updating 'fixed' and 'fixed2' should get an error, try updating 'variable' and verify update
@@ -411,7 +420,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }
 
-    public void testLinkedAnalyzers() {
+    public void testLinkedAnalyzers() throws IOException {
         String mapping = "{\"type\":\"test_mapper\",\"analyzer\":\"_standard\",\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping);
         assertEquals("_standard", mapper.analyzer.name());
@@ -430,6 +439,21 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         assertEquals("default", mapper.analyzer.name());
         assertEquals("_standard", mapper.searchAnalyzer.name());
         assertEquals("{\"field\":" + mappingWithBoth + "}", Strings.toString(mapper));
+
+        // we've configured things so that search_analyzer is only output when different from
+        // analyzer, no matter what the value of `include_defaults` is
+        String mappingWithSame = "{\"type\":\"test_mapper\",\"analyzer\":\"default\"," +
+            "\"search_analyzer\":\"default\",\"required\":\"value\"}";
+        mapper = fromMapping(mappingWithSame);
+        assertEquals("default", mapper.analyzer.name());
+        assertEquals("default", mapper.searchAnalyzer.name());
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"analyzer\":\"default\",\"required\":\"value\"}}", Strings.toString(mapper));
+
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
+                "\"fixed2\":false,\"variable\":\"default\",\"index\":true," +
+                "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"default\"," +
+                "\"required\":\"value\",\"restricted\":\"foo\"}}",
+            toStringWithDefaults(mapper));
     }
 
     public void testRequiredField() {
@@ -462,4 +486,5 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             assertEquals("foo", mapper.restricted);
         }
     }
+
 }

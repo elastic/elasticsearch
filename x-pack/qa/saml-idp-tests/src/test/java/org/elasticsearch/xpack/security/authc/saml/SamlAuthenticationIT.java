@@ -156,7 +156,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
-
     public void testLoginUserWithSamlRoleMapping() throws Exception {
         // this realm name comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth");

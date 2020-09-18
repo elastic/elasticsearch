@@ -27,7 +27,7 @@ esplugin {
 }
 
 testClusters.all {
-  module project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile
+  module ':modules:mapper-extras'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -53,8 +53,6 @@ restResources {
                 'scripts_painless_execute', 'put_script', 'delete_script'
   }
 }
-
-integTest.enabled = false
 
 tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk

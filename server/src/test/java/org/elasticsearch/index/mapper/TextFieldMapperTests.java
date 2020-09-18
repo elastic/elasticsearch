@@ -421,12 +421,16 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test")
+            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            })
         );
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test"); // no exception this time
+        enabledMapper.fieldType("field").fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }); // no exception this time
 
         e = expectThrows(
             MapperParsingException.class,
@@ -918,7 +922,7 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

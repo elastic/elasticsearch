@@ -360,16 +360,20 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertFalse(fields.containsKey("object"));
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern) {
+    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
+        throws IOException {
+
         List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
         return retrieveFields(mapperService, source, fields);
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields) {
+    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
+        throws IOException {
+
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, fields);
+        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, null, fields);
         return fetchFieldsLookup.retrieve(sourceLookup, Set.of());
     }
 

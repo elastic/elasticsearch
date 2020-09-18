@@ -64,8 +64,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) { GradleRunner runner ->
-            return runner.build()
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
         }
 
         then:
@@ -91,8 +91,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) { GradleRunner runner ->
-            return runner.build()
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
         }
 
         then:
@@ -103,7 +103,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     boolean assertEsStdoutContains(String testCluster, String expectedOutput) {
-        assert new File(testProjectDir.root, "build/testclusters/${testCluster}-0/logs/es.stdout.log").text.contains(expectedOutput)
+        assert new File(testProjectDir.root,
+                "build/testclusters/${testCluster}-0/logs/es.stdout.log").text.contains(expectedOutput)
         true
     }
 

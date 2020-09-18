@@ -61,6 +61,9 @@ public class TypeFieldTypeTests extends ESTestCase {
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
+        query = ft.termQueryCaseInsensitive("my_Type", context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
         Mockito.when(mapperService.hasNested()).thenReturn(true);
         query = ft.termQuery("my_type", context);
         assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
@@ -70,5 +73,9 @@ public class TypeFieldTypeTests extends ESTestCase {
         Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
+
+        query = ft.termQueryCaseInsensitive("other_Type", context);
+        assertEquals(new MatchNoDocsQuery(), query);
+
     }
 }

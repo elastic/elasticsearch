@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -20,6 +21,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -292,11 +294,23 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public Query wildcardQuery(String value,
                                    MultiTermQuery.RewriteMethod method,
+                                   boolean caseInsensitive,
                                    QueryShardContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
+        
+        
 
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            Query query = AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+        
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             if (value == null) {

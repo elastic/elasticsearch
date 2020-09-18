@@ -1946,8 +1946,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             snapshotToRestore = "snap-1";
             expectedCount = docCount;
         }
-        logger.info("--> deleting snapshot [{}]", snapshotToDelete);
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToDelete).get());
+        assertAcked(startDeleteSnapshot(repoName, snapshotToDelete).get());
         logger.info("--> restoring snapshot [{}]", snapshotToRestore);
         clusterAdmin().prepareRestoreSnapshot(repoName, snapshotToRestore).setIndices(indexName).setRenamePattern(indexName)
             .setRenameReplacement("restored-3").setWaitForCompletion(true).get();

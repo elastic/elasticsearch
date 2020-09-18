@@ -162,15 +162,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet());
     }
 
-    public void testGetSnapshotsWithoutIndices() {
+    public void testGetSnapshotsWithoutIndices() throws Exception {
         createRepository("test-repo", "fs");
 
         logger.info("--> snapshot");
-        final SnapshotInfo snapshotInfo =
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setIndices().setWaitForCompletion(true).get().getSnapshotInfo();
-
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = assertSuccessful(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                .setIndices().setWaitForCompletion(true).execute());
         assertThat(snapshotInfo.totalShards(), is(0));
 
         logger.info("--> verify that snapshot without index shows up in non-verbose listing");

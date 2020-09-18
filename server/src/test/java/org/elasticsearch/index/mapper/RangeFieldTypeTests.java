@@ -481,10 +481,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
             ft.termQuery(value, context));
     }
-    
+
     public void testCaseInsensitiveQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
         QueryShardException ex = expectThrows(QueryShardException.class,

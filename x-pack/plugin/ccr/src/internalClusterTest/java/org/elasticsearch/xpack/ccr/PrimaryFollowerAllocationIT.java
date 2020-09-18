@@ -49,6 +49,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         final PutFollowAction.Request putFollowRequest = putFollow(leaderIndex, followerIndex);
         putFollowRequest.setSettings(Settings.builder()
             .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+            .putNull("index.routing.allocation.include._tier_preference")
             .build());
         putFollowRequest.waitForActiveShards(ActiveShardCount.ONE);
         putFollowRequest.timeout(TimeValue.timeValueSeconds(2));
@@ -82,6 +83,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             .put("index.routing.rebalance.enable", "none")
             .put("index.routing.allocation.include._name",
                 Stream.concat(dataOnlyNodes.stream(), dataAndRemoteNodes.stream()).collect(Collectors.joining(",")))
+            .putNull("index.routing.allocation.include._tier_preference")
             .build());
         final PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, putFollowRequest).get();
         assertTrue(response.isFollowIndexShardsAcked());
@@ -105,6 +107,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         followerClient().admin().indices().prepareUpdateSettings(followerIndex)
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setSettings(Settings.builder()
+                .putNull("index.routing.allocation.include._tier_preference")
                 .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))
             .get();
         assertBusy(() -> {

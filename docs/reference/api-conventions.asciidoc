@@ -432,8 +432,8 @@ Returns:
         },
         "routing": {
           "allocation": {
-            "prefer": {
-              "_tier": "data_content"
+            "include": {
+              "_tier_preference": "data_content"
             }
           }
         },

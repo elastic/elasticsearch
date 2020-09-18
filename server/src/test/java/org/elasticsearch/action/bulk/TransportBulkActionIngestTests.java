@@ -201,13 +201,16 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder().indices(ImmutableOpenMap.<String, IndexMetadata>builder()
             .putAll(
-                Collections.singletonMap(
+                Map.of(
                     WITH_DEFAULT_PIPELINE,
                     IndexMetadata.builder(WITH_DEFAULT_PIPELINE).settings(
                         settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
                             .build()
-                    ).putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build()))
-            .build()).build();
+                    ).putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build(),
+                    ".system",
+                    IndexMetadata.builder(".system").settings(settings(Version.CURRENT))
+                        .system(true).numberOfShards(1).numberOfReplicas(0).build()
+                )).build()).build();
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(clusterService.state()).thenReturn(state);
@@ -317,6 +320,50 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        assertTrue(action.isExecuted);
+        assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
+        verifyZeroInteractions(transportService);
+    }
+
+    public void testIngestSystemLocal() throws Exception {
+        Exception exception = new Exception("fake exception");
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest(".system").id("id");
+        indexRequest1.source(Collections.emptyMap());
+        indexRequest1.setPipeline("testpipeline");
+        IndexRequest indexRequest2 = new IndexRequest(".system").id("id");
+        indexRequest2.source(Collections.emptyMap());
+        indexRequest2.setPipeline("testpipeline");
+        bulkRequest.add(indexRequest1);
+        bulkRequest.add(indexRequest2);
+
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(
+            response -> {
+                BulkItemResponse itemResponse = response.iterator().next();
+                assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
+                responseCalled.set(true);
+            },
+            e -> {
+                assertThat(e, sameInstance(exception));
+                failureCalled.set(true);
+            }));
+
+        // check failure works, and passes through to the listener
+        assertFalse(action.isExecuted); // haven't executed yet
+        assertFalse(responseCalled.get());
+        assertFalse(failureCalled.get());
+        verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
+            failureHandler.capture(), completionHandler.capture(), any(), eq(Names.SYSTEM_WRITE));
+        completionHandler.getValue().accept(null, exception);
+        assertTrue(failureCalled.get());
+
+        // now check success
+        Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
+        failureHandler.getValue().accept(0, exception); // have an exception for our one index request
+        indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one

@@ -59,7 +59,7 @@ public abstract class BinaryScriptFieldData implements IndexFieldData<BinaryScri
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
-    public abstract class BinaryScriptLeafFieldData implements LeafFieldData {
+    public abstract static class BinaryScriptLeafFieldData implements LeafFieldData {
         @Override
         public long ramBytesUsed() {
             return 0;

@@ -1007,6 +1007,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
 
         @Override
+        protected boolean mustReduceOnSingleInternalAgg() {
+            return true;
+        }
+
+        @Override
         public Object getProperty(List<String> path) {
             return null;
         }

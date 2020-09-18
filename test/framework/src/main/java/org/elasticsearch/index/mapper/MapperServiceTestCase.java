@@ -92,6 +92,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
+        return createMapperService(version, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
@@ -99,7 +103,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        return createMapperService(getIndexSettings(), mappings);
+        return createMapperService(Version.CURRENT, mappings);
     }
 
     protected final MapperService createMapperService(String mappings) throws IOException {
@@ -111,13 +115,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     /**
      * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createMapperService(Settings settings, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+            .settings(Settings.builder().put("index.version.created", version))
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(meta, getIndexSettings());
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();

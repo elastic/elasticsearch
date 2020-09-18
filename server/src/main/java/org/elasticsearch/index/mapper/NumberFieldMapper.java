@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -31,7 +30,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -174,7 +172,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
@@ -271,7 +269,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
@@ -357,7 +355,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 double[] v = new double[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
@@ -443,7 +441,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 return INTEGER.termsQuery(field, values);
             }
 
@@ -500,7 +498,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 return INTEGER.termsQuery(field, values);
             }
 
@@ -561,12 +559,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
-                for (int i = 0; i < values.size(); i++) {
-                    Object value = values.get(i);
+                for (Object value : values) {
                     if (!hasDecimalPart(value)) {
                         v[upTo++] = parse(value, true);
                     }
@@ -667,12 +664,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, List<?> values) {
                 long[] v = new long[values.size()];
                 int upTo = 0;
 
-                for (int i = 0; i < values.size(); i++) {
-                    Object value = values.get(i);
+                for (Object value : values) {
                     if (!hasDecimalPart(value)) {
                         v[upTo++] = parse(value, true);
                     }
@@ -743,7 +739,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return parser;
         }
         public abstract Query termQuery(String field, Object value);
-        public abstract Query termsQuery(String field, List<Object> values);
+        public abstract Query termsQuery(String field, List<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                          boolean includeLower, boolean includeUpper,
                                          boolean hasDocValues, QueryShardContext context);
@@ -929,31 +925,19 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
-            Query query = type.termQuery(name(), value);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return type.termQuery(name(), value);
         }
 
         @Override
-        public Query termsQuery(List values, QueryShardContext context) {
+        public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexed();
-            Query query = type.termsQuery(name(), values);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return type.termsQuery(name(), values);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
-            Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context);
         }
 
         @Override

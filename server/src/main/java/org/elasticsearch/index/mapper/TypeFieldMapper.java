@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
+  import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -172,7 +172,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }
-
     }
 
     /**
@@ -263,16 +262,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }

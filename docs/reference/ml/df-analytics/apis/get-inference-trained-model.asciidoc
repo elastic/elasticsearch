@@ -29,19 +29,19 @@ experimental[]
 [[ml-get-inference-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 privileges:
 
 * cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and 
+
+For more information, see <<security-privileges>> and
 {ml-docs-setup-privileges}.
 
 
 [[ml-get-inference-desc]]
 == {api-description-title}
 
-You can get information for multiple trained models in a single API request by 
+You can get information for multiple trained models in a single API request by
 using a comma-separated list of model IDs or a wildcard expression.
 
 
@@ -49,7 +49,7 @@ using a comma-separated list of model IDs or a wildcard expression.
 == {api-path-parms-title}
 
 `<model_id>`::
-(Optional, string) 
+(Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
@@ -57,12 +57,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean) 
+(Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 
 `decompress_definition`::
 (Optional, boolean)
-Specifies whether the included model definition should be returned as a JSON map 
+Specifies whether the included model definition should be returned as a JSON map
 (`true`) or in a custom compressed format (`false`). Defaults to `true`.
 
 `for_export`::
@@ -72,17 +72,21 @@ retrieval. This allows the model to be in an acceptable format to be retrieved
 and then added to another cluster. Default is false.
 
 `from`::
-(Optional, integer) 
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
 
-`include_model_definition`::
-(Optional, boolean)
-Specifies whether the model definition is returned in the response. Defaults to 
-`false`. When `true`, only a single model must match the ID patterns provided. 
-Otherwise, a bad request is returned.
+`include`::
+(Optional, string)
+A comma delimited string of optional fields to include in the response body.
+Valid options are:
+ - `definition`: Includes the model definition
+ - `total_feature_importance`: Includes the total feature importance for the
+   training data set. This field is available in the `metadata` field in the
+   response body.
+Default is empty, indicating including no optional fields.
 
 `size`::
-(Optional, integer) 
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size-models]
 
 `tags`::
@@ -95,7 +99,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
 
 `trained_model_configs`::
 (array)
-An array of trained model resources, which are sorted by the `model_id` value in 
+An array of trained model resources, which are sorted by the `model_id` value in
 ascending order.
 +
 .Properties of trained model resources
@@ -133,8 +137,86 @@ The license level of the trained model.
 
 `metadata`:::
 (object)
-An object containing metadata about the trained model. For example, models 
+An object containing metadata about the trained model. For example, models
 created by {dfanalytics} contain `analysis_config` and `input` objects.
+.Properties of metadata
+[%collapsible%open]
+=====
+`total_feature_importance`:::
+(array)
+An array of the total feature importance for each feature used from
+the training data set. This array of objects is returned if {dfanalytics} trained
+the model and the request includes `total_feature_importance` in the `include`
+request parameter.
++
+.Properties of total feature importance
+[%collapsible%open]
+======
+
+`feature_name`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-feature-name]
+
+`importance`:::
+(object)
+A collection of feature importance statistics related to the training data set for this particular feature.
++
+.Properties of feature importance
+[%collapsible%open]
+=======
+`mean_magnitude`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-magnitude]
+
+`max`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-max]
+
+`min`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-min]
+
+=======
+
+`classes`:::
+(array)
+If the trained model is a classification model, feature importance statistics are gathered
+per target class value.
++
+.Properties of class feature importance
+[%collapsible%open]
+
+=======
+
+`class_name`:::
+(string)
+The target class value. Could be a string, boolean, or number.
+
+`importance`:::
+(object)
+A collection of feature importance statistics related to the training data set for this particular feature.
++
+.Properties of feature importance
+[%collapsible%open]
+========
+`mean_magnitude`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-magnitude]
+
+`max`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-max]
+
+`min`:::
+(int)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-importance-min]
+
+========
+
+=======
+
+======
+=====
 
 `model_id`:::
 (string)
@@ -154,13 +236,13 @@ The {es} version number in which the trained model was created.
 == {api-response-codes-title}
 
 `400`::
-  If `include_model_definition` is `true`, this code indicates that more than 
+  If `include_model_definition` is `true`, this code indicates that more than
   one models match the ID pattern.
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.
-  
+
 
 [[ml-get-inference-example]]
 == {api-examples-title}

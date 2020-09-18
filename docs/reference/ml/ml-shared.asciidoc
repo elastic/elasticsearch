@@ -785,6 +785,23 @@ prediction. Defaults to the `results_field` value of the {dfanalytics-job} that 
 used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field-processor[]
 
+tag::inference-metadata-feature-importance-feature-name[]
+The training feature name for which this importance was calculated.
+end::inference-metadata-feature-importance-feature-name[]
+tag::inference-metadata-feature-importance-magnitude[]
+The average magnitude of this feature across all the training data.
+This value is the average of the absolute values of the importance
+for this feature.
+end::inference-metadata-feature-importance-magnitude[]
+tag::inference-metadata-feature-importance-max[]
+The maximum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-max[]
+tag::inference-metadata-feature-importance-min[]
+The minimum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-min[]
+
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by,
 over, or partition fields that are used in the detector configuration. You might

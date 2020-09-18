@@ -2257,7 +2257,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(true).setIncludeDefinition(true),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(true)
+                    .includeDefinition()
+                    .includeTotalFeatureImportance(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
 
@@ -2268,7 +2271,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
 
             getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(true),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(false)
+                    .includeTotalFeatureImportance()
+                    .includeDefinition(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
 
@@ -2279,7 +2285,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
 
             getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(false),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(false),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
             assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));

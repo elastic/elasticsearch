@@ -141,7 +141,18 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return super.equals(obj) && this.includes.equals(other.includes) && Objects.equals(tags, other.tags);
+            return super.equals(obj) && Objects.equals(includes, other.includes) && Objects.equals(tags, other.tags);
+        }
+
+        @Override
+        public String toString() {
+            return "Request{" +
+                "includes=" + includes +
+                ", tags=" + tags +
+                ", page=" + getPageParams() +
+                ", id=" + getResourceId() +
+                ", allow_missing=" + isAllowNoResources() +
+                '}';
         }
     }
 

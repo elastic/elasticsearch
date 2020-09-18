@@ -44,10 +44,13 @@ public class GetTrainedModelsRequestTests extends AbstractBWCWireSerializationTe
             if (instance.isIncludeModelDefinition()) {
                 includes.add(Request.DEFINITION);
             }
-            return new Request(
+            Request request = new Request(
                 instance.getResourceId(),
                 version.before(Version.V_7_7_0) ? null : instance.getTags(),
                 includes);
+            request.setPageParams(instance.getPageParams());
+            request.setAllowNoResources(instance.isAllowNoResources());
+            return request;
         }
         return instance;
     }

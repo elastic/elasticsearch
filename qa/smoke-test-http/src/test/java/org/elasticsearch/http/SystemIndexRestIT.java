@@ -97,8 +97,16 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         // And with a partial wildcard
         assertDeprecationWarningOnAccess(".test-*", SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
-        // And with a total wildcard
-        assertDeprecationWarningOnAccess(randomFrom("*", "_all"), SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        // Check that a total wildcard does not trigger a warning
+        {
+            String queryPattern = randomFrom("*", "_all");
+            Request searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search"));
+            searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
+            // Disallow no indices to cause an exception if this resolves to zero indices, so that we're sure it resolved the index
+            searchRequest.addParameter("allow_no_indices", "false");
+            Response response = getRestClient().performRequest(searchRequest);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        }
 
         // Try to index a doc directly
         {

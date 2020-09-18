@@ -114,18 +114,18 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
         }
 
-        Map<String, Object> innerMappings = mappingsAndFieldStats.v1();
+        Map<String, Object> innerFieldMappings = mappingsAndFieldStats.v1();
         Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
         secondLevelProperties.put(FileStructureUtils.MAPPING_TYPE_SETTING, "object");
-        secondLevelProperties.put(FileStructureUtils.MAPPING_PROPERTIES_SETTING, innerMappings);
-        SortedMap<String, Object> outerMappings = new TreeMap<>();
-        outerMappings.put(topLevelTag, secondLevelProperties);
+        secondLevelProperties.put(FileStructureUtils.MAPPING_PROPERTIES_SETTING, innerFieldMappings);
+        SortedMap<String, Object> outerFieldMappings = new TreeMap<>();
+        outerFieldMappings.put(topLevelTag, secondLevelProperties);
         if (timeField != null) {
-            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
+            outerFieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
         FileStructure structure = structureBuilder
-            .setMappings(outerMappings)
+            .setMappings(Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, outerFieldMappings))
             .setExplanation(explanation)
             .build();
 

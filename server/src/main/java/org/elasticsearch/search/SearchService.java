@@ -471,7 +471,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   SearchShardTask task,
                                   ActionListener<ScrollQuerySearchResult> listener) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        final Releasable markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        final Releasable markAsUsed;
+        try {
+            markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        } catch (Exception e) {
+            // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
+            freeReaderContext(readerContext.id());
+            throw e;
+        }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -536,7 +543,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        final Releasable markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        final Releasable markAsUsed;
+        try {
+            markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        } catch (Exception e) {
+            // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
+            freeReaderContext(readerContext.id());
+            throw e;
+        }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -953,9 +967,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
-            String indexName = context.indexShard().shardId().getIndexName();
-            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
-                indexName, context.mapperService(), source.fetchFields());
+            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {
@@ -1017,9 +1029,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                if (context.version()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [version] is requested");
-                }
                 if (context.sourceRequested()) {
                     throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
                 }

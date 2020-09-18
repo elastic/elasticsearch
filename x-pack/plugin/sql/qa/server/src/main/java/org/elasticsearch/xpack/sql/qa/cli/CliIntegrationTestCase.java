@@ -17,7 +17,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
+import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 public abstract class CliIntegrationTestCase extends ESRestTestCase {
     /**
@@ -46,7 +46,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
             return;
         }
         cli.close();
-        assertNoSearchContexts();
+        assertNoSearchContexts(client());
     }
 
     /**

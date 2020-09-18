@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -34,10 +33,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
@@ -48,7 +45,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.PercentageSc
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.TestSearchContext;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -74,23 +70,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SignificanceHeuristicTests extends ESTestCase {
-    static class SignificantTermsTestSearchContext extends TestSearchContext {
-
-        SignificantTermsTestSearchContext() {
-            super(null);
-        }
-
-        @Override
-        public int numberOfShards() {
-            return 1;
-        }
-
-        @Override
-        public SearchShardTarget shardTarget() {
-            return new SearchShardTarget("no node, this is a unit test", new ShardId("no index, this is a unit test", "_na_", 0),
-                null, OriginalIndices.NONE);
-        }
-    }
 
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {

@@ -78,7 +78,6 @@ cd fcml*
 make
 cd example/hsdis
 make
-cp .libs/libhsdis.so.0.0.0
 sudo cp .libs/libhsdis.so.0.0.0 /usr/lib/jvm/java-14-adoptopenjdk/lib/hsdis-amd64.so
 ```
 

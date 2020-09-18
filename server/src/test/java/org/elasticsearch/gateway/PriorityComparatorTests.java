@@ -203,17 +203,33 @@ public class PriorityComparatorTests extends ESTestCase {
                             final String currentName = currentMeta.getIndex().getName();
 
                             if (prevName.equals(currentName) == false) {
-                                assertTrue("indexName mismatch, expected:" + currentName + " after " + prevName + " " + prevName.compareTo(currentName), prevName
-                                    .compareTo(currentName) > 0);
+                                assertTrue(
+                                    "indexName mismatch, expected:"
+                                        + currentName
+                                        + " after "
+                                        + prevName
+                                        + " "
+                                        + prevName.compareTo(currentName),
+                                    prevName.compareTo(currentName) > 0
+                                );
                             }
                         } else {
-                            assertTrue("creationDate mismatch, expected:" + currentCreationDate + " after " + prevCreationDate, prevCreationDate > currentCreationDate);
+                            assertTrue(
+                                "creationDate mismatch, expected:" + currentCreationDate + " after " + prevCreationDate,
+                                prevCreationDate > currentCreationDate
+                            );
                         }
                     } else {
-                        assertTrue("priority mismatch, expected:" + currentPriority + " after " + prevPriority, prevPriority > currentPriority);
+                        assertTrue(
+                            "priority mismatch, expected:" + currentPriority + " after " + prevPriority,
+                            prevPriority > currentPriority
+                        );
                     }
                 } else {
-                    assertTrue("system mismatch, expected:" + currentMeta.isSystem() + " after " + prevMeta.isSystem(), prevMeta.isSystem() && currentMeta.isSystem() == false);
+                    assertTrue(
+                        "system mismatch, expected:" + currentMeta.isSystem() + " after " + prevMeta.isSystem(),
+                        prevMeta.isSystem() && currentMeta.isSystem() == false
+                    );
                 }
             }
             previous = routing;

@@ -181,7 +181,7 @@ public final class AnalysisModule {
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register( "standard",
             PreConfiguredTokenFilter.elasticsearchVersion("standard", true, (reader, version) -> {
-                if (version.before(Version.V_7_0_0)) {
+                if (version.before(Version.V_7_6_0)) {
                     deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {

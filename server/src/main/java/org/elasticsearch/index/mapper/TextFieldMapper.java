@@ -499,7 +499,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -530,7 +530,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -837,7 +837,7 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

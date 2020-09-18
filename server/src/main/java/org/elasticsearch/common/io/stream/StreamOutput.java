@@ -218,12 +218,26 @@ public abstract class StreamOutput extends OutputStream {
      * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
-        final byte[] buffer = scratch.get();
+        /*
+         * Shortcut writing single byte because it is very, very common and
+         * can skip grabbing the scratch buffer. This is marginally slower
+         * than hand unrolling the entire encoding loop but hand unrolling
+         * the encoding loop blows out the method size so it can't be inlined.
+         * In that case benchmarks of the method itself are faster but
+         * benchmarks of methods that use this method are slower.
+         * This is philosophically in line with vint in general - it biases
+         * twoards being simple and fast for smaller numbers.
+         */
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            writeByte((byte) i);
+            return;
+        }
+        byte[] buffer = scratch.get();
         int index = 0;
-        while ((i & ~0x7F) != 0) {
+        do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
-        }
+        } while ((i & ~0x7F) != 0);
         buffer[index++] = ((byte) i);
         writeBytes(buffer, 0, index);
     }

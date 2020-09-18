@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.List;
 
 public class StringScriptFieldExistsQuery extends AbstractStringScriptFieldQuery {
-    public StringScriptFieldExistsQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    public StringScriptFieldExistsQuery(Script script, StringFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 

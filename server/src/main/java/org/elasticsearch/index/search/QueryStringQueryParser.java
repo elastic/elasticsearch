@@ -681,7 +681,9 @@ public class QueryStringQueryParser extends XQueryParser {
                 setAnalyzer(forceAnalyzer);
                 return super.getWildcardQuery(currentFieldType.name(), termStr);
             }
-
+            if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
+                throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
+            }
             return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {

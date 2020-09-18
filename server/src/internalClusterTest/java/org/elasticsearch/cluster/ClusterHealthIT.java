@@ -312,7 +312,10 @@ public class ClusterHealthIT extends ESIntegTestCase {
         final String node = internalCluster().startDataOnlyNode();
         boolean withIndex = randomBoolean();
         if (withIndex) {
-            // create index with many shards to provoke the health request to wait (for green) while master is being shut down.
+            // Create index with many shards to provoke the health request to wait (for green) while master is being shut down.
+            // Notice that this is set to 0 after the test completed starting a number of health requests and master restarts.
+            // This ensures that the cluster is yellow when the health request is made, making the health request wait on the observer,
+            // triggering a call to observer.onClusterServiceClose when master is shutdown.
             createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 10)).build());
         }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();

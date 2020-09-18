@@ -68,11 +68,15 @@ public class ExpressionTests extends ESTestCase {
         // test for unescaped strings: """...."""
         assertEquals("hello\"world", unquoteString(source("\"\"\"hello\"world\"\"\"")));
         assertEquals("hello\\\"world", unquoteString(source("\"\"\"hello\\\"world\"\"\"")));
+        assertEquals("\"\"hello\"\\\"world\"\"\"", unquoteString(source("\"\"\"\"\"hello\"\\\"world\"\"\"\"\"\"")));
         assertEquals("hello'world", unquoteString(source("\"\"\"hello'world\"\"\"")));
+        assertEquals("hello'world", unquoteString(source("\"\"\"hello\'world\"\"\"")));
         assertEquals("hello\\nworld", unquoteString(source("\"\"\"hello\\nworld\"\"\"")));
         assertEquals("hello\\\\nworld", unquoteString(source("\"\"\"hello\\\\nworld\"\"\"")));
         assertEquals("hello\\\\\\nworld", unquoteString(source("\"\"\"hello\\\\\\nworld\"\"\"")));
         assertEquals("hello\\\\\\\"world", unquoteString(source("\"\"\"hello\\\\\\\"world\"\"\"")));
+        assertEquals("\"\\\"", unquoteString(source("\"\"\"\"\\\"\"\"\"")));
+        assertEquals("", unquoteString(source("\"\"\"\"\"\"")));
     }
 
     public void testLiterals() {
@@ -131,8 +135,6 @@ public class ExpressionTests extends ESTestCase {
         Expression parsed = expr("-5.2");
         Expression expected = new Neg(null, new Literal(null, 5.2, DataTypes.DOUBLE));
         assertEquals(expected, parsed);
-
-        expr("1 = 1 = 1");
     }
 
     public void testBackQuotedAttribute() {

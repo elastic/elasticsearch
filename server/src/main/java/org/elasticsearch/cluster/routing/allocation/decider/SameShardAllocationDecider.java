@@ -78,7 +78,6 @@ public class SameShardAllocationDecider extends AllocationDecider {
             return decision;
         }
         if (node.node() != null) {
-            final boolean debug = allocation.debugDecision();
             for (RoutingNode checkNode : allocation.routingNodes()) {
                 if (checkNode.node() == null) {
                     continue;
@@ -98,7 +97,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
                     for (ShardRouting assignedShard : assignedShards) {
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
-                            return debug ? debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress) : Decision.NO;
+                            return allocation.debugDecision() ?
+                                    debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress) : Decision.NO;
                         }
                     }
                 }

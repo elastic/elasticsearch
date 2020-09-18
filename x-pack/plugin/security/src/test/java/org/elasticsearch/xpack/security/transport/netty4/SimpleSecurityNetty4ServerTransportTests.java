@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTranspor
 
 import java.util.Collections;
 
-//@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62298")
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62298")
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
 
     @Override

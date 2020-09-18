@@ -193,10 +193,38 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     /**
-     * Check that if a template matches the index to be created, but that template does not have the allow_auto_create
-     * setting, then it does not override the global setting.
+     * Check that if a template matches the index to be created, but that template does not have a value
+     * for the allow_auto_create setting at all, then it does not cause the auto-create logic to trip over
+     * on a null value.
      */
-    public void testTemplateSettingsDoesNotOverride() {
+    public void testCanHandleNullAutoCreateSettingInTemplate() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            null
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+        assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
+    }
+
+    /**
+     * Check that if a template matches the index to be created, but that template has the allow_auto_create
+     * setting turned off, then it does not override the global setting.
+     */
+    public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
         final ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(randomIndex.charAt(0) + "*"),
@@ -221,9 +249,9 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     /**
      * Check that if a template matches the index to be created, and that template has the allow_auto_create
-     * setting, then it overrides the global setting.
+     * setting enabled, then it overrides the global setting.
      */
-    public void testTemplateSettingsOverride() {
+    public void testEnabledAutoCreateTemplateSettingDoesOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
         final ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(randomIndex.charAt(0) + "*"),

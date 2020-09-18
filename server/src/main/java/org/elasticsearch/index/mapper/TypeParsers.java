@@ -246,6 +246,7 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
+                deprecationLogger.deprecate("boost", "Parameter [boost] on field [{}] is deprecated", name);
                 iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));

@@ -2,7 +2,7 @@
 == Discovery and cluster formation
 
 The discovery and cluster formation processes are responsible for discovering
-nodes, electing a master, forming a cluster, and publishing the cluster state
+nodes, electing a manager, forming a cluster, and publishing the cluster state
 each time it changes. All communication between nodes is done using the
 <<modules-transport,transport>> layer.
 
@@ -11,9 +11,9 @@ formation:
 
 <<modules-discovery-hosts-providers>>::
 
-    Discovery is the process where nodes find each other when the master is
+    Discovery is the process where nodes find each other when the manager is
     unknown, such as when a node has just started up or when the previous
-    master has failed.
+    manager has failed.
 
 <<modules-discovery-quorums>>::
 
@@ -37,20 +37,20 @@ formation:
     <<modules-discovery-bootstrap-cluster,`cluster.initial_master_nodes`
     setting>>.
 
-<<modules-discovery-adding-removing-nodes,Adding and removing master-eligible nodes>>::
+<<modules-discovery-adding-removing-nodes,Adding and removing control nodes>>::
 
-    It is recommended to have a small and fixed number of master-eligible nodes
+    It is recommended to have a small and fixed number of control nodes
     in a cluster, and to scale the cluster up and down by adding and removing
-    master-ineligible nodes only. However there are situations in which it may
-    be desirable to add or remove some master-eligible nodes to or from a
-    cluster. This section describes the process for adding or removing
-    master-eligible nodes, including the extra steps that need to be performed
-    when removing more than half of the master-eligible nodes at the same time.
+    data nodes only. However there are situations in which it may
+    be desirable to add or remove control nodes. 
+    This section describes the process for adding or removing
+    control nodes, including the extra steps that need to be performed
+    when removing more than half of the control nodes at the same time.
 
 <<cluster-state-publishing>>::
 
-    Cluster state publishing is the process by which the elected master node
-    updates the cluster state on all the other nodes in the cluster.
+    Cluster state publishing is the process by which the manager node
+    updates the cluster state on all other nodes in the cluster.
 
 <<cluster-fault-detection>>::
 

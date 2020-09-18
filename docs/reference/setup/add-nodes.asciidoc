@@ -14,8 +14,8 @@ functional but is at risk of data loss in the event of a failure.
 image::setup/images/elas_0202.png["A cluster with one node and three primary shards"]
 
 You add nodes to a cluster to increase its capacity and reliability. By default,
-a node is both a data node and eligible to be elected as the master node that
-controls the cluster. You can also configure a new node for a specific purpose,
+a node is both a data node and eligible to act as the manager node that
+facilitates cluster-wide actions. You can also configure a new node for a specific purpose,
 such as handling ingest requests. For more information, see
 <<modules-node,Nodes>>.
 
@@ -44,53 +44,53 @@ For more information about discovery and shard allocation, see
 
 [discrete]
 [[add-elasticsearch-nodes-master-eligible]]
-=== Master-eligible nodes
+=== Control nodes
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
 tolerance by automatically updating the cluster's _voting configuration_, which
-is the set of <<master-node,master-eligible nodes>> whose responses are counted
-when making decisions such as electing a new master or committing a new cluster
+is the set of <<master-node,control nodes>> whose responses are counted
+when making decisions such as selecting a new manager or committing a new cluster
 state.
 
-It is recommended to have a small and fixed number of master-eligible nodes in a
+It is recommended to have a small and fixed number of control nodes in a
 cluster, and to scale the cluster up and down by adding and removing
-master-ineligible nodes only. However there are situations in which it may be
-desirable to add or remove some master-eligible nodes to or from a cluster.
+non-control nodes. However, there are situations in which it may be
+desirable to add or remove control nodes.
 
 [discrete]
 [[modules-discovery-adding-nodes]]
-==== Adding master-eligible nodes
+==== Adding control nodes
 
 If you wish to add some nodes to your cluster, simply configure the new nodes
 to find the existing cluster and start them up. Elasticsearch adds the new nodes
 to the voting configuration if it is appropriate to do so.
 
-During master election or when joining an existing formed cluster, a node
-sends a join request to the master in order to be officially added to the
+When joining an existing cluster, a node
+sends a join request to the manager in order to be officially added to the
 cluster.
 
 [discrete]
 [[modules-discovery-removing-nodes]]
-==== Removing master-eligible nodes
+==== Removing control nodes
 
-When removing master-eligible nodes, it is important not to remove too many all
-at the same time. For instance, if there are currently seven master-eligible
+When removing control nodes, it is important not to remove too many all
+at the same time. For instance, if there are currently seven control
 nodes and you wish to reduce this to three, it is not possible simply to stop
 four of the nodes at once: to do so would leave only three nodes remaining,
 which is less than half of the voting configuration, which means the cluster
 cannot take any further actions.
 
-More precisely, if you shut down half or more of the master-eligible nodes all
+More precisely, if you shut down half or more of the control nodes all
 at the same time then the cluster will normally become unavailable. If this
 happens then you can bring the cluster back online by starting the removed
 nodes again.
 
-As long as there are at least three master-eligible nodes in the cluster, as a
+As long as there are at least three control nodes in the cluster, as a
 general rule it is best to remove nodes one-at-a-time, allowing enough time for
 the cluster to <<modules-discovery-quorums,automatically adjust>> the voting
 configuration and adapt the fault tolerance level to the new set of nodes.
 
-If there are only two master-eligible nodes remaining then neither node can be
+If there are only two control nodes remaining then neither node can be
 safely removed since both are required to reliably make progress. To remove one
 of these nodes you must first inform {es} that it should not be part of the
 voting configuration, and that the voting power should instead be given to the
@@ -101,7 +101,7 @@ from the voting configuration so its vote is no longer required. Importantly,
 {es} will never automatically move a node on the voting exclusions list back
 into the voting configuration. Once an excluded node has been successfully
 auto-reconfigured out of the voting configuration, it is safe to shut it down
-without affecting the cluster's master-level availability. A node can be added
+without affecting the cluster's availability. A node can be added
 to the voting configuration exclusion list using the
 <<voting-config-exclusions>> API. For example:
 
@@ -123,24 +123,24 @@ using the `?node_names` query parameter, or by their persistent node IDs using
 the `?node_ids` query parameter. If a call to the voting configuration
 exclusions API fails, you can safely retry it. Only a successful response
 guarantees that the node has actually been removed from the voting configuration
-and will not be reinstated. If the elected master node is excluded from the
-voting configuration then it will abdicate to another master-eligible node that
+and will not be reinstated. If the manager node is excluded from the
+voting configuration then it will abdicate to another control node that
 is still in the voting configuration if such a node is available.
 
 Although the voting configuration exclusions API is most useful for down-scaling
 a two-node to a one-node cluster, it is also possible to use it to remove
-multiple master-eligible nodes all at the same time. Adding multiple nodes to
+multiple control nodes at the same time. Adding multiple nodes to
 the exclusions list has the system try to auto-reconfigure all of these nodes
 out of the voting configuration, allowing them to be safely shut down while
 keeping the cluster available. In the example described above, shrinking a
-seven-master-node cluster down to only have three master nodes, you could add
+seven-control-node cluster down to only have three control nodes, you could add
 four nodes to the exclusions list, wait for confirmation, and then shut them
 down simultaneously.
 
 NOTE: Voting exclusions are only required when removing at least half of the
 master-eligible nodes from a cluster in a short time period. They are not
-required when removing master-ineligible nodes, nor are they required when
-removing fewer than half of the master-eligible nodes.
+required when removing nodes other than control nodes, nor are they required when
+removing less than half of the control nodes.
 
 Adding an exclusion for a node creates an entry for that node in the voting
 configuration exclusions list, which has the system automatically try to

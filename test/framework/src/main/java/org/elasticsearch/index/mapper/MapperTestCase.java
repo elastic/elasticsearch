@@ -143,7 +143,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 minimalMapping(b);
                 b.field("boost", 2.0);
             }));
-            assertWarnings("Parameter [boost] on field [field] is deprecated");
+            assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
         }
         catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(

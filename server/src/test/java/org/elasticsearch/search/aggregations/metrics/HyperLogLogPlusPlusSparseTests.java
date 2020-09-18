@@ -23,9 +23,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.mockito.internal.matchers.Contains;
 
 import java.io.IOException;
 

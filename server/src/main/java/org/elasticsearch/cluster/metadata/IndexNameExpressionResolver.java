@@ -70,6 +70,7 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
+    public static final String ORIGINAL_INDICES_HEADER_KEY = "_original_indices";
     public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
@@ -722,12 +723,19 @@ public class IndexNameExpressionResolver {
     }
 
     private boolean isSystemIndexAccessAllowedForPatterns(String[] patterns) {
-        if (patterns == null) {
+        String[] checkPatterns = patterns;
+
+        String originalPatterns = threadContext.getHeader(ORIGINAL_INDICES_HEADER_KEY);
+        if (originalPatterns != null) {
+            checkPatterns = originalPatterns.split(",");
+        }
+
+        if (checkPatterns == null) {
             return true;
-        } else if (1 != patterns.length) {
+        } else if (1 != checkPatterns.length) {
             return isSystemIndexAccessAllowed();
         } else {
-            final String pattern = patterns[0];
+            final String pattern = checkPatterns[0];
             return isSystemIndexAccessAllowed() || pattern == null || Metadata.ALL.equals(pattern) || Regex.isMatchAllPattern(pattern);
         }
     }

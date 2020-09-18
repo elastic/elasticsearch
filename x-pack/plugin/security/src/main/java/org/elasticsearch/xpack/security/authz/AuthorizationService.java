@@ -127,7 +127,7 @@ public class AuthorizationService {
                                 IndexNameExpressionResolver resolver) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, threadPool.getThreadContext());
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;

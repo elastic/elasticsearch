@@ -267,8 +267,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         defaultIndicesResolver =
-            new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver(threadContext), threadContext);
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {

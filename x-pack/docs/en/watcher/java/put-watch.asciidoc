@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[api-java-put-watch]]
 === Put watch API
 

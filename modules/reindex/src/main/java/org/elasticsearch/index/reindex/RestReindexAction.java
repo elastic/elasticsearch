@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
 
@@ -54,7 +56,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Override
-    protected ReindexRequest buildRequest(RestRequest request) throws IOException {
+    protected ReindexRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         if (request.hasParam("pipeline")) {
             throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parameter. "
                     + "Specify it in the [dest] object instead.");
@@ -67,6 +69,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
+        }
+        if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
+            internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
 
         return internal;

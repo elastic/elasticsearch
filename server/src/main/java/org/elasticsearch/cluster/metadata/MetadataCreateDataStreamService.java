@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -34,12 +35,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
@@ -122,7 +127,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
         }
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
+            throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");
         }
 
         MetadataCreateIndexService.validateIndexOrAliasName(request.name,
@@ -168,13 +173,18 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) {
-        TimestampFieldMapper fieldMapper = (TimestampFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
-        assert fieldMapper != null : "[_timestamp] meta field mapper must exist";
+    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
+        MetadataFieldMapper fieldMapper =
+            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
+        assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
 
-        if (timestampFieldName.equals(fieldMapper.getPath()) == false) {
-            throw new IllegalArgumentException("[_timestamp] meta field doesn't point to data stream timestamp field [" +
-                timestampFieldName + "]");
+        Map<String, Object> parsedTemplateMapping =
+            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
+        Boolean enabled = ObjectPath.eval("_doc._data_stream_timestamp.enabled", parsedTemplateMapping);
+        // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
+        // that would be a bug.
+        if (enabled == null || enabled == false) {
+            throw new IllegalStateException("[_data_stream_timestamp] meta field has been disabled");
         }
 
         // Sanity check (this validation logic should already have been executed when merging mappings):

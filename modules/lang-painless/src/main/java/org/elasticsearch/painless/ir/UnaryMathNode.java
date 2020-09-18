@@ -79,8 +79,13 @@ public class UnaryMathNode extends UnaryNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitUnaryMath(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitUnaryMath(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getChildNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

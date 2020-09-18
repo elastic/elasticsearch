@@ -1020,12 +1020,12 @@ public class JobResultsProvider {
                                String snapshotId,
                                Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
-        ResultsFilterBuilder fb = new ResultsFilterBuilder();
-        if (snapshotId != null && !snapshotId.isEmpty()) {
-            fb.term(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotId);
-        }
+        String[] snapshotIds = Strings.splitStringByCommaToArray(snapshotId);
+        QueryBuilder qb = new ResultsFilterBuilder()
+            .resourceTokenFilters(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
+            .timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs)
+            .build();
 
-        QueryBuilder qb = fb.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
         modelSnapshots(jobId, from, size, sortField, sortDescending, qb, handler, errorHandler);
     }
 
@@ -1281,7 +1281,7 @@ public class JobResultsProvider {
                         handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
                         return;
                     }
-                    List<String> calendarIds = calendars.results().stream().map(Calendar::getId).collect(Collectors.toList());
+                    String[] calendarIds = calendars.results().stream().map(Calendar::getId).toArray(String[]::new);
                     queryBuilder.calendarIds(calendarIds);
                     scheduledEvents(queryBuilder, handler);
                 },
@@ -1470,6 +1470,10 @@ public class JobResultsProvider {
                             List<Calendar> calendars = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             try {
+                                if (queryBuilder.isForAllCalendars() == false && hits.length == 0) {
+                                    listener.onFailure(queryBuilder.buildNotFoundException());
+                                    return;
+                                }
                                 for (SearchHit hit : hits) {
                                     calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                                 }

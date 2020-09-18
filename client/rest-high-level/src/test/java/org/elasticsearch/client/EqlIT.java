@@ -29,13 +29,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.eql.EqlSearchResponse.Event;
 import org.elasticsearch.client.eql.EqlStatsRequest;
 import org.elasticsearch.client.eql.EqlStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -121,8 +121,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertResponse(response, RECORD_COUNT / DIVIDER);
 
         // test the content of the hits
-        for (SearchHit hit : response.hits().events()) {
-            final Map<String, Object> source = hit.getSourceAsMap();
+        for (Event hit : response.hits().events()) {
+            final Map<String, Object> source = hit.sourceAsMap();
 
             final Map<String, Object> event = (Map<String, Object>) source.get("event");
             assertThat(event.get("category"), equalTo("process"));
@@ -147,8 +147,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertResponse(response, 3);
 
         // test the content of the hits
-        for (SearchHit hit : response.hits().events()) {
-            final Map<String, Object> source = hit.getSourceAsMap();
+        for (Event hit : response.hits().events()) {
+            final Map<String, Object> source = hit.sourceAsMap();
 
             final Map<String, Object> event = (Map<String, Object>) source.get("event");
             assertThat(event.get("category"), equalTo("process"));

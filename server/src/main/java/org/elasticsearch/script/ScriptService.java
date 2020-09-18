@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -64,43 +63,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-    // Special setting value for SCRIPT_GENERAL_MAX_COMPILATIONS_RATE to indicate the script service should use context
-    // specific caches
-    static final Tuple<Integer, TimeValue> USE_CONTEXT_RATE_VALUE = new Tuple<>(-1, TimeValue.MINUS_ONE);
-    static final String USE_CONTEXT_RATE_KEY = "use-context";
-
-    // a parsing function that requires a non negative int and a timevalue as arguments split by a slash
-    // this allows you to easily define rates
-    static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
-            (String value) -> {
-                if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
-                    throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
-                            value + "]");
-                }
-                int idx = value.indexOf("/");
-                String count = value.substring(0, idx);
-                String time = value.substring(idx + 1);
-                try {
-
-                    int rate = Integer.parseInt(count);
-                    if (rate < 0) {
-                        throw new IllegalArgumentException("rate [" + rate + "] must be positive");
-                    }
-                    TimeValue timeValue = TimeValue.parseTimeValue(time, "script.context.$CONTEXT.max_compilations_rate");
-                    if (timeValue.nanos() <= 0) {
-                        throw new IllegalArgumentException("time value [" + time + "] must be positive");
-                    }
-                    // protect against a too hard to check limit, like less than a minute
-                    if (timeValue.seconds() < 60) {
-                        throw new IllegalArgumentException("time value [" + time + "] must be at least on a one minute resolution");
-                    }
-                    return Tuple.tuple(rate, timeValue);
-                } catch (NumberFormatException e) {
-                    // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
-                    throw new IllegalArgumentException("could not parse [" + count + "] as integer in value [" + value + "]", e);
-                }
-            };
-
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
 
@@ -120,15 +82,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     // Unlimited compilation rate for context-specific script caches
     static final String UNLIMITED_COMPILATION_RATE_KEY = "unlimited";
 
-    public static final Setting.AffixSetting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE_SETTING =
+    public static final Setting.AffixSetting<ScriptCache.CompilationRate> SCRIPT_MAX_COMPILATIONS_RATE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
             "max_compilations_rate",
-            key -> new Setting<>(key, "75/5m",
+            key -> new Setting<ScriptCache.CompilationRate>(key, "75/5m",
                 (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY) ? ScriptCache.UNLIMITED_COMPILATION_RATE:
-                                                                                 MAX_COMPILATION_RATE_FUNCTION.apply(value),
+                    new ScriptCache.CompilationRate(value),
                 Property.NodeScope, Property.Dynamic));
 
-    private static final Tuple<Integer, TimeValue> SCRIPT_COMPILATION_RATE_ZERO = new Tuple<>(0, TimeValue.ZERO);
+    private static final ScriptCache.CompilationRate SCRIPT_COMPILATION_RATE_ZERO = new ScriptCache.CompilationRate(0, TimeValue.ZERO);
 
     public static final Setting<Boolean> SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING =
         Setting.boolSetting("script.disable_max_compilations_rate", false, Property.NodeScope);
@@ -541,10 +503,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
-    public ScriptCacheStats cacheStats() {
-        return cacheHolder.get().cacheStats();
-    }
-
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
@@ -564,14 +522,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         TimeValue cacheExpire = cacheExpireSetting.existsOrFallbackExists(settings) ?
             cacheExpireSetting.get(settings) : context.cacheExpireDefault;
 
-        Setting<Tuple<Integer, TimeValue>> rateSetting = SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
-        Tuple<Integer, TimeValue> rate = null;
+        Setting<ScriptCache.CompilationRate> rateSetting =
+            SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
+        ScriptCache.CompilationRate rate = null;
         if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings) || compilationLimitsEnabled() == false) {
             rate = SCRIPT_COMPILATION_RATE_ZERO;
         } else if (rateSetting.existsOrFallbackExists(settings)) {
             rate = rateSetting.get(settings);
         } else {
-            rate = context.maxCompilationRateDefault;
+            rate = new ScriptCache.CompilationRate(context.maxCompilationRateDefault);
         }
 
         return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());
@@ -604,15 +563,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptStats stats() {
-            return ScriptStats.sum(contextCache.values().stream().map(AtomicReference::get).map(ScriptCache::stats)::iterator);
-        }
-
-        ScriptCacheStats cacheStats() {
-            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
-            for (String name: contextCache.keySet()) {
-                context.put(name, contextCache.get(name).get().stats());
+            List<ScriptContextStats> stats = new ArrayList<>(contextCache.size());
+            for (Map.Entry<String, AtomicReference<ScriptCache>> entry : contextCache.entrySet()) {
+                stats.add(entry.getValue().get().stats(entry.getKey()));
             }
-            return new ScriptCacheStats(context);
+            return new ScriptStats(stats);
         }
 
         /**

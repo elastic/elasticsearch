@@ -32,6 +32,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -76,15 +77,6 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        FakeFieldType(FakeFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return "fake";
@@ -112,6 +104,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -133,14 +130,15 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         Analyzer defaultIndex = new FakeAnalyzer("default_index");
 
-        DocumentFieldMappers documentFieldMappers = new DocumentFieldMappers(
+        MappingLookup mappingLookup = new MappingLookup(
             Arrays.asList(fieldMapper1, fieldMapper2),
             Collections.emptyList(),
-            defaultIndex);
+            Collections.emptyList(),
+            0, defaultIndex);
 
-        assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field1", "index");
+        assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index");
 
-        assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field2", "default_index");
+        assertAnalyzes(mappingLookup.indexAnalyzer(), "field2", "default_index");
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

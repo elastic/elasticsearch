@@ -10,9 +10,9 @@ and 100) of students we can average their scores with:
 --------------------------------------------------
 POST /exams/_search?size=0
 {
-    "aggs" : {
-        "avg_grade" : { "avg" : { "field" : "grade" } }
-    }
+  "aggs": {
+    "avg_grade": { "avg": { "field": "grade" } }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -22,12 +22,12 @@ The above aggregation computes the average grade over all documents. The aggrega
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "avg_grade": {
-            "value": 75.0
-        }
+  ...
+  "aggregations": {
+    "avg_grade": {
+      "value": 75.0
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -42,15 +42,15 @@ Computing the average grade based on a script:
 --------------------------------------------------
 POST /exams/_search?size=0
 {
-    "aggs" : {
-        "avg_grade" : {
-            "avg" : {
-                "script" : {
-                    "source" : "doc.grade.value"
-                }
-            }
+  "aggs": {
+    "avg_grade": {
+      "avg": {
+        "script": {
+          "source": "doc.grade.value"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -61,18 +61,18 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 --------------------------------------------------
 POST /exams/_search?size=0
 {
-    "aggs" : {
-        "avg_grade" : {
-            "avg" : {
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "grade"
-                    }
-                }
-            }
+  "aggs": {
+    "avg_grade": {
+      "avg": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "grade"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams,stored_example_script]
@@ -85,20 +85,20 @@ It turned out that the exam was way above the level of the students and a grade 
 --------------------------------------------------
 POST /exams/_search?size=0
 {
-    "aggs" : {
-        "avg_corrected_grade" : {
-            "avg" : {
-                "field" : "grade",
-                "script" : {
-                    "lang": "painless",
-                    "source": "_value * params.correction",
-                    "params" : {
-                        "correction" : 1.2
-                    }
-                }
-            }
+  "aggs": {
+    "avg_corrected_grade": {
+      "avg": {
+        "field": "grade",
+        "script": {
+          "lang": "painless",
+          "source": "_value * params.correction",
+          "params": {
+            "correction": 1.2
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -113,14 +113,14 @@ had a value.
 --------------------------------------------------
 POST /exams/_search?size=0
 {
-    "aggs" : {
-        "grade_avg" : {
-            "avg" : {
-                "field" : "grade",
-                "missing": 10 <1>
-            }
-        }
+  "aggs": {
+    "grade_avg": {
+      "avg": {
+        "field": "grade",
+        "missing": 10     <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -157,11 +157,11 @@ PUT metrics_index/_doc/2
 
 POST /metrics_index/_search?size=0
 {
-    "aggs" : {
-        "avg_latency" :
-            { "avg" : { "field" : "latency_histo" }
-        }
+  "aggs": {
+    "avg_latency": 
+      { "avg": { "field": "latency_histo" } 
     }
+  }
 }
 --------------------------------------------------
 
@@ -171,12 +171,12 @@ in the `counts` array <2>. Eventually, it will compute the average over those va
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "avg_latency" : {
-           "value" : 0.29690721649
-        }
+  ...
+  "aggregations": {
+    "avg_latency": {
+      "value": 0.29690721649
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:test not setup]

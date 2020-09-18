@@ -42,6 +42,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
@@ -104,9 +105,11 @@ public class MockRepository extends FsRepository {
 
     private final Environment env;
 
-    private volatile boolean blockOnControlFiles;
+    private volatile boolean blockOnAnyFiles;
 
     private volatile boolean blockOnDataFiles;
+
+    private volatile boolean blockOnDeleteIndexN;
 
     /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
      *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
@@ -114,6 +117,17 @@ public class MockRepository extends FsRepository {
 
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
+
+    /**
+     * Writes to the blob {@code index.latest} at the repository root will fail with an {@link IOException} if {@code true}.
+     */
+    private volatile boolean failOnIndexLatest = false;
+
+    /**
+     * Reading blobs will fail with an {@link AssertionError} once the repository has been blocked once.
+     */
+    private volatile boolean failReadsAfterUnblock;
+    private volatile boolean throwReadErrorAfterUnblock = false;
 
     private volatile boolean blocked = false;
 
@@ -125,7 +139,7 @@ public class MockRepository extends FsRepository {
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
-        blockOnControlFiles = metadata.settings().getAsBoolean("block_on_control", false);
+        blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = metadata.settings().getAsBoolean("block_on_data", false);
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
@@ -171,14 +185,19 @@ public class MockRepository extends FsRepository {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
-        blockOnControlFiles = false;
+        blockOnAnyFiles = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
+        blockOnDeleteIndexN = false;
         this.notifyAll();
     }
 
     public void blockOnDataFiles(boolean blocked) {
         blockOnDataFiles = blocked;
+    }
+
+    public void setBlockOnAnyFiles(boolean blocked) {
+        blockOnAnyFiles = blocked;
     }
 
     public void setBlockAndFailOnWriteSnapFiles(boolean blocked) {
@@ -189,16 +208,28 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = blocked;
     }
 
+    public void setBlockOnDeleteIndexFile() {
+        blockOnDeleteIndexN = true;
+    }
+
+    public void setFailReadsAfterUnblock(boolean failReadsAfterUnblock) {
+        this.failReadsAfterUnblock = failReadsAfterUnblock;
+    }
+
     public boolean blocked() {
         return blocked;
+    }
+
+    public void setFailOnIndexLatest(boolean failOnIndexLatest) {
+        this.failOnIndexLatest = failOnIndexLatest;
     }
 
     private synchronized boolean blockExecution() {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnControlFiles || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile) {
+            while (blockOnDataFiles || blockOnAnyFiles || blockOnWriteIndexFile ||
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -207,6 +238,10 @@ public class MockRepository extends FsRepository {
             Thread.currentThread().interrupt();
         }
         logger.debug("[{}] Unblocking execution", metadata.name());
+        if (wasBlocked && failReadsAfterUnblock) {
+            logger.debug("[{}] Next read operations will fail", metadata.name());
+            this.throwReadErrorAfterUnblock = true;
+        }
         return wasBlocked;
     }
 
@@ -234,7 +269,6 @@ public class MockRepository extends FsRepository {
         }
 
         private class MockBlobContainer extends FilterBlobContainer {
-            private MessageDigest digest;
 
             private boolean shouldFail(String blobName, double probability) {
                 if (probability > 0.0) {
@@ -249,7 +283,7 @@ public class MockRepository extends FsRepository {
 
             private int hashCode(String path) {
                 try {
-                    digest = MessageDigest.getInstance("MD5");
+                    MessageDigest digest = MessageDigest.getInstance("MD5");
                     byte[] bytes = digest.digest(path.getBytes("UTF-8"));
                     int i = 0;
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
@@ -260,6 +294,11 @@ public class MockRepository extends FsRepository {
             }
 
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
+                if (INDEX_LATEST_BLOB.equals(blobName)) {
+                    // Don't mess with the index.latest blob here, failures to write to it are ignored by upstream logic and we have
+                    // specific tests that cover the error handling around this blob.
+                    return;
+                }
                 if (blobName.startsWith("__")) {
                     if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
@@ -275,7 +314,7 @@ public class MockRepository extends FsRepository {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
-                    } else if (blockOnControlFiles) {
+                    } else if (blockOnAnyFiles) {
                         blockExecutionAndMaybeWait(blobName);
                     } else if (blobName.startsWith("snap-") && blockAndFailOnWriteSnapFile) {
                         blockExecutionAndFail(blobName);
@@ -305,6 +344,12 @@ public class MockRepository extends FsRepository {
                 throw new IOException("exception after block");
             }
 
+            private void maybeReadErrorAfterBlock(final String blobName) {
+                if (throwReadErrorAfterUnblock) {
+                    throw new AssertionError("Read operation are not allowed anymore at this point [blob=" + blobName + "]");
+                }
+            }
+
             MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
             }
@@ -316,8 +361,16 @@ public class MockRepository extends FsRepository {
 
             @Override
             public InputStream readBlob(String name) throws IOException {
+                maybeReadErrorAfterBlock(name);
                 maybeIOExceptionOrBlock(name);
                 return super.readBlob(name);
+            }
+
+            @Override
+            public InputStream readBlob(String name, long position, long length) throws IOException {
+                maybeReadErrorAfterBlock(name);
+                maybeIOExceptionOrBlock(name);
+                return super.readBlob(name, position, length);
             }
 
             @Override
@@ -337,6 +390,15 @@ public class MockRepository extends FsRepository {
                 blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(
                     List.of(path().toArray()[path().toArray().length - 1]));
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
+            }
+
+            @Override
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+                if (blockOnDeleteIndexN && blobNames.stream().anyMatch(
+                    name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
+                    blockExecutionAndMaybeWait("index-{N}");
+                }
+                super.deleteBlobsIgnoringIfNotExists(blobNames);
             }
 
             @Override
@@ -376,6 +438,9 @@ public class MockRepository extends FsRepository {
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
+                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
                 if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
                     blockExecutionAndFail(blobName);
                 }

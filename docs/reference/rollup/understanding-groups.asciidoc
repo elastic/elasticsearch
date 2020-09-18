@@ -36,7 +36,7 @@ based on which groups are potentially useful to future queries.  For example, th
 --------------------------------------------------
 // NOTCONSOLE
 
-Allows `date_histogram`'s to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
+Allows `date_histogram`s to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
 fields, and `histograms` to be used on any of `"load"`, `"net_in"`, `"net_out"` fields.
 
 Importantly, these aggs/fields can be used in any combination.  This aggregation:
@@ -211,30 +211,30 @@ the best practice is to combine them into a single rollup job which covers both 
 --------------------------------------------------
 PUT _rollup/job/combined
 {
-    "index_pattern": "data-*",
-    "rollup_index": "data_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node", "title"]
-      }
+  "index_pattern": "data-*",
+  "rollup_index": "data_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "price",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node", "title" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "price",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // NOTCONSOLE

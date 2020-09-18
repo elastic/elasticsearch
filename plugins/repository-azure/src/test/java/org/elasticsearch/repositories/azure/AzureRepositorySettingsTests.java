@@ -123,8 +123,9 @@ public class AzureRepositorySettingsTests extends ESTestCase {
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () ->
-            azureRepository(Settings.builder().put("chunk_size", "257mb").build()));
-        assertEquals("failed to parse value [257mb] for setting [chunk_size], must be <= [256mb]", e.getMessage());
+                azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
+        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= ["
+                + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]", e.getMessage());
     }
 
 }

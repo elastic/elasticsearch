@@ -60,7 +60,6 @@ class ClientTransformIndexer extends TransformIndexer {
         String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
-        TransformProgressGatherer progressGatherer,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
@@ -80,7 +79,6 @@ class ClientTransformIndexer extends TransformIndexer {
             executorName,
             transformsConfigManager,
             checkpointProvider,
-            progressGatherer,
             auditor,
             transformConfig,
             fieldMappings,
@@ -128,7 +126,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+    protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to search while failed.", getJobId());
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].", getJobId()));
@@ -139,7 +137,7 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            request,
+            buildSearchRequest(),
             nextPhase
         );
     }
@@ -222,6 +220,18 @@ class ClientTransformIndexer extends TransformIndexer {
                     nextPhase.onResponse(bulkResponse);
                 }
             }, nextPhase::onFailure)
+        );
+    }
+
+    @Override
+    void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            responseListener
         );
     }
 

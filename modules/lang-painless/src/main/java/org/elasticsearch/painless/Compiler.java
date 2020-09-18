@@ -24,7 +24,14 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
+import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
+import org.elasticsearch.painless.phase.DocFieldsPhase;
+import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
+import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
+import org.elasticsearch.painless.phase.PainlessUserTreeToIRTreePhase;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
@@ -209,11 +216,16 @@ final class Compiler {
     ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
-        ClassNode classNode = root.analyze(scriptScope);
-        DefBootstrapInjectionPhase.phase(classNode);
-        ScriptInjectionPhase.phase(scriptScope, classNode);
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        // TODO(stu): Make this phase optional #60156
+        new DocFieldsPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         byte[] bytes = classNode.write();
 
         try {
@@ -239,12 +251,17 @@ final class Compiler {
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
-        ClassNode classNode = root.analyze(scriptScope);
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        // TODO(stu): Make this phase optional #60156
+        new DocFieldsPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         classNode.setDebugStream(debugStream);
-        DefBootstrapInjectionPhase.phase(classNode);
-        ScriptInjectionPhase.phase(scriptScope, classNode);
 
         return classNode.write();
     }

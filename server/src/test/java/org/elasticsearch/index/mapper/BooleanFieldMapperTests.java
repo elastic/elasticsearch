@@ -50,7 +50,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     public void testDefaults() throws IOException {

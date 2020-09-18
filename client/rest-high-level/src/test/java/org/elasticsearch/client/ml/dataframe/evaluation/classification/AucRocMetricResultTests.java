@@ -31,7 +31,7 @@ public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetr
     public static AucRocMetric.Result randomResult() {
         return new AucRocMetric.Result(
             randomDouble(),
-            randomBoolean() ? randomLong() : null,
+            randomLong(),
             Stream
                 .generate(AucRocMetricAucRocPointTests::randomPoint)
                 .limit(randomIntBetween(1, 10))

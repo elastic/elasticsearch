@@ -34,8 +34,8 @@ public class AucRocMetricTests extends AbstractXContentTestCase<AucRocMetric> {
 
     public static AucRocMetric createRandom() {
         return new AucRocMetric(
-            randomBoolean() ? randomBoolean() : null,
-            randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null);
+            randomAlphaOfLengthBetween(1, 10),
+            randomBoolean() ? randomBoolean() : null);
     }
 
     @Override

@@ -45,45 +45,44 @@ public class AucRocMetric implements EvaluationMetric {
 
     public static final String NAME = "auc_roc";
 
-    public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
     public static final ParseField CLASS_NAME = new ParseField("class_name");
+    public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<AucRocMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new AucRocMetric((Boolean) args[0], (String) args[1]));
+        new ConstructingObjectParser<>(NAME, true, args -> new AucRocMetric((String) args[0], (Boolean) args[1]));
 
     static {
+        PARSER.declareString(constructorArg(), CLASS_NAME);
         PARSER.declareBoolean(optionalConstructorArg(), INCLUDE_CURVE);
-        PARSER.declareString(optionalConstructorArg(), CLASS_NAME);
     }
 
     public static AucRocMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public static AucRocMetric withCurveForClass(String className) {
-        return new AucRocMetric(true, className);
-    }
-
     public static AucRocMetric forClass(String className) {
-        return new AucRocMetric(false, className);
+        return new AucRocMetric(className, false);
     }
 
-    private final boolean includeCurve;
-    private final String className;
+    public static AucRocMetric forClassWithCurve(String className) {
+        return new AucRocMetric(className, true);
+    }
 
-    public AucRocMetric(Boolean includeCurve, String className) {
-        this.includeCurve = includeCurve == null ? false : includeCurve;
-        this.className = className;
+    private final String className;
+    private final Boolean includeCurve;
+
+    public AucRocMetric(String className, Boolean includeCurve) {
+        this.className = Objects.requireNonNull(className);
+        this.includeCurve = includeCurve;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder
-            .startObject()
-            .field(INCLUDE_CURVE.getPreferredName(), includeCurve);
-        if (className != null) {
-            builder.field(CLASS_NAME.getPreferredName(), className);
+        builder.startObject();
+        builder.field(CLASS_NAME.getPreferredName(), className);
+        if (includeCurve != null) {
+            builder.field(INCLUDE_CURVE.getPreferredName(), includeCurve);
         }
         builder.endObject();
         return builder;
@@ -99,13 +98,13 @@ public class AucRocMetric implements EvaluationMetric {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRocMetric that = (AucRocMetric) o;
-        return includeCurve == that.includeCurve
-            && Objects.equals(className, that.className);
+        return Objects.equals(className, that.className)
+            && Objects.equals(includeCurve, that.includeCurve);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(includeCurve, className);
+        return Objects.hash(className, includeCurve);
     }
 
     public static class Result implements EvaluationMetric.Result {
@@ -121,19 +120,19 @@ public class AucRocMetric implements EvaluationMetric {
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
             new ConstructingObjectParser<>(
-                "auc_roc_result", true, args -> new Result((double) args[0], (Long) args[1], (List<AucRocPoint>) args[2]));
+                "auc_roc_result", true, args -> new Result((double) args[0], (long) args[1], (List<AucRocPoint>) args[2]));
 
         static {
             PARSER.declareDouble(constructorArg(), SCORE);
-            PARSER.declareLong(optionalConstructorArg(), DOC_COUNT);
+            PARSER.declareLong(constructorArg(), DOC_COUNT);
             PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> AucRocPoint.fromXContent(p), CURVE);
         }
 
         private final double score;
-        private final Long docCount;
+        private final long docCount;
         private final List<AucRocPoint> curve;
 
-        public Result(double score, @Nullable Long docCount, @Nullable List<AucRocPoint> curve) {
+        public Result(double score, long docCount, @Nullable List<AucRocPoint> curve) {
             this.score = score;
             this.docCount = docCount;
             this.curve = curve;
@@ -148,7 +147,7 @@ public class AucRocMetric implements EvaluationMetric {
             return score;
         }
 
-        public Long getDocCount() {
+        public long getDocCount() {
             return docCount;
         }
 
@@ -160,9 +159,7 @@ public class AucRocMetric implements EvaluationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(SCORE.getPreferredName(), score);
-            if (docCount != null) {
-                builder.field(DOC_COUNT.getPreferredName(), docCount);
-            }
+            builder.field(DOC_COUNT.getPreferredName(), docCount);
             if (curve != null && curve.isEmpty() == false) {
                 builder.field(CURVE.getPreferredName(), curve);
             }
@@ -176,7 +173,7 @@ public class AucRocMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return score == that.score
-                && Objects.equals(docCount, that.docCount)
+                && docCount == that.docCount
                 && Objects.equals(curve, that.curve);
         }
 

@@ -1925,7 +1925,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                         null,
                         topClassesNestedField + ".class_name",
                         topClassesNestedField + ".class_probability",
-                        new AucRocMetric(true, "cat")));
+                        AucRocMetric.forClassWithCurve("cat")));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);

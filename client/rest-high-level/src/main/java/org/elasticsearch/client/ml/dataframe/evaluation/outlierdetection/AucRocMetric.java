@@ -56,18 +56,20 @@ public class AucRocMetric implements EvaluationMetric {
         return new AucRocMetric(true);
     }
 
-    private final boolean includeCurve;
+    private final Boolean includeCurve;
 
     public AucRocMetric(Boolean includeCurve) {
-        this.includeCurve = includeCurve == null ? false : includeCurve;
+        this.includeCurve = includeCurve;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .startObject()
-            .field(INCLUDE_CURVE.getPreferredName(), includeCurve)
-            .endObject();
+        builder.startObject();
+        if (includeCurve != null) {
+            builder.field(INCLUDE_CURVE.getPreferredName(), includeCurve);
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -80,7 +82,7 @@ public class AucRocMetric implements EvaluationMetric {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRocMetric that = (AucRocMetric) o;
-        return includeCurve == that.includeCurve;
+        return Objects.equals(includeCurve, that.includeCurve);
     }
 
     @Override

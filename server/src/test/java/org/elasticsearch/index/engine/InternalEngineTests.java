@@ -91,6 +91,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
@@ -5937,6 +5938,27 @@ public class InternalEngineTests extends EngineTestCase {
                         assertSame(warmedUpReaders.get(1), externalSearcher.getDirectoryReader());
                     }
                 }
+            }
+        }
+    }
+
+    public void testProducesStoredFieldsReader() throws Exception {
+        // Make sure that the engine produces a SequentialStoredFieldsLeafReader.
+        // This is required for optimizations on SourceLookup to work, which is in-turn useful for runtime fields.
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField("test"),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        Engine.Index operation = randomBoolean() ?
+            appendOnlyPrimary(doc, false, 1)
+            : appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        engine.index(operation);
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            IndexReader reader = searcher.getIndexReader();
+            assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+            for (LeafReaderContext context: reader.leaves()) {
+                assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+                assertNotNull(lf.getSequentialStoredFieldsReader());
             }
         }
     }

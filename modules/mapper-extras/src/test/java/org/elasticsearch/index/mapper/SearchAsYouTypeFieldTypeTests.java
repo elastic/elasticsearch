@@ -49,7 +49,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         UNSEARCHABLE.freeze();
     }
 
-    protected SearchAsYouTypeFieldType createFieldType() {
+    private static SearchAsYouTypeFieldType createFieldType() {
         final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
             Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));

@@ -40,7 +40,6 @@ import java.util.Collections;
 
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
-
     public void testTermQuery() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
             = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100);

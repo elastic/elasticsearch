@@ -40,8 +40,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final String CLUSTER_ROUTING_EXCLUDE = "cluster.routing.allocation.exclude._tier";
     public static final String INDEX_ROUTING_REQUIRE = "index.routing.allocation.require._tier";
     public static final String INDEX_ROUTING_INCLUDE = "index.routing.allocation.include._tier";
+    public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.include._tier_preference";
     public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
-    public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.prefer._tier";
 
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);

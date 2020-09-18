@@ -627,6 +627,30 @@ null                    |10             |null
 1953-11-01T00:00:00.000Z|1              |1953-11-07T00:00:00.000Z
 ;
 
+histogramOneWeek
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 1 WEEK) AS h, COUNT(*) AS c FROM test_emp WHERE YEAR(birth_date) BETWEEN 1959 AND 1960 GROUP BY h;
+
+           h            |       c       
+------------------------+---------------              
+1959-01-25T00:00:00.000Z|1              
+1959-04-05T00:00:00.000Z|1              
+1959-07-19T00:00:00.000Z|2              
+1959-08-09T00:00:00.000Z|1              
+1959-08-16T00:00:00.000Z|1              
+1959-09-27T00:00:00.000Z|1              
+1959-11-29T00:00:00.000Z|1              
+1959-12-20T00:00:00.000Z|1              
+1960-02-14T00:00:00.000Z|1              
+1960-03-06T00:00:00.000Z|1
+1960-05-22T00:00:00.000Z|1
+1960-07-17T00:00:00.000Z|1              
+1960-08-07T00:00:00.000Z|1
+1960-09-04T00:00:00.000Z|1
+1960-10-02T00:00:00.000Z|1
+1960-12-11T00:00:00.000Z|1
+;
+
 histogramOneDay
 schema::h:ts|c:l|birth_date:ts
 SELECT HISTOGRAM(birth_date, INTERVAL 1 DAY) AS h, COUNT(*) as c, birth_date FROM test_emp WHERE YEAR(birth_date) BETWEEN 1959 AND 1960 GROUP BY h, birth_date ORDER BY h ASC;

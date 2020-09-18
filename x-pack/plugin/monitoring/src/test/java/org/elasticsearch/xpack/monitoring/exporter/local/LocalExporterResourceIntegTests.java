@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,8 +26,10 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -75,6 +78,25 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         assertPipelinesNotUpdated();
     }
 
+    public void testRemoveWhenResourcesShouldBeRemoved() throws Exception {
+        putResources(newEnoughVersion());
+
+        assertResourcesExist();
+        waitNoPendingTasksOnAll();
+
+        Settings exporterSettings = Settings.builder().put(localExporterSettings())
+            .put("xpack.monitoring.migration.decommission_alerts", true).build();
+
+        createResources("decommission_local", exporterSettings);
+        waitNoPendingTasksOnAll();
+        assertBusy(() -> {
+            assertTemplatesExist();
+            assertPipelinesExist();
+            assertNoWatchesExist();
+        });
+
+    }
+
     @Override
     protected Settings localExporterSettings() {
         // Override the settings for local exporters created in this test, make sure watcher is enabled so we can test
@@ -86,11 +108,15 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void createResources() throws Exception {
+        createResources(exporterName, localExporterSettings());
+    }
+
+    private void createResources(String exporterName, Settings exporterSettings) throws Exception {
         // wait until the cluster is ready (this is done at the "Exporters" level)
         // this is not a busy assertion because it's checked earlier
         assertThat(clusterService().state().version(), not(ClusterState.UNKNOWN_VERSION));
 
-        try (LocalExporter exporter = createLocalExporter()) {
+        try (LocalExporter exporter = createLocalExporter(exporterName, exporterSettings)) {
             assertBusy(() -> assertThat(exporter.isExporterReady(), is(true)));
         }
     }
@@ -280,6 +306,26 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
             assertNotNull("Missing cluster uuid", uuid);
             assertEquals(clusterUUID, uuid);
+        }
+    }
+
+    private void assertNoWatchesExist() {
+        // Check if watches index exists
+        if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
+            fail("Expected [.watches] index with cluster alerts present, but no [.watches] index was found");
+        }
+
+        String clusterUUID = clusterService().state().getMetadata().clusterUUID();
+        SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
+            .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
+        SearchResponse searchResponse = client().prepareSearch(".watches").setSource(searchSource).get();
+        if (searchResponse.getHits().getTotalHits().value > 0) {
+            List<String> invalidWatches = new ArrayList<>();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                invalidWatches.add(ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap()));
+            }
+            fail("Found [" + searchResponse.getHits().getTotalHits().value + "] invalid watches when none were expected: "
+                + invalidWatches);
         }
     }
 

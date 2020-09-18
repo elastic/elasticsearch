@@ -162,8 +162,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     boolean isExporterReady() {
         // forces the setup to occur if it hasn't already
         final boolean running = resolveBulk(clusterService.state(), false) != null;
+        // Report on watcher readiness
+        boolean alertsProcessed = !canUseWatcher() || watcherSetup.get();
 
-        return running && installingSomething.get() == false;
+        return running && installingSomething.get() == false && alertsProcessed;
     }
 
     @Override

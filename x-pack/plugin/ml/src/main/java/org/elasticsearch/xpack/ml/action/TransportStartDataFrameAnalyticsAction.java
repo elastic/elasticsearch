@@ -330,7 +330,7 @@ public class TransportStartDataFrameAnalyticsAction
 
     private void validateSourceIndexHasAnalyzableData(StartContext startContext, ActionListener<StartContext> listener) {
         ActionListener<Void> validateAtLeastOneAnalyzedFieldListener = ActionListener.wrap(
-            aVoid -> validateSourceIndexHasRows(startContext, listener),
+            aVoid -> validateSourceIndexRowsCount(startContext, listener),
             listener::onFailure
         );
 
@@ -359,7 +359,7 @@ public class TransportStartDataFrameAnalyticsAction
         }
     }
 
-    private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
+    private void validateSourceIndexRowsCount(StartContext startContext, ActionListener<StartContext> listener) {
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(client,
             "validate_source_index_has_rows-" + startContext.config.getId(),
             startContext.config,
@@ -377,6 +377,9 @@ public class TransportStartDataFrameAnalyticsAction
                             startContext.config.getId(),
                             Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                         ));
+                    } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows)  >= Math.pow(2, 32)) {
+                        listener.onFailure(ExceptionsHelper.badRequestException("Unable to start because too many documents " +
+                            "(more than 2^32) are included in the analysis. Consider downsampling."));
                     } else {
                         listener.onResponse(startContext);
                     }

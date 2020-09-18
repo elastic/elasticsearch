@@ -81,29 +81,11 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.NULL, expr("null"));
     }
 
-    public void testSingleQuotedStringForbidden() {
-        ParsingException e = expectThrows(ParsingException.class, () -> expr("'hello world'"));
-        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
-                e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name='hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
-                e.getMessage());
-    }
-
     public void testDoubleQuotedString() {
         // "hello \" world"
         Expression parsed = expr("\"hello \\\" world!\"");
         Expression expected = new Literal(null, "hello \" world!", DataTypes.KEYWORD);
         assertEquals(expected, parsed);
-    }
-
-    public void testSingleQuotedUnescapedStringDisallowed() {
-        ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
-        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
-                e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
-                e.getMessage());
     }
 
     public void testDoubleQuotedUnescapedString() {
@@ -124,8 +106,8 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testBackQuotedAttribute() {
-        String quote = "`";
+    public void testSingleQuotedAttribute() {
+        String quote = "'";
         String qualifier = "table";
         String name = "@timestamp";
         Expression exp = expr(quote + qualifier + quote + "." + quote + name + quote);

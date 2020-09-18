@@ -27,9 +27,6 @@ import java.nio.file.Paths;
  */
 public class Installation {
 
-    // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
-
     private final Shell sh;
     public final Distribution distribution;
     public final Path home;
@@ -132,7 +129,7 @@ public class Installation {
             // windows is always administrator, since there is no sudo
             return "BUILTIN\\Administrators";
         }
-        return distribution.isArchive() ? ARCHIVE_OWNER : "root";
+        return distribution.isArchive() ? Platforms.USERNAME : "root";
     }
 
     public Path bin(String executableName) {
@@ -175,7 +172,7 @@ public class Installation {
             } else {
                 command = "\"" + command + "\"";
                 if (distribution.isArchive()) {
-                    command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+                    command = "sudo -E -u " + Platforms.USERNAME + " " + command;
                 }
             }
 

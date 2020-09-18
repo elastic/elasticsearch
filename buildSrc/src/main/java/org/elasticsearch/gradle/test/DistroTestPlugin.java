@@ -78,6 +78,9 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
 
+    private static final String QUOTA_AWARE_FS_PLUGIN_CONFIGURATION = "quotaAwareFsPlugin";
+    private static final String QUOTA_AWARE_FS_PLUGIN_SYSPROP = "tests.quota-aware-fs-plugin";
+
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
@@ -100,30 +103,35 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
         Configuration examplePlugin = configureExamplePlugin(project);
+        Configuration quotaAwareFsPlugin = configureQuotaAwareFsPlugin(project);
 
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<Type, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
         Map<String, List<TaskProvider<Test>>> upgradeTestTasks = new HashMap<>();
         Map<String, TaskProvider<?>> depsTasks = new HashMap<>();
+
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
-            depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
+            depsTask.configure(t -> t.dependsOn(distribution, examplePlugin, quotaAwareFsPlugin));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                addDistributionSysprop(t, QUOTA_AWARE_FS_PLUGIN_SYSPROP, () -> quotaAwareFsPlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
 
-            if (distribution.getPlatform() == Platform.WINDOWS) {
-                windowsTestTasks.add(destructiveTask);
-            } else {
-                linuxTestTasks.computeIfAbsent(distribution.getType(), k -> new ArrayList<>()).add(destructiveTask);
+            if (distribution.getPlatform() != Platform.DARWIN) {
+                if (distribution.getPlatform() == Platform.WINDOWS) {
+                    windowsTestTasks.add(destructiveTask);
+                } else {
+                    linuxTestTasks.computeIfAbsent(distribution.getType(), k -> new ArrayList<>()).add(destructiveTask);
+                }
+                destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
+                lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
             }
-            destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
-            lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
 
             if ((distribution.getType() == Type.DEB || distribution.getType() == Type.RPM) && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
@@ -317,6 +325,14 @@ public class DistroTestPlugin implements Plugin<Project> {
         return examplePlugin;
     }
 
+    private static Configuration configureQuotaAwareFsPlugin(Project project) {
+        Configuration examplePlugin = project.getConfigurations().create(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION);
+        DependencyHandler deps = project.getDependencies();
+        Map<String, String> quotaAwareFsPluginProject = Map.of("path", ":plugins:quota-aware-fs", "configuration", "zip");
+        deps.add(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION, deps.project(quotaAwareFsPluginProject));
+        return examplePlugin;
+    }
+
     private static void configureVMWrapperTasks(
         Project project,
         List<TaskProvider<Test>> destructiveTasks,
@@ -393,12 +409,16 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         for (Architecture architecture : Architecture.values()) {
-            for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
+            for (Platform platform : Platform.values()) {
                 for (Flavor flavor : Flavor.values()) {
                     for (boolean bundledJdk : Arrays.asList(true, false)) {
                         if (bundledJdk == false && architecture != Architecture.X64) {
                             // We will never publish distributions for non-x86 (amd64) platforms
                             // without a bundled JDK
+                            continue;
+                        }
+
+                        if (architecture != Architecture.X64 && platform == Platform.DARWIN) {
                             continue;
                         }
 

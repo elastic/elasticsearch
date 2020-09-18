@@ -48,6 +48,7 @@ import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
@@ -59,9 +60,6 @@ import static org.hamcrest.core.IsNot.not;
 public class Archives {
 
     protected static final Logger logger = LogManager.getLogger(Archives.class);
-
-    // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
@@ -112,14 +110,14 @@ public class Archives {
         assertThat("only the intended installation exists", installations, hasSize(1));
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
-        Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
+        Platforms.onLinux(Archives::setupArchiveUsersLinux);
 
         sh.chown(fullInstallPath);
 
         return Installation.ofArchive(sh, distribution, fullInstallPath);
     }
 
-    private static void setupArchiveUsersLinux(Path installPath) {
+    private static void setupArchiveUsersLinux() {
         final Shell sh = new Shell();
 
         if (sh.runIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
@@ -157,19 +155,19 @@ public class Archives {
     }
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
+        verifyOssInstallation(installation, distribution, Platforms.USERNAME, Platforms.GROUP);
         if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
+            verifyDefaultInstallation(installation, distribution, Platforms.USERNAME, Platforms.GROUP);
         }
     }
 
-    private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
-        Stream.of(es.home, es.config, es.plugins, es.modules, es.logs).forEach(dir -> assertThat(dir, file(Directory, owner, owner, p755)));
+    private static void verifyOssInstallation(Installation es, Distribution distribution, String owner, String group) {
+        Stream.of(es.home, es.config, es.plugins, es.modules, es.logs).forEach(dir -> assertThat(dir, file(Directory, owner, group, p755)));
 
         assertThat(Files.exists(es.data), is(false));
 
-        assertThat(es.bin, file(Directory, owner, owner, p755));
-        assertThat(es.lib, file(Directory, owner, owner, p755));
+        assertThat(es.bin, file(Directory, owner, group, p755));
+        assertThat(es.lib, file(Directory, owner, group, p755));
         assertThat(Files.exists(es.config("elasticsearch.keystore")), is(false));
 
         Stream.of(
@@ -181,7 +179,7 @@ public class Archives {
             "elasticsearch-node"
         ).forEach(executable -> {
 
-            assertThat(es.bin(executable), file(File, owner, owner, p755));
+            assertThat(es.bin(executable), file(File, owner, group, p755));
 
             if (distribution.packaging == Distribution.Packaging.ZIP) {
                 assertThat(es.bin(executable + ".bat"), file(File, owner));
@@ -194,13 +192,13 @@ public class Archives {
         }
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
+            .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, group, p660)));
 
         Stream.of("NOTICE.txt", "LICENSE.txt", "README.asciidoc")
-            .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
+            .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, group, p644)));
     }
 
-    private static void verifyDefaultInstallation(Installation es, Distribution distribution, String owner) {
+    private static void verifyDefaultInstallation(Installation es, Distribution distribution, String owner, String group) {
 
         Stream.of(
             "elasticsearch-certgen",
@@ -216,7 +214,7 @@ public class Archives {
             "x-pack-watcher-env"
         ).forEach(executable -> {
 
-            assertThat(es.bin(executable), file(File, owner, owner, p755));
+            assertThat(es.bin(executable), file(File, owner, group, p755));
 
             if (distribution.packaging == Distribution.Packaging.ZIP) {
                 assertThat(es.bin(executable + ".bat"), file(File, owner));
@@ -225,10 +223,10 @@ public class Archives {
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
-        assertThat(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(File, owner, owner, p755));
+        assertThat(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(File, owner, group, p755));
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
+            .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, group, p660)));
     }
 
     public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
@@ -257,7 +255,7 @@ public class Archives {
                 + "expect eof\n"
                 + "EXPECT\n"
                 + ")\"",
-            ARCHIVE_OWNER,
+            Platforms.USERNAME,
             bin.elasticsearch,
             pidFile,
             keystorePassword
@@ -292,7 +290,7 @@ public class Archives {
 
             List<String> command = new ArrayList<>();
             command.add("sudo -E -u ");
-            command.add(ARCHIVE_OWNER);
+            command.add(Platforms.USERNAME);
             command.add(bin.elasticsearch.toString());
             if (daemonize) {
                 command.add("-d");
@@ -382,7 +380,7 @@ public class Archives {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         ServerUtils.waitForElasticsearch(installation);
 
-        assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
+        assertThat("Starting Elasticsearch did not produce a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
     }

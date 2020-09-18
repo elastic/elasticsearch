@@ -109,6 +109,10 @@ listen for incoming requests.  A node can bind to multiple interfaces, e.g.
 two network cards, or a site-local address and a local address. Defaults to
 `network.host`.
 
+This setting can be configured just like `network.host` -- it
+accepts IP addresses, host names, and
+<<network-interface-values,special values>>, individually or as an array.
+
 `network.publish_host`::
 The publish host is the single interface that the node advertises to other nodes
 in the cluster, so that those nodes can connect to it. Currently an
@@ -119,9 +123,10 @@ sorted by IPv4/IPv6 stack preference, then by reachability. If you set a
 address for node-to-node communication, you should explicitly set
 `network.publish_host`.
 
-Both of the above settings can be configured just like `network.host` -- they
-accept IP addresses, host names, and
-<<network-interface-values,special values>>.
+This setting accepts IP addresses, host names, and
+<<network-interface-values,special values>>, but does not accept arrays.
+It should be used only when `network.host` is an array, and should be set
+to a value from among those in the `network.host` array.
 
 [[tcp-settings]]
 ===== Advanced TCP settings

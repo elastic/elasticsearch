@@ -5,19 +5,28 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 
-public class GetTrainedModelsRequestTests extends AbstractWireSerializingTestCase<Request> {
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class GetTrainedModelsRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLength(20),
-            randomBoolean(),
             randomBoolean() ? null :
-            randomList(10, () -> randomAlphaOfLength(10)));
+            randomList(10, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null :
+                Stream.generate(() -> randomFrom(Request.DEFINITION, Request.TOTAL_FEATURE_IMPORTANCE))
+                    .limit(4)
+                    .collect(Collectors.toSet()));
         request.setPageParams(new PageParams(randomIntBetween(0, 100), randomIntBetween(0, 100)));
         return request;
     }
@@ -25,5 +34,20 @@ public class GetTrainedModelsRequestTests extends AbstractWireSerializingTestCas
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, Version version) {
+        if (version.before(Version.V_7_10_0)) {
+            Set<String> includes = new HashSet<>();
+            if (instance.isIncludeModelDefinition()) {
+                includes.add(Request.DEFINITION);
+            }
+            return new Request(
+                instance.getResourceId(),
+                instance.getTags(),
+                includes);
+        }
+        return instance;
     }
 }

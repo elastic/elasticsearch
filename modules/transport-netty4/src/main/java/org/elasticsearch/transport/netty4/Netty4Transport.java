@@ -326,7 +326,7 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
-        private final NettyByteBufSizer sizer = new NettyByteBufSizer();;
+        private final NettyByteBufSizer sizer = new NettyByteBufSizer();
 
         protected ServerChannelInitializer(String name) {
             this.name = name;

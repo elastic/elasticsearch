@@ -300,8 +300,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            final ReaderContext removed = removeReaderContext(context.id().getId());
-            assert removed == context;
+            removeReaderContext(context.id().getId());
             throw new IndexNotFoundException(index);
         }
     }

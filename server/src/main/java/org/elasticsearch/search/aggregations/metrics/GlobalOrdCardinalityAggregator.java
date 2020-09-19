@@ -175,7 +175,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
-                            counts.ensureSize(bucket, bits.cardinality());
+                            counts.ensureCapacity(bucket, bits.cardinality());
                             for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
                                  ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
                                 counts.collect(bucket, hashes.get(ord));

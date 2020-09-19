@@ -51,8 +51,8 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     }
 
     /** Needs to be called before adding elements into a bucket */
-    protected void ensureSize(long bucketOrd, long size) {
-        lc.ensureSize(bucketOrd, size);
+    protected void ensureCapacity(long bucketOrd, long size) {
+        lc.ensureCapacity(bucketOrd, size);
     }
 
     @Override
@@ -113,7 +113,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             return set(bucketOrd, encoded);
         }
 
-        protected void ensureSize(long bucketOrd, long size) {
+        protected void ensureCapacity(long bucketOrd, long size) {
             values = bigArrays.grow(values, bucketOrd + 1);
             sizes = bigArrays.grow(sizes, bucketOrd + 1);
             IntArray value = values.get(bucketOrd);
@@ -142,7 +142,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         }
 
         private int set(long bucketOrd, int value) {
-            // This assumes that ensureSize has been called before
+            // This assumes that ensureCapacity has been called before
             IntArray array = values.get(bucketOrd);
             int size = sizes.get(bucketOrd);
             array.set(size, value);

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
-import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -85,7 +84,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitArithmeticUnary(ArithmeticUnaryContext ctx) {
-        Expression expr = expression(ctx.valueExpression());
+        Expression expr = expression(ctx.operatorExpression());
         Source source = source(ctx);
         int type = ctx.operator.getType();
 
@@ -149,7 +148,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitValueExpressionDefault(ValueExpressionDefaultContext ctx) {
+    public Object visitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) {
         Expression expr = expression(ctx.primaryExpression());
         Source source = source(ctx);
 

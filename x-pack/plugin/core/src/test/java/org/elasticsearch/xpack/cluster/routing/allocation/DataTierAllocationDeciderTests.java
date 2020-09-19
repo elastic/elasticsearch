@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.DataTier;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -47,6 +48,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE));
     private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE));
     private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DataTier.DATA_COLD_NODE_ROLE));
+    private static final DiscoveryNode CONTENT_NODE = newNode("node-content", Collections.singleton(DataTier.DATA_CONTENT_NODE_ROLE));
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);
@@ -274,6 +276,277 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
+    public void testIndexPrefer() {
+        ClusterState state = ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
+            .nodes(DiscoveryNodes.builder()
+                .add(HOT_NODE)
+                .build())
+            .metadata(Metadata.builder()
+                .put(IndexMetadata.builder("myindex")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .build()))
+                .build())
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+            null, 0);
+        allocation.debugDecision(true);
+        Decision d;
+        RoutingNode node;
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, COLD_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold], " +
+                    "but no nodes for any of those tiers are available in the cluster"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold], " +
+                    "but no nodes for any of those tiers are available in the cluster"));
+        }
+
+        state = ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
+            .nodes(DiscoveryNodes.builder()
+                .add(HOT_NODE)
+                .add(COLD_NODE)
+                .build())
+            .metadata(Metadata.builder()
+                .put(IndexMetadata.builder("myindex")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .build()))
+                .build())
+            .build();
+        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, 0);
+        allocation.debugDecision(true);
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_cold] tier"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_cold] tier"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(COLD_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"));
+        }
+    }
+
+    public void testIndexPreferWithInclude() {
+        ClusterState state = ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
+            .nodes(DiscoveryNodes.builder()
+                .add(WARM_NODE)
+                .add(COLD_NODE)
+                .build())
+            .metadata(Metadata.builder()
+                .put(IndexMetadata.builder("myindex")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_cold")
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .build()))
+                .build())
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+            null, 0);
+        allocation.debugDecision(true);
+        Decision d;
+        RoutingNode node;
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, CONTENT_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node does not match any index setting [index.routing.allocation.include._tier] tier filters [data_cold]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node does not match any index setting [index.routing.allocation.include._tier] tier filters [data_cold]"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(COLD_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_warm] tier"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_warm] tier"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(DATA_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_warm]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_warm]"));
+        }
+    }
+
+    public void testIndexPreferWithExclude() {
+        ClusterState state = ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
+            .nodes(DiscoveryNodes.builder()
+                .add(WARM_NODE)
+                .add(COLD_NODE)
+                .build())
+            .metadata(Metadata.builder()
+                .put(IndexMetadata.builder("myindex")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm")
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .build()))
+                .build())
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+            null, 0);
+        allocation.debugDecision(true);
+        Decision d;
+        RoutingNode node;
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE, CONTENT_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_warm] tier"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_warm] tier"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(WARM_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node matches any index setting [index.routing.allocation.exclude._tier] tier filters [data_warm]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node matches any index setting [index.routing.allocation.exclude._tier] tier filters [data_warm]"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(DATA_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node matches any index setting [index.routing.allocation.exclude._tier] tier filters [data_warm]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node matches any index setting [index.routing.allocation.exclude._tier] tier filters [data_warm]"));
+        }
+    }
+
+    public void testIndexPreferWithRequire() {
+        ClusterState state = ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
+            .nodes(DiscoveryNodes.builder()
+                .add(WARM_NODE)
+                .add(COLD_NODE)
+                .build())
+            .metadata(Metadata.builder()
+                .put(IndexMetadata.builder("myindex")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, "data_cold")
+                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .build()))
+                .build())
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+            null, 0);
+        allocation.debugDecision(true);
+        Decision d;
+        RoutingNode node;
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, CONTENT_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node does not match all index setting [index.routing.allocation.require._tier] tier filters [data_cold]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("node does not match all index setting [index.routing.allocation.require._tier] tier filters [data_cold]"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(COLD_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_warm] tier"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
+                    "and node does not meet the required [data_warm] tier"));
+        }
+
+        for (DiscoveryNode n : Arrays.asList(DATA_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = decider.canAllocate(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_warm]"));
+            d = decider.canRemain(shard, node, allocation);
+            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+            assertThat(node.toString(), d.getExplanation(),
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_warm]"));
+        }
+    }
+
     public void testClusterAndIndex() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
@@ -321,6 +594,60 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canRemain(shard, node, allocation);
             assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
         }
+    }
+
+    public void testTierNodesPresent() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().build();
+
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+
+        nodes = DiscoveryNodes.builder()
+            .add(WARM_NODE)
+            .add(CONTENT_NODE)
+            .build();
+
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+
+        nodes = DiscoveryNodes.builder()
+            .add(DATA_NODE)
+            .build();
+
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+    }
+
+    public void testPreferredTierAvailable() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().build();
+
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_warm", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_warm,data_content", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_cold", nodes), equalTo(Optional.empty()));
+
+        nodes = DiscoveryNodes.builder()
+            .add(WARM_NODE)
+            .add(CONTENT_NODE)
+            .build();
+
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_warm", nodes), equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_warm,data_content", nodes), equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_content,data_warm", nodes), equalTo(Optional.of("data_content")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_content,data_warm", nodes),
+            equalTo(Optional.of("data_content")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_cold,data_warm", nodes),
+            equalTo(Optional.of("data_warm")));
     }
 
     private ClusterState prepareState(ClusterState initialState) {

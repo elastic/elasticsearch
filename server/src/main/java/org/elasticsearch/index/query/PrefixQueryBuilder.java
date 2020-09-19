@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -50,6 +51,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     private final String fieldName;
 
     private final String value;
+    
+    public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
+    private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
+    private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
+    
 
     private String rewrite;
 
@@ -78,6 +84,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         rewrite = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            caseInsensitive = in.readBoolean();
+        }        
     }
 
     @Override
@@ -85,6 +94,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeString(fieldName);
         out.writeString(value);
         out.writeOptionalString(rewrite);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(caseInsensitive);
+        }    
     }
 
     @Override
@@ -95,6 +107,18 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public String value() {
         return this.value;
     }
+    
+    public PrefixQueryBuilder caseInsensitive(boolean caseInsensitive) {
+        if (caseInsensitive == false) {
+            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
+        }
+        this.caseInsensitive = caseInsensitive;
+        return this;
+    }    
+
+    public boolean caseInsensitive() {
+        return this.caseInsensitive;
+    }    
 
     public PrefixQueryBuilder rewrite(String rewrite) {
         this.rewrite = rewrite;
@@ -113,6 +137,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (rewrite != null) {
             builder.field(REWRITE_FIELD.getPreferredName(), rewrite);
         }
+        if (caseInsensitive != DEFAULT_CASE_INSENSITIVITY) {
+            builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -125,6 +152,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;        
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -145,6 +173,12 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                             boost = parser.floatValue();
                         } else if (REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite = parser.textOrNull();
+                        } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            caseInsensitive = parser.booleanValue();
+                            if (caseInsensitive == false) {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                    "[prefix] query does not support [" + currentFieldName + "] = false");
+                            }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[prefix] query does not support [" + currentFieldName + "]");
@@ -158,10 +192,14 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             }
         }
 
-        return new PrefixQueryBuilder(fieldName, value)
+        PrefixQueryBuilder result = new PrefixQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
+        if (caseInsensitive) {
+            result.caseInsensitive(caseInsensitive);            
+        }
+        return result;
     }
 
     @Override
@@ -180,7 +218,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                Query query = fieldType.prefixQuery(value, null, context); // the rewrite method doesn't matter
+                Query query = fieldType.prefixQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
@@ -202,18 +240,19 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        return fieldType.prefixQuery(value, method, context);
+        return fieldType.prefixQuery(value, method, caseInsensitive, context);
     }
 
     @Override
     protected final int doHashCode() {
-        return Objects.hash(fieldName, value, rewrite);
+        return Objects.hash(fieldName, value, rewrite, caseInsensitive);
     }
 
     @Override
     protected boolean doEquals(PrefixQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(value, other.value) &&
-                Objects.equals(rewrite, other.rewrite);
+                Objects.equals(rewrite, other.rewrite) &&
+                Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 }

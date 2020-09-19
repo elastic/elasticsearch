@@ -172,15 +172,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {}
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        // Meta field doesn't create any fields, so this shouldn't happen.
-        throw new IllegalStateException(NAME + " field mapper cannot create fields");
-    }
-
-    @Override
     public void postParse(ParseContext context) throws IOException {
         if (enabled == false) {
             // not configured, so skip the validation

@@ -46,7 +46,9 @@ public class IndexFieldTypeTests extends ESTestCase {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("iNd*x", null, true, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Other_ind*x", null, true, createContext()));
     }
 
     public void testRegexpQuery() {

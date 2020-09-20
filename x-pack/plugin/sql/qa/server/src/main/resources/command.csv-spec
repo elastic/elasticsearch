@@ -296,6 +296,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+wildcard_name       |VARCHAR        |keyword
 ;
 
 describeMultiLike
@@ -325,6 +326,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+wildcard_name       |VARCHAR        |keyword
 ;
 
 describeSimpleIdentifier

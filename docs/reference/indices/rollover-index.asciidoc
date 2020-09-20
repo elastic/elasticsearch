@@ -13,7 +13,7 @@ index becomes the data stream's write index and its generation is incremented.
 
 [source,console]
 ----
-POST /alias1/_rollover/twitter
+POST /alias1/_rollover/my-index-000002
 {
   "conditions": {
     "max_age":   "7d",
@@ -191,8 +191,8 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"my-index-000001"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
     contains 1,000 or more documents, or has an index size at least around 5GB, then the `logs-000002` index is created
@@ -233,7 +233,6 @@ PUT _index_template/template
   "data_stream": { }
 }
 -----------------------------------
-// TEST
 
 [source,console]
 --------------------------------------------------
@@ -251,12 +250,12 @@ POST /my-data-stream/_rollover <2>
 }
 --------------------------------------------------
 // TEST[continued]
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"my-data-stream","op_type":"create"},"script":{"source":"ctx._source.put('@timestamp',ctx._source.remove('date'))"}}/]
+// TEST[setup:my_index_huge]
+// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-data-stream", "op_type": "create" } }/]
 <1> Creates a data stream called `my-data-stream` with one initial backing index
 named `my-data-stream-000001`.
 <2> This request creates a new backing index, `my-data-stream-000002`, and adds
-it as the write index for the `my-data-stream` data stream if the current
+it as the write index for `my-data-stream` if the current
 write index meets at least one of the following conditions:
 +
 --
@@ -372,7 +371,7 @@ which is incremented every time the index is rolled over. For instance:
 [source,console]
 --------------------------------------------------
 # PUT /<logs-{now/d}-1> with URI encoding:
-PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
+PUT /%3Clogs_%7Bnow%2Fd%7D-1%3E <1>
 {
   "aliases": {
     "logs_write": {}
@@ -397,8 +396,8 @@ POST /logs_write/_rollover <2>
 --------------------------------------------------
 // TEST[s/now/2016.10.31%7C%7C/]
 
-<1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
-<2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
+<1> Creates an index named with today's date (e.g.) `logs_2016.10.31-1`
+<2> Rolls over to a new index with today's date, e.g. `logs_2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 
 //////////////////////////
 
@@ -411,12 +410,12 @@ GET _alias
 [source,console-result]
 --------------------------------------------------
 {
-  "logs-2016.10.31-000002": {
+  "logs_2016.10.31-000002": {
     "aliases": {
       "logs_write": {}
     }
   },
-  "logs-2016.10.31-1": {
+  "logs_2016.10.31-1": {
     "aliases": {}
   }
 }

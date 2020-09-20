@@ -32,14 +32,11 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -67,6 +64,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -85,6 +83,7 @@ import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -109,6 +108,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
@@ -173,7 +173,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class);
+        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class,
+                MockTransportService.TestPlugin.class);
     }
 
     public static class BrokenSettingPlugin extends Plugin {
@@ -337,13 +338,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             equalTo("before_snapshot_s_gw_noapi"));
     }
 
-    private void updateClusterState(final ClusterStateUpdater updater) throws InterruptedException {
+    private void updateClusterState(final Function<ClusterState, ClusterState> updater) throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return updater.execute(currentState);
+            public ClusterState execute(ClusterState currentState) {
+                return updater.apply(currentState);
             }
 
             @Override
@@ -357,10 +358,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             }
         });
         countDownLatch.await();
-    }
-
-    private interface ClusterStateUpdater {
-        ClusterState execute(ClusterState currentState) throws Exception;
     }
 
     public void testSnapshotDuringNodeShutdown() throws Exception {
@@ -854,10 +851,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(client.admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
 
         logger.info("--> snapshot the shrunk index");
-        CreateSnapshotResponse createResponse = client.admin().cluster()
+        assertSuccessful(client.admin().cluster()
             .prepareCreateSnapshot(repo, snapshot)
-            .setWaitForCompletion(true).setIndices(shrunkIdx).get();
-        assertEquals(SnapshotState.SUCCESS, createResponse.getSnapshotInfo().state());
+            .setWaitForCompletion(true).setIndices(shrunkIdx).execute());
 
         logger.info("--> delete index and stop the data node");
         assertAcked(client.admin().indices().prepareDelete(sourceIdx).get());
@@ -909,7 +905,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(snapshots.get(0).getState().completed(), equalTo(true));
     }
 
-    public void testSnapshotTotalAndIncrementalSizes() throws IOException {
+    public void testSnapshotTotalAndIncrementalSizes() throws Exception {
         Client client = client();
         final String indexName = "test-blocks-1";
         final String repositoryName = "repo-" + indexName;
@@ -963,7 +959,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createFullSnapshot(repositoryName, snapshot1);
 
         //  drop 1st one to avoid miscalculation as snapshot reuses some files of prev snapshot
-        assertAcked(client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot0).get());
+        assertAcked(startDeleteSnapshot(repositoryName, snapshot0).get());
 
         response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
             .setSnapshots(snapshot1)
@@ -1206,23 +1202,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(repoName, "mock");
         blockAllDataNodes(repoName);
         final String snapshotName = "test-snap";
-        final ActionFuture<CreateSnapshotResponse> snapshotResponse =
-                client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = startFullSnapshot(repoName, snapshotName);
         waitForBlock(dataNodeName, repoName, TimeValue.timeValueSeconds(30L));
-
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, otherDataNode);
-        final PlainActionFuture<Void> abortVisibleFuture = PlainActionFuture.newFuture();
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress != null && snapshotsInProgress.entries().stream()
-                        .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED)) {
-                    abortVisibleFuture.onResponse(null);
-                    clusterService.removeListener(this);
-                }
-            }
-        });
 
         final AtomicBoolean blocked = new AtomicBoolean(true);
 
@@ -1238,10 +1219,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         });
 
         logger.info("--> abort snapshot");
-        final ActionFuture<AcknowledgedResponse> deleteResponse =
-                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
+        final ActionFuture<AcknowledgedResponse> deleteResponse = startDeleteSnapshot(repoName, snapshotName);
 
-        abortVisibleFuture.get(30L, TimeUnit.SECONDS);
+        awaitClusterState(otherDataNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .entries().stream().anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED));
 
         assertFalse("delete should not be able to finish until data node is unblocked", deleteResponse.isDone());
         blocked.set(false);
@@ -1258,9 +1239,53 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createIndex("some-index");
         stopNode(dataNode);
         ensureStableCluster(1);
-        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
-                .setPartial(true).setWaitForCompletion(true).get();
+        final CreateSnapshotResponse createSnapshotResponse = startFullSnapshot(repoName, "test-snap", true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // Create index on two nodes and make sure each node has a primary by setting no replicas
+        final String indexName = "test-idx";
+        assertAcked(prepareCreate(indexName, 2, indexSettingsNoReplicas(between(2, 10))));
+        ensureGreen(indexName);
+        indexRandomDocs(indexName, 100);
+
+        // Drop all file chunk requests so that below relocation takes forever and we're guaranteed to run the snapshot in parallel to it
+        for (String nodeName : dataNodes) {
+            ((MockTransportService) internalCluster().getInstance(TransportService.class, nodeName)).addSendBehavior(
+                    (connection, requestId, action, request, options) -> {
+                        if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
+                            return;
+                        }
+                        connection.sendRequest(requestId, action, request, options);
+                    });
+        }
+
+        logger.info("--> start relocations");
+        allowNodes(indexName, 1);
+
+        logger.info("--> wait for relocations to start");
+
+        assertBusy(() -> assertThat(
+                client().admin().cluster().prepareHealth(indexName).execute().actionGet().getRelocatingShards(), greaterThan(0)),
+                1L, TimeUnit.MINUTES);
+
+        logger.info("--> snapshot");
+        client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
+                .setWaitForCompletion(false).setPartial(true).setIndices(indexName).get();
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        logger.info("--> wait for snapshot to complete");
+        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
+        logger.info("--> done");
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

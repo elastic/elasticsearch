@@ -69,11 +69,6 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
                 throw new UnsupportedOperationException();
             }
 
-            @Override
-            public void clear() {
-                in.clear();
-            }
-
         };
     }
 

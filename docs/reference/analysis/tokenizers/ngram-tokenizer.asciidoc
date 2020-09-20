@@ -6,7 +6,7 @@
 
 The `ngram` tokenizer first breaks text down into words whenever it encounters
 one of a list of specified characters, then it emits
-https://en.wikipedia.org/wiki/N-gram[N-grams] of each word of the specified
+{wikipedia}/N-gram[N-grams] of each word of the specified
 length.
 
 N-grams are like a sliding window that moves across the word - a continuous
@@ -218,7 +218,7 @@ digits as tokens, and to produce tri-grams (grams of length `3`):
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -242,7 +242,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "2 Quick Foxes."

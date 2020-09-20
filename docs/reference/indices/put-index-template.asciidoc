@@ -75,7 +75,7 @@ If `true`, this request cannot replace or update existing index templates. Defau
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-
+[role="child_attributes"]
 [[put-index-template-api-request-body]]
 ==== {api-request-body-title}
 
@@ -83,10 +83,23 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Required, array of strings)
 Array of wildcard (`*`) expressions
 used to match the names of data streams and indices during creation.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
 +
-NOTE: You cannot add data streams to an index alias.
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
+patterns, each with a priority of `100`.
+{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+create data streams. If you use {agent}, assign your index templates a priority
+lower than `100` to avoid an overriding the built-in templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern or assign templates with an overlapping pattern a
+`priority` higher than `100`.
+
+For example, if you don't use {agent} and want to create a template for the
+`logs-*` index pattern, assign your template a priority of `200`. This ensures
+your template is applied instead of the built-in template for `logs-*-*`.
+====
 
 [xpack]#`data_stream`#::
 (Optional, object)
@@ -97,14 +110,22 @@ indices. If so, use an empty object as the argument: +
 Data streams require a matching index template with a `data_stream` object.
 See <<create-a-data-stream-template>>.
 
+`template`::
+(Optional, object)
+Template to be applied. It may optionally include an `aliases`, `mappings`, or
+`settings` configuration.
++
+.Properties of `template`
+[%collapsible%open]
+====
+include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
++
+NOTE: You cannot add data streams to an index alias.
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
-
-`template`::
-(Optional, object)
-This is the template to be applied, may optionally include a `mappings`,
-`settings`, or `aliases` configuration.
+====
 
 `composed_of`::
 (Optional, array of strings)
@@ -149,9 +170,9 @@ PUT _index_template/template_1
         "alias1" : {},
         "alias2" : {
             "filter" : {
-                "term" : {"user" : "kimchy" }
+                "term" : {"user.id" : "kimchy" }
             },
-            "routing" : "kimchy"
+            "routing" : "shard-1"
         },
         "{index}-alias" : {} <1>
     }

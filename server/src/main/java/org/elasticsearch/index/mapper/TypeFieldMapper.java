@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
@@ -32,20 +30,19 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -53,33 +50,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_type";
 
-    public static class Defaults {
-        public static final String NAME = TypeFieldMapper.NAME;
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                      ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new TypeFieldMapper(Defaults.FIELD_TYPE);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new TypeFieldMapper());
 
     public static final class TypeFieldType extends ConstantFieldType {
 
@@ -100,13 +71,16 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
             return new ConstantIndexFieldData.Builder(typeFunction, name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
-        protected boolean matches(String pattern, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+            if (caseInsensitive) {
+                return pattern.equalsIgnoreCase(MapperService.SINGLE_MAPPING_NAME);
+            }
             return pattern.equals(MapperService.SINGLE_MAPPING_NAME);
         }
     }
@@ -193,33 +167,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TypeFieldMapper(FieldType fieldType) {
-        super(fieldType, new TypeFieldType());
-    }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-
+    private TypeFieldMapper() {
+        super(new TypeFieldType());
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 
 }

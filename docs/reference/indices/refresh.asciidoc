@@ -9,9 +9,9 @@ backing indices.
 
 [source,console]
 ----
-POST /twitter/_refresh
+POST /my-index-000001/_refresh
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[refresh-api-request]]
@@ -41,6 +41,9 @@ indices that have received one search request or more in the last 30 seconds.
 // end::refresh-interval-default[]
 You can change this default interval
 using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.
+
+Refresh requests are synchronous and do not return a response until the
+refresh operation completes.
 
 [IMPORTANT]
 ====
@@ -93,9 +96,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_refresh
+POST /my-index-000001,my-index-000002/_refresh
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[refresh-api-all-ex]]

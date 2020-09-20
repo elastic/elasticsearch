@@ -54,6 +54,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -280,11 +281,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
-                return super.prefixQuery(value, method, context);
+                return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
-                final Query query = prefixField.prefixQuery(value, method, context);
+                final Query query = prefixField.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                     || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
@@ -364,8 +365,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (value.length() >= minChars) {
+                if(caseInsensitive) {
+                    return super.termQueryCaseInsensitive(value, context);
+                }
                 return super.termQuery(value, context);
             }
             List<Automaton> automata = new ArrayList<>();
@@ -419,6 +423,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -460,6 +469,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected String contentType() {
             return "shingle";
         }
@@ -496,11 +510,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
-                return super.prefixQuery(value, method, context);
+                return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
-                final Query query = prefixFieldType.prefixQuery(value, method, context);
+                final Query query = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                     || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
@@ -575,6 +589,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         if (fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

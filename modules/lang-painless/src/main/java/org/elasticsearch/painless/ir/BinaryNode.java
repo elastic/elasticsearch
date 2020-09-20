@@ -42,6 +42,6 @@ public abstract class BinaryNode extends ExpressionNode {
         return rightNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
 }

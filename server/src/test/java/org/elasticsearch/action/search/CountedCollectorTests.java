@@ -25,7 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -35,10 +35,10 @@ import java.util.concurrent.Executor;
 
 public class CountedCollectorTests extends ESTestCase {
     public void testCollect() throws InterruptedException {
-        AtomicArray<SearchPhaseResult> results = new AtomicArray<>(randomIntBetween(1, 100));
+        ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100));
         List<Integer> state = new ArrayList<>();
-        int numResultsExpected = randomIntBetween(1, results.length());
-        MockSearchPhaseContext context = new MockSearchPhaseContext(results.length());
+        int numResultsExpected = randomIntBetween(1, consumer.getAtomicArray().length());
+        MockSearchPhaseContext context = new MockSearchPhaseContext(consumer.getAtomicArray().length());
         CountDownLatch latch = new CountDownLatch(1);
         boolean maybeFork = randomBoolean();
         Executor executor = (runnable) -> {
@@ -49,7 +49,7 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(r -> results.set(r.getShardIndex(), r), numResultsExpected,
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected,
             latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;
@@ -61,7 +61,8 @@ public class CountedCollectorTests extends ESTestCase {
                 case 1:
                     state.add(1);
                     executor.execute(() -> {
-                        DfsSearchResult dfsSearchResult = new DfsSearchResult(new SearchContextId(UUIDs.randomBase64UUID(), shardID), null);
+                        DfsSearchResult dfsSearchResult = new DfsSearchResult(
+                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
                         dfsSearchResult.setShardIndex(shardID);
                         dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
                             new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));
@@ -78,7 +79,7 @@ public class CountedCollectorTests extends ESTestCase {
         }
         latch.await();
         assertEquals(numResultsExpected, state.size());
-
+        AtomicArray<SearchPhaseResult> results = consumer.getAtomicArray();
         for (int i = 0; i < numResultsExpected; i++) {
             switch (state.get(i)) {
                 case 0:

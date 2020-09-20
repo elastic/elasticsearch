@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -92,11 +93,16 @@ public abstract class InnerHitContextBuilder {
                 queryShardContext.getMapperService(), innerHitBuilder.getDocValueFields());
             innerHitsContext.docValuesContext(docValuesContext);
         }
+        if (innerHitBuilder.getFetchFields() != null) {
+            String indexName = queryShardContext.index().getName();
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields());
+            innerHitsContext.fetchFieldsContext(fieldsContext);
+        }
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
                 FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
-                FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
+                FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerContext.lookup());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), fieldScript, field.ignoreFailure()));
             }

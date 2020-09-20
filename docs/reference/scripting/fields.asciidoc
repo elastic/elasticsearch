@@ -14,12 +14,12 @@ API will have access to the `ctx` variable which exposes:
 [horizontal]
 `ctx._source`::     Access to the document <<mapping-source-field,`_source` field>>.
 `ctx.op`::          The operation that should be applied to the document: `index` or `delete`.
-`ctx._index` etc::  Access to <<mapping-fields,document meta-fields>>, some of which may be read-only.
+`ctx._index` etc::  Access to <<mapping-fields,document metadata fields>>, some of which may be read-only.
 
 [discrete]
 == Search and aggregation scripts
 
-With the exception of <<request-body-search-script-fields,script fields>> which are
+With the exception of <<script-fields,script fields>> which are
 executed once per search hit, scripts used in search and aggregations will be
 executed once for every document which might match a query or an aggregation.
 Depending on how many documents you have, this could mean millions or billions
@@ -46,19 +46,19 @@ relevance `_score` of each document:
 
 [source,console]
 -------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "function_score": {
@@ -90,12 +90,12 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,console]
 -------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "cost_price": 100
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "sales_price": {
@@ -157,7 +157,7 @@ values are optimised for accessing the value of a specific field in many
 documents.
 
 It makes sense to use `_source` when generating a
-<<request-body-search-script-fields,script field>> for the top ten hits from a
+<<script-fields,script field>> for the top ten hits from a
 search result but, for other search and aggregation use cases, always prefer
 using doc values.
 =========================================================
@@ -167,7 +167,7 @@ For instance:
 
 [source,console]
 -------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -181,13 +181,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "first_name": "Barry",
   "last_name": "White"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "full_name": {
@@ -210,7 +210,7 @@ _Stored fields_ -- fields explicitly marked as
 
 [source,console]
 -------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -226,13 +226,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "full_name": "Alice Ball",
   "title": "Professor"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "name_with_title": {

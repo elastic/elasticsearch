@@ -26,6 +26,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.List;
@@ -44,6 +45,16 @@ abstract class TermBasedFieldType extends SimpleMappedFieldType {
      *  query factory methods such as {@link #termQuery}. */
     protected BytesRef indexedValueForSearch(Object value) {
         return BytesRefs.toBytesRef(value);
+    }
+
+    @Override
+    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        failIfNotIndexed();
+        Query query = AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+        if (boost() != 1f) {
+            query = new BoostQuery(query, boost());
+        }
+        return query;            
     }
 
     @Override

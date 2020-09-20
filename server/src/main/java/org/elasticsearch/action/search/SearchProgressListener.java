@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -39,7 +38,7 @@ import java.util.stream.StreamSupport;
 /**
  * A listener that allows to track progress of the {@link SearchAction}.
  */
-abstract class SearchProgressListener {
+public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
 
     public static final SearchProgressListener NOOP = new SearchProgressListener() {};
@@ -176,13 +175,6 @@ abstract class SearchProgressListener {
         return results.stream()
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
-            .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
-            .collect(Collectors.toUnmodifiableList());
-    }
-
-    static List<SearchShard> buildSearchShards(SearchShardTarget[] results) {
-        return Arrays.stream(results)
-            .filter(Objects::nonNull)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
             .collect(Collectors.toUnmodifiableList());
     }

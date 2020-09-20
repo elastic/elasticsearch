@@ -11,7 +11,7 @@ import java.util.Collections;
 
 public class XmlFileStructureFinderTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory factory = new XmlFileStructureFinderFactory();
+    private final FileStructureFinderFactory factory = new XmlFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE, 0.0));
@@ -39,5 +39,6 @@ public class XmlFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
         assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 }

@@ -6,9 +6,9 @@
 ++++
 
 A _data stream_ is a convenient, scalable way to ingest, search, and manage
-continuously generated time-series data.
+continuously generated time series data.
 
-Time-series data, such as logs, tends to grow over time. While storing an entire
+Time series data, such as logs, tends to grow over time. While storing an entire
 time series in a single {es} index is simpler, it is often more efficient and
 cost-effective to store large volumes of data across multiple, time-based
 indices. Multiple indices let you move indices containing older, less frequently
@@ -38,10 +38,10 @@ budget, performance, resiliency, and retention needs.
 
 We recommend using data streams if you:
 
-* Use {es} to ingest, search, and manage large volumes of time-series data
+* Use {es} to ingest, search, and manage large volumes of time series data
 * Want to scale and reduce costs by using {ilm-init} to automate the management
   of your indices
-* Index large volumes of time-series data in {es} but rarely delete or update
+* Index large volumes of time series data in {es} but rarely delete or update
   individual documents
 
 
@@ -56,20 +56,19 @@ image::images/data-streams/data-streams-diagram.svg[align="center"]
 
 To create backing indices, each data stream requires a matching
 <<indices-templates,index template>>. This template acts as a blueprint for the
-stream's backing indices. It contains:
+stream's backing indices. It specifies:
 
-* The mappings and settings applied to each backing index when it's created.
+* One or more wildcard (`*`) patterns that match the name of the stream.
 
-* A name or wildcard (`*`) pattern that matches the data stream's name.
+* The mappings and settings for the stream's backing indices.
 
-* A `data_stream` object with an empty body (`{ }`). This object indicates the
-template is used for data streams.
+* That the template is used exclusively for data streams.
 
-A `@timestamp` field must be included in every document indexed to the data
-stream. This field can be mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field data type in the stream's matching index
-template. If no mapping is specified in the template, the `date` field data type
-with default options is used.
+Every document indexed to a data stream must have a `@timestamp` field. This
+field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
+data type by the stream's index template. If the template does not specify a
+mapping, the `@timestamp` field is mapped as a `date` field  with default
+options.
 
 The same index template can be used to create multiple data streams.
 
@@ -91,9 +90,9 @@ convention:
 .ds-<data-stream>-<generation>
 ----
 
-For example, the `web_server_logs` data stream has a generation of `34`. The
+For example, the `web-server-logs` data stream has a generation of `34`. The
 most recently created backing index for this data stream is named
-`.ds-web_server_logs-000034`.
+`.ds-web-server-logs-000034`.
 
 Because the generation increments with each new backing index, backing indices
 with a higher generation contain more recent data. Backing indices with a lower
@@ -162,7 +161,7 @@ manually perform a rollover. See <<manually-roll-over-a-data-stream>>.
 [[data-streams-append-only]]
 == Append-only
 
-For most time-series use cases, existing data is rarely, if ever, updated.
+For most time series use cases, existing data is rarely, if ever, updated.
 Because of this, data streams are designed to be append-only.
 
 You can send <<add-documents-to-a-data-stream,indexing requests for new

@@ -105,7 +105,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, true, TextSearchInfo.NONE, meta);
             this.dims = dims;
         }
 
@@ -127,6 +127,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public Query existsQuery(QueryShardContext context) {
             return new DocValuesFieldExistsQuery(name());
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return false;
         }
 
         @Override
@@ -230,7 +235,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected boolean docValuesByDefault() {
-        return false;
+        return true;
     }
 
     @Override

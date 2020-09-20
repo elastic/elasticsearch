@@ -20,12 +20,14 @@ import static org.hamcrest.Matchers.is;
 public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldRegexpQuery> {
     @Override
     protected StringScriptFieldRegexpQuery createTestInstance() {
+        int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
         return new StringScriptFieldRegexpQuery(
             randomScript(),
             leafFactory,
             randomAlphaOfLength(5),
             randomAlphaOfLength(6),
             randomInt(RegExp.ALL),
+            matchFlags,
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );
     }
@@ -37,7 +39,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             leafFactory,
             orig.fieldName(),
             orig.pattern(),
-            orig.flags(),
+            orig.syntaxFlags(),
+            orig.matchFlags(),
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );
     }
@@ -47,8 +50,9 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
         Script script = orig.script();
         String fieldName = orig.fieldName();
         String pattern = orig.pattern();
-        int flags = orig.flags();
-        switch (randomInt(3)) {
+        int syntaxFlags = orig.syntaxFlags();
+        int matchFlags = orig.matchFlags();
+        switch (randomInt(4)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
                 break;
@@ -59,12 +63,23 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
                 pattern += "modified";
                 break;
             case 3:
-                flags = randomValueOtherThan(flags, () -> randomInt(RegExp.ALL));
+                syntaxFlags = randomValueOtherThan(syntaxFlags, () -> randomInt(RegExp.ALL));
+                break;
+            case 4:
+                matchFlags = (matchFlags & RegExp.ASCII_CASE_INSENSITIVE) != 0 ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
                 break;
             default:
                 fail();
         }
-        return new StringScriptFieldRegexpQuery(script, leafFactory, fieldName, pattern, flags, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        return new StringScriptFieldRegexpQuery(
+            script,
+            leafFactory,
+            fieldName,
+            pattern,
+            syntaxFlags,
+            matchFlags,
+            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+        );
     }
 
     @Override
@@ -75,14 +90,29 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "test",
             "a.+b",
             0,
+            0,
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );
         assertTrue(query.matches(List.of("astuffb")));
+        assertFalse(query.matches(List.of("astuffB")));
         assertFalse(query.matches(List.of("fffff")));
         assertFalse(query.matches(List.of("ab")));
         assertFalse(query.matches(List.of("aasdf")));
         assertFalse(query.matches(List.of("dsfb")));
         assertTrue(query.matches(List.of("astuffb", "fffff")));
+
+        StringScriptFieldRegexpQuery ciQuery = new StringScriptFieldRegexpQuery(
+            randomScript(),
+            leafFactory,
+            "test",
+            "a.+b",
+            0,
+            RegExp.ASCII_CASE_INSENSITIVE,
+            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+        );
+        assertTrue(ciQuery.matches(List.of("astuffB")));
+        assertTrue(ciQuery.matches(List.of("Astuffb", "fffff")));
+
     }
 
     @Override
@@ -97,6 +127,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             leafFactory,
             "test",
             "a.+b",
+            0,
             0,
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );

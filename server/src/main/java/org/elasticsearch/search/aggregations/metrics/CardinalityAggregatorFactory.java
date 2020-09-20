@@ -54,36 +54,37 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.ALL_CORE,
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
-                // super hacky but it shows the point of the approach
+                // check global ords
                 if (valuesSourceConfig.hasValues()) {
                     ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
                     if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
                         ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                        // we compute the total number of terms across all segments
-                        final long totalNonDistinctTerms = totalNonDistinctTerms(context, source);
-                        final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-                        //  we assume there are 25% of repeated values
-                        final long ordinalsMemoryUsage = totalNonDistinctTerms * 3;
-                        // we do not consider the size if the bitSet, I think at most they can be ~1MB per bucket
-                        if (ordinalsMemoryUsage < countsMemoryUsage) {
+                        if (useGlobalOrds(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
                             return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
                                 context, parent, metadata);
                         }
                     }
                 }
-                // fall back in default aggregator
+                // fallback in the default aggregator
                 return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
             }, true);
     }
 
-    private static long totalNonDistinctTerms(SearchContext context, ValuesSource.Bytes.WithOrdinals source) throws IOException {
+    private static boolean useGlobalOrds(SearchContext context,
+                                         ValuesSource.Bytes.WithOrdinals source,
+                                         int precision) throws IOException {
         List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+        // we compute the total number of terms across all segments
         long total = 0;
         for (LeafReaderContext leaf : leaves) {
             total += source.ordinalsValues(leaf).getValueCount();
         }
-        return total;
+        final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+        // we assume there are 25% of repeated values when there is more than one leaf
+        final long ordinalsMemoryUsage = leaves.size() == 1 ? total * 4L : total * 3L;
+        // we do not consider the size if the bitSet, I think at most they can be ~1MB per bucket
+        return ordinalsMemoryUsage < countsMemoryUsage;
     }
 
     @Override

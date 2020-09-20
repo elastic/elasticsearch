@@ -67,7 +67,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
             // we use a sparse structure for linear counting
             AbstractLinearCounting.HashesIterator iterator = getLinearCounting(bucketOrd);
             int size = Math.toIntExact(iterator.size());
-            HyperLogLogPlusPlusSparse clone = new HyperLogLogPlusPlusSparse(precision(), bigArrays);
+            HyperLogLogPlusPlusSparse clone = new HyperLogLogPlusPlusSparse(precision(), bigArrays, 1);
             clone.ensureCapacity(0, size);
             while (iterator.next()) {
                 clone.addEncoded(0, iterator.value());
@@ -128,7 +128,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         if (algorithm == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
             final long size = in.readVLong();
-            HyperLogLogPlusPlusSparse counts  = new HyperLogLogPlusPlusSparse(precision, bigArrays);
+            HyperLogLogPlusPlusSparse counts  = new HyperLogLogPlusPlusSparse(precision, bigArrays, 1);
             counts.ensureCapacity(0, size);
             for (long i = 0; i < size; ++i) {
                 counts.addEncoded(0, in.readInt());

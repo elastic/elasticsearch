@@ -34,15 +34,16 @@ import org.elasticsearch.common.util.ObjectArray;
  */
 final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implements Releasable {
 
+    // TODO: consider a hll sparse structure
     private final LinearCounting lc;
 
     /**
      * Create an sparse HLL++ algorithm where capacity is the maximum number of hashes this structure can hold
      * per bucket.
      */
-    HyperLogLogPlusPlusSparse(int precision, BigArrays bigArrays) {
+    HyperLogLogPlusPlusSparse(int precision, BigArrays bigArrays, long initialBuckets) {
         super(precision);
-        this.lc = new LinearCounting(precision, bigArrays);
+        this.lc = new LinearCounting(precision, bigArrays, initialBuckets);
     }
 
     @Override
@@ -99,11 +100,11 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         private ObjectArray<IntArray> values;
         private IntArray sizes;
 
-        LinearCounting(int p, BigArrays bigArrays) {
+        LinearCounting(int p, BigArrays bigArrays, long initialBuckets) {
             super(p);
             this.bigArrays = bigArrays;
-            values = bigArrays.newObjectArray(0);
-            sizes = bigArrays.newIntArray(0);
+            values = bigArrays.newObjectArray(initialBuckets);
+            sizes = bigArrays.newIntArray(initialBuckets);
             iterator = new LinearCountingIterator();
         }
 
@@ -120,7 +121,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             if (value == null) {
                 value = bigArrays.newIntArray(size);
             } else {
-                value = bigArrays.grow(value, bucketOrd + 1);
+                value = bigArrays.grow(value, size);
             }
             values.set(bucketOrd, value);
         }
@@ -143,6 +144,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
         private int set(long bucketOrd, int value) {
             // This assumes that ensureCapacity has been called before
+            assert values.get(bucketOrd) != null : "Added a value without calling ensureCapacity";
             IntArray array = values.get(bucketOrd);
             int size = sizes.get(bucketOrd);
             array.set(size, value);

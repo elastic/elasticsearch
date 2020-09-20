@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -48,6 +49,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
 
+    // Build at post-collection phase
+    @Nullable
     private HyperLogLogPlusPlusSparse counts;
 
     private final OrdinalsCollector collector;
@@ -62,8 +65,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
-        this.counts = new HyperLogLogPlusPlusSparse(precision, context.bigArrays());
-        this.collector = new OrdinalsCollector(counts, context.bigArrays(), maxOrd);
+        this.counts = null;
+        this.collector = new OrdinalsCollector(precision, context.bigArrays(), maxOrd);
     }
 
     @Override
@@ -80,17 +83,17 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     protected void doPostCollection() throws IOException {
-        collector.postCollect();
+        counts = collector.postCollect();
     }
 
     @Override
     public double metric(long owningBucketOrd) {
-        return counts.cardinality(owningBucketOrd);
+        return counts == null ? 0 : counts.cardinality(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
+        if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after
@@ -124,14 +127,13 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
         private final BigArrays bigArrays;
         private SortedSetDocValues values;
-        private final int maxOrd;
-        private final HyperLogLogPlusPlusSparse counts;
+        private final int maxOrd, precision;
         private ObjectArray<BitArray> visitedOrds;
 
-        OrdinalsCollector(HyperLogLogPlusPlusSparse counts, BigArrays bigArrays, int maxOrd) {
+        OrdinalsCollector(int precision, BigArrays bigArrays, int maxOrd) {
             this.maxOrd = maxOrd;
+            this.precision = precision;
             this.bigArrays = bigArrays;
-            this.counts = counts;
             visitedOrds = bigArrays.newObjectArray(1);
         }
 
@@ -154,7 +156,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             }
         }
 
-        public void postCollect() throws IOException {
+        protected HyperLogLogPlusPlusSparse postCollect() throws IOException {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                     final BitArray bits = visitedOrds.get(bucket);
@@ -171,7 +173,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                         MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                         hashes.set(ord, hash.h1);
                     }
-
+                    HyperLogLogPlusPlusSparse counts =
+                        new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
@@ -182,6 +185,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                             }
                         }
                     }
+                    return counts;
                 }
             }
         }

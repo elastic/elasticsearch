@@ -107,6 +107,7 @@ understand the time requirements before proceeding.
 --
 
 include::register-repository.asciidoc[]
+include::apis/clone-snapshot-api.asciidoc[]
 include::take-snapshot.asciidoc[]
 include::restore-snapshot.asciidoc[]
 include::monitor-snapshot-restore.asciidoc[]

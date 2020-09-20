@@ -58,7 +58,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
     @Override
     public long cardinality(long bucketOrd) {
-        // should be the cardinality just the size of the array?
         return lc.cardinality(bucketOrd);
     }
 
@@ -153,6 +152,9 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
         private int recomputedSize(long bucketOrd) {
             IntArray array = values.get(bucketOrd);
+            if (array == null) {
+                return 0;
+            }
             for (int i = 0; i < array.size(); ++i) {
                 final int v = array.get(i);
                 if (v == 0) {

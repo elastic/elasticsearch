@@ -53,7 +53,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     @Nullable
     private HyperLogLogPlusPlusSparse counts;
 
-    private final OrdinalsCollector collector;
+    private OrdinalsCollector collector;
 
     private final int precision;
 
@@ -88,6 +88,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     protected void doPostCollection() throws IOException {
         counts = new HyperLogLogPlusPlusSparse(precision, collector.bigArrays, collector.visitedOrds.size());
         collector.postCollect(counts);
+        collector.close();
+        collector = null;
     }
 
     @Override

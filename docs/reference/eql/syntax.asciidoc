@@ -98,7 +98,12 @@ Returns `true` if the value to the left of the operator is greater than the
 value to the right. Otherwise returns `false`.
 ====
 
-You cannot use comparison operators to compare a variable, such as a field
+You cannot chain comparison operators. Instead, use a
+<<eql-syntax-logical-operators,logical operator>> between comparisons. For
+example, `foo < bar <= baz` is not supported. However, you can rewrite the
+expression as `foo < bar and bar <= baz`, which is supported.
+
+You also cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a
 <<eql-functions,function>>.
 

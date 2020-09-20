@@ -284,6 +284,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    public static void failReadsAllDataNodes(String repository) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+            mockRepository.setFailReadsAfterUnblock(true);
+        }
+    }
+
     public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
@@ -314,11 +321,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        createRepository(repoName, type, randomRepositorySettings());
+    }
+
+    protected Settings.Builder randomRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
-            settings = settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+            settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
-        createRepository(repoName, type, settings);
+        return settings;
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
@@ -483,7 +495,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .setPartial(partial).execute();
     }
 
-    protected void awaitNSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
         awaitClusterState(state ->
                 state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
@@ -497,7 +509,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
 
-    protected void createSingleShardIndexWithContent(String indexName) {
+    protected void createIndexWithContent(String indexName) {
         createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
     }
 
@@ -508,7 +520,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         indexDoc(indexName, "some_id", "foo", "bar");
     }
 
-    protected ActionFuture<AcknowledgedResponse> startDelete(String repoName, String snapshotName) {
+    protected ActionFuture<AcknowledgedResponse> startDeleteSnapshot(String repoName, String snapshotName) {
         logger.info("--> deleting snapshot [{}] from repo [{}]", snapshotName, repoName);
         return client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }

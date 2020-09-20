@@ -182,11 +182,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
         SequenceIDFields seqID = SequenceIDFields.emptySeqID();
@@ -194,11 +189,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         context.doc().add(seqID.seqNo);
         context.doc().add(seqID.seqNoDocValue);
         context.doc().add(seqID.primaryTerm);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // fields are added in parseCreateField
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -252,19 +255,67 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo"), null));
         indexCalendars(calendars);
 
-        List<Calendar> queryResult = getCalendars("ted");
+        List<Calendar> queryResult = getCalendars(CalendarQueryBuilder.builder().jobId("ted"));
         assertThat(queryResult, is(empty()));
 
-        queryResult = getCalendars("foo");
+        queryResult = getCalendars(CalendarQueryBuilder.builder().jobId("foo"));
         assertThat(queryResult, hasSize(3));
         Long matchedCount = queryResult.stream().filter(
                 c -> c.getId().equals("foo calendar") || c.getId().equals("foo bar calendar") || c.getId().equals("cat foo calendar"))
                 .count();
         assertEquals(Long.valueOf(3), matchedCount);
 
-        queryResult = getCalendars("bar");
+        queryResult = getCalendars(CalendarQueryBuilder.builder().jobId("bar"));
         assertThat(queryResult, hasSize(1));
         assertEquals("foo bar calendar", queryResult.get(0).getId());
+    }
+
+    public void testGetCalandarById() throws Exception {
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar("empty calendar", Collections.emptyList(), null));
+        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo"), null));
+        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar"), null));
+        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat"), null));
+        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo"), null));
+        indexCalendars(calendars);
+
+        List<Calendar> queryResult = getCalendars(CalendarQueryBuilder.builder()
+            .calendarIdTokens(new String[]{"foo*"})
+            .sort(true));
+        assertThat(queryResult, hasSize(2));
+        assertThat(queryResult.get(0).getId(), equalTo("foo bar calendar"));
+        assertThat(queryResult.get(1).getId(), equalTo("foo calendar"));
+
+        queryResult = getCalendars(CalendarQueryBuilder.builder()
+            .calendarIdTokens(new String[]{"foo calendar", "cat calendar"})
+            .sort(true));
+        assertThat(queryResult, hasSize(2));
+        assertThat(queryResult.get(0).getId(), equalTo("cat calendar"));
+        assertThat(queryResult.get(1).getId(), equalTo("foo calendar"));
+    }
+
+    public void testGetCalendarByIdAndPaging() throws Exception {
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar("empty calendar", Collections.emptyList(), null));
+        calendars.add(new Calendar("foo calendar", Collections.singletonList("foo"), null));
+        calendars.add(new Calendar("foo bar calendar", Arrays.asList("foo", "bar"), null));
+        calendars.add(new Calendar("cat calendar",  Collections.singletonList("cat"), null));
+        calendars.add(new Calendar("cat foo calendar", Arrays.asList("cat", "foo"), null));
+        indexCalendars(calendars);
+
+        List<Calendar> queryResult = getCalendars(CalendarQueryBuilder.builder()
+            .calendarIdTokens(new String[]{"foo*"})
+            .pageParams(new PageParams(0, 1))
+            .sort(true));
+        assertThat(queryResult, hasSize(1));
+        assertThat(queryResult.get(0).getId(), equalTo("foo bar calendar"));
+
+        queryResult = getCalendars(CalendarQueryBuilder.builder()
+            .calendarIdTokens(new String[]{"foo calendar", "cat calendar"})
+            .sort(true)
+            .pageParams(new PageParams(1, 1)));
+        assertThat(queryResult, hasSize(1));
+        assertThat(queryResult.get(0).getId(), equalTo("foo calendar"));
     }
 
     public void testUpdateCalendar() throws Exception {
@@ -316,7 +367,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             throw exceptionHolder.get();
         }
 
-        List<Calendar> updatedCalendars = getCalendars(null);
+        List<Calendar> updatedCalendars = getCalendars(CalendarQueryBuilder.builder());
         assertEquals(5, updatedCalendars.size());
         for (Calendar cal: updatedCalendars) {
             assertThat("bar", is(not(in(cal.getJobIds()))));
@@ -338,7 +389,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             throw exceptionHolder.get();
         }
 
-        updatedCalendars = getCalendars(null);
+        updatedCalendars = getCalendars(CalendarQueryBuilder.builder());
         assertEquals(5, updatedCalendars.size());
         for (Calendar cal: updatedCalendars) {
             assertThat("bar", is(not(in(cal.getJobIds()))));
@@ -380,16 +431,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         return aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toSet());
     }
 
-    private List<Calendar> getCalendars(String jobId) throws Exception {
+    private List<Calendar> getCalendars(CalendarQueryBuilder query) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<QueryPage<Calendar>> result = new AtomicReference<>();
 
-        CalendarQueryBuilder query = new CalendarQueryBuilder();
-
-        if (jobId != null) {
-            query.jobId(jobId);
-        }
         jobProvider.calendars(query, ActionListener.wrap(
                 r -> {
                     result.set(r);
@@ -451,7 +497,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         return  calendarHolder.get();
     }
 
-    public void testScheduledEvents() throws Exception {
+    public void testScheduledEventsForJobs() throws Exception {
         Job.Builder jobA = createJob("job_a");
         Job.Builder jobB = createJob("job_b");
         Job.Builder jobC = createJob("job_c");
@@ -500,6 +546,59 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertEquals(events.get(3), returnedEvents.get(1));
     }
 
+    public void testScheduledEvents() throws Exception {
+        createJob("job_a");
+        createJob("job_b");
+        createJob("job_c");
+
+        String calendarAId = "maintenance_a";
+        List<Calendar> calendars = new ArrayList<>();
+        calendars.add(new Calendar(calendarAId, Collections.singletonList("job_a"), null));
+
+        ZonedDateTime now = ZonedDateTime.now();
+        List<ScheduledEvent> events = new ArrayList<>();
+        events.add(buildScheduledEvent("downtime", now.plusDays(1), now.plusDays(2), calendarAId));
+        events.add(buildScheduledEvent("downtime_AA", now.plusDays(8), now.plusDays(9), calendarAId));
+        events.add(buildScheduledEvent("downtime_AAA", now.plusDays(15), now.plusDays(16), calendarAId));
+
+        String calendarABId = "maintenance_a_and_b";
+        calendars.add(new Calendar(calendarABId, Arrays.asList("job_a", "job_b"), null));
+
+        events.add(buildScheduledEvent("downtime_AB", now.plusDays(12), now.plusDays(13), calendarABId));
+
+        indexCalendars(calendars);
+        indexScheduledEvents(events);
+
+        List<ScheduledEvent> returnedEvents = getScheduledEvents(new ScheduledEventsQueryBuilder());
+        assertEquals(4, returnedEvents.size());
+        assertEquals(events.get(0), returnedEvents.get(0));
+        assertEquals(events.get(1), returnedEvents.get(1));
+        assertEquals(events.get(3), returnedEvents.get(2));
+        assertEquals(events.get(2), returnedEvents.get(3));
+
+        returnedEvents = getScheduledEvents(ScheduledEventsQueryBuilder.builder().calendarIds(new String[]{"maintenance_a"}));
+        assertEquals(3, returnedEvents.size());
+        assertEquals(events.get(0), returnedEvents.get(0));
+        assertEquals(events.get(1), returnedEvents.get(1));
+        assertEquals(events.get(2), returnedEvents.get(2));
+
+        returnedEvents = getScheduledEvents(ScheduledEventsQueryBuilder.builder()
+            .calendarIds(new String[]{"maintenance_a", "maintenance_a_and_b"}));
+        assertEquals(4, returnedEvents.size());
+        assertEquals(events.get(0), returnedEvents.get(0));
+        assertEquals(events.get(1), returnedEvents.get(1));
+        assertEquals(events.get(3), returnedEvents.get(2));
+        assertEquals(events.get(2), returnedEvents.get(3));
+
+        returnedEvents = getScheduledEvents(ScheduledEventsQueryBuilder.builder()
+            .calendarIds(new String[]{"maintenance_a*"}));
+        assertEquals(4, returnedEvents.size());
+        assertEquals(events.get(0), returnedEvents.get(0));
+        assertEquals(events.get(1), returnedEvents.get(1));
+        assertEquals(events.get(3), returnedEvents.get(2));
+        assertEquals(events.get(2), returnedEvents.get(3));
+    }
+
     public void testScheduledEventsForJob_withGroup() throws Exception {
         String groupA = "group-a";
         String groupB = "group-b";
@@ -539,6 +638,49 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             .endTime(end.toInstant())
             .calendarId(calendarId)
             .build();
+    }
+
+    public void testGetSnapshots() {
+        String jobId = "test_get_snapshots";
+        Job.Builder job = createJob(jobId);
+        indexModelSnapshot(new ModelSnapshot.Builder(jobId).setSnapshotId("snap_2")
+            .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
+            .build());
+        indexModelSnapshot(new ModelSnapshot.Builder(jobId).setSnapshotId("snap_1")
+            .setTimestamp(Date.from(Instant.ofEpochMilli(11)))
+            .build());
+        indexModelSnapshot(new ModelSnapshot.Builder(jobId).setSnapshotId("other_snap")
+            .setTimestamp(Date.from(Instant.ofEpochMilli(12)))
+            .build());
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
+
+        PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", future::onResponse, future::onFailure);
+        List<ModelSnapshot> snapshots = future.actionGet().results();
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
+
+        future = new PlainActionFuture<>();
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", future::onResponse, future::onFailure);
+        snapshots = future.actionGet().results();
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
+
+        future = new PlainActionFuture<>();
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", future::onResponse, future::onFailure);
+        snapshots = future.actionGet().results();
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
+        assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
+
+        future = new PlainActionFuture<>();
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", future::onResponse, future::onFailure);
+        snapshots = future.actionGet().results();
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
+        assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
     }
 
     public void testGetAutodetectParams() throws Exception {
@@ -651,6 +793,27 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             errorHolder.set(e);
             latch.countDown();
         }));
+
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+
+        return searchResultHolder.get().results();
+    }
+
+    private List<ScheduledEvent> getScheduledEvents(ScheduledEventsQueryBuilder query) throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<ScheduledEvent>> searchResultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.scheduledEvents(query, ActionListener.wrap(
+            params -> {
+                searchResultHolder.set(params);
+                latch.countDown();
+            }, e -> {
+                errorHolder.set(e);
+                latch.countDown();
+            }));
 
         latch.await();
         if (errorHolder.get() != null) {

@@ -55,6 +55,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     private final OrdinalsCollector collector;
 
+    private final int precision;
+
     public GlobalOrdCardinalityAggregator(
             String name,
             ValuesSource.Bytes.WithOrdinals valuesSource,
@@ -66,7 +68,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.counts = null;
-        this.collector = new OrdinalsCollector(precision, context.bigArrays(), maxOrd);
+        this.collector = new OrdinalsCollector(context.bigArrays(), maxOrd);
+        this.precision = precision;
     }
 
     @Override
@@ -83,7 +86,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     protected void doPostCollection() throws IOException {
-        counts = collector.postCollect();
+        counts = new HyperLogLogPlusPlusSparse(precision, collector.bigArrays, collector.visitedOrds.size());
+        collector.postCollect(counts);
     }
 
     @Override
@@ -127,14 +131,13 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
         private final BigArrays bigArrays;
         private SortedSetDocValues values;
-        private final int maxOrd, precision;
+        private final int maxOrd;
         private ObjectArray<BitArray> visitedOrds;
 
-        OrdinalsCollector(int precision, BigArrays bigArrays, int maxOrd) {
+        OrdinalsCollector(BigArrays bigArrays, int maxOrd) {
             this.maxOrd = maxOrd;
-            this.precision = precision;
             this.bigArrays = bigArrays;
-            visitedOrds = bigArrays.newObjectArray(1);
+            this.visitedOrds = bigArrays.newObjectArray(1);
         }
 
         protected void set(SortedSetDocValues values) {
@@ -156,7 +159,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             }
         }
 
-        protected HyperLogLogPlusPlusSparse postCollect() throws IOException {
+        protected void postCollect(HyperLogLogPlusPlusSparse counts) throws IOException {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                     final BitArray bits = visitedOrds.get(bucket);
@@ -173,8 +176,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                         MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                         hashes.set(ord, hash.h1);
                     }
-                    final HyperLogLogPlusPlusSparse counts =
-                        new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
@@ -185,7 +186,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                             }
                         }
                     }
-                    return counts;
                 }
             }
         }

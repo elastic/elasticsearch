@@ -173,7 +173,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                         MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                         hashes.set(ord, hash.h1);
                     }
-                    HyperLogLogPlusPlusSparse counts =
+                    final HyperLogLogPlusPlusSparse counts =
                         new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);

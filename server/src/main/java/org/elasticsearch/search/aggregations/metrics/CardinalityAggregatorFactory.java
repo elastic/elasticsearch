@@ -56,9 +56,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
-                    ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
+                    final ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
                     if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-                        ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+                        final ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                         if (useGlobalOrds(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
                             return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
@@ -74,7 +74,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static boolean useGlobalOrds(SearchContext context,
                                          ValuesSource.Bytes.WithOrdinals source,
                                          int precision) throws IOException {
-        List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+        final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         // we compute the total number of terms across all segments
         long total = 0;
         for (LeafReaderContext leaf : leaves) {

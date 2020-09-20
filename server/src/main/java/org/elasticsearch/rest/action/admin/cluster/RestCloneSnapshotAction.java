@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -53,13 +52,9 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         Map<String, Object> body = request.contentParser().mapOrdered();
-        final Object indexSettings = body.get("index_settings");
         final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
                 request.param("repository"), request.param("snapshot"), request.param("target_snapshot"),
-                XContentMapValues.nodeStringArrayValue(body.getOrDefault("indices", Collections.emptyList())),
-                XContentMapValues.nodeStringArrayValue(body.getOrDefault("excluded_settings", Collections.emptyList())),
-                indexSettings == null ? Settings.EMPTY :
-                        Settings.builder().loadFromMap(XContentMapValues.nodeMapValue(indexSettings, "index_settings")).build());
+                XContentMapValues.nodeStringArrayValue(body.getOrDefault("indices", Collections.emptyList())));
         cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
     }

@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 
 public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CloneSnapshotRequest, AcknowledgedResponse,
                                                                                    CloneSnapshotRequestBuilder> {
@@ -37,16 +36,11 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
     public CloneSnapshotRequestBuilder(ElasticsearchClient client, ActionType<AcknowledgedResponse> action,
                                        String repository, String source, String target) {
         this(client, action,
-                new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Settings.EMPTY));
+                new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }
 
     public CloneSnapshotRequestBuilder setIndices(String... indices) {
         request.indices(indices);
-        return this;
-    }
-
-    public CloneSnapshotRequestBuilder setIndexSettings(Settings settings) {
-        request.indexSettings(settings);
         return this;
     }
 }

@@ -10,11 +10,7 @@ Clones part or all of a snapshot into a new snapshot.
 ----
 PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
 {
-  "indices": "index_a, index_b",
-  "excluded_settings": "setting_a",
-  "index_settings": {
-    "setting_key": "setting_value"
-  }
+  "indices": "index_a, index_b"
 }
 ----
 // TEST[skip:TODO]
@@ -54,11 +50,3 @@ fails and returns an error. Defaults to `30s`.
 (Required, string)
 A comma-separated list of indices to include in the snapshot.
 <<multi-index,Multi-index syntax>> is supported.
-
-`settings`::
-(Optional, object)
-Optional index settings to be applied to all index clones relative to the source index settings.
-
-`excluded_settings`::
-(Optional, string)
-A comma-separated list of index settings that should not be included in the cloned index snapshots.

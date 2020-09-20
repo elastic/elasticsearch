@@ -23,8 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -273,35 +271,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (ActionFuture<CreateSnapshotResponse> extraSnapshotFuture : extraSnapshotFutures) {
             assertSuccessful(extraSnapshotFuture);
         }
-    }
-
-    @AwaitsFix(bugUrl = "TODO if we want it")
-    public void testCloneSnapshotWithIndexSettingUpdates() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-        final String repoName = "repo-name";
-        createRepository(repoName, "fs");
-
-        final String indexName = "index-1";
-        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
-        final String sourceSnapshot = "source-snapshot";
-        createFullSnapshot(repoName, sourceSnapshot);
-
-        indexRandomDocs(indexName, randomIntBetween(20, 100));
-
-        final String targetSnapshot = "target-snapshot";
-        assertAcked(client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName)
-                .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()).get());
-
-        final RestoreInfo restoreInfo = client().admin().cluster()
-                .prepareRestoreSnapshot(repoName, targetSnapshot).setIndices(indexName).setRenamePattern("(.+)")
-                .setRenameReplacement("$1-copy").setWaitForCompletion(true).get().getRestoreInfo();
-        assertEquals(restoreInfo.successfulShards(), restoreInfo.totalShards());
-
-        final String restoredIndex = indexName + "-copy";
-        final Settings settings =
-                client().admin().indices().prepareGetIndex().setIndices(restoredIndex).get().getSettings().get(restoredIndex);
-        assertEquals(settings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), "1");
     }
 
     public void testMasterFailoverDuringCloneStep1() throws Exception {

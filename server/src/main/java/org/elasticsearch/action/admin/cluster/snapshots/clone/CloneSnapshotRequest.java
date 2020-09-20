@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 
@@ -41,10 +40,6 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
 
-    private final String[] excludedSettings;
-
-    private Settings indexSettings;
-
     public CloneSnapshotRequest(StreamInput in) throws IOException {
         super(in);
         repository = in.readString();
@@ -52,18 +47,13 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         target = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        excludedSettings = in.readStringArray();
-        indexSettings = Settings.readSettingsFromStream(in);
     }
 
-    public CloneSnapshotRequest(String repository, String source, String target, String[] indices, String[] excludedSettings,
-                                Settings indexSettings) {
+    public CloneSnapshotRequest(String repository, String source, String target, String[] indices) {
         this.repository = repository;
         this.source = source;
         this.target = target;
         this.indices = indices;
-        this.excludedSettings = excludedSettings;
-        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -74,8 +64,6 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         out.writeString(target);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(excludedSettings);
-        Settings.writeSettingsToStream(indexSettings, out);
     }
 
     @Override
@@ -114,14 +102,5 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     public String source() {
         return this.source;
-    }
-
-    public Settings indexSettings() {
-        return indexSettings;
-    }
-
-    public CloneSnapshotRequest indexSettings(Settings indexSettings) {
-        this.indexSettings = indexSettings;
-        return this;
     }
 }

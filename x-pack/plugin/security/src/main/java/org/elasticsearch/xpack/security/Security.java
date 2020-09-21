@@ -104,9 +104,9 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -169,9 +169,9 @@ import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMa
 import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportPutRoleMappingAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlAuthenticateAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
-import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
@@ -186,7 +186,9 @@ import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.TransportRequestAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.audit.logfile.SecurityActionRequestBodyLoggingAuditor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -237,9 +239,9 @@ import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMa
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
-import org.elasticsearch.xpack.security.rest.action.saml.RestSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
@@ -392,9 +394,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(securityContext.get());
 
         // audit trail service construction
-        final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
-                ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
-                : Collections.emptyList();
+        final List<AuditTrail> auditTrails;
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
+            LoggingAuditTrail loggingAuditTrail = new LoggingAuditTrail(settings, clusterService, threadPool);
+            SecurityActionRequestBodyLoggingAuditor securityRequestBodyAuditor =
+                    new SecurityActionRequestBodyLoggingAuditor(loggingAuditTrail);
+            AuditTrail securityActionRequestLoggingAuditTrail = new TransportRequestAuditTrail(securityRequestBodyAuditor);
+            auditTrails = List.of(loggingAuditTrail, securityActionRequestLoggingAuditTrail);
+        } else {
+            auditTrails = List.of();
+        }
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);

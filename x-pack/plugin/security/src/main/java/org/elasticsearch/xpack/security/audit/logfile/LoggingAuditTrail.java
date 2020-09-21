@@ -234,6 +234,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }, List.of(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
+    public void logRequestBody(String requestId, String action, String requestBody) {
+        final StringMapMessage logEntry = new LogEntryBuilder()
+                .withRequestId(requestId)
+                .with(ACTION_FIELD_NAME, action)
+                .with(REQUEST_BODY_FIELD_NAME, requestBody)
+                .build();
+        logger.info(AUDIT_MARKER, logEntry);
+    }
+
     @Override
     public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS) && eventFilterPolicyRegistry.ignorePredicate()

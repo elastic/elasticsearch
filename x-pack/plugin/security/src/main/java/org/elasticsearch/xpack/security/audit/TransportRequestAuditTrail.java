@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.audit.logfile;
+package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
@@ -12,19 +12,30 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.security.audit.AuditLevel;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
 
-public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
+public class TransportRequestAuditTrail implements AuditTrail {
 
-    public static final String NAME = "logfile_transport_request_body";
+    public static final String NAME = "audit_transport_request";
+
+    public interface Auditor {
+
+        String name();
+
+        void auditTransportRequest(String requestId, String action, TransportRequest transportRequest);
+    }
+
+    private final Auditor auditor;
+
+    public TransportRequestAuditTrail(Auditor auditor) {
+        this.auditor = auditor;
+    }
 
     @Override
     public String name() {
-        return NAME;
+        return NAME + "_" + auditor.name();
     }
 
     @Override
@@ -42,7 +53,7 @@ public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
 
     @Override
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
-        //TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
@@ -57,12 +68,12 @@ public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
 
     @Override
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
@@ -85,13 +96,13 @@ public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
     @Override
     public void accessGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                               AuthorizationEngine.AuthorizationInfo authorizationInfo) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
     public void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                              AuthorizationEngine.AuthorizationInfo authorizationInfo) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
@@ -101,12 +112,12 @@ public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
 
     @Override
     public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
     public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
@@ -128,13 +139,13 @@ public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
     @Override
     public void runAsDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                             AuthorizationEngine.AuthorizationInfo authorizationInfo) {
-        // TODO
+        auditTransportRequest(requestId, action, transportRequest);
     }
 
     @Override
     public void runAsDenied(String requestId, Authentication authentication, RestRequest request,
                             AuthorizationEngine.AuthorizationInfo authorizationInfo) {
-        // TODO
+        // this is a REST request; audit only transport request bodies
     }
 
     @Override
@@ -142,5 +153,9 @@ public class TransportRequestBodyLoggingAuditTrail implements AuditTrail {
                                          String indices, String requestName, TransportAddress remoteAddress,
                                          AuthorizationEngine.AuthorizationInfo authorizationInfo) {
         // these are used for detailed auditing of bulk items, but it is sufficient to audit the request body of the entire bulk request
+    }
+
+    private void auditTransportRequest(String requestId, String action, TransportRequest transportRequest) {
+        auditor.auditTransportRequest(requestId, action, transportRequest);
     }
 }

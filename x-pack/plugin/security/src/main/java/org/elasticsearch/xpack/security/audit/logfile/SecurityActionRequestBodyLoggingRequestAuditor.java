@@ -12,19 +12,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
-import org.elasticsearch.xpack.security.audit.TransportRequestAuditTrail;
 
 import java.io.IOException;
 
-public class SecurityActionRequestBodyLoggingAuditor implements TransportRequestAuditTrail.Auditor {
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.ACTION_FIELD_NAME;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.REQUEST_BODY_FIELD_NAME;
+
+public class SecurityActionRequestBodyLoggingRequestAuditor implements RequestLoggingAuditTrail.RequestAuditor {
 
     public static final String NAME = "security_logfile";
-
-    private final LoggingAuditTrail loggingAuditTrail;
-
-    public SecurityActionRequestBodyLoggingAuditor(LoggingAuditTrail loggingAuditTrail) {
-        this.loggingAuditTrail = loggingAuditTrail;
-    }
 
     @Override
     public String name() {
@@ -32,17 +28,21 @@ public class SecurityActionRequestBodyLoggingAuditor implements TransportRequest
     }
 
     @Override
-    public void auditTransportRequest(String requestId, String action, TransportRequest transportRequest) {
+    public void auditTransportRequest(String requestId, String action, TransportRequest transportRequest,
+                                      LoggingAuditTrail.LogEntryBuilder logEntryBuilder) {
         if (DeleteUserAction.NAME.equals(action) && transportRequest instanceof DeleteUserRequest) {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.startObject()
                         .field("username", ((DeleteUserRequest) transportRequest).username())
                         .endObject();
-                loggingAuditTrail.logRequestBody(requestId, action, Strings.toString(builder));
+                logEntryBuilder.withRequestId(requestId)
+                        .with(ACTION_FIELD_NAME, action)
+                        .with(REQUEST_BODY_FIELD_NAME, Strings.toString(builder));
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
+
 }

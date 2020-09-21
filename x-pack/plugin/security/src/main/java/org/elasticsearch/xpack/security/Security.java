@@ -186,9 +186,9 @@ import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.audit.TransportRequestAuditTrail;
+import org.elasticsearch.xpack.security.audit.logfile.RequestLoggingAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.xpack.security.audit.logfile.SecurityActionRequestBodyLoggingAuditor;
+import org.elasticsearch.xpack.security.audit.logfile.SecurityActionRequestBodyLoggingRequestAuditor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -396,11 +396,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // audit trail service construction
         final List<AuditTrail> auditTrails;
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-            LoggingAuditTrail loggingAuditTrail = new LoggingAuditTrail(settings, clusterService, threadPool);
-            SecurityActionRequestBodyLoggingAuditor securityRequestBodyAuditor =
-                    new SecurityActionRequestBodyLoggingAuditor(loggingAuditTrail);
-            AuditTrail securityActionRequestLoggingAuditTrail = new TransportRequestAuditTrail(securityRequestBodyAuditor);
-            auditTrails = List.of(loggingAuditTrail, securityActionRequestLoggingAuditTrail);
+            RequestLoggingAuditTrail requestLoggingAuditTrail = new RequestLoggingAuditTrail(settings, clusterService, threadPool,
+                    new SecurityActionRequestBodyLoggingRequestAuditor());
+            auditTrails = List.of(requestLoggingAuditTrail);
         } else {
             auditTrails = List.of();
         }

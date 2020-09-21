@@ -68,13 +68,7 @@ public class NettyAllocator {
                     maxOrder = PooledByteBufAllocator.defaultMaxOrder();
                 } else {
                     pageSize = 8192;
-                    if (g1gcEnabled == false) {
-                        // This combined with a 8192 page size = 1 MB chunk sizes
-                        maxOrder = 7;
-                    } else if (g1gcRegionSizeIsKnown == false) {
-                        // This combined with a 8192 page size = 1 MB chunk sizes
-                        maxOrder = 7;
-                    } else if (g1gcRegionSizeInBytes >= (4 * 1024 * 1024)) {
+                    if (g1gcEnabled == false || g1gcRegionSizeIsKnown == false || g1gcRegionSizeInBytes >= (4 * 1024 * 1024)) {
                         // This combined with a 8192 page size = 1 MB chunk sizes
                         maxOrder = 7;
                     } else if (g1gcRegionSizeInBytes >= (2 * 1024 * 1024)) {

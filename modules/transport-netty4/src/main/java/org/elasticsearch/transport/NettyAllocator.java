@@ -41,19 +41,24 @@ public class NettyAllocator {
     private static final String USE_NETTY_DEFAULT_CHUNK = "es.unsafe.use_netty_default_chunk_and_page_size";
 
     static {
-        long g1gcRegionSizeInBytes = JvmInfo.jvmInfo().getG1RegionSize();
-        long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-        ByteSizeValue g1gcRegionSize = new ByteSizeValue(g1gcRegionSizeInBytes);
-        ByteSizeValue heapSize = new ByteSizeValue(heapSizeInBytes);
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
             ALLOCATOR = ByteBufAllocator.DEFAULT;
             DESCRIPTION = "[name=netty_default, factors={es.unsafe.use_netty_default_allocator=true}]";
         } else {
+            final long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+            final boolean g1gcEnabled = Boolean.parseBoolean(JvmInfo.jvmInfo().useG1GC());
+            final long g1gcRegionSizeInBytes = JvmInfo.jvmInfo().getG1RegionSize();
+            final boolean g1gcRegionSizeIsKnown = g1gcRegionSizeInBytes != -1;
+            ByteSizeValue heapSize = new ByteSizeValue(heapSizeInBytes);
+            ByteSizeValue g1gcRegionSize = new ByteSizeValue(g1gcRegionSizeInBytes);
+
             ByteBufAllocator delegate;
-            if (useUnpooled(heapSizeInBytes, g1gcRegionSizeInBytes)) {
+            if (useUnpooled(heapSizeInBytes, g1gcEnabled, g1gcRegionSizeIsKnown, g1gcRegionSizeInBytes)) {
                 delegate = UnpooledByteBufAllocator.DEFAULT;
                 DESCRIPTION = "[name=unpooled, factors={es.unsafe.use_unpooled_allocator=" + userForcedUnpooled()
-                    + ", g1gc_region_size=" + g1gcRegionSize + ", heap_size=" + heapSize + "}]";
+                    + ", g1gc_enabled=" + g1gcEnabled
+                    + ", g1gc_region_size=" + g1gcRegionSize
+                    + ", heap_size=" + heapSize + "}]";
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize;
@@ -65,11 +70,20 @@ public class NettyAllocator {
                 int maxOrder;
                 if (useDefaultChunkAndPageSize()) {
                     maxOrder = PooledByteBufAllocator.defaultMaxOrder();
+                } else if (g1gcEnabled == false) {
+                    // This combined with a 8192 page size = 1 MB chunk sizes
+                    maxOrder = 7;
+                } else if (g1gcRegionSizeIsKnown == false) {
+                    // This combined with a 8192 page size = 1 MB chunk sizes
+                    maxOrder = 7;
                 } else if (g1gcRegionSizeInBytes >= (4 * 1024 * 1024)) {
+                    // This combined with a 8192 page size = 1 MB chunk sizes
                     maxOrder = 7;
                 } else if (g1gcRegionSizeInBytes >= (2 * 1024 * 1024)) {
+                    // This combined with a 8192 page size = 512 KB chunk sizes
                     maxOrder = 6;
                 } else {
+                    // This combined with a 8192 page size = 256 KB chunk sizes
                     maxOrder = 5;
                 }
                 int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
@@ -79,8 +93,10 @@ public class NettyAllocator {
                 delegate = new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize,
                     smallCacheSize, normalCacheSize, useCacheForAllThreads);
                 ByteSizeValue chunkSize = new ByteSizeValue(pageSize << maxOrder);
-                DESCRIPTION = "[name=elasticsearch_configured, chunk_size=" + chunkSize + ", factors={g1gc_region_size=" + g1gcRegionSize
-                    + ", es.unsafe.use_netty_default_chunk_and_page_size=" + useDefaultChunkAndPageSize() + "}]";
+                DESCRIPTION = "[name=elasticsearch_configured, chunk_size=" + chunkSize
+                    + ", factors={es.unsafe.use_netty_default_chunk_and_page_size=" + useDefaultChunkAndPageSize()
+                    + ", g1gc_enabled=" + g1gcEnabled
+                    + ", g1gc_region_size=" + g1gcRegionSize + "}]";
             }
             ALLOCATOR = new NoDirectBuffers(delegate);
         }
@@ -110,14 +126,18 @@ public class NettyAllocator {
         }
     }
 
-    private static boolean useUnpooled(long heapSizeInBytes, long g1RegionSize) {
+    private static boolean useUnpooled(long heapSizeInBytes, boolean g1gcEnabled, boolean g1gcRegionSizeIsKnown, long g1RegionSize) {
         if (userForcedUnpooled()) {
             return true;
+        } else if (heapSizeInBytes <= 1 << 30) {
+            // If the heap is 1GB or less we use unpooled
+            return true;
+        } else if (g1gcEnabled == false) {
+            return false;
         } else {
-            boolean heapIsOneGBOrLess = heapSizeInBytes <= 1 << 30;
+            // If the G1GC is enabled and the region size is known and is less than 1MB we use unpooled.
             boolean g1gcRegionIsLessThan1MB = g1RegionSize < 1 << 20;
-            boolean unknownRegionSize = g1RegionSize != -1;
-            return heapIsOneGBOrLess || (g1gcRegionIsLessThan1MB && unknownRegionSize);
+            return (g1gcRegionSizeIsKnown && g1gcRegionIsLessThan1MB);
         }
     }
 

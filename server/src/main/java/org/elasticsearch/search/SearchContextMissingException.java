@@ -31,6 +31,11 @@ public class SearchContextMissingException extends ElasticsearchException {
 
     private final ShardSearchContextId contextId;
 
+    public SearchContextMissingException(ShardSearchContextId contextId, String message) {
+        super("No search context found for id [" + contextId.getId() + "]");
+        this.contextId = contextId;
+    }
+
     public SearchContextMissingException(ShardSearchContextId contextId) {
         super("No search context found for id [" + contextId.getId() + "]");
         this.contextId = contextId;

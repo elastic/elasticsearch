@@ -1089,7 +1089,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
-        return new ReaderContext(randomNonNegativeLong(), indexService, indexShard,
-            indexShard.acquireSearcherSupplier(), randomNonNegativeLong(), false);
+        return new ReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
+            indexService, indexShard, indexShard.acquireSearcherSupplier(), randomNonNegativeLong(), false);
     }
 }

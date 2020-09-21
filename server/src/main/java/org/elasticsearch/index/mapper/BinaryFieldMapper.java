@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -78,8 +79,14 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), hasDocValues.getValue(), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            FieldType fieldType;
+            if (stored.getValue()) {
+                fieldType = StoredField.TYPE;
+            } else {
+                fieldType = new FieldType();
+            }
+            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), hasDocValues.getValue(), fieldType,
+                meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -87,12 +94,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final class BinaryFieldType extends MappedFieldType {
 
-        public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
+        public BinaryFieldType(String name, boolean hasDocValues, FieldType fieldType, Map<String, String> meta) {
+            super(name, false, hasDocValues, new TextSearchInfo(fieldType, null, null, null), meta);
         }
 
         public BinaryFieldType(String name) {
-            this(name, true, Collections.emptyMap());
+            super(name, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

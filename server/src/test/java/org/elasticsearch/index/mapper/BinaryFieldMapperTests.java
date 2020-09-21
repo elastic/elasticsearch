@@ -55,6 +55,8 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             b.field("store", "true");
         }));
 
+        assertTrue(mapperService.fieldType("field").getTextSearchInfo().isStored());
+
         // case 1: a simple binary value
         final byte[] binaryValue1 = new byte[100];
         binaryValue1[56] = 1;

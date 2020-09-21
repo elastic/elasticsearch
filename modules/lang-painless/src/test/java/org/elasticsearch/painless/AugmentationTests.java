@@ -337,4 +337,11 @@ public class AugmentationTests extends ScriptTestCase {
         assertEquals("fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9", execDigest("'bar'.sha256()"));
         assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
     }
+
+    public void testRegexInject() {
+        assertEquals(
+            Boolean.TRUE,
+            exec("/abc123.*def/.matcher('abc123doremidef').matches()")
+        );
+    }
 }

@@ -27,17 +27,12 @@ class java.util.regex.Pattern {
 #                           the script is run which is super slow. LRegex generates code that calls this method but it skips these checks.
   Predicate asPredicate()
   int flags()
-  # TODO(stu): wrap with limit
-  # Matcher matcher(CharSequence) @inject_constant[1="regex_limit_factor"]
-  Matcher matcher(CharSequence)
+  Matcher org.elasticsearch.painless.api.Augmentation matcher(CharSequence) @inject_constant[1="regex_limit_factor"]
   String pattern()
   String quote(String)
-  # TODO(stu): wrap with limit
-  String[] split(CharSequence)
-  # TODO(stu): wrap with limit
-  String[] split(CharSequence,int)
-  # TODO(stu): wrap with limit
-  Stream splitAsStream(CharSequence)
+  String[] org.elasticsearch.painless.api.Augmentation split(CharSequence) @inject_constant[1="regex_limit_factor"]
+  String[] org.elasticsearch.painless.api.Augmentation split(CharSequence,int) @inject_constant[1="regex_limit_factor"]
+  Stream org.elasticsearch.painless.api.Augmentation splitAsStream(CharSequence) @inject_constant[1="regex_limit_factor"]
 }
 
 class java.util.regex.Matcher {
@@ -63,6 +58,7 @@ class java.util.regex.Matcher {
   String replaceFirst(String)
   boolean requireEnd()
   Matcher reset()
+  # Whitelisting Matcher.reset(String) works around the regex limiting
   int start()
   int start(int)
   Matcher useAnchoringBounds(boolean)

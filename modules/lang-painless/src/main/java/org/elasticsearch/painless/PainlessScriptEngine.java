@@ -429,6 +429,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
             // Except regexes enabled - this is a node level setting and can't be changed in the request.
             compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
 
+            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getRegexLimitFactor());
+
             Map<String, String> copy = new HashMap<>(params);
 
             String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
@@ -449,6 +451,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
             value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
             if (value != null) {
                 throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
+            }
+
+            value = copy.remove(CompilerSettings.REGEX_LIMIT_FACTOR.getKey());
+            if (value != null) {
+                throw new IllegalArgumentException("[painless.regex.limit-factor] can only be set on node startup.");
             }
 
             if (!copy.isEmpty()) {

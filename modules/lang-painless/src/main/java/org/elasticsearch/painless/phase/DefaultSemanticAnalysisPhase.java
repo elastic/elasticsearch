@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -2049,8 +2050,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
-        // TODO(stu): change to max chars
-        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
+        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == CompilerSettings.RegexEnabled.FALSE) {
             throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));

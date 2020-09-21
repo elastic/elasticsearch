@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.painless.api.Augmentation;
 
 import java.util.Collections;
 import java.util.Map;
@@ -30,11 +31,16 @@ import java.util.Map;
  */
 public final class CompilerSettings {
     /**
-     * Are regexes enabled? This is a node level setting because regexes break out of painless's lovely sandbox and can cause stack
-     * overflows and we can't analyze the regex to be sure it won't.
+     * Are regexes enabled? If
      */
-    public static final Setting<Boolean> REGEX_ENABLED = Setting.boolSetting("script.painless.regex.enabled", false, Property.NodeScope);
-    public static final Setting<Integer> REGEX_MAX_CHARS = Setting.intSetting("script.painless.regex.max-chars", 1024, Property.NodeScope);
+    public static final Setting<RegexEnabled> REGEX_ENABLED =
+        new Setting<>("script.painless.regex.enabled", RegexEnabled.USE_FACTOR.value, RegexEnabled::parse, Property.NodeScope);
+
+    /**
+     * How complex can a regex be?  This is the number of characters that can be considered expressed as a multiple of string length.
+     */
+    public static final Setting<Integer> REGEX_LIMIT_FACTOR =
+        Setting.intSetting("script.painless.regex.limit-factor", 6, 1, Property.NodeScope);
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -71,12 +77,15 @@ public final class CompilerSettings {
     private int initialCallSiteDepth = 0;
 
     /**
-     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
-     * <strong>looking</strong> regexes can cause stack overflows.
+     * Are regexes enabled? Defaults to using the factor setting.
      */
-    private boolean regexesEnabled = false;
+    private RegexEnabled regexesEnabled = RegexEnabled.USE_FACTOR;
 
-    private int regexMaxChars = 0;
+
+    /**
+     * How complex can regexes be?  Expressed as a multiple of the input string.
+     */
+    private int regexLimitFactor = 0;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -129,10 +138,9 @@ public final class CompilerSettings {
     }
 
     /**
-     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
-     * <strong>looking</strong> regexes can cause stack overflows.
+     * Are regexes enabled?
      */
-    public boolean areRegexesEnabled() {
+    public RegexEnabled areRegexesEnabled() {
         return regexesEnabled;
     }
 
@@ -140,15 +148,49 @@ public final class CompilerSettings {
      * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
      * <strong>looking</strong> regexes can cause stack overflows.
      */
-    public void setRegexesEnabled(boolean regexesEnabled) {
+    public void setRegexesEnabled(RegexEnabled regexesEnabled) {
         this.regexesEnabled = regexesEnabled;
     }
 
-    public void setRegexMaxChars(int regexMaxChars) {
-        this.regexMaxChars = regexMaxChars;
+    public void setRegexLimitFactor(int regexLimitFactor) {
+        this.regexLimitFactor = regexLimitFactor;
+    }
+
+    public int getRegexLimitFactor() {
+        return regexLimitFactor;
     }
 
     public Map<String, Object> asMap() {
-        return Collections.singletonMap("foo", 246);
+        int regexLimitFactor = this.regexLimitFactor;
+        if (regexesEnabled == RegexEnabled.TRUE) {
+            regexLimitFactor = Augmentation.UNLIMITED_PATTERN_FACTOR;
+        } else if (regexesEnabled == RegexEnabled.FALSE) {
+            regexLimitFactor = Augmentation.DISABLED_PATTERN_FACTOR;
+        }
+        return Collections.singletonMap("regex_limit_factor", regexLimitFactor);
+    }
+
+    public enum RegexEnabled {
+        TRUE("true"),
+        FALSE("false"),
+        USE_FACTOR("use-factor");
+        final String value;
+
+        private RegexEnabled(String value) {
+            this.value = value;
+        }
+
+        public static RegexEnabled parse(String value) {
+            if (TRUE.value.equals(value)) {
+                return TRUE;
+            } else if (FALSE.value.equals(value)) {
+                return FALSE;
+            } else if (USE_FACTOR.value.equals(value)) {
+                return USE_FACTOR;
+            }
+            throw new IllegalArgumentException(
+                "invalid value [" + value + "] must be one of [" + TRUE.value + "," + FALSE.value + "," + USE_FACTOR.value + "]"
+            );
+        }
     }
 }

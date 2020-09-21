@@ -10,17 +10,16 @@ The cache is also automatically cleared on state changes of the security index.
 
 NOTE: The intention for the clear security cache API is to have a single endpoint
 for clearing all security related caches. Currently, it only covers API key
-caches. For users, roles and privileges, their caches still need to be cleared via
-separate APIs. They will be migrated overtime. See also:
-<<security-api-clear-cache,Clear user cache>>
-<<security-api-clear-role-cache,Clear roles cache>>
-<<security-api-clear-privilege-cache,Clear privileges cache>>
+caches. For clearing user cache, see the <<security-api-clear-cache,Clear user cache API>>.
+For clearing role cache, see the <<security-api-clear-role-cache,Clear roles cache API>>.
+For clearing privileges, see <<security-api-clear-privilege-cache,Clear privileges cache API>>.
+These separate APIs will be migrated over time.
 
 
 [[security-api-clear-security-cache-request]]
 ==== {api-request-title}
 
-`POST /_security/<cacheName>/<keys>/_clear_cache`
+`POST /_security/<cache_name>/<keys>/_clear_cache`
 
 [[security-api-clear-security-cache-prereqs]]
 ==== {api-prereq-title}
@@ -38,10 +37,10 @@ For more information about the native realm, see
 ==== {api-path-parms-title}
 
 `cacheName`::
-(string) The name of the target cache to be cleared. Currently only supports "api_key".
+(string) The name of the target cache to be cleared. Currently only supports `api_key`.
 
 `keys`::
-(string) Names of the cache entries. If omitted, all entries are evicted from the cache.
+(string) Names of the cache entries. If empty, all entries are evicted from the cache.
 
 [[security-api-clear-security-cache-example]]
 ==== {api-examples-title}

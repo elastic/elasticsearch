@@ -64,6 +64,7 @@ without requiring basic authentication:
 * <<security-api-create-api-key,Create API Key>>
 * <<security-api-get-api-key,Get API Key>>
 * <<security-api-invalidate-api-key,Invalidate API Key>>
+* <<security-api-clear-security-cache,Clear security cache>>
 
 [discrete]
 [[security-user-apis]]

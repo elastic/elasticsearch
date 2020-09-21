@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
@@ -231,12 +230,9 @@ public class IndexResolver {
                 indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
             }
 
-            // Drop the response headers from this request, because this very easily triggers a spurious deprecation warning due to
-            // resolving system indices, despite them being filtered out later.
             client.admin().indices().getIndex(indexRequest,
-                new ContextPreservingActionListener<>(client.threadPool().getThreadContext().newRestorableContext(false),
-                    wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
-                        listener::onFailure)));
+                wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
+                    listener::onFailure));
 
         } else {
             filterResults(javaRegex, aliases, null, false, false, listener);

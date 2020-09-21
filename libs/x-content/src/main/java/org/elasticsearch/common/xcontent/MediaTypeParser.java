@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class MediaTypeParser<T extends MediaType> {
     private final Map<String, T> formatToMediaType;

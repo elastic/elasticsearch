@@ -187,6 +187,14 @@ public class RestoreService implements ClusterStateApplier {
         restoreSnapshot(request, listener, (clusterState, builder) -> {});
     }
 
+    /**
+     * Restores snapshot specified in the restore request.
+     *
+     * @param request  restore request
+     * @param listener restore listener
+     * @param updater  handler that allows callers to make modifications to {@link Metadata}
+     *                 in the same cluster state update as the restore operation
+     */
     public void restoreSnapshot(final RestoreSnapshotRequest request,
                                 final ActionListener<RestoreCompletionResponse> listener,
                                 final BiConsumer<ClusterState, Metadata.Builder> updater) {

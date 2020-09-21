@@ -17,4 +17,9 @@ public class RLikePattern implements StringPattern {
     public String asJavaRegex() {
         return regexpPattern;
     }
+
+    @Override
+    public boolean matchesAll() {
+        return regexpPattern.equals(".*");
+    }
 }

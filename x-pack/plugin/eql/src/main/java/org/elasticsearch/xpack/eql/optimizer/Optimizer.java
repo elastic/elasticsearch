@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceMatchAll;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -66,7 +67,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
-                new ReplaceSurrogateFunction());
+            new ReplaceSurrogateFunction(),
+            new ReplaceMatchAll());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),

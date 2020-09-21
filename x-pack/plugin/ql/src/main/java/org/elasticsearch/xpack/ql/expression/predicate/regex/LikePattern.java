@@ -48,6 +48,16 @@ public class LikePattern implements StringPattern {
         return regex;
     }
 
+    @Override
+    public boolean matchesAll() {
+        for (int i = 0 ; i < pattern.length(); i++) {
+            if (pattern.charAt(i) != '*') {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Returns the pattern in (Lucene) wildcard format.
      */

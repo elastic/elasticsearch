@@ -194,12 +194,6 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             t -> t.args("resolveAllDependencies")
         );
 
-        Version currentVersion = Version.fromString(bwcProject.getVersion().toString());
-        if (currentVersion.getMinor() == 0 && currentVersion.getRevision() == 0) {
-            // We only want to resolve dependencies for live versions of master, without cascading this to older versions
-            bwcProject.getTasks().named("resolveAllDependencies").configure(t -> t.dependsOn(resolveAllBwcDepsTaskProvider));
-        }
-
         for (Map.Entry<String, File> e : artifactFiles.entrySet()) {
             String projectName = e.getKey();
             String buildBwcTask = buildBwcTaskName(projectName);

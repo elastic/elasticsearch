@@ -30,6 +30,7 @@ public class SecurityActionRequestBodyLoggingRequestAuditor implements RequestLo
     @Override
     public void auditTransportRequest(String requestId, String action, TransportRequest transportRequest,
                                       LoggingAuditTrail.LogEntryBuilder logEntryBuilder) {
+        // TODO extend this to include at least all manage security write actions/requests
         if (DeleteUserAction.NAME.equals(action) && transportRequest instanceof DeleteUserRequest) {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();

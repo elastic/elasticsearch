@@ -34,9 +34,10 @@ import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
  *  with the inverted index. */
-abstract class TermBasedFieldType extends SimpleMappedFieldType {
+public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+    public TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo,
+        Map<String, String> meta) {
         super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 

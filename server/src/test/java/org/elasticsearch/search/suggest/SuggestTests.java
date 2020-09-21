@@ -105,9 +105,9 @@ public class SuggestTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(suggest, xContentType, params, humanReadable);
         Suggest parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             parsed = Suggest.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());

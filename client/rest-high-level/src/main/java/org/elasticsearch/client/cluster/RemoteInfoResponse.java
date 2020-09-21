@@ -43,7 +43,7 @@ public final class RemoteInfoResponse {
     }
 
     public static RemoteInfoResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         List<RemoteConnectionInfo> infos = new ArrayList<>();
 
@@ -53,7 +53,7 @@ public final class RemoteInfoResponse {
             RemoteConnectionInfo info = RemoteConnectionInfo.fromXContent(parser, clusterAlias);
             infos.add(info);
         }
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
         return new RemoteInfoResponse(infos);
     }
 }

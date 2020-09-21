@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
-    protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
     private static long nowInMillis;
 
@@ -65,16 +64,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         nowInMillis = randomNonNegativeLong();
     }
 
-    protected RangeFieldType createDefaultFieldType(String name) {
+    private RangeFieldType createDefaultFieldType() {
         if (type == RangeType.DATE) {
-            return new RangeFieldType(name, true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+            return new RangeFieldType("field", true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         }
-        return new RangeFieldType(name, type, true, true, Collections.emptyMap());
+        return new RangeFieldType("field", type, true, true, Collections.emptyMap());
     }
 
     public void testRangeQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
         ShapeRelation relation = randomFrom(ShapeRelation.values());
         boolean includeLower = randomBoolean();
@@ -96,10 +95,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         QueryShardContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
-        Object from = null;
-        Object to = null;
+        Object from;
+        Object to;
         switch (type) {
             case LONG: {
                 long fromValue = randomLong();
@@ -153,7 +152,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      */
     public void testFromLargerToErrors() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
         final Object from;
         final Object to;
@@ -218,7 +217,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType strict
-            = new RangeFieldType(FIELDNAME, true, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+            = new RangeFieldType("field", true, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
         ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
 
@@ -237,13 +236,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
-        RangeFieldType fieldType = new RangeFieldType(FIELDNAME, true, true, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", true, true, formatter, Collections.emptyMap());
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType
-            = new DateFieldType(FIELDNAME, true, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
+            = new DateFieldType("field", true, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
@@ -260,7 +259,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType(FIELDNAME, true, false, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, formatter, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally
@@ -287,7 +286,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         }
 
         // check that using this bounds we get similar query when constructing equivalent query on date_range field
-        Query range = LongRange.newIntersectsQuery(FIELDNAME, new long[] { lowerBoundLong }, new long[] { upperBoundLong });
+        Query range = LongRange.newIntersectsQuery("field", new long[] { lowerBoundLong }, new long[] { upperBoundLong });
         assertEquals(range, query);
     }
 
@@ -314,16 +313,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = LongRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = LongRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DATE.dvRangeQuery(FIELDNAME, queryType, from.getMillis(),
+        Query dvQuery = RangeType.DATE.dvRangeQuery("field", queryType, from.getMillis(),
                 to.getMillis(), includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -334,16 +333,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = IntRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = IntRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = IntRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = IntRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = IntRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = IntRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.INTEGER.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.INTEGER.dvRangeQuery("field", queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -354,16 +353,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = LongRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = LongRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.LONG.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.LONG.dvRangeQuery("field", queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -374,16 +373,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = FloatRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = FloatRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = FloatRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = FloatRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = FloatRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = FloatRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.FLOAT.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.FLOAT.dvRangeQuery("field", queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -395,16 +394,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = DoubleRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = DoubleRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery =  DoubleRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery =  DoubleRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery =  DoubleRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery =  DoubleRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DOUBLE.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.DOUBLE.dvRangeQuery("field", queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -416,16 +415,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = InetAddressRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = InetAddressRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = InetAddressRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = InetAddressRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = InetAddressRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = InetAddressRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.IP.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.IP.dvRangeQuery("field", queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -473,7 +472,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
         ShapeRelation relation = ShapeRelation.INTERSECTS;
@@ -482,10 +481,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
             ft.termQuery(value, context));
     }
-    
+
     public void testCaseInsensitiveQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
         QueryShardException ex = expectThrows(QueryShardException.class,

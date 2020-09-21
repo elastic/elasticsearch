@@ -206,7 +206,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         auditor = new MockTransformAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
         client = new NoOpClient(getTestName());
-        threadPool = new TestThreadPool(getTestName());
+        threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
     }
 
     @After
@@ -245,7 +245,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 new TransformIndexerStats(),
                 context
             );
-            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
             assertEquals(0, indexer.getSaveStateListenerCallCount());
             if (IndexerState.STARTED.equals(state)) {
                 assertTrue(context.shouldStopAtCheckpoint());
@@ -275,7 +275,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertEquals(indexer.getState(), IndexerState.INDEXING);
 
-            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
@@ -284,7 +284,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertEquals(1, indexer.getSaveStateListenerCallCount());
 
             // as the state is stopped it should go back to directly
-            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
             assertEquals(1, indexer.getSaveStateListenerCallCount());
         }
 
@@ -307,9 +307,9 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertEquals(indexer.getState(), IndexerState.INDEXING);
 
             // this time call it 3 times
-            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
-            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
-            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
@@ -344,7 +344,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             for (int i = 0; i < 5; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = i % 2 == 0;
-                countResponse(listener -> indexer.setStopAtCheckpoint(stopAtCheckpoint, listener), latch);
+                countResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
             }
 
@@ -387,7 +387,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             for (int i = 0; i < 3; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = randomBoolean();
-                countResponse(listener -> indexer.setStopAtCheckpoint(stopAtCheckpoint, listener), latch);
+                countResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
             }
 
@@ -395,9 +395,9 @@ public class TransformIndexerStateTests extends ESTestCase {
             searchLatch.countDown();
 
             // this time call it 3 times
-            assertResponse(listener -> indexer.setStopAtCheckpoint(randomBoolean(), listener));
-            assertResponse(listener -> indexer.setStopAtCheckpoint(randomBoolean(), listener));
-            assertResponse(listener -> indexer.setStopAtCheckpoint(randomBoolean(), listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, randomBoolean(), listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, randomBoolean(), listener));
+            assertResponse(listener -> setStopAtCheckpoint(indexer, randomBoolean(), listener));
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
@@ -410,6 +410,24 @@ public class TransformIndexerStateTests extends ESTestCase {
             // listener must have been called by the indexing thread between 1 and 6 times
             assertThat(indexer.getSaveStateListenerCallCount(), greaterThanOrEqualTo(1));
             assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(6));
+        }
+    }
+
+    private void setStopAtCheckpoint(
+        TransformIndexer indexer,
+        boolean shouldStopAtCheckpoint,
+        ActionListener<Void> shouldStopAtCheckpointListener
+    ) {
+        // we need to simulate that this is called from the task, which offloads it to the generic threadpool
+        CountDownLatch latch = new CountDownLatch(1);
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+            latch.countDown();
+        });
+        try {
+            assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            fail("timed out after 5s");
         }
     }
 

@@ -131,21 +131,15 @@ public class MediaTypeParser<T extends MediaType> {
         private final Map<String, T> typeMap = new HashMap<>();
         private final Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
-        public Builder<T> withMediaTypeNoParams(String alternativeMediaType, T mediaType) {
-            typeMap.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
-            formatMap.put(mediaType.format(), mediaType);
-            return this;
-        }
-
-        public Builder<T> withMediaTypeAndParams(String alternativeMediaType, T mediaType, Map<String, String> paramNameAndValueRegex) {
+        public Builder<T> withMediaTypeAndParams(String alternativeMediaType, T mediaType, Map<String, Pattern> paramNameAndValueRegex) {
             typeMap.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
             formatMap.put(mediaType.format(), mediaType);
 
             Map<String, Pattern> parametersForMediaType = new HashMap<>(paramNameAndValueRegex.size());
-            for (Map.Entry<String, String> params : paramNameAndValueRegex.entrySet()) {
+            for (Map.Entry<String, Pattern> params : paramNameAndValueRegex.entrySet()) {
                 String parameterName = params.getKey().toLowerCase(Locale.ROOT);
-                String parameterRegex = params.getValue().toLowerCase(Locale.ROOT);
-                Pattern pattern = Pattern.compile(parameterRegex, Pattern.CASE_INSENSITIVE);
+                Pattern parameterRegex = params.getValue();
+                Pattern pattern = Pattern.compile(parameterRegex.pattern(), Pattern.CASE_INSENSITIVE);
                 parametersForMediaType.put(parameterName, pattern);
             }
             parametersMap.put(alternativeMediaType, parametersForMediaType);

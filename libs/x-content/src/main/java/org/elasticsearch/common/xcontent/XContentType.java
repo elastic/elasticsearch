@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -122,15 +123,20 @@ public enum XContentType implements MediaType {
      private static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
         .withMediaTypeAndParams("application/smile", SMILE, Collections.emptyMap())
         .withMediaTypeAndParams("application/cbor", CBOR, Collections.emptyMap())
-        .withMediaTypeAndParams("application/json", JSON, Map.of("charset", "UTF-8"))
-        .withMediaTypeAndParams("application/yaml", YAML, Map.of("charset", "UTF-8"))
-        .withMediaTypeAndParams("application/*", JSON, Map.of("charset", "UTF-8"))
-        .withMediaTypeAndParams("application/x-ndjson", JSON, Map.of("charset", "UTF-8"))
-        .withMediaTypeAndParams("application/vnd.elasticsearch+json", JSON, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
-        .withMediaTypeAndParams("application/vnd.elasticsearch+smile", SMILE, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
-        .withMediaTypeAndParams("application/vnd.elasticsearch+yaml", YAML, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
-        .withMediaTypeAndParams("application/vnd.elasticsearch+cbor", CBOR, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
-        .withMediaTypeAndParams("application/vnd.elasticsearch+x-ndjson", JSON, Map.of("compatible-with", "\\d+","charset", "UTF-8"))
+        .withMediaTypeAndParams("application/json", JSON, Map.of("charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/yaml", YAML, Map.of("charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/*", JSON, Map.of("charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/x-ndjson", JSON, Map.of("charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+json", JSON,
+            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+smile", SMILE,
+            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+yaml", YAML,
+            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+cbor", CBOR,
+            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+x-ndjson", JSON,
+            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
         .build();
 
     /**

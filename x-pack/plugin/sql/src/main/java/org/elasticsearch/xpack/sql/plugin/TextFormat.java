@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
@@ -296,9 +297,12 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_PRESENT = "present";
 
     private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser.Builder<TextFormat>()
-        .withMediaTypeAndParams(PLAIN_TEXT.typeWithSubtype(), PLAIN_TEXT, Map.of("header", "present|absent", "charset", "utf-8"))
-        .withMediaTypeAndParams(CSV.typeWithSubtype(), CSV, Map.of("header", "present|absent", "charset", "utf-8"))
-        .withMediaTypeAndParams(TSV.typeWithSubtype(), TSV, Map.of("header", "present|absent", "charset", "utf-8"))
+        .withMediaTypeAndParams(PLAIN_TEXT.typeWithSubtype(), PLAIN_TEXT,
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+        .withMediaTypeAndParams(CSV.typeWithSubtype(), CSV,
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+        .withMediaTypeAndParams(TSV.typeWithSubtype(), TSV,
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
         .build();
 
     String format(RestRequest request, SqlQueryResponse response) {

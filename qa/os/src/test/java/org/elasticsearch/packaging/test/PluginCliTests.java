@@ -68,7 +68,7 @@ public class PluginCliTests extends PackagingTestCase {
     public void test10Install() throws Exception {
         install();
     }
-    
+
     public void test20SymlinkPluginsDir() throws Exception {
         Path pluginsDir = installation.plugins;
         Path stashedPluginsDir = createTempDir("stashed-plugins");

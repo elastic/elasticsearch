@@ -190,7 +190,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                     context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
             }
-            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
 
             byteBuffer.putFloat(value);

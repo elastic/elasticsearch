@@ -6,16 +6,13 @@
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
 
-{ilm-init} defines five index lifecycle _phases_:
+{ilm-init} defines four index lifecycle _phases_:
 
 * **Hot**: The index is actively being updated and queried.
 * **Warm**: The index is no longer being updated but is still being queried.
 * **Cold**: The index is no longer being updated and is seldom queried. The
 information still needs to be searchable, but it's okay if those queries are
 slower.
-* **Frozen**: The index is no longer being updated and is seldom queried. The
-queries are performing longer-term analyses for which a slower response is
-acceptable.
 * **Delete**: The index is no longer needed and can safely be removed.
 
 An index's _lifecycle policy_ specifies which phases 
@@ -90,14 +87,6 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
 * Cold
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-allocate,Allocate>>
-  - <<ilm-freeze,Freeze>>
-ifdef::permanently-unreleased-branch[]
-  - <<ilm-searchable-snapshot, Searchable Snapshot>>
-endif::[]
-* Frozen
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate,Allocate>>

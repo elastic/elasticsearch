@@ -48,6 +48,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         b.field("type", "boolean");
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     public void testDefaults() throws IOException {
 
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
@@ -170,9 +175,10 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
         MappedFieldType ft = mapperService.fieldType("field");
         assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
+        assertParseMaximalWarnings();
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

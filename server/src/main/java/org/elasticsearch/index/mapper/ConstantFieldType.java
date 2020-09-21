@@ -59,7 +59,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.
      */
-    protected abstract boolean matches(String pattern, QueryShardContext context);
+    protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context);
 
     private static String valueToString(Object value) {
         return value instanceof BytesRef
@@ -70,7 +70,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query termQuery(Object value, QueryShardContext context) {
         String pattern = valueToString(value);
-        if (matches(pattern, context)) {
+        if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
@@ -78,23 +78,34 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
+    public final Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        String pattern = valueToString(value);
+        if (matches(pattern, true, context)) {
+            return Queries.newMatchAllQuery();
+        } else {
+            return new MatchNoDocsQuery();
+        }
+    }
+    
+    @Override
     public final Query termsQuery(List<?> values, QueryShardContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
-            if (matches(pattern, context)) {
+            if (matches(pattern, false, context)) {
                 // `terms` queries are a disjunction, so one matching term is enough
                 return Queries.newMatchAllQuery();
             }
         }
         return new MatchNoDocsQuery();
-    }
+    }    
 
     @Override
     public final Query prefixQuery(String prefix,
                              @Nullable MultiTermQuery.RewriteMethod method,
+                             boolean caseInsensitive, 
                              QueryShardContext context) {
         String pattern = prefix + "*";
-        if (matches(pattern, context)) {
+        if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
@@ -104,8 +115,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
+                               boolean caseInsensitive, 
                                QueryShardContext context) {
-        if (matches(value, context)) {
+        if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();

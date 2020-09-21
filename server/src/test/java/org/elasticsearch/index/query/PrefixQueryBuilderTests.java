@@ -44,6 +44,13 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         if (randomBoolean()) {
             query.rewrite(getRandomRewriteMethod());
         }
+        //TODO code below is commented out while we do the Version dance for PR 61596. Steps are
+        // 1) Commit PR 61596 with this code commented out in master
+        // 2) Backport PR 61596 to 7.x, uncommented
+        // 3) New PR on master to uncomment this code now that 7.x has support for case insensitive flag.
+//        if (randomBoolean()) {
+//            query.caseInsensitive(true);
+//        }         
         return query;
     }
 
@@ -101,7 +108,14 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0 } }}";
+                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0 "
+            //TODO code below is commented out while we do the Version dance for PR 61596. Steps are
+            // 1) Commit PR 61596 with this code commented out in master
+            // 2) Backport PR 61596 to 7.x, uncommented
+            // 3) New PR on master to uncomment this code now that 7.x has support for case insensitive flag.                
+//            "      \"case_insensitive\" : true\n" +
+            
+                + "} }}";
 
         PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

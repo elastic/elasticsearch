@@ -147,11 +147,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
             if (value == null) {
                 return false;
             }
-            return Regex.simpleMatch(pattern, value);
+            return Regex.simpleMatch(pattern, value, caseInsensitive);
         }
 
         @Override
@@ -267,7 +267,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

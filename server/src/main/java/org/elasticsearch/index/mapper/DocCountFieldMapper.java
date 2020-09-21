@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,12 +39,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> new DocCountFieldMapper(),
-        c -> new DocCountFieldMapper.Builder()) {
-
-        public boolean isAllowedInSource() {
-            return true;
-        }
-    };
+        c -> new DocCountFieldMapper.Builder());
 
     static class Builder extends MetadataFieldMapper.Builder {
 
@@ -92,42 +88,37 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        Number value;
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            value = context.parser().numberValue().floatValue();
-        } else {
-            throw new IllegalArgumentException(
-                "Field [" + fieldType().name() + "] must be a positive integer.");
-        }
+            Number value = context.parser().numberValue().floatValue();
 
-        if (value != null) {
-            if (value.longValue() <= 0 || value.floatValue() != value.longValue()) {
-                throw new IllegalArgumentException(
-                    "Field [" + fieldType().name() + "] must be a positive integer.");
+            if (value != null) {
+                if (value.longValue() <= 0 || value.floatValue() != value.longValue()) {
+                    throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
+                }
+
+                final Field docCount = new NumericDocValuesField(NAME, value.longValue());
+                context.doc().add(docCount);
             }
-
-            // Since we allow a single doc_count field per mapping, we can use a
-            // a canonical name for the Lucene field.
-            final Field docCount = new NumericDocValuesField(NAME, value.longValue());
-            context.doc().add(docCount);
+        } else {
+            throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
         }
     }
 
     @Override
     public void preParse(ParseContext context) { }
 
-//    @Override
-//    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
-//        if (format != null) {
-//            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-//        }
-//        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-//            @Override
-//            protected Object parseSourceValue(Object value) {
-//                return value;
-//            }
-//        };
-//    }
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
+    }
 
     @Override
     public DocCountFieldType fieldType() {

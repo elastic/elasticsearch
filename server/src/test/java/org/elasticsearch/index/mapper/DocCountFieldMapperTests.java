@@ -18,254 +18,47 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.Before;
-
-import java.util.Collection;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableField;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
+public class DocCountFieldMapperTests extends MapperServiceTestCase {
 
     private static final String CONTENT_TYPE = DocCountFieldMapper.CONTENT_TYPE;
     private static final String DOC_COUNT_FIELD = DocCountFieldMapper.NAME;
-
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
-    }
 
     /**
      * Test parsing field mapping and adding simple field
      */
     public void testParseValue() throws Exception {
-        ensureGreen();
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b ->
+            b.field("foo", 500)
+                .field(CONTENT_TYPE, 100)
+        ));
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        DocumentMapper defaultMapper = parser.parse("_doc", new CompressedXContent(mapping));
-
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(DOC_COUNT_FIELD);
-        assertThat(fieldMapper, instanceOf(DocCountFieldMapper.class));
-
-        ParsedDocument doc = defaultMapper.parse(
-            new SourceToParse(
-                "test",
-                "1",
-                BytesReference.bytes(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("foo", 500)
-                        .field(DOC_COUNT_FIELD, 10)
-                        .endObject()
-                ),
-                XContentType.JSON
-            )
-        );
-        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.NAME).numericValue());
-    }
-
-    public void testReadDocCounts() throws Exception {
-        ensureGreen();
-
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject(DOC_COUNT_FIELD)
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        DocumentMapper defaultMapper = parser.parse("_doc", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(DOC_COUNT_FIELD);
-        assertThat(fieldMapper, instanceOf(DocCountFieldMapper.class));
-
-        ParsedDocument doc = defaultMapper.parse(
-            new SourceToParse(
-                "test",
-                "1",
-                BytesReference.bytes(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field(DOC_COUNT_FIELD, 10)
-                        .field("t", "5")
-                        .endObject()
-                ),
-                XContentType.JSON
-            )
-        );
-        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.NAME).numericValue());
-    }
-
-    /**
-     * Test that invalid field mapping containing more than one doc_count fields
-     */
-    public void testInvalidMappingWithMultipleDocCounts() throws Exception {
-        ensureGreen();
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject(DOC_COUNT_FIELD)
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .startObject("another_doc_count")
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> indexService.mapperService()
-                .merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("Field [doc_count] conflicts with field [another_doc_count]. Only one field of type [doc_count] is allowed.")
-        );
+        IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
+        assertEquals(100L, field.numericValue());
+        assertEquals(DocValuesType.NUMERIC, field.fieldType().docValuesType());
+        assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).length);
     }
 
     public void testInvalidDocument_NegativeDocCount() throws Exception {
-        ensureGreen();
-
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject(DOC_COUNT_FIELD)
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        DocumentMapper defaultMapper = parser.parse("_doc", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(DOC_COUNT_FIELD);
-        assertThat(fieldMapper, instanceOf(DocCountFieldMapper.class));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> defaultMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .field(DOC_COUNT_FIELD, -5)
-                            .field("t", "5")
-                            .endObject()
-                    ), XContentType.JSON)));
-        assertThat(e.getCause().getMessage(), containsString("Field [doc_count] must be a positive integer"));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, -100))));
+        assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 
-
     public void testInvalidDocument_ZeroDocCount() throws Exception {
-        ensureGreen();
-
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject(DOC_COUNT_FIELD)
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        DocumentMapper defaultMapper = parser.parse("_doc", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(DOC_COUNT_FIELD);
-        assertThat(fieldMapper, instanceOf(DocCountFieldMapper.class));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> defaultMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .field(DOC_COUNT_FIELD, 0)
-                            .field("t", "5")
-                            .endObject()
-                    ), XContentType.JSON)));
-        assertThat(e.getCause().getMessage(), containsString("Field [doc_count] must be a positive integer"));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 0))));
+        assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 
     public void testInvalidDocument_FractionalDocCount() throws Exception {
-        ensureGreen();
-
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject(DOC_COUNT_FIELD)
-                .field("type", CONTENT_TYPE)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        DocumentMapper defaultMapper = parser.parse("_doc", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(DOC_COUNT_FIELD);
-        assertThat(fieldMapper, instanceOf(DocCountFieldMapper.class));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> defaultMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .field(DOC_COUNT_FIELD, 100.23)
-                            .field("t", "5")
-                            .endObject()
-                    ), XContentType.JSON)));
-        assertThat(e.getCause().getMessage(), containsString("Field [doc_count] must be a positive integer"));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
+        assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 }

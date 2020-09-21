@@ -69,6 +69,10 @@ public class ConsistentCache<K, V> {
         delegate.invalidateAll();
     }
 
+    public int count() {
+        return delegate.count();
+    }
+
     public interface Checkpoint<K, V> {
         boolean put(K key, V value);
     }

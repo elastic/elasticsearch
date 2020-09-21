@@ -44,15 +44,11 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10));
+        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Configuration randomConfiguration(ZoneId zoneId) {
-        return new Configuration(zoneId,
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10));
+        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Literal of(Object value) {
@@ -100,7 +96,6 @@ public final class TestUtils {
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
     }
-
 
     //
     // Common methods / assertions

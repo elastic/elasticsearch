@@ -383,8 +383,8 @@ public class ApiKeyService {
                 authResult.getMetadata());
     }
 
-    private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
-                                                  ActionListener<AuthenticationResult> listener) {
+    void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
+                                          ActionListener<AuthenticationResult> listener) {
         final String docId = credentials.getId();
 
         Consumer<ApiKeyDoc> validator = apiKeyDoc ->
@@ -649,6 +649,16 @@ public class ApiKeyService {
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+    }
+
+    // pkg private for testing
+    ConsistentCache<String, CachedApiKeyDoc> getApiKeyDocCache() {
+        return apiKeyDocCache;
+    }
+
+    // pkg private for testing
+    Cache<String, BytesReference> getRoleDescriptorsBytesCache() {
+        return roleDescriptorsBytesCache;
     }
 
     // package-private for testing
@@ -1172,6 +1182,10 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * A cached version of the {@link ApiKeyDoc}. The main difference is that the role descriptors
+     * are replaced by their hashes. The actual values are stored in a separate role descriptor cache.
+     */
     public static final class CachedApiKeyDoc {
         final long creationTime;
         final long expirationTime;

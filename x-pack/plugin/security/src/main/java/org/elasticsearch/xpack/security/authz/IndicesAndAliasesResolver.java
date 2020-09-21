@@ -122,7 +122,9 @@ class IndicesAndAliasesResolver {
         // We only care about the indices specified in the first layer of the request, as that's what the user actually asked for.
         if (threadContext.getHeader(ORIGINAL_INDICES_HEADER_KEY) == null) {
             threadContext.putHeader(ORIGINAL_INDICES_HEADER_KEY,
-                indicesRequest.indices() == null ? Metadata.ALL : String.join(",", indicesRequest.indices()));
+                indicesRequest.indices() == null || indicesRequest.indices().length == 0
+                    ? Metadata.ALL
+                    : String.join(",", indicesRequest.indices()));
         }
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
             /*

@@ -88,8 +88,7 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
-            isSystemIndexAccessAllowedForPatterns(request.indices()));
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
         return concreteIndexNames(context, request.indices());
     }
 
@@ -106,8 +105,7 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request and resolves data streams.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
-            isSystemIndexAccessAllowedForPatterns(request.indices()));
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
         return concreteIndices(context, request.indices());
     }
 
@@ -125,25 +123,22 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, isSystemIndexAccessAllowedForPatterns(indexExpressions));
+        Context context = new Context(state, options, isSystemIndexAccessAllowed());
         return concreteIndexNames(context, indexExpressions);
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
-        Context context = new Context(state, options, false, false, includeDataStreams,
-            isSystemIndexAccessAllowedForPatterns(indexExpressions));
+        Context context = new Context(state, options, false, false, includeDataStreams, isSystemIndexAccessAllowed());
         return concreteIndexNames(context, indexExpressions);
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
-        Context context = new Context(state, options, false, false, request.includeDataStreams(),
-            isSystemIndexAccessAllowedForPatterns(request.indices()));
+        Context context = new Context(state, options, false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
         return concreteIndexNames(context, request.indices());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, false, false, true, true,
-            isSystemIndexAccessAllowedForPatterns(indexExpressions));
+        Context context = new Context(state, options, false, false, true, true, isSystemIndexAccessAllowed());
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{"*"};
         }
@@ -176,7 +171,7 @@ public class IndexNameExpressionResolver {
 
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
         Context context = new Context(state, options, false, false, includeDataStreams,
-            isSystemIndexAccessAllowedForPatterns(indexExpressions));
+            isSystemIndexAccessAllowed());
         return concreteIndices(context, indexExpressions);
     }
 
@@ -193,8 +188,7 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
-        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false,
-            isSystemIndexAccessAllowedForPatterns(request.indices()));
+        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false, isSystemIndexAccessAllowed());
         return concreteIndices(context, request.indices());
     }
 
@@ -314,12 +308,12 @@ public class IndexNameExpressionResolver {
             }
             throw infe;
         }
-        checkSystemIndexAccess(context, metadata, concreteIndices);
+        checkSystemIndexAccess(context, metadata, concreteIndices, indexExpressions);
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
-    private static void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices) {
-        if (context.isSystemIndexAccessAllowed() == false) {
+    private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
+        if (context.isSystemIndexAccessAllowed() == false && shouldEmitDeprecationWarning(originalPatterns)) {
             final List<String> resolvedSystemIndices = concreteIndices.stream()
                 .map(metadata::index)
                 .filter(IndexMetadata::isSystem)
@@ -470,8 +464,7 @@ public class IndexNameExpressionResolver {
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false, true,
-            isSystemIndexAccessAllowedForPatterns(expressions));
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false, true, isSystemIndexAccessAllowed());
         List<String> resolvedExpressions = Arrays.asList(expressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
@@ -565,8 +558,7 @@ public class IndexNameExpressionResolver {
      */
     public Map<String, Set<String>> resolveSearchRouting(ClusterState state, @Nullable String routing, String... expressions) {
         List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true,
-            isSystemIndexAccessAllowedForPatterns(expressions));
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, isSystemIndexAccessAllowed());
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
@@ -722,7 +714,7 @@ public class IndexNameExpressionResolver {
         return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY), true);
     }
 
-    private boolean isSystemIndexAccessAllowedForPatterns(String[] patterns) {
+    private boolean shouldEmitDeprecationWarning(String[] patterns) {
         String[] checkPatterns = patterns;
 
         String originalPatterns = threadContext.getHeader(ORIGINAL_INDICES_HEADER_KEY);
@@ -731,12 +723,12 @@ public class IndexNameExpressionResolver {
         }
 
         if (checkPatterns == null) {
-            return true;
+            return false;
         } else if (1 != checkPatterns.length) {
-            return isSystemIndexAccessAllowed();
+            return isSystemIndexAccessAllowed() == false;
         } else {
             final String pattern = checkPatterns[0];
-            return isSystemIndexAccessAllowed() || pattern == null || Metadata.ALL.equals(pattern) || Regex.isMatchAllPattern(pattern);
+            return (isSystemIndexAccessAllowed() || pattern == null || Metadata.ALL.equals(pattern) || Regex.isMatchAllPattern(pattern)) == false;
         }
     }
 

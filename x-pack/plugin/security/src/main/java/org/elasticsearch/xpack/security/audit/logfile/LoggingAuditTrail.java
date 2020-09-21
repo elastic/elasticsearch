@@ -263,7 +263,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -295,7 +295,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -320,7 +320,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -341,7 +341,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -368,7 +368,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -388,7 +388,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -413,7 +413,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -435,7 +435,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -464,7 +464,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -487,7 +487,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -520,7 +520,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(authorizationInfo.asMap());
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -568,7 +568,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -599,7 +599,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -619,7 +619,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -644,7 +644,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -675,7 +675,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -696,7 +696,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -717,7 +717,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -748,7 +748,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -779,7 +779,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext);
             }
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     @Override
@@ -806,17 +806,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext);
         }
-        logEntryBuilder.logIfNonEmpty();
+        logEntryBuilder.logIfModified();
     }
 
     class LogEntryBuilder {
 
         private final StringMapMessage logEntry;
         private final Logger logger;
+        private boolean modified;
 
         LogEntryBuilder(Logger logger) {
-            this.logEntry = new StringMapMessage(32);
+            this.logEntry = new StringMapMessage(LoggingAuditTrail.this.entryCommonFields.commonFields);
             this.logger = logger;
+            this.modified = false;
         }
 
         LogEntryBuilder withRestUriAndMethod(RestRequest request) {
@@ -834,6 +836,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logEntry.with(URL_QUERY_FIELD_NAME, request.uri().substring(queryStringIndex + 1, queryStringLength));
             }
             logEntry.with(REQUEST_METHOD_FIELD_NAME, request.method().toString());
+            this.modified = true;
             return this;
         }
 
@@ -844,6 +847,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (authentication.getLookedUpBy() != null) {
                 logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, authentication.getLookedUpBy().getName());
             }
+            this.modified = true;
             return this;
         }
 
@@ -853,6 +857,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (socketAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
+                this.modified = true;
             }
             // fall through to local_node default
             return this;
@@ -864,11 +869,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
+                this.modified = true;
             } else {
                 final TransportAddress address = transportRequest.remoteAddress();
                 if (address != null) {
                     logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                             .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address()));
+                    this.modified = true;
                 }
             }
             // fall through to local_node default
@@ -880,6 +887,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 final String requestContent = restRequestContent(request);
                 if (Strings.hasLength(requestContent)) {
                     logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                    this.modified = true;
                 }
             }
             return this;
@@ -888,6 +896,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestId(String requestId) {
             if (requestId != null) {
                 logEntry.with(REQUEST_ID_FIELD_NAME, requestId);
+                this.modified = true;
             }
             return this;
         }
@@ -896,6 +905,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
             if (opaqueId != null) {
                 logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
+                this.modified = true;
             }
             return this;
         }
@@ -904,6 +914,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final String xForwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
             if (xForwardedFor != null) {
                 logEntry.with(X_FORWARDED_FOR_FIELD_NAME, xForwardedFor);
+                this.modified = true;
             }
             return this;
         }
@@ -931,12 +942,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
+            this.modified = true;
             return this;
         }
 
         LogEntryBuilder with(String key, String value) {
             if (value != null) {
                 logEntry.with(key, value);
+                this.modified = true;
             }
             return this;
         }
@@ -944,6 +957,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder with(String key, String[] values) {
             if (values != null) {
                 logEntry.with(key, toQuotedJsonArray(values));
+                this.modified = true;
             }
             return this;
         }
@@ -956,13 +970,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else {
                     logEntry.with(entry.getKey(), value);
                 }
+                this.modified = true;
             }
             return this;
         }
 
-        void logIfNonEmpty() {
-            if (false == logEntry.getData().isEmpty()) {
-                logEntry.putAll(LoggingAuditTrail.this.entryCommonFields.commonFields);
+        void logIfModified() {
+            if (this.modified) {
                 logger.info(AUDIT_MARKER, logEntry);
             }
         }

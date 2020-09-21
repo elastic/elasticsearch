@@ -371,8 +371,11 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 60)) : null;
-            builder.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10), keepAlive));
+            SearchSourceBuilder.PointInTimeBuilder pit = new SearchSourceBuilder.PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
+            }
+            builder.pointInTimeBuilder(pit);
         }
         return builder;
     }

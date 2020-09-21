@@ -222,7 +222,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 null,
                 null);
             pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();
-            source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pitId, TimeValue.timeValueMinutes(1)));
+            final SearchSourceBuilder.PointInTimeBuilder pit = new SearchSourceBuilder.PointInTimeBuilder(pitId);
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));
+            }
+            source.pointInTimeBuilder(pit);
             request = new SubmitAsyncSearchRequest(source);
         } else {
             pitId = null;

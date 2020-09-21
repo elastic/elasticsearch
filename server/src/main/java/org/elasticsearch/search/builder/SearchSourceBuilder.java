@@ -1668,11 +1668,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         private final String id;
-        private final TimeValue keepAlive;
+        private TimeValue keepAlive;
 
-        public PointInTimeBuilder(String id, TimeValue keepAlive) {
+        public PointInTimeBuilder(String id) {
             this.id = Objects.requireNonNull(id);
-            this.keepAlive = keepAlive;
         }
 
         public PointInTimeBuilder(StreamInput in) throws IOException {
@@ -1702,7 +1701,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (params.id == null) {
                 throw new IllegalArgumentException("point int time id is not provided");
             }
-            return new PointInTimeBuilder(params.id, params.keepAlive);
+            return new PointInTimeBuilder(params.id).setKeepAlive(params.keepAlive);
+        }
+
+        public PointInTimeBuilder setKeepAlive(TimeValue keepAlive) {
+            this.keepAlive = keepAlive;
+            return this;
         }
 
         public TimeValue getKeepAlive() {

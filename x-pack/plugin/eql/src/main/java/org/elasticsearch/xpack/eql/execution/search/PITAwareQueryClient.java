@@ -54,7 +54,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private void searchWithPIT(SearchRequest search, ActionListener<SearchResponse> listener) {
         // don't increase the keep alive
-        search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pitId, null));
+        search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pitId));
         // get the pid on each request
         super.search(search, wrap(r -> {
                 pitId = r.pointInTimeId();

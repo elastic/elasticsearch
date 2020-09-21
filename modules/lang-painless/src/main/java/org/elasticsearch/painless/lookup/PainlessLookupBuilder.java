@@ -569,10 +569,11 @@ public final class PainlessLookupBuilder {
         // Injections alter the type parameters required for the user to call this method, since some are injected by compiler
         if (annotations.containsKey(InjectConstantAnnotation.class)) {
             int numInjections = ((InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class)).injects.size();
-            int removePosition = isStatic ? 0 : 1;
+
             for (int i = 0; i < numInjections; i++) {
-                typeParameters.remove(removePosition);
+                typeParameters.remove(augmentedParameterOffset);
             }
+
             typeParametersSize = typeParameters.size();
         }
 

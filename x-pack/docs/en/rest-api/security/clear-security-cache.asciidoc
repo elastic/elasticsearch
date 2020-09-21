@@ -1,0 +1,55 @@
+[role="xpack"]
+[[security-api-clear-security-cache]]
+=== Clear security cache API
+++++
+<titleabbrev>Clear security cache</titleabbrev>
+++++
+
+Evicts a subset of all entries from the specified security cache.
+The cache is also automatically cleared on state changes of the security index.
+
+NOTE: The intention for the clear security cache API is to have a single endpoint
+for clearing all security related caches. Currently, it only covers API key
+caches. For users, roles and privileges, their caches still need to be cleared via
+separate APIs. They will be migrated overtime. See also:
+<<security-api-clear-cache,Clear user cache>>
+<<security-api-clear-role-cache,Clear roles cache>>
+<<security-api-clear-privilege-cache,Clear privileges cache>>
+
+
+[[security-api-clear-security-cache-request]]
+==== {api-request-title}
+
+`POST /_security/<cacheName>/<keys>/_clear_cache`
+
+[[security-api-clear-security-cache-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster
+security.
+
+[[security-api-clear-security-cache-desc]]
+==== {api-description-title}
+
+For more information about the native realm, see
+<<realms>> and <<native-realm>>.
+
+[[security-api-clear-security-cache-path-params]]
+==== {api-path-parms-title}
+
+`cacheName`::
+(string) The name of the target cache to be cleared. Currently only supports "api_key".
+
+`keys`::
+(string) Names of the cache entries. If omitted, all entries are evicted from the cache.
+
+[[security-api-clear-security-cache-example]]
+==== {api-examples-title}
+
+The clear security cache API evicts entries from the specified security cache.
+For example, to clear the cache for `api_key`:
+
+[source,console]
+--------------------------------------------------
+POST /_security/api_key/yVGMr3QByxdh1MSaicYx/_clear_cache
+--------------------------------------------------

@@ -29,6 +29,8 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.ClearSecurityCacheRequest;
+import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -542,6 +544,39 @@ public final class SecurityClient {
                                                  ActionListener<ClearPrivilegesCacheResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
             ClearPrivilegesCacheResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Clears a security cache for a set of keys.
+     * TODO: actual document page
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the security for which the cache should be cleared for the specified keys.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the clear security cache call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */public ClearSecurityCacheResponse clearSecurityCache(ClearSecurityCacheRequest request,
+                                                            RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearSecurityCache, options,
+            ClearSecurityCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the security cache for a set of security asynchronously.
+     * TODO: actual document page
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the security for which the cache should be cleared for the specified keys.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable clearSecurityCacheAsync(ClearSecurityCacheRequest request, RequestOptions options,
+                                               ActionListener<ClearSecurityCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearSecurityCache, options,
+            ClearSecurityCacheResponse::fromXContent, listener, emptySet());
     }
 
     /**

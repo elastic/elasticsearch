@@ -1,0 +1,35 @@
+
+--
+:api: clear-security-cache
+:request: ClearSecurityCacheRequest
+:response: ClearSecurityCacheResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Clear Security Cache API
+
+[id="{upid}-{api}-request"]
+==== Clear Security Cache Request
+
+A +{request}+ supports defining the name of a security cache be cleared for.
+It also optionally takes a list of keys to only clear the associated entries.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> the name of the target cache to be cleared (currently only supports "api_key")
+<2> the key(s) for the cached entries to be evicted
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Clear Security Cache Response
+
+The returned +{response}+ allows to retrieve information about where the cache was cleared.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> the list of nodes that the cache was cleared on

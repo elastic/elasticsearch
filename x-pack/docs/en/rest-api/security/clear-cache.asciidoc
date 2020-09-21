@@ -29,6 +29,8 @@ To evict roles from the role cache, see the
 <<security-api-clear-role-cache,Clear roles cache API>>.
 To evict privileges from the privilege cache, see the
 <<security-api-clear-privilege-cache,Clear privileges cache API>>.
+To evict API keys from the security cache, see the
+<<security-api-clear-security-cache,Clear security cache API>>.
 
 [[security-api-clear-path-params]]
 ==== {api-path-parms-title}

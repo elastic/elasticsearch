@@ -33,13 +33,13 @@ public class RestClearSecurityCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(POST, "/_security/{cache_name}/{key}/_clear_cache"));
+        return Collections.singletonList(new Route(POST, "/_security/{cache_name}/{keys}/_clear_cache"));
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String cacheName = request.param("cache_name");
-        String[] keys = request.paramAsStringArrayOrEmptyIfAll("key");
+        String[] keys = request.paramAsStringArrayOrEmptyIfAll("keys");
         final ClearSecurityCacheRequest req = new ClearSecurityCacheRequest().cacheName(cacheName).keys(keys);
         return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
     }

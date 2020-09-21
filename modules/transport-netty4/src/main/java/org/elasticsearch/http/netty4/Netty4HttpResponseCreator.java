@@ -33,15 +33,16 @@ import java.util.List;
 @ChannelHandler.Sharable
 class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
 
-    public static final int ONE_TWENTY_EIGHT_KB = 128 * 1024;
+    private static final boolean SPLIT_HTTP_RESPONSES = true;
+    private static final int SPLIT_THRESHOLD = 250 * 1024;
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Netty4HttpResponse msg, List<Object> out) {
         HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
         out.add(response);
         ByteBuf content = msg.content();
-        while (content.readableBytes() > ONE_TWENTY_EIGHT_KB) {
-            out.add(new DefaultHttpContent(content.readRetainedSlice(ONE_TWENTY_EIGHT_KB)));
+        while (content.readableBytes() > SPLIT_THRESHOLD) {
+            out.add(new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD)));
         }
         out.add(new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes())));
     }

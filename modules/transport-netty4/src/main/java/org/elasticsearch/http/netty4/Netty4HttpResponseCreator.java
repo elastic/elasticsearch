@@ -38,12 +38,16 @@ class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpRespon
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Netty4HttpResponse msg, List<Object> out) {
-        HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
-        out.add(response);
-        ByteBuf content = msg.content();
-        while (content.readableBytes() > SPLIT_THRESHOLD) {
-            out.add(new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD)));
+        if (msg.content().readableBytes() <= SPLIT_THRESHOLD) {
+            out.add(msg.retain());
+        } else {
+            HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
+            out.add(response);
+            ByteBuf content = msg.content();
+            while (content.readableBytes() > SPLIT_THRESHOLD) {
+                out.add(new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD)));
+            }
+            out.add(new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes())));
         }
-        out.add(new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes())));
     }
 }

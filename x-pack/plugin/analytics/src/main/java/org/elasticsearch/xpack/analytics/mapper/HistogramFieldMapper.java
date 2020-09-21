@@ -285,8 +285,6 @@ public class HistogramFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
             } else {
-                //TODO this field differs from all other fields as it never goes into _field_names, so the default impl would not work
-                //though changing this is problematic for existing indices that don't have this field in _field_names?
                 throw new QueryShardException(context, "field  " + name() + " of type [" + CONTENT_TYPE + "] " +
                     "has no doc values and cannot be searched");
             }

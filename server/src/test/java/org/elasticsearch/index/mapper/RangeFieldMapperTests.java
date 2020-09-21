@@ -74,6 +74,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    }
+
+    @Override
     protected void assertParseMaximalWarnings() {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
@@ -133,9 +138,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(
-            source(b -> b.startObject("field").field(getFromField(), getFrom(type)).field(getToField(), getTo(type)).endObject())
-        );
+        ParsedDocument doc = mapper.parse(source(this::fieldValue));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField dvField = fields[0];

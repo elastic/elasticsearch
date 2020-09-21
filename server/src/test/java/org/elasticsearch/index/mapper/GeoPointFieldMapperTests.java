@@ -56,6 +56,11 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         b.field("type", "geo_point");
     }
 
+    @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.value(stringEncode(1.3, 1.2));
+    }
+
     public void testGeoHashValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", stringEncode(1.3, 1.2))));

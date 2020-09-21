@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
@@ -22,6 +24,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
@@ -30,6 +33,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
+import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldExistsQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,6 +53,22 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
     public RuntimeFieldMapperTests() {
         this.runtimeTypes = RuntimeFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
         Arrays.sort(runtimeTypes);
+    }
+
+    @Override
+    protected void field(XContentBuilder builder) {
+        //do nothing
+    }
+
+    @Override
+    protected void fieldValue(XContentBuilder builder) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, QueryShardContext queryShardContext, IndexReader reader) {
+        Query query = fieldType.existsQuery(queryShardContext);
+        assertThat(query, instanceOf(StringScriptFieldExistsQuery.class));
     }
 
     @Override

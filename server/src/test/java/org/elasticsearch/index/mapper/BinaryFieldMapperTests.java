@@ -36,6 +36,13 @@ import static org.hamcrest.Matchers.instanceOf;
 public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        final byte[] binaryValue = new byte[100];
+        binaryValue[56] = 1;
+        builder.value(binaryValue);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "binary");
     }

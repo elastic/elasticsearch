@@ -42,6 +42,11 @@ import static org.hamcrest.Matchers.containsString;
 public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.value("::1");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "ip");
     }

@@ -65,6 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
+
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -85,6 +86,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             );
         }
 
+    }
+
+    @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.value("value");
     }
 
     @Override

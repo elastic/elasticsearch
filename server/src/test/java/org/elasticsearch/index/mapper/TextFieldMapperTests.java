@@ -92,6 +92,11 @@ import static org.hamcrest.core.Is.is;
 public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.Builder> {
 
     @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.value(1234);
+    }
+
+    @Override
     protected TextFieldMapper.Builder newBuilder() {
         return new TextFieldMapper.Builder("text")
             .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))

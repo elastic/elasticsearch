@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -101,7 +101,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class DenseVectorFieldType extends MappedFieldType {
+    public static final class DenseVectorFieldType extends ConcreteMappedFieldType {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
@@ -122,12 +122,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            //TODO how can this work if this field never has doc_values?
-            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override

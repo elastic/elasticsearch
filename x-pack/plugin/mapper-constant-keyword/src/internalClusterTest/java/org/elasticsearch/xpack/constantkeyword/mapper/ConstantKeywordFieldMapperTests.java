@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -15,15 +18,18 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperTestCase2;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -33,6 +39,22 @@ import java.util.List;
 import java.util.Set;
 
 public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase2<ConstantKeywordFieldMapper.Builder> {
+
+    @Override
+    protected void field(XContentBuilder builder) {
+        //do nothing
+    }
+
+    @Override
+    protected void fieldValue(XContentBuilder builder) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, QueryShardContext queryShardContext, IndexReader reader) {
+        Query query = fieldType.existsQuery(queryShardContext);
+        assertThat(query, CoreMatchers.instanceOf(MatchNoDocsQuery.class));
+    }
 
     @Override
     protected Collection<Plugin> getPlugins() {

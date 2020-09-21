@@ -59,6 +59,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.value(123);
+    }
+
+    @Override
     public void doTestDefaults(String type) throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", type));
         DocumentMapper mapper = createDocumentMapper(mapping);

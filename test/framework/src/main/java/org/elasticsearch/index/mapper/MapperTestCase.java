@@ -19,8 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -44,6 +52,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +61,50 @@ import static org.mockito.Mockito.when;
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
+
+    protected void field(XContentBuilder builder) throws IOException {
+        builder.field("field");
+        fieldValue(builder);
+    }
+
+    protected abstract void fieldValue(XContentBuilder builder) throws IOException;
+
+    public final void testExistsQuery() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::field));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+            MappedFieldType fieldType = mapperService.fieldType("field");
+            assertExistsQuery(fieldType, queryShardContext, reader);
+        });
+        assertParseMinimalWarnings();
+    }
+
+    protected void assertExistsQuery(MappedFieldType fieldType, QueryShardContext queryShardContext, IndexReader reader) {
+        final LeafReader leaf = reader.leaves().get(0).reader();
+        Query query = fieldType.existsQuery(queryShardContext);
+        if (fieldType.hasDocValues()) {
+            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
+            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery)query;
+            assertEquals("field", fieldExistsQuery.getField());
+            assertNull(leaf.getFieldInfos().fieldInfo(FieldNamesFieldMapper.NAME));
+            assertNotEquals(DocValuesType.NONE, leaf.getFieldInfos().fieldInfo("field").getDocValuesType());
+        } else if (fieldType.getTextSearchInfo().hasNorms()) {
+            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
+            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
+            assertEquals("field", normsFieldExistsQuery.getField());
+            assertNull(leaf.getFieldInfos().fieldInfo(FieldNamesFieldMapper.NAME));
+            assertTrue(leaf.getFieldInfos().fieldInfo("field").hasNorms());
+            assertEquals(DocValuesType.NONE, leaf.getFieldInfos().fieldInfo("field").getDocValuesType());
+        } else {
+            assertThat(query, instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) query;
+            assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
+            assertEquals("field", termQuery.getTerm().text());
+            assertNotNull(leaf.getFieldInfos().fieldInfo(FieldNamesFieldMapper.NAME));
+            assertEquals(DocValuesType.NONE, leaf.getFieldInfos().fieldInfo("field").getDocValuesType());
+        }
+    }
 
     public final void testEmptyName() {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {

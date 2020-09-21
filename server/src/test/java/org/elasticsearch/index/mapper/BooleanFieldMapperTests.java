@@ -44,6 +44,11 @@ import java.util.Map;
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void fieldValue(XContentBuilder builder) throws IOException {
+        builder.value(true);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "boolean");
     }
@@ -56,7 +61,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws IOException {
 
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", true)));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::fieldValue));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             final LeafReader leaf = reader.leaves().get(0).reader();

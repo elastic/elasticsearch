@@ -114,7 +114,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String extension = projectName;
             if (bwcVersion.onOrAfter("7.0.0") && (projectName.contains("zip") || projectName.contains("tar"))) {
                 int index = projectName.indexOf('-');
-                classifier = "-${projectName.substring(0, index)}-x86_64";
+                classifier = projectName.substring(0, index) + "-x86_64";
                 extension = projectName.substring(index + 1);
                 if (extension.equals("tar")) {
                     extension += ".gz";
@@ -136,7 +136,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     + "/build/distributions/elasticsearch-oss-"
                     + bwcVersion
                     + "-SNAPSHOT"
-                    + classifier
+                    + (classifier.isEmpty() ? classifier : "-" + classifier)
                     + "."
                     + extension;
 
@@ -340,7 +340,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 String gitBranch = System.getenv("GIT_BRANCH");
                 return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
             });
-            c.args(projectPath.replace('/', ':'));
+            c.args(projectPath.replace('/', ':') + ":assemble");
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.args("--build-cache");
             }

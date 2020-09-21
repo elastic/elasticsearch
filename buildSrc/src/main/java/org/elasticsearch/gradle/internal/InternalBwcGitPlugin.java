@@ -124,7 +124,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
                 String checkoutHash = GlobalBuildInfoPlugin.gitInfo(checkoutDir.get().getAsFile()).getRevision();
                 logger.lifecycle("Checkout hash for {} is {}", project.getPath(), checkoutHash);
-                writeFile(new File(project.getBuildDir(), refspec), checkoutHash);
+                writeFile(new File(project.getBuildDir(), "refspec"), checkoutHash);
             });
         });
     }

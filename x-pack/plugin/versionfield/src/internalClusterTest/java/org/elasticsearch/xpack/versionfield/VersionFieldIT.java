@@ -27,6 +27,7 @@ public class VersionFieldIT extends ESIntegTestCase {
         return org.elasticsearch.common.collect.List.of(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62705")
     public void testTermsAggregation() throws Exception {
         String indexName = "test";
         createIndex(indexName);

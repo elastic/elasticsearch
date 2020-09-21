@@ -173,7 +173,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
         });
 
-        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE).build();
+        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(managedIndex).settings(removeTierRoutingSetting);
         assertAcked(client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
 

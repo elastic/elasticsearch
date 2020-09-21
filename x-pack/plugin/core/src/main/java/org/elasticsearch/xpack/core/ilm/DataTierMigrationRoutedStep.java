@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 
@@ -73,7 +73,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
-        String destinationTier = INDEX_ROUTING_INCLUDE_SETTING.get(idxMeta.getSettings());
+        String destinationTier = INDEX_ROUTING_PREFER_SETTING.get(idxMeta.getSettings());
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             if (Strings.isEmpty(destinationTier)) {
                 logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",

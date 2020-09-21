@@ -784,7 +784,7 @@ FORMAT(
 *Output*: string
 
 *Description*: Returns the date/datetime/time as a string using the
-https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#argumentsl[format] specified in the 2nd argument. The formatting
+https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#arguments[format] specified in the 2nd argument. The formatting
 pattern used is the one from
 https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings[Microsoft SQL Server Format Specification].
 If any of the two arguments is `null` or the pattern is an empty string `null` is returned.

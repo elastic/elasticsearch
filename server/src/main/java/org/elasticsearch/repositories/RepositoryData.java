@@ -720,8 +720,7 @@ public final class RepositoryData {
                         }
                         break;
                     case SHARD_GENERATIONS:
-                        XContentParserUtils.ensureExpectedToken(
-                                XContentParser.Token.START_ARRAY, currentToken, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             gens.add(parser.textOrNull());
                         }

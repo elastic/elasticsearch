@@ -10,6 +10,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -37,6 +39,9 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -73,6 +78,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -945,6 +951,112 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 lastTaskFuture.get();
             }
         }
+    }
+
+    public void testCacheInvalidationByApiCall() throws Exception {
+        final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .collect(Collectors.toList());
+
+        // Create two API keys and authenticate with them
+        String docId1 = createApiKeyAndAuthenticateWithIt();
+        String docId2 = createApiKeyAndAuthenticateWithIt();
+
+        // Find out which nodes handled the above authentication requests
+        final ApiKeyService serviceForDoc1 =
+            services.stream().filter(s -> s.getApiKeyDocCache().get(docId1) != null).findFirst().orElseThrow();
+        final ApiKeyService serviceForDoc2 =
+            services.stream().filter(s -> s.getApiKeyDocCache().get(docId2) != null).findFirst().orElseThrow();
+        assertNotNull(serviceForDoc1.getFromCache(docId1));
+        assertNotNull(serviceForDoc2.getFromCache(docId2));
+        final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
+        if (sameServiceNode) {
+            assertEquals(2, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+        } else {
+            assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+            assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+        }
+
+        // Invalidate cache for only the first key
+        ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest();
+        clearSecurityCacheRequest.cacheName("api_key");
+        clearSecurityCacheRequest.keys(docId1);
+        ClearSecurityCacheResponse clearSecurityCacheResponse =
+            client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
+        assertFalse(clearSecurityCacheResponse.hasFailures());
+
+        assertBusy(() -> {
+            expectThrows(NullPointerException.class, () -> serviceForDoc1.getFromCache(docId1));
+            if (sameServiceNode) {
+                assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
+                assertNotNull(serviceForDoc1.getFromCache(docId2));
+            } else {
+                assertEquals(0, serviceForDoc1.getApiKeyDocCache().count());
+                assertEquals(1, serviceForDoc2.getApiKeyDocCache().count());
+                assertNotNull(serviceForDoc2.getFromCache(docId2));
+            }
+            // Role descriptors are not invalidated when invalidation is for specific API keys
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+            assertEquals(2, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+        });
+
+        // Invalidate all cache entries by setting keys to an empty array
+        clearSecurityCacheRequest.keys(new String[0]);
+        clearSecurityCacheResponse =
+            client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
+        assertFalse(clearSecurityCacheResponse.hasFailures());
+        assertBusy(() -> {
+            assertEquals(0, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(0, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+            assertEquals(0, serviceForDoc2.getApiKeyDocCache().count());
+            assertEquals(0, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+        });
+    }
+
+    public void testSecurityIndexStateChangeWillInvalidateApiKeyCaches() throws Exception {
+        final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .collect(Collectors.toList());
+
+        String docId = createApiKeyAndAuthenticateWithIt();
+
+        // The API key is cached by one of the node that the above request hits, find out which one
+        final ApiKeyService apiKeyService =
+            services.stream().filter(s -> s.getApiKeyDocCache().count() > 0).findFirst().orElseThrow();
+        assertNotNull(apiKeyService.getFromCache(docId));
+        assertEquals(1, apiKeyService.getApiKeyDocCache().count());
+        assertEquals(2, apiKeyService.getRoleDescriptorsBytesCache().count());
+
+        // Close security index to trigger invalidation
+        final CloseIndexResponse closeIndexResponse = client().admin().indices().close(
+            new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+        assertTrue(closeIndexResponse.isAcknowledged());
+        assertBusy(() -> {
+            expectThrows(NullPointerException.class, () -> apiKeyService.getFromCache(docId));
+            assertEquals(0, apiKeyService.getApiKeyDocCache().count());
+            assertEquals(0, apiKeyService.getRoleDescriptorsBytesCache().count());
+        });
+    }
+
+    private String createApiKeyAndAuthenticateWithIt() throws IOException {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+
+        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
+            .setName("test key")
+            .get();
+        final String docId = createApiKeyResponse.getId();
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (docId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        AuthenticateResponse authResponse = new TestRestHighLevelClient().security()
+            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+                "ApiKey " + base64ApiKeyKeyValue).build());
+        assertEquals("api_key", authResponse.getAuthenticationType());
+        return docId;
     }
 
     private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {

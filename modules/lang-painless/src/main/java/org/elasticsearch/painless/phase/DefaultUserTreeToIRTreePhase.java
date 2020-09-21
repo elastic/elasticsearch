@@ -1862,10 +1862,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             int nextUserCallArgumentNode = 0;
 
             if (method.annotations.containsKey(InjectConstantAnnotation.class)) {
-                if (Modifier.isStatic(method.javaMethod.getModifiers()) == false ||
-                    method.javaMethod.getDeclaringClass() != method.targetClass) {
-
-                    // argument 0 is receiver
+                if (method.javaMethod.getDeclaringClass() != method.targetClass) {
+                    // argument 0 is receiver if the method is augmented
                     irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNodes.get(nextUserCallArgumentNode), scriptScope));
                     nextUserCallArgumentNode++;
                 }

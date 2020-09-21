@@ -240,7 +240,7 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public void testInstanceInjectWithLambda() {
-        assertEquals(123000,
+        assertEquals(246000,
                 exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(100, 0); " +
                         "f.injectWithLambda(x -> 2*x, 5)"));
     }

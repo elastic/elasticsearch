@@ -89,8 +89,30 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("value");
+    }
+
+    public final void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+            if (randomBoolean()) {
+                b.field("norms", false);
+            }
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public final void testExistsQueryDocValuesDisabledWithNorms() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+            b.field("norms", true);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override

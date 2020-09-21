@@ -20,11 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matchers;
 
@@ -37,15 +35,14 @@ import java.util.Set;
 public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeaturesFieldMapper.Builder> {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.startObject().field("foo", 10).field("bar", 20).endObject();
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, QueryShardContext queryShardContext, IndexReader reader) {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> fieldType.existsQuery(queryShardContext));
-        assertEquals("[rank_features] fields do not support [exists] queries",
-            iae.getMessage());
+    protected void assertExistsQuery(MapperService mapperService) throws IOException {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
+        assertEquals("[rank_features] fields do not support [exists] queries", iae.getMessage());
     }
 
     @Override
@@ -72,7 +69,7 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::field));
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.length);

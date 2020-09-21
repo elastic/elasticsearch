@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
 public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyGeoShapeFieldMapper.Builder> {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("POINT (14.0 15.0)");
     }
 

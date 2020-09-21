@@ -452,7 +452,7 @@ public class TextFieldMapper extends FieldMapper {
             } else {
                 automata.add(Automata.makeString(value));
             }
-                
+
             for (int i = value.length(); i < minChars; i++) {
                 automata.add(Automata.makeAnyChar());
             }
@@ -566,13 +566,11 @@ public class TextFieldMapper extends FieldMapper {
         private int fielddataMinSegmentSize;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
-        private final FieldType indexedFieldType;
 
         public TextFieldType(String name, FieldType indexedFieldType, SimilarityProvider similarity, NamedAnalyzer searchAnalyzer,
                              NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
             super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, false,
                 new TextSearchInfo(indexedFieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
-            this.indexedFieldType = indexedFieldType;
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
             fielddataMaxFrequency = Defaults.FIELDDATA_MAX_FREQUENCY;
@@ -582,7 +580,6 @@ public class TextFieldMapper extends FieldMapper {
         public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
             super(name, indexed, false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER), meta);
-            this.indexedFieldType = Defaults.FIELD_TYPE;
             fielddata = false;
         }
 

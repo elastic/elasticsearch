@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.is;
 public class CompletionFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("value");
     }
 

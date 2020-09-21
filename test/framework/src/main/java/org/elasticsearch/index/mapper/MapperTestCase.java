@@ -20,8 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -62,47 +63,83 @@ import static org.mockito.Mockito.when;
 public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
-    protected void field(XContentBuilder builder) throws IOException {
+    protected void writeField(XContentBuilder builder) throws IOException {
         builder.field("field");
-        fieldValue(builder);
+        writeFieldValue(builder);
     }
 
-    protected abstract void fieldValue(XContentBuilder builder) throws IOException;
+    protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
 
-    public final void testExistsQuery() throws IOException {
+    public final void testExistsQueryMinimalMapping() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapperService.documentMapper().parse(source(this::field));
-        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
-            QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-            MappedFieldType fieldType = mapperService.fieldType("field");
-            assertExistsQuery(fieldType, queryShardContext, reader);
-        });
+        assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
     }
 
-    protected void assertExistsQuery(MappedFieldType fieldType, QueryShardContext queryShardContext, IndexReader reader) {
-        final LeafReader leaf = reader.leaves().get(0).reader();
+    protected void assertExistsQuery(MapperService mapperService) throws IOException {
+        ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        MappedFieldType fieldType = mapperService.fieldType("field");
         Query query = fieldType.existsQuery(queryShardContext);
+        assertExistsQuery(fieldType, query, fields);
+    }
+
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         if (fieldType.hasDocValues()) {
             assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
             DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery)query;
             assertEquals("field", fieldExistsQuery.getField());
-            assertNull(leaf.getFieldInfos().fieldInfo(FieldNamesFieldMapper.NAME));
-            assertNotEquals(DocValuesType.NONE, leaf.getFieldInfos().fieldInfo("field").getDocValuesType());
+            assertDocValuesField(fields, "field");
+            assertNoFieldNamesField(fields);
         } else if (fieldType.getTextSearchInfo().hasNorms()) {
             assertThat(query, instanceOf(NormsFieldExistsQuery.class));
             NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
             assertEquals("field", normsFieldExistsQuery.getField());
-            assertNull(leaf.getFieldInfos().fieldInfo(FieldNamesFieldMapper.NAME));
-            assertTrue(leaf.getFieldInfos().fieldInfo("field").hasNorms());
-            assertEquals(DocValuesType.NONE, leaf.getFieldInfos().fieldInfo("field").getDocValuesType());
+            assertHasNorms(fields, "field");
+            assertNoDocValuesField(fields, "field");
+            assertNoFieldNamesField(fields);
         } else {
             assertThat(query, instanceOf(TermQuery.class));
             TermQuery termQuery = (TermQuery) query;
             assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
             assertEquals("field", termQuery.getTerm().text());
-            assertNotNull(leaf.getFieldInfos().fieldInfo(FieldNamesFieldMapper.NAME));
-            assertEquals(DocValuesType.NONE, leaf.getFieldInfos().fieldInfo("field").getDocValuesType());
+            //TODO we should probably check that no field_names gets created if the field has no lucene data structures:
+            //no doc_values, not indexed and not stored. But isStored is not accurate at the moment.
+            assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
+            assertNoDocValuesField(fields, "field");
+        }
+    }
+
+    protected static void assertNoFieldNamesField(ParseContext.Document fields) {
+        assertNull(fields.getField(FieldNamesFieldMapper.NAME));
+    }
+
+    protected static void assertHasNorms(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            IndexableFieldType indexableFieldType = indexableField.fieldType();
+            if (indexableFieldType.indexOptions() != IndexOptions.NONE) {
+                assertFalse(indexableFieldType.omitNorms());
+                return;
+            }
+        }
+        fail("field [" + field + "] should be indexed but it isn't");
+    }
+
+    protected static void assertDocValuesField(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
+                return;
+            }
+        }
+        fail("doc_values not present for field [" + field + "]");
+    }
+
+    protected static void assertNoDocValuesField(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
         }
     }
 

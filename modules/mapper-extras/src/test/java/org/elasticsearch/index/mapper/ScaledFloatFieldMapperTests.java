@@ -47,13 +47,22 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value(123);
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {

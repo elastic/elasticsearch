@@ -99,7 +99,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
     }
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value(1234);
     }
 

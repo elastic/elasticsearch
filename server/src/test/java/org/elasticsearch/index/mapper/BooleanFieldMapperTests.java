@@ -44,7 +44,7 @@ import java.util.Map;
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value(true);
     }
 
@@ -58,10 +58,18 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
-    public void testDefaults() throws IOException {
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
 
+    public void testDefaults() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapperService.documentMapper().parse(source(this::fieldValue));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             final LeafReader leaf = reader.leaves().get(0).reader();

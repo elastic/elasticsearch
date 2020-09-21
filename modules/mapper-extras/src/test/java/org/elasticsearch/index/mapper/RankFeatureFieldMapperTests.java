@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -47,7 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatureFieldMapper.Builder> {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value(10);
     }
 
@@ -65,8 +63,7 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatur
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, QueryShardContext queryShardContext, IndexReader reader) {
-        Query query = fieldType.existsQuery(queryShardContext);
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
         assertEquals("_feature", termQuery.getTerm().field());

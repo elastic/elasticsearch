@@ -92,8 +92,38 @@ import static org.hamcrest.core.Is.is;
 public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.Builder> {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value(1234);
+    }
+
+    public final void testExistsQueryIndexDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+            b.field("norms", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public final void testExistsQueryIndexDisabledStoreTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+            b.field("norms", false);
+            b.field("store", true);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public final void testExistsQueryWithNorms() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override

@@ -81,7 +81,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<SearchAsYouTypeFieldMapper.Builder> {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("new york city");
     }
 

@@ -74,8 +74,17 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override
@@ -138,7 +147,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(source(this::fieldValue));
+        ParsedDocument doc = mapper.parse(source(this::writeField));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField dvField = fields[0];

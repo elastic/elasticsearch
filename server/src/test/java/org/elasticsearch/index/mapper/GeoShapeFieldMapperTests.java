@@ -73,7 +73,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     }
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("POINT (14.0 15.0)");
     }
 

@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMapper.Builder> {
 
     @Override
-    protected void fieldValue(XContentBuilder builder) throws IOException {
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("value");
     }
 

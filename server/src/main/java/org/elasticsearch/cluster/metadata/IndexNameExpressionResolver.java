@@ -88,7 +88,8 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
+            isSystemIndexAccessAllowed());
         return concreteIndexNames(context, request.indices());
     }
 
@@ -105,7 +106,8 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request and resolves data streams.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams(),
+            isSystemIndexAccessAllowed());
         return concreteIndices(context, request.indices());
     }
 
@@ -188,7 +190,8 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
-        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false, isSystemIndexAccessAllowed());
+        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false,
+            isSystemIndexAccessAllowed());
         return concreteIndices(context, request.indices());
     }
 
@@ -728,7 +731,8 @@ public class IndexNameExpressionResolver {
             return isSystemIndexAccessAllowed() == false;
         } else {
             final String pattern = checkPatterns[0];
-            return (isSystemIndexAccessAllowed() || pattern == null || Metadata.ALL.equals(pattern) || Regex.isMatchAllPattern(pattern)) == false;
+            final boolean isAllPattern = pattern == null || Metadata.ALL.equals(pattern) || Regex.isMatchAllPattern(pattern);
+            return (isSystemIndexAccessAllowed() || isAllPattern) == false;
         }
     }
 

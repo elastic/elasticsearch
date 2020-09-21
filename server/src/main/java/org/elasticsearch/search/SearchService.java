@@ -602,8 +602,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private ReaderContext getReaderContext(ShardSearchContextId id) {
-        if (sessionId.equals(id.getSessionId()) == false && id.getSessionId().isEmpty() == false) {
-            return null; // session is mismatched
+        if (id.getSessionId().isEmpty()) {
+            throw new IllegalArgumentException("Session id must be specified");
+        }
+        if (sessionId.equals(id.getSessionId()) == false) {
+            throw new IllegalArgumentException("Session id is mismatched; expected [" + sessionId + "], got [" + id.getSessionId() + "]");
         }
         return activeReaders.get(id.getId());
     }
@@ -625,8 +628,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
-            final ReaderContext readerContext = findReaderContext(request.readerId(), request);
-            return readerContext;
+            return findReaderContext(request.readerId(), request);
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());

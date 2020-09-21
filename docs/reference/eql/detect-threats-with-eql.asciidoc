@@ -36,7 +36,7 @@ https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
 been normalized and mapped to use fields from the {ecs-ref}[Elastic Common
 Schema (ECS)], including the `@timestamp` and `event.category` fields. The
 dataset includes events that imitate behaviors of a Squiblydoo attack, as
-documented by the https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
+documented in the https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
 
 To get started, download and index the dataset:
 
@@ -284,7 +284,7 @@ The query matches an event, confirming `scrobj.dll` was later loaded by
 
 [discrete]
 [[eql-ex-detemine-likelihood-of-sucess]]
-=== Determine likelihood of success
+=== Determine the likelihood of success
 
 In many cases, malicious scripts are used to connect to remote servers or
 download other files. If this occurred, the attack might have succeeded.

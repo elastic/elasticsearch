@@ -111,6 +111,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -1058,16 +1059,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 while (contextIds.isEmpty() == false) {
                     final ShardSearchContextId contextId = randomFrom(contextIds);
-                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
+                    final IllegalArgumentException mismatchSessionId = expectThrows(IllegalArgumentException.class,
+                        () -> searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
+                    assertThat(mismatchSessionId.getMessage(), containsString("Session id is mismatched"));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                     if (randomBoolean()) {
                         assertTrue(searchService.freeReaderContext(contextId));
                     } else {
-                        assertTrue(searchService.freeReaderContext((new ShardSearchContextId("", contextId.getId()))));
+                        assertTrue(searchService.freeReaderContext((
+                            new ShardSearchContextId(contextId.getSessionId(), contextId.getId()))));
                     }
                     contextIds.remove(contextId);
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId("", contextId.getId())));
                     assertFalse(searchService.freeReaderContext(contextId));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 }

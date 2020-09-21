@@ -34,10 +34,15 @@
 package org.elasticsearch.transport;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelConfig;
 import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.DefaultMaxMessagesRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.util.UncheckedBooleanSupplier;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -200,5 +205,42 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
                 setMaxBytesPerGatheringWrite(config().getSendBufferSize() << 1);
             }
         }
+    }
+
+    static class SingleBufferRecvAllocator extends DefaultMaxMessagesRecvByteBufAllocator {
+
+        private static final ThreadLocal<ByteBuf> readByteBuf = ThreadLocal.withInitial(() -> {
+            ByteBuffer directBuffer = ioBuffer.get();
+            directBuffer.clear();
+            directBuffer.limit(64 * 1024);
+            ByteBuf byteBuf = Unpooled.wrappedBuffer(directBuffer);
+            byteBuf.readerIndex(byteBuf.writerIndex());
+            return byteBuf;
+        });
+
+        @Override
+        public Handle newHandle() {
+            return new SingleBufferHandle();
+        }
+
+        class SingleBufferHandle extends MaxMessageHandle {
+
+            private ByteBuf readBuffer;
+
+            @Override
+            public ByteBuf allocate(ByteBufAllocator alloc) {
+                ByteBuf byteBuf = readByteBuf.get();
+                assert byteBuf.refCnt() == 1;
+                byteBuf.writerIndex(0);
+                byteBuf.readerIndex(0);
+                return byteBuf.retain();
+            }
+
+            @Override
+            public int guess() {
+                throw new UnsupportedOperationException();
+            }
+        }
+
     }
 }

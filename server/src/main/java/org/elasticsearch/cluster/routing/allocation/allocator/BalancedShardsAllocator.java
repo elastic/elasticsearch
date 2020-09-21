@@ -964,7 +964,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Tries to find a relocation from the max node to the minimal node for an arbitrary shard of the given index on the
-         * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
+         * balance model. If this method returns a <code>true</code> the relocation has already been executed on the
          * simulation model as well as on the cluster.
          */
         private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx) {

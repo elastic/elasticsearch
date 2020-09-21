@@ -267,7 +267,7 @@ public class KeywordScriptMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     private Query randomRegexpQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), 0, Integer.MAX_VALUE, null, ctx);
+        return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFF), 0, Integer.MAX_VALUE, null, ctx);
     }
 
     @Override

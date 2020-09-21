@@ -33,7 +33,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -55,7 +54,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         if (fetchContext.highlight() == null) {
             return null;
         }

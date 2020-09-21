@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -48,7 +47,7 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.highlight() == null) {
             return null;
         }

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
     private static final String defaultValidationIndexName = "eql_search_validation_test";
-    private static final String validQuery = "process where user = 'SYSTEM'";
+    private static final String validQuery = "process where user = \\\"SYSTEM\\\"";
 
     @After
     public void checkSearchContent() throws Exception {
@@ -42,8 +42,7 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             {"{\"query\": \"\"}", "query is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty"},
-            {"{\"query\": \"" + validQuery + "\", \"size\": 0}", "size must be greater than 0"},
-            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than 0"},
+            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than or equal to 0"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
     };

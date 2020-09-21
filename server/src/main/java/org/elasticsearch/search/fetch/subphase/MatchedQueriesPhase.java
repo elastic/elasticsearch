@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +38,7 @@ import java.util.Map;
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         Map<String, Query> namedQueries = new HashMap<>();
         if (context.parsedQuery() != null) {
             namedQueries.putAll(context.parsedQuery().namedFilters());

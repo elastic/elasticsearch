@@ -50,6 +50,37 @@ public final class BitArray implements Releasable {
         bits.set(wordNum, bits.get(wordNum) | bitmask(index));
     }
 
+    /** this = this OR other */
+    public void or(BitArray other) {
+        or(other.bits);
+    }
+
+    private void or(final LongArray otherArr) {
+        long pos = otherArr.size();
+        bits = bigArrays.grow(bits, pos + 1);
+        final LongArray thisArr = this.bits;
+        while (--pos >= 0) {
+            thisArr.set(pos, thisArr.get(pos) | otherArr.get(pos));
+        }
+    }
+
+    public long nextSetBit(long index) {
+        long wordNum = wordNum(index);
+        long word = bits.get(wordNum) >> index;  // skip all the bits to the right of index
+
+        if (word!=0) {
+            return index + Long.numberOfTrailingZeros(word);
+        }
+
+        while (++wordNum < bits.size()) {
+            word = bits.get(wordNum);
+            if (word != 0) {
+                return (wordNum << 6) + Long.numberOfTrailingZeros(word);
+            }
+        }
+        return Long.MAX_VALUE;
+    }
+
     /**
      * Clear the {@code index}th bit.
      */

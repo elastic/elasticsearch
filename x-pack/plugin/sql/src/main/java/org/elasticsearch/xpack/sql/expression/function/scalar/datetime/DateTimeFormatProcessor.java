@@ -30,7 +30,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"t", "a"},
         {"dddd", "eeee"},
         {"ddd", "eee"},
-        {"K", "v"},
+        {"K", "V"},
         {"g", "G"},
         {"f", "S"},
         {"F", "S"},

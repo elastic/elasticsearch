@@ -37,29 +37,19 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 
 
 check_glibc_version() {
-  echo check_glibc_version
-  if [[ -e /lib64/libc.so.6 ]]; then
-    # We need to check the version of glibc, because JDK >=15 requires
-    # glibc 2.14
-    LIBC_VERSION="$( getconf GNU_LIBC_VERSION | awk '{ if ($2 ~ /^[0-9.]*$/) { print $2; exit 0 } else { exit 1 } }' )"
-    if [[ $? -ne 0 ]]; then
-      LIBC_VERSION="$( ldd --version | head -1 | awk '{ if ($4 ~ /^[0-9.]*$/) { print $4; exit 0 } else { exit 1 } }' )"
-
-      if [[ $? -ne 0 ]]; then
-        LIBC_VERSION="$( /lib64/libc.so.6 | head -1 | tr -d , | awk '{ if ($7 ~ /^[0-9.]*$/) { print $7; exit 0 } else { exit 1 } }' )"
-
-        if [[ $? -ne 0 ]]; then
-          LIBC_VERSION='<unknown>'
-        fi
-      fi
-    fi
+  if getconf GNU_LIBC_VERSION 2>&1 | grep -q 'unknown variable'; then
+    return 0
   fi
+
+  # We need to check the version of glibc, because JDK >=15 requires
+  # glibc 2.14
+  LIBC_VERSION="$( getconf GNU_LIBC_VERSION | cut -d' ' -f2)"
 
   if echo "$LIBC_VERSION" | awk '{ if ($1 >= 2.14) { exit 1 } else { exit 0 } }'; then
     cat >&2 <<EOF
 
-The JDK bundled with Elasticsearch requires glibc >= 2.14, but you
-have version $LIBC_VERSION. Please set the JAVA_HOME environment variable
+ERROR: The JDK bundled with Elasticsearch requires glibc >= 2.14, but
+you have version $LIBC_VERSION. Please set the JAVA_HOME environment variable
 to point to a working JDK installation. For more information, see:
 
 https://www.elastic.co/support/matrix#matrix_jvm

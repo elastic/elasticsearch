@@ -27,18 +27,28 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.transport.NettyAllocator;
 
 import java.util.List;
 
 @ChannelHandler.Sharable
 class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
 
-    private static final boolean SPLIT_HTTP_RESPONSES = true;
-    private static final int SPLIT_THRESHOLD = 250 * 1024;
+    private static final String DO_NOT_SPLIT = "es.unsafe.do_not_split_http_responses";
+
+    private static final boolean DO_NOT_SPLIT_HTTP_RESPONSES;
+    private static final int SPLIT_THRESHOLD;
+
+    static {
+        DO_NOT_SPLIT_HTTP_RESPONSES = Booleans.parseBoolean(System.getProperty(DO_NOT_SPLIT), false);
+        // Netty will add some header bytes if it compresses this message. So we downsize slightly.
+        SPLIT_THRESHOLD = (int) (NettyAllocator.suggestedMaxAllocationSize() * 0.99);
+    }
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Netty4HttpResponse msg, List<Object> out) {
-        if (msg.content().readableBytes() <= SPLIT_THRESHOLD) {
+        if (DO_NOT_SPLIT_HTTP_RESPONSES || msg.content().readableBytes() <= SPLIT_THRESHOLD) {
             out.add(msg.retain());
         } else {
             HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());

@@ -1248,6 +1248,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (completedNoCleanup.isEmpty() == false) {
+                    logger.info("snapshots {} aborted", completedNoCleanup);
+                }
                 for (Snapshot snapshot : completedNoCleanup) {
                     failSnapshotCompletionListeners(snapshot,
                         new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT));

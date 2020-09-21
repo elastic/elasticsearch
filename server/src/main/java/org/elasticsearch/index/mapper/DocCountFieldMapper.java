@@ -43,7 +43,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     static class Builder extends MetadataFieldMapper.Builder {
 
-        public Builder() {
+        Builder() {
             super(NAME);
         }
 

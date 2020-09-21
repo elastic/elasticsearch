@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -105,7 +106,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
         assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
     }
      */
-    public void testParseSourceValue() {
+    public void testParseSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         AggregateDoubleMetricFieldMapper mapper = new AggregateDoubleMetricFieldMapper.Builder("field").metrics(

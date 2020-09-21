@@ -564,7 +564,7 @@ public final class RepositoryData {
                     assert SnapshotsService.useShardGenerations(version);
                     break;
                 default:
-                    throw new ElasticsearchParseException("unknown field name  [" + field + "]");
+                    XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
             }
         }
 

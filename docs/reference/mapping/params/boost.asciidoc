@@ -21,6 +21,7 @@ PUT my-index-000001
   }
 }
 --------------------------------------------------
+// TEST[warning:Parameter [boost] on field [title] is deprecated and will be removed in 8.0]
 
 <1> Matches on the `title` field will have twice the weight as those on the
     `content` field, which has the default `boost` of `1.0`.

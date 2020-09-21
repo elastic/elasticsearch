@@ -156,10 +156,18 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         return builder.endObject();
     }
 
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
+        throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
+            + " a document. Use the index API request parameters.");
+    }
+
     /**
      * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
      */
-    public abstract void preParse(ParseContext context) throws IOException;
+    public void preParse(ParseContext context) throws IOException {
+        // do nothing
+    }
 
     /**
      * Called after {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
@@ -172,5 +180,4 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
-
 }

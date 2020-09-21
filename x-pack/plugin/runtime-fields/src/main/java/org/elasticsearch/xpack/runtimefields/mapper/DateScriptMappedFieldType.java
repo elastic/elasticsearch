@@ -35,17 +35,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class DateScriptMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
+public abstract class DateScriptMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
 
-    DateScriptMappedFieldType(
-        String name,
-        Script script,
-        DateFieldScript.Factory scriptFactory,
-        DateFormatter dateTimeFormatter,
-        Map<String, String> meta
-    ) {
-        super(name, script, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), meta);
+    DateScriptMappedFieldType(String name, Script script, DateFormatter dateTimeFormatter, Map<String, String> meta) {
+        super(name, script, meta);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 

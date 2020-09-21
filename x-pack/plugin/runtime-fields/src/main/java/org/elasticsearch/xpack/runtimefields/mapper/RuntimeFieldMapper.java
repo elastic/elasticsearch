@@ -86,17 +86,20 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             BooleanFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
-                BooleanFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), BooleanFieldScript.CONTEXT);
-                return new BooleanScriptMappedFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                String name = builder.buildFullName(context);
+                Script script = builder.script.getValue();
+                BooleanFieldScript.Factory factory = builder.scriptCompiler.compile(script, BooleanFieldScript.CONTEXT);
+                return new BooleanScriptMappedFieldType(name, script, builder.meta.getValue()) {
+                    @Override
+                    protected BooleanFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                        return factory.newFactory(name, script.getParams(), searchLookup);
+                    }
+                };
             },
             DateFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
-                DateFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), DateFieldScript.CONTEXT);
+                String name = builder.buildFullName(context);
+                Script script = builder.script.getValue();
                 String format = builder.format.getValue();
                 if (format == null) {
                     format = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern();
@@ -106,57 +109,65 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                     locale = Locale.ROOT;
                 }
                 DateFormatter dateTimeFormatter = DateFormatter.forPattern(format).withLocale(locale);
-                return new DateScriptMappedFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    dateTimeFormatter,
-                    builder.meta.getValue()
-                );
+                DateFieldScript.Factory factory = builder.scriptCompiler.compile(script, DateFieldScript.CONTEXT);
+                return new DateScriptMappedFieldType(name, script, dateTimeFormatter, builder.meta.getValue()) {
+                    @Override
+                    protected DateFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                        return factory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter);
+                    }
+                };
             },
             NumberType.DOUBLE.typeName(),
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
-                DoubleFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), DoubleFieldScript.CONTEXT);
-                return new DoubleScriptMappedFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                String name = builder.buildFullName(context);
+                Script script = builder.script.getValue();
+                DoubleFieldScript.Factory factory = builder.scriptCompiler.compile(script, DoubleFieldScript.CONTEXT);
+                return new DoubleScriptMappedFieldType(name, script, builder.meta.getValue()) {
+                    @Override
+                    protected DoubleFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                        return factory.newFactory(name, script.getParams(), searchLookup);
+                    }
+                };
             },
             IpFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
-                IpFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), IpFieldScript.CONTEXT);
-                return new IpScriptMappedFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                String name = builder.buildFullName(context);
+                Script script = builder.script.getValue();
+                IpFieldScript.Factory factory = builder.scriptCompiler.compile(script, IpFieldScript.CONTEXT);
+                return new IpScriptMappedFieldType(name, script, builder.meta.getValue()) {
+                    @Override
+                    protected IpFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                        return factory.newFactory(name, script.getParams(), searchLookup);
+                    }
+                };
             },
             KeywordFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
-                StringFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), StringFieldScript.CONTEXT);
-                return new KeywordScriptMappedFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                String name = builder.buildFullName(context);
+                Script script = builder.script.getValue();
+                StringFieldScript.Factory factory = builder.scriptCompiler.compile(script, StringFieldScript.CONTEXT);
+                return new KeywordScriptMappedFieldType(name, script, builder.meta.getValue()) {
+                    @Override
+                    protected StringFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                        return factory.newFactory(name, script.getParams(), searchLookup);
+                    }
+                };
             },
             NumberType.LONG.typeName(),
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
-                LongFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), LongFieldScript.CONTEXT);
-                return new LongScriptMappedFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                String name = builder.buildFullName(context);
+                Script script = builder.script.getValue();
+                LongFieldScript.Factory factory = builder.scriptCompiler.compile(script, LongFieldScript.CONTEXT);
+                return new LongScriptMappedFieldType(name, script, builder.meta.getValue()) {
+                    @Override
+                    protected LongFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                        return factory.newFactory(name, script.getParams(), searchLookup);
+                    }
+                };
             }
         );
 

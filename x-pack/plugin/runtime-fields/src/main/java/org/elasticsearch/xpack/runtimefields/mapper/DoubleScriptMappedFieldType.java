@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class DoubleScriptMappedFieldType extends AbstractScriptMappedFieldType<DoubleFieldScript.LeafFactory> {
-    DoubleScriptMappedFieldType(String name, Script script, DoubleFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+public abstract class DoubleScriptMappedFieldType extends AbstractScriptMappedFieldType<DoubleFieldScript.LeafFactory> {
+    DoubleScriptMappedFieldType(String name, Script script, Map<String, String> meta) {
+        super(name, script, meta);
     }
 
     @Override

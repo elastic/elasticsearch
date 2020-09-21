@@ -36,9 +36,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public final class IpScriptMappedFieldType extends AbstractScriptMappedFieldType<IpFieldScript.LeafFactory> {
-    IpScriptMappedFieldType(String name, Script script, IpFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+public abstract class IpScriptMappedFieldType extends AbstractScriptMappedFieldType<IpFieldScript.LeafFactory> {
+    IpScriptMappedFieldType(String name, Script script, Map<String, String> meta) {
+        super(name, script, meta);
     }
 
     @Override

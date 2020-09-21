@@ -12,7 +12,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -35,17 +34,10 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  */
 abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldType {
     protected final Script script;
-    private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
 
-    AbstractScriptMappedFieldType(
-        String name,
-        Script script,
-        TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
-        Map<String, String> meta
-    ) {
+    AbstractScriptMappedFieldType(String name, Script script, Map<String, String> meta) {
         super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
-        this.factory = factory;
     }
 
     protected abstract String runtimeType();
@@ -73,9 +65,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     /**
      * Create a script leaf factory.
      */
-    protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(name(), script.getParams(), searchLookup);
-    }
+    protected abstract LeafFactory leafFactory(SearchLookup searchLookup);
 
     /**
      * Create a script leaf factory for queries.

@@ -24,31 +24,23 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xpack.runtimefields.RuntimeFields;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.xpack.runtimefields.fielddata.IpScriptFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -263,69 +255,36 @@ public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     }
 
     private static IpScriptMappedFieldType build(Script script) throws IOException {
-        ScriptPlugin scriptPlugin = new ScriptPlugin() {
+        return new IpScriptMappedFieldType("test", script, emptyMap()) {
             @Override
-            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new ScriptEngine() {
-                    @Override
-                    public String getType() {
-                        return "test";
-                    }
-
-                    @Override
-                    public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(StringFieldScript.CONTEXT);
-                    }
-
-                    @Override
-                    public <FactoryType> FactoryType compile(
-                        String name,
-                        String code,
-                        ScriptContext<FactoryType> context,
-                        Map<String, String> params
-                    ) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType factory = (FactoryType) factory(code);
-                        return factory;
-                    }
-
-                    private IpFieldScript.Factory factory(String code) {
-                        switch (code) {
-                            case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emit(foo.toString());
-                                        }
-                                    }
-                                };
-                            case "append_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emit(foo.toString() + getParams().get("param"));
-                                        }
-                                    }
-                                };
-                            case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
-                                };
-                            default:
-                                throw new IllegalArgumentException("unsupported script [" + code + "]");
-                        }
-                    }
-                };
+            protected IpFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                switch (script.getIdOrCode()) {
+                    case "read_foo":
+                        return ctx -> new IpFieldScript("test", script.getParams(), searchLookup, ctx) {
+                            @Override
+                            public void execute() {
+                                for (Object foo : (List<?>) getSource().get("foo")) {
+                                    emit(foo.toString());
+                                }
+                            }
+                        };
+                    case "append_param":
+                        return ctx -> new IpFieldScript("test", script.getParams(), searchLookup, ctx) {
+                            @Override
+                            public void execute() {
+                                for (Object foo : (List<?>) getSource().get("foo")) {
+                                    emit(foo.toString() + getParams().get("param"));
+                                }
+                            }
+                        };
+                    case "loop":
+                        // Indicate that this script wants the field call "test", which *is* the name of this field
+                        searchLookup.forkAndTrackFieldReferences("test");
+                        throw new IllegalStateException("shoud have thrown on the line above");
+                    default:
+                        throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+                }
             }
         };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
-        try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            IpFieldScript.Factory factory = scriptService.compile(script, IpFieldScript.CONTEXT);
-            return new IpScriptMappedFieldType("test", script, factory, emptyMap());
-        }
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.io.IOException;
@@ -40,7 +41,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class RuntimeFieldMapperTests extends MapperTestCase {
 
@@ -298,15 +298,12 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         assertTrue(config.hasIndexSort());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> config.buildIndexSort(
-                field -> new KeywordScriptMappedFieldType(
-                    field,
-                    new Script(""),
-                    mock(StringFieldScript.Factory.class),
-                    Collections.emptyMap()
-                ),
-                (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
-            )
+            () -> config.buildIndexSort(field -> new KeywordScriptMappedFieldType(field, new Script(""), Collections.emptyMap()) {
+                @Override
+                protected StringFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
+                    return null;
+                }
+            }, (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier))
         );
         assertEquals("docvalues not found for index sort field:[runtime]", iae.getMessage());
         assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));

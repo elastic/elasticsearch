@@ -40,12 +40,43 @@ if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
   JAVA_TYPE="JAVA_HOME"
 else
-  if [ "$(uname -s)" = "Darwin" ]; then
+  KERNEL="$(uname -s)"
+  if [ "$KERNEL" = "Darwin" ]; then
     # macOS has a different structure
     JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
+  elif [ "$KERNEL" = "Linux" ]; then
+    # We need to check the version of libc, because JDK >=15 requires
+    # glibc 2.14
+    LIBC_OK="$(getconf GNU_LIBC_VERSION | awk '$2 >= 2.14 { print "yes" } $2 < 2.14 { print "no" } ')"
+    if [[ $? -ne 0 ]]; then
+      LIBC_OK="$(ldd --version | head -1 | awk '$4 >= 2.14 { print "yes" } $4 < 2.14 { print "no" } ')"
+
+      if [[ $? -ne 0 ]]; then
+        LIBC_OK="$(/lib64/libc.so.6 | head -1 | tr -d , | awk '$7 >= 2.14 { print "yes" } $7 < 2.14 { print "no" } ')"
+        if [[ $? -ne 0 ]]; then
+          LIBC_OK='unknown'
+        fi
+      fi
+    fi
+
+    if [[ "$LIBC_OK" != "yes" ]]; then
+      cat >&2 <<EOF
+
+The JDK bundled with Elasticsearch requires glibc >= 2.14. Please set the JAVA_HOME
+environment variable to point to a working JDK installation. For more information,
+see:
+
+https://www.elastic.co/support/matrix#matrix_jvm
+
+EOF
+      exit 1
+    fi
+
+    JAVA="$ES_HOME/jdk/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
+
   JAVA_TYPE="bundled jdk"
 fi
 

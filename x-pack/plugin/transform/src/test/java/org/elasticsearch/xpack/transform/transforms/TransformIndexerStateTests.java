@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
@@ -89,11 +90,12 @@ public class TransformIndexerStateTests extends ESTestCase {
 
     class MockedTransformIndexer extends TransformIndexer {
 
+        private TransformState persistedState;
         private int saveStateListenerCallCount = 0;
         // used for synchronizing with the test
         private CountDownLatch searchLatch;
 
-        public MockedTransformIndexer(
+        MockedTransformIndexer(
             ThreadPool threadPool,
             String executorName,
             TransformConfigManager transformsConfigManager,
@@ -121,6 +123,16 @@ public class TransformIndexerStateTests extends ESTestCase {
                 TransformCheckpoint.EMPTY,
                 TransformCheckpoint.EMPTY,
                 context
+            );
+            persistedState = new TransformState(
+                context.getTaskState(),
+                initialState.get(),
+                initialPosition,
+                context.getCheckpoint(),
+                context.getStateReason(),
+                getProgress(),
+                null,
+                context.shouldStopAtCheckpoint()
             );
         }
 
@@ -156,6 +168,17 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
+            persistedState = new TransformState(
+                context.getTaskState(),
+                state,
+                position,
+                context.getCheckpoint(),
+                context.getStateReason(),
+                getProgress(),
+                null,
+                context.shouldStopAtCheckpoint()
+            );
+
             Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
             try {
                 if (saveStateListenersAtTheMomentOfCalling != null) {
@@ -171,6 +194,10 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         public int getSaveStateListenerCallCount() {
             return saveStateListenerCallCount;
+        }
+
+        public TransformState getPersistedState() {
+            return persistedState;
         }
     }
 
@@ -218,8 +245,16 @@ public class TransformIndexerStateTests extends ESTestCase {
                 new TransformIndexerStats(),
                 context
             );
-            assertResponse(listener -> indexer.stopAtCheckpoint(true, listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
             assertEquals(0, indexer.getSaveStateListenerCallCount());
+            if (IndexerState.STARTED.equals(state)) {
+                assertTrue(context.shouldStopAtCheckpoint());
+                assertTrue(indexer.getPersistedState().shouldStopAtNextCheckpoint());
+            } else {
+                // shouldStopAtCheckpoint should not be set, because the indexer is already stopped, stopping or aborting
+                assertFalse(context.shouldStopAtCheckpoint());
+                assertFalse(indexer.getPersistedState().shouldStopAtNextCheckpoint());
+            }
         }
 
         // lets test a running indexer
@@ -240,7 +275,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertEquals(indexer.getState(), IndexerState.INDEXING);
 
-            assertResponse(listener -> indexer.stopAtCheckpoint(true, listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
@@ -249,7 +284,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertEquals(1, indexer.getSaveStateListenerCallCount());
 
             // as the state is stopped it should go back to directly
-            assertResponse(listener -> indexer.stopAtCheckpoint(true, listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
             assertEquals(1, indexer.getSaveStateListenerCallCount());
         }
 
@@ -272,9 +307,9 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertEquals(indexer.getState(), IndexerState.INDEXING);
 
             // this time call it 3 times
-            assertResponse(listener -> indexer.stopAtCheckpoint(true, listener));
-            assertResponse(listener -> indexer.stopAtCheckpoint(true, listener));
-            assertResponse(listener -> indexer.stopAtCheckpoint(true, listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(true, listener));
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
@@ -309,7 +344,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             for (int i = 0; i < 5; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = i % 2 == 0;
-                countResponse(listener -> indexer.stopAtCheckpoint(stopAtCheckpoint, listener), latch);
+                countResponse(listener -> indexer.setStopAtCheckpoint(stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
             }
 
@@ -352,7 +387,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             for (int i = 0; i < 3; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = randomBoolean();
-                countResponse(listener -> indexer.stopAtCheckpoint(stopAtCheckpoint, listener), latch);
+                countResponse(listener -> indexer.setStopAtCheckpoint(stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
             }
 
@@ -360,9 +395,9 @@ public class TransformIndexerStateTests extends ESTestCase {
             searchLatch.countDown();
 
             // this time call it 3 times
-            assertResponse(listener -> indexer.stopAtCheckpoint(randomBoolean(), listener));
-            assertResponse(listener -> indexer.stopAtCheckpoint(randomBoolean(), listener));
-            assertResponse(listener -> indexer.stopAtCheckpoint(randomBoolean(), listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(randomBoolean(), listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(randomBoolean(), listener));
+            assertResponse(listener -> indexer.setStopAtCheckpoint(randomBoolean(), listener));
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);

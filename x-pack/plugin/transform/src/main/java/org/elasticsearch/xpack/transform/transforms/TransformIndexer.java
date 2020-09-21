@@ -49,11 +49,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
+
+    private static final int PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC = 5;
 
     /**
      * RunState is an internal (non-persisted) state that controls the internal logic
@@ -519,11 +523,51 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     /**
+     * Let the indexer stop at the next checkpoint and call the listener after the flag has been persisted in state.
      *
+     * If the indexer isn't running, persist state if required and call the listener immediately.
      */
-    synchronized void stopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+    synchronized void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        IndexerState state = getState();
+
         // in case the indexer isn't running, respond immediately
-        if (getState() != IndexerState.INDEXING) {
+        if (state == IndexerState.STARTED && context.shouldStopAtCheckpoint() != shouldStopAtCheckpoint) {
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+
+            // because save state is async we need to block the call until state is persisted, so that the job can not
+            // be triggered
+            CountDownLatch latch = new CountDownLatch(1);
+            try {
+                doSaveState(IndexerState.STARTED, getPosition(), () -> {
+                    latch.countDown();
+                    shouldStopAtCheckpointListener.onResponse(null);
+                });
+
+                latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                logger.error(
+                    new ParameterizedMessage(
+                        "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                        getJobId(),
+                        PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
+                    ),
+                    e
+                );
+
+                // the transport wraps this with a REST status code
+                shouldStopAtCheckpointListener.onFailure(
+                    new RuntimeException(
+                        "Timed out (" + PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC + "s) waiting for transform state to be stored.\"",
+                        e
+                    )
+                );
+            } catch (Exception e) {
+                shouldStopAtCheckpointListener.onFailure(e);
+            }
+            return;
+        }
+
+        if (state != IndexerState.INDEXING) {
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }

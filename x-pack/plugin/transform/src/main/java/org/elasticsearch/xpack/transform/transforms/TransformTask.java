@@ -289,16 +289,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     /**
      * This sets the flag for the task to stop at the next checkpoint.
      *
-     * If first persists the flag and then mutates the local variable.
-     *
-     * It only persists if the value is different than what is currently held in memory.
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
-    public void setShouldStopAtCheckpoint(
-        boolean shouldStopAtCheckpoint,
-        ActionListener<Void> shouldStopAtCheckpointListener
-    ) {
+    public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         logger.debug(
             "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),
@@ -309,7 +303,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
-        getIndexer().stopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+        getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {

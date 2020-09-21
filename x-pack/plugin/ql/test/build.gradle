@@ -7,8 +7,8 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compileOnly project(xpackModule('ql'))
-  compileOnly project(':test:framework')
+  api project(xpackModule('ql'))
+  api project(':test:framework')
 }
 
 test.enabled = false

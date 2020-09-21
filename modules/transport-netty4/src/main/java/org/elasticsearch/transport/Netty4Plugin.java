@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +56,6 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
     public Netty4Plugin() {
-        logger.error(Arrays.toString(JvmInfo.jvmInfo().getGcCollectors()));
         logger.info("creating NettyAllocator with the following configs: " + NettyAllocator.getAllocatorDescription());
     }
 

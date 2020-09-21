@@ -22,5 +22,3 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
-
-integTest.enabled = false

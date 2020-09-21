@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -20,20 +21,22 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
-import org.elasticsearch.xpack.eql.session.Results.Type;
+import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
+import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 
 /**
  * Time-based window encapsulating query creation and advancement.
  * Since queries can return different number of results, to avoid creating incorrect sequences,
  * all searches are 'boxed' to a base query.
  * The base query is initially the first query - when no results are found, the next query gets promoted.
- * 
+ *
  * This allows the window to find any follow-up results even if they are found outside the initial window
  * of a base query.
  */
@@ -95,9 +98,9 @@ public class TumblingWindow implements Executable {
         client.query(base.queryRequest(), wrap(p -> baseCriterion(baseStage, p, listener), listener::onFailure));
     }
 
-    private void baseCriterion(int baseStage, Payload p, ActionListener<Payload> listener) {
+    private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
-        List<SearchHit> hits = p.values();
+        List<SearchHit> hits = searchHits(r);
 
         log.trace("Found [{}] hits", hits.size());
 
@@ -167,8 +170,8 @@ public class TumblingWindow implements Executable {
 
         log.trace("Querying until stage {}", request);
 
-        client.query(request, wrap(p -> {
-            List<SearchHit> hits = p.values();
+        client.query(request, wrap(r -> {
+            List<SearchHit> hits = searchHits(r);
 
             log.trace("Found [{}] hits", hits.size());
             // no more results for until - let the other queries run
@@ -208,8 +211,8 @@ public class TumblingWindow implements Executable {
 
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
-        client.query(request, wrap(p -> {
-            List<SearchHit> hits = p.values();
+        client.query(request, wrap(r -> {
+            List<SearchHit> hits = searchHits(r);
 
             log.trace("Found [{}] hits", hits.size());
 
@@ -294,14 +297,21 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
-            matcher.clear();
+            close(listener);
             return;
         }
 
-        client.get(hits(completed), wrap(searchHits -> {
-            listener.onResponse(new SequencePayload(completed, searchHits, false, timeTook()));
-            matcher.clear();
-        }, listener::onFailure));
+        // get results through search (to keep using PIT)
+        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
+            SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
+            close(listener);
+            return payload;
+        }));
+    }
+
+    private void close(ActionListener<Payload> listener) {
+        matcher.clear();
+        client.close(ActionListener.delegateFailure(listener, (l, r) -> {}));
     }
 
     private TimeValue timeTook() {
@@ -313,7 +323,7 @@ public class TumblingWindow implements Executable {
             final Iterator<Sequence> delegate = criteria.get(0).reverse() != criteria.get(1).reverse() ?
                     new ReversedIterator<>(sequences) :
                     sequences.iterator();
-            
+
             return new Iterator<>() {
 
                 @Override

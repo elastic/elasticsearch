@@ -1875,7 +1875,7 @@ Total number of HTTP connections opened for the node.
 ======
 
 [[cluster-nodes-stats-api-response-body-breakers]]
-`beakers`::
+`breakers`::
 (object)
 Contains circuit breaker statistics for the node.
 +

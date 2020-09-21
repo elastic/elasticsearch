@@ -20,8 +20,8 @@ Many query languages allow you to match only single events. EQL lets you match a
 sequence of events across different event categories and time spans.
 
 * *EQL has a low learning curve.* +
-EQL syntax looks like other query languages. It lets you write and read queries
-intuitively, which makes for quick, iterative searching.
+<<eql-syntax,EQL syntax>> looks like other query languages. It lets you write
+and read queries intuitively, which makes for quick, iterative searching.
 
 * *We designed EQL for security use cases.* +
 While you can use EQL for any event-based data, we created EQL for threat
@@ -49,7 +49,8 @@ request. See <<specify-a-timestamp-or-event-category-field>>.
 [[run-an-eql-search]]
 == Run an EQL search
 
-You can use the <<eql-search-api,EQL search API>> to run an EQL search.
+You can use the <<eql-search-api,EQL search API>> to run an EQL search. For
+supported query syntax, see <<eql-syntax>>.
 
 The following request searches `my-index-000001` for events with an
 `event.category` of `process` and a `process.name` of `regsvr32.exe`. Each
@@ -66,7 +67,6 @@ GET /my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events are included in the
 `hits.events` property. These events are sorted by timestamp, converted to
@@ -89,7 +89,6 @@ ascending order.
       {
         "_index": "my-index-000001",
         "_id": "OQmfCaduce8zoHT93o4H",
-        "_score": null,
         "_source": {
           "@timestamp": "2099-12-07T11:07:09.000Z",
           "event": {
@@ -108,7 +107,6 @@ ascending order.
       {
         "_index": "my-index-000001",
         "_id": "xLkCaj4EujzdNSxfYLbO",
-        "_score": null,
         "_source": {
           "@timestamp": "2099-12-07T11:07:10.000Z",
           "event": {
@@ -188,10 +186,6 @@ The API returns the following response. Matching sequences are included in the
           {
             "_index": "my-index-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
@@ -210,10 +204,6 @@ The API returns the following response. Matching sequences are included in the
           {
             "_index": "my-index-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_version": 1,
-            "_seq_no": 4,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
               "event": {
@@ -322,10 +312,6 @@ contains the shared `process.pid` value for each matching event.
           {
             "_index": "my-index-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
-            "_version": 1,
-            "_seq_no": 3,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
               "event": {
@@ -344,10 +330,6 @@ contains the shared `process.pid` value for each matching event.
           {
             "_index": "my-index-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_version": 1,
-            "_seq_no": 4,
-            "_primary_term": 1,
-            "_score": null,
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
               "event": {
@@ -408,9 +390,9 @@ documents use a different timestamp or event category field, you must specify it
 in the search request using the `timestamp_field` or `event_category_field`
 parameters.
 
-The event category field is typically mapped as a <<keyword,`keyword`>> or
-<<constant-keyword,constant keyword>> field. The timestamp field is typically
-mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field.
+The event category field is typically mapped as a field type in the
+<<keyword,`keyword`>> family. The timestamp field is typically mapped as a
+<<date,`date`>> or <<date_nanos,`date_nanos`>> field.
 
 NOTE: You cannot use a <<nested,`nested`>> field or the sub-fields of a `nested`
 field as the timestamp or event category field. See <<eql-nested-fields>>.

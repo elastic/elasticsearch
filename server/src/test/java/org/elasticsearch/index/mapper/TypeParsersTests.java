@@ -195,7 +195,7 @@ public class TypeParsersTests extends ESTestCase {
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
-            null, mapperService, type -> typeParser, olderVersion, null, null);
+            null, mapperService, type -> typeParser, olderVersion, null, null, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -210,7 +210,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(
-            null, mapperService, type -> typeParser, version, null, null);
+            null, mapperService, type -> typeParser, version, null, null, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TypeParsers.parseField(builder, "some-field", fieldNodeCopy, context));

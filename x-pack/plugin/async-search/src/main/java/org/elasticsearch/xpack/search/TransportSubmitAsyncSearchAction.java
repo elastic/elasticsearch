@@ -143,7 +143,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
-                return new AsyncSearchTask(id, type, action, parentTaskId, keepAlive,
+                return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
                     originHeaders, taskHeaders, searchId, store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };

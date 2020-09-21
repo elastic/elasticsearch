@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -54,23 +53,23 @@ public class LogicalPlanTests extends ESTestCase {
     }
 
     public void testAnyQuery() {
-        LogicalPlan fullQuery = parser.createStatement("any where process_name == 'net.exe'");
-        Expression fullExpression = expr("process_name == 'net.exe'");
+        LogicalPlan fullQuery = parser.createStatement("any where process_name == \"net.exe\"");
+        Expression fullExpression = expr("process_name == \"net.exe\"");
 
         assertEquals(wrapFilter(fullExpression), fullQuery);
     }
 
     public void testEventQuery() {
-        LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'");
-        Expression fullExpression = expr("event.category == 'process' and process_name == 'net.exe'");
+        LogicalPlan fullQuery = parser.createStatement("process where process_name == \"net.exe\"");
+        Expression fullExpression = expr("event.category == \"process\" and process_name == \"net.exe\"");
 
         assertEquals(wrapFilter(fullExpression), fullQuery);
     }
 
     public void testParameterizedEventQuery() {
         ParserParams params = new ParserParams(UTC).fieldEventCategory("myCustomEvent");
-        LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
-        Expression fullExpression = expr("myCustomEvent == 'process' and process_name == 'net.exe'");
+        LogicalPlan fullQuery = parser.createStatement("process where process_name == \"net.exe\"", params);
+        Expression fullExpression = expr("myCustomEvent == \"process\" and process_name == \"net.exe\"");
 
         assertEquals(wrapFilter(fullExpression), fullQuery);
     }
@@ -79,8 +78,7 @@ public class LogicalPlanTests extends ESTestCase {
     private LogicalPlan wrapFilter(Expression exp) {
         LogicalPlan filter = new Filter(Source.EMPTY, relation(), exp);
         Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
         LogicalPlan head = new Head(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.SIZE, DataTypes.INTEGER), sorted);
         return head;
     }

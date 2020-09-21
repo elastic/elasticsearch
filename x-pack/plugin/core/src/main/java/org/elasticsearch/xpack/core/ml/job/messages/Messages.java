@@ -66,6 +66,9 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON =
             "Updated analytics task state to [{0}] with reason [{1}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage for this analytics to be [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED =
+        "Configured model memory limit [{0}] is lower than the expected memory usage [{1}]. " +
+            "The analytics job may fail due to configured memory constraints.";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX = "Creating destination index [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX = "Using existing destination index [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING = "Started reindexing to destination index [{0}]";
@@ -100,7 +103,7 @@ public final class Messages {
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
-    public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata [{0}]";
+    public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
     public static final String INFERENCE_CANNOT_DELETE_MODEL =
         "Unable to delete model [{0}]";
     public static final String MODEL_DEFINITION_TRUNCATED =

@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DocValueFormat;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +28,7 @@ public class VersionFieldPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return org.elasticsearch.common.collect.List.of(
+        return Arrays.asList(
             new NamedWriteableRegistry.Entry(
                 DocValueFormat.class,
                 VersionStringFieldMapper.VERSION_DOCVALUE.getWriteableName(),

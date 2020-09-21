@@ -548,8 +548,7 @@ public final class SecurityClient {
 
     /**
      * Clears a security cache for a set of keys.
-     * TODO: actual document page
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-security-cache.html">
      * the docs</a> for more.
      *
      * @param request the request with the security for which the cache should be cleared for the specified keys.
@@ -564,8 +563,7 @@ public final class SecurityClient {
 
     /**
      * Clears the security cache for a set of security asynchronously.
-     * TODO: actual document page
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-security-cache.html">
      * the docs</a> for more.
      *
      * @param request  the request with the security for which the cache should be cleared for the specified keys.

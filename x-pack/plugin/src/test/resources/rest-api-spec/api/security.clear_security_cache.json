@@ -8,12 +8,12 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/{cacheName}/{keys}/_clear_cache",
+          "path":"/_security/{cache_name}/{keys}/_clear_cache",
           "methods":[
             "POST"
           ],
           "parts":{
-            "cacheName":{
+            "cache_name":{
               "type":"string",
               "description":"Name of the target cache to be cleared"
             },

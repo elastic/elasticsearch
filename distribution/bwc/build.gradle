@@ -17,31 +17,4 @@
  * under the License.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.BwcVersions
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.gradle.util.GradleVersion
-
-import java.nio.charset.StandardCharsets
-
-import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome
-
-/**
- *  We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
- *  For this we need to check out and build the unreleased versions.
- *  Since These depend on the current version, we can't name the Gradle projects statically, and don't know what the
- *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
- *  and configure them to build various versions here.
- */
-
 apply plugin:"elasticsearch.internal-distribution-bwc-setup"
-
-BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion ->
-  project("${unreleasedVersion.gradleProjectPath}") {
-
-
-  }
-}

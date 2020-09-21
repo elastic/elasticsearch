@@ -52,6 +52,14 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
 
+
+/**
+ *  We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
+ *  For this we need to check out and build the unreleased versions.
+ *  Since These depend on the current version, we can't name the Gradle projects statically, and don't know what the
+ *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
+ *  and configure them to build various versions here.
+ */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     @Override

@@ -953,7 +953,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testCacheInvalidationByApiCall() throws Exception {
+    public void testCacheInvalidationViaApiCalls() throws Exception {
         final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
             .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
             .collect(Collectors.toList());
@@ -1011,8 +1011,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             assertEquals(0, serviceForDoc1.getApiKeyDocCache().count());
             assertEquals(0, serviceForDoc1.getRoleDescriptorsBytesCache().count());
-            assertEquals(0, serviceForDoc2.getApiKeyDocCache().count());
-            assertEquals(0, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+            if (sameServiceNode) {
+                expectThrows(NullPointerException.class, () -> serviceForDoc1.getFromCache(docId2));
+            } else {
+                expectThrows(NullPointerException.class, () -> serviceForDoc2.getFromCache(docId2));
+                assertEquals(0, serviceForDoc2.getApiKeyDocCache().count());
+                assertEquals(0, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+            }
         });
     }
 

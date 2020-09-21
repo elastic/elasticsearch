@@ -623,7 +623,7 @@ public final class RepositoryData {
                                 }
                             } else if (SHARD_GENERATIONS.equals(indexMetaFieldName)) {
                                 XContentParserUtils.ensureExpectedToken(
-                                    XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+                                    XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     gens.add(parser.textOrNull());
                                 }

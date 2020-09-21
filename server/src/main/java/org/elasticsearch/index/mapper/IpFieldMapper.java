@@ -118,7 +118,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(context), indexed.getValue(), hasDocValues.getValue(), meta.getValue()),
+                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
@@ -131,12 +131,12 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
-        public IpFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public IpFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, Collections.emptyMap());
         }
 
         @Override

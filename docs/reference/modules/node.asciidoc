@@ -108,7 +108,7 @@ restarts.
 [[dedicated-control-node]]
 ===== Dedicated control nodes
 
-It is important for the health of the cluster that the manager node has
+It is important for the health of the cluster that the control nodes have
 the resources it needs to fulfill its responsibilities. If the manager
 is overloaded with other tasks then the cluster may not operate well. In
 particular, indexing and searching your data can be very resource-intensive, so

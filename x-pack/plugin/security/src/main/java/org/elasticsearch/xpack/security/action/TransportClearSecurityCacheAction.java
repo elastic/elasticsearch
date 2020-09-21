@@ -26,12 +26,15 @@ import java.util.List;
 public class TransportClearSecurityCacheAction extends TransportNodesAction<ClearSecurityCacheRequest, ClearSecurityCacheResponse,
     ClearSecurityCacheRequest.Node, ClearSecurityCacheResponse.Node> {
 
+    private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
+
     @Inject
     public TransportClearSecurityCacheAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters) {
+        ActionFilters actionFilters,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         super(
             ClearSecurityCacheAction.NAME,
             threadPool,
@@ -42,6 +45,7 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
             ClearSecurityCacheRequest.Node::new,
             ThreadPool.Names.MANAGEMENT,
             ClearSecurityCacheResponse.Node.class);
+        this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }
 
     @Override
@@ -63,9 +67,9 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
     @Override
     protected ClearSecurityCacheResponse.Node nodeOperation(ClearSecurityCacheRequest.Node request, Task task) {
         if (request.getKeys() == null || request.getKeys().length == 0) {
-            CacheInvalidatorRegistry.invalidateCache(request.getCacheName());
+            cacheInvalidatorRegistry.invalidateCache(request.getCacheName());
         } else {
-            CacheInvalidatorRegistry.invalidateByKey(request.getCacheName(), List.of(request.getKeys()));
+            cacheInvalidatorRegistry.invalidateByKey(request.getCacheName(), List.of(request.getKeys()));
         }
         return new ClearSecurityCacheResponse.Node(clusterService.localNode());
     }

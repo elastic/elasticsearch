@@ -18,14 +18,19 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  */
 public class CacheInvalidatorRegistry {
 
-    private static final Map<String, CacheInvalidator> cacheInvalidators = new ConcurrentHashMap<>();
+    private final Map<String, CacheInvalidator> cacheInvalidators = new ConcurrentHashMap<>();
 
-    public static void registerCacheInvalidator(String name, CacheInvalidator cacheInvalidator) {
-        // TODO: check no overriding entries
+    public CacheInvalidatorRegistry() {
+    }
+
+    public void registerCacheInvalidator(String name, CacheInvalidator cacheInvalidator) {
+        if (cacheInvalidators.containsKey(name)) {
+            throw new IllegalArgumentException("Cache invalidator registry already has an entry with name: [" + name + "]");
+        }
         cacheInvalidators.put(name, cacheInvalidator);
     }
 
-    public static void onSecurityIndexStageChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    public void onSecurityIndexStageChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
@@ -33,14 +38,14 @@ public class CacheInvalidatorRegistry {
         }
     }
 
-    public static void invalidateByKey(String cacheName, Collection<String> keys) {
+    public void invalidateByKey(String cacheName, Collection<String> keys) {
         final CacheInvalidator cacheInvalidator = cacheInvalidators.get(cacheName);
         if (cacheInvalidator != null) {
             cacheInvalidator.invalidate(keys);
         }
     }
 
-    public static void invalidateCache(String cacheName) {
+    public void invalidateCache(String cacheName) {
         final CacheInvalidator cacheInvalidator = cacheInvalidators.get(cacheName);
         if (cacheInvalidator != null) {
             cacheInvalidator.invalidateAll();

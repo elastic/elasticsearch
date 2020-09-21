@@ -442,7 +442,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
         securityIndex.get().addIndexStateListener(privilegeStore::onSecurityIndexStateChange);
-        securityIndex.get().addIndexStateListener(CacheInvalidatorRegistry::onSecurityIndexStageChange);
+
+        final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
+        components.add(cacheInvalidatorRegistry);
+        securityIndex.get().addIndexStateListener(cacheInvalidatorRegistry::onSecurityIndexStageChange);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
@@ -456,7 +459,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
-            clusterService, threadPool);
+            clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,

@@ -185,7 +185,7 @@ public class ApiKeyService {
     private volatile long lastExpirationRunMs;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
-                         ClusterService clusterService, ThreadPool threadPool) {
+                         ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
         this.licenseState = licenseState;
@@ -215,7 +215,7 @@ public class ApiKeyService {
                     .setExpireAfterWrite(TimeValue.timeValueMinutes(5))
                     .build()
             );
-            CacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
+            cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
                     apiKeyDocCache.invalidate(keys);

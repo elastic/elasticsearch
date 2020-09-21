@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
@@ -105,6 +106,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -115,6 +117,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     private XPackLicenseState licenseState;
     private Client client;
     private SecurityIndexManager securityIndex;
+    private CacheInvalidatorRegistry cacheInvalidatorRegistry;
 
     @Before
     public void createThreadPool() {
@@ -138,6 +141,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
+        this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
     public void testCreateApiKeyWillUseBulkAction() {
@@ -1006,8 +1010,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(baseSettings)
             .build();
-        return new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex,
-            ClusterServiceUtils.createClusterService(threadPool), threadPool);
+        final ApiKeyService service = new ApiKeyService(
+            settings, Clock.systemUTC(), client, licenseState, securityIndex,
+            ClusterServiceUtils.createClusterService(threadPool),
+            cacheInvalidatorRegistry, threadPool);
+        if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
+            verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());
+        } else {
+            verify(cacheInvalidatorRegistry).registerCacheInvalidator(eq("api_key"), any());
+        }
+        return service;
     }
 
     private Map<String, Object> buildApiKeySourceDoc(char[] hash) {

@@ -19,13 +19,28 @@
 
 package org.elasticsearch.painless;
 
+import java.util.function.Function;
+
 public class FeatureTestAugmentationObject {
+
     public static int getTotal(FeatureTestObject ft) {
         return ft.getX() + ft.getY();
     }
 
     public static int addToTotal(FeatureTestObject ft, int add) {
         return getTotal(ft) + add;
+    }
+
+    public static int augmentInjectTimesX(FeatureTestObject ft, int injected, short user) {
+        return ft.getX() * injected * user;
+    }
+
+    public static int augmentTimesSupplier(FeatureTestObject ft, Function<Short, Integer> fn, short fnArg, int userArg) {
+        return fn.apply(fnArg) * userArg;
+    }
+
+    public static int augmentInjectWithLambda(FeatureTestObject ft, int injected, Function<Short, Integer> fn, short arg) {
+        return ft.getX()*fn.apply(arg)*injected;
     }
 
     private FeatureTestAugmentationObject() {}

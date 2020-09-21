@@ -118,11 +118,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 if (extension.equals("tar")) {
                     extension += ".gz";
                 }
-            }
-            if (bwcVersion.onOrAfter("7.0.0") && projectName.contains("deb")) {
+            } else if (bwcVersion.onOrAfter("7.0.0") && projectName.contains("deb")) {
                 classifier = "-amd64";
-            }
-            if (bwcVersion.onOrAfter("7.0.0") && projectName.contains("rpm")) {
+            } else if (bwcVersion.onOrAfter("7.0.0") && projectName.contains("rpm")) {
                 classifier = "-x86_64";
             }
             if (bwcVersion.onOrAfter("6.3.0")) {
@@ -157,10 +155,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String relativePath = baseDir
                 + "/"
                 + projectName
-                + "build/distributions/elasticsearch-"
+                + "/build/distributions/elasticsearch-"
                 + bwcVersion
                 + "-SNAPSHOT"
-                + classifier
+                + (classifier.isEmpty() ? classifier : "-" + classifier)
                 + "."
                 + extension;
             File projectArtifact = new File(checkoutDir, relativePath);
@@ -213,7 +211,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 String classifier = "";
                 if (archIndex != -1) {
                     int osIndex = artifactFileName.lastIndexOf('-', archIndex - 2);
-                    classifier = artifactFileName.substring(osIndex + 1, archIndex - 1) + "-x86_64";
+                    classifier = "-" + artifactFileName.substring(osIndex + 1, archIndex - 1) + "-x86_64";
                 }
                 artifact.setClassifier(classifier);
             });

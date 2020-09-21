@@ -126,6 +126,14 @@ cluster.
 . (Optional) Create a dedicated {kib} instance for monitoring, rather than using
 a single {kib} instance to access both your production cluster and monitoring
 cluster.
++
+--
+NOTE: If the monitoring cluster uses a SAML, Kerberos, PKI, or OpenID Connect
+realm, a dedicated {kib} instance is required. The security tokens that are used
+in these realms are cluster-specific and therefore cannot be used by a single
+{kib} instance to connect to both the production and monitoring clusters.
+
+--
 
 .. (Optional) Disable the collection of monitoring data in this {kib} instance.
 Set the `xpack.monitoring.kibana.collection.enabled` setting to `false` in the

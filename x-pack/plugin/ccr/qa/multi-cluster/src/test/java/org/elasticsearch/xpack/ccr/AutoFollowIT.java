@@ -71,6 +71,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             verifyDocuments("logs-20190101", 5, "filtered_field:true");
             verifyDocuments("logs-20200101", 5, "filtered_field:true");
         });
+        deleteAutoFollowPattern("leader_cluster_pattern");
     }
 
     public void testAutoFollowPatterns() throws Exception {
@@ -181,6 +182,8 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.ROOT);
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+
+        // Create auto follow pattern
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
@@ -197,52 +200,79 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
         assertOK(client().performRequest(request));
 
-        try (RestClient leaderClient = buildLeaderClient()) {
-            Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-            putComposableIndexTemplateRequest.setJsonEntity(
-                "{"
-                    + "\"index_patterns\":[\"logs-mysql-*\"],"
-                    + "\"priority\":200,"
-                    + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
-                    + "\"data_stream\":{}"
-                    + "}"
-            );
-            assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
-            for (int i = 0; i < numDocs; i++) {
+        // Create data stream and ensure that is is auto followed
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
+                putComposableIndexTemplateRequest.setJsonEntity(
+                    "{"
+                        + "\"index_patterns\":[\"logs-mysql-*\"],"
+                        + "\"priority\":200,"
+                        + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
+                        + "\"data_stream\":{}"
+                        + "}"
+                );
+                assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
+                for (int i = 0; i < numDocs; i++) {
+                    Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-mysql-error-000001");
+                verifyDocuments(leaderClient, dataStreamName, numDocs);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-mysql-error-000001");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs);
+            });
+        }
+
+        // First rollover and ensure second backing index is replicated:
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-mysql-error-000001", ".ds-logs-mysql-error-000002");
+
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
                 indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
                 assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, dataStreamName, numDocs + 1);
             }
-            verifyDataStream(leaderClient, dataStreamName, ".ds-logs-mysql-error-000001");
-            verifyDocuments(leaderClient, dataStreamName, numDocs);
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-mysql-error-000001", ".ds-logs-mysql-error-000002");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs + 1);
+            });
         }
 
-        assertBusy(() -> {
-            assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-            verifyDataStream(client(), dataStreamName, ".ds-logs-mysql-error-000001");
-            ensureYellow(dataStreamName);
-            verifyDocuments(client(), dataStreamName, numDocs);
-        });
+        // Second rollover and ensure third backing index is replicated:
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-mysql-error-000001", ".ds-logs-mysql-error-000002", "" +
+                    ".ds-logs-mysql-error-000003");
 
-        try (RestClient leaderClient = buildLeaderClient()) {
-            Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
-            assertOK(leaderClient.performRequest(rolloverRequest));
-            verifyDataStream(leaderClient, dataStreamName, ".ds-logs-mysql-error-000001", ".ds-logs-mysql-error-000002");
-
-            Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
-            indexRequest.addParameter("refresh", "true");
-            indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
-            assertOK(leaderClient.performRequest(indexRequest));
-            verifyDocuments(leaderClient, dataStreamName, numDocs + 1);
+                Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                indexRequest.addParameter("refresh", "true");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
+                assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, dataStreamName, numDocs + 2);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 3));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-mysql-error-000001", ".ds-logs-mysql-error-000002",
+                    ".ds-logs-mysql-error-000003");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs + 2);
+            });
         }
-
-        assertBusy(() -> {
-            assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
-            verifyDataStream(client(), dataStreamName, ".ds-logs-mysql-error-000001", ".ds-logs-mysql-error-000002");
-            ensureYellow(dataStreamName);
-            verifyDocuments(client(), dataStreamName, numDocs + 1);
-        });
         deleteAutoFollowPattern("test_pattern");
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -104,6 +105,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -718,24 +720,20 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(service.getRoleDescriptorsBytesCache());
         final ThreadContext threadContext = threadPool.getThreadContext();
 
+        // 1. A new API key document will be cached after its authentication
         final String docId = randomAlphaOfLength(16);
         final String apiKey = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
-
         mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
-
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
-
         final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc = service.getApiKeyDocCache().get(docId);
         assertNotNull(cachedApiKeyDoc);
         assertEquals("hulk", cachedApiKeyDoc.creator.get("principal"));
-
         final BytesReference roleDescriptorsBytes =
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc.roleDescriptorsHash);
         assertNotNull(roleDescriptorsBytes);
         assertEquals("{}", roleDescriptorsBytes.utf8ToString());
-
         final BytesReference limitedByRoleDescriptorsBytes =
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc.limitedByRoleDescriptorsHash);
         assertNotNull(limitedByRoleDescriptorsBytes);
@@ -743,33 +741,27 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(1, limitedByRoleDescriptors.size());
         assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
 
-        // A different API Key with the same role descriptors will share the entries in the role descriptor cache
+        // 2. A different API Key with the same role descriptors will share the entries in the role descriptor cache
         final String docId2 = randomAlphaOfLength(16);
         final String apiKey2 = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials2 = new ApiKeyCredentials(docId2, new SecureString(apiKey2.toCharArray()));
-
         mockKeyDocument(service, docId2, apiKey2, new User("thor", "superuser"), false, Duration.ofSeconds(3600));
-
         PlainActionFuture<AuthenticationResult> future2 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials2, future2);
-
         final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc2 = service.getApiKeyDocCache().get(docId2);
         assertNotNull(cachedApiKeyDoc2);
         assertEquals("thor", cachedApiKeyDoc2.creator.get("principal"));
-
         final BytesReference roleDescriptorsBytes2 =
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc2.roleDescriptorsHash);
         assertSame(roleDescriptorsBytes, roleDescriptorsBytes2);
-
         final BytesReference limitedByRoleDescriptorsBytes2 =
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc2.limitedByRoleDescriptorsHash);
         assertSame(limitedByRoleDescriptorsBytes, limitedByRoleDescriptorsBytes2);
 
-        // Different role descriptors will be cached into a separate entry
+        // 3. Different role descriptors will be cached into a separate entry
         final String docId3 = randomAlphaOfLength(16);
         final String apiKey3 = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials3 = new ApiKeyCredentials(docId3, new SecureString(apiKey3.toCharArray()));
-
         final List<RoleDescriptor> keyRoles =
             List.of(RoleDescriptor.parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), true, XContentType.JSON));
         mockKeyDocument(service, docId3, apiKey3, new User("banner", "superuser"),
@@ -787,11 +779,21 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotSame(roleDescriptorsBytes, roleDescriptorsBytes3);
         assertEquals(3, service.getRoleDescriptorsBytesCache().count());
 
-        // Cached entries will be used for the same API key doc
-        SecurityMocks.mockGetRequestException(client, new EsRejectedExecutionException("rejected"));
+        // 4. Will fetch document from security index if role descriptors are not found even when
+        //    cachedApiKeyDoc is available
+        service.getRoleDescriptorsBytesCache().invalidateAll();
+        mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
         PlainActionFuture<AuthenticationResult> future4 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future4);
+        verify(client, times(4)).get(any(GetRequest.class), any(ActionListener.class));
+        assertEquals(2, service.getRoleDescriptorsBytesCache().count());
         assertSame(AuthenticationResult.Status.SUCCESS, future4.get().getStatus());
+
+        // 5. Cached entries will be used for the same API key doc
+        SecurityMocks.mockGetRequestException(client, new EsRejectedExecutionException("rejected"));
+        PlainActionFuture<AuthenticationResult> future5 = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future5);
+        assertSame(AuthenticationResult.Status.SUCCESS, future5.get().getStatus());
     }
 
     public void testWillGetLookedUpByRealmNameIfExists() {

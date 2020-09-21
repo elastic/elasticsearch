@@ -52,7 +52,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
 
-
 /**
  *  We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
  *  For this we need to check out and build the unreleased versions.

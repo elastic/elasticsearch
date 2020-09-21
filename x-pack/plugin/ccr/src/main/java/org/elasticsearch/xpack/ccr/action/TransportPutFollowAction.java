@@ -172,21 +172,14 @@ public final class TransportPutFollowAction
                 if (remoteDataStream == null) {
                     restoreService.restoreSnapshot(restoreRequest, delegatelistener);
                 } else {
+                    String followerIndexName = request.getFollowerIndex();
                     BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
-                        Index followerIndex = mdBuilder.get(request.getFollowerIndex()).getIndex();
-                        // The data stream and the backing indices have been created and validated in the remote cluster,
-                        // just copying the data stream is in this case safe.
-                        DataStream dataStream = currentState.getMetadata().dataStreams().get(remoteDataStream.getName());
-                        if (dataStream == null) {
-                            dataStream = new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
-                                List.of(followerIndex), remoteDataStream.getGeneration());
-                        } else {
-                            List<Index> backingIndices = new ArrayList<>(dataStream.getIndices());
-                            backingIndices.add(followerIndex);
-                            dataStream = new DataStream(dataStream.getName(), dataStream.getTimeStampField(), backingIndices,
-                                remoteDataStream.getGeneration());
-                        }
-                        mdBuilder.put(dataStream);
+                        DataStream localDataStream = currentState.getMetadata().dataStreams().get(remoteDataStream.getName());
+                        Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
+                        assert followerIndex != null;
+
+                        DataStream updatedDataStream = updateLocalDataStream(followerIndex, localDataStream, remoteDataStream);
+                        mdBuilder.put(updatedDataStream);
                     };
                     restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
                 }
@@ -248,6 +241,21 @@ public final class TransportPutFollowAction
                 listener::onFailure),
             listener::onFailure
         ));
+    }
+
+    static DataStream updateLocalDataStream(Index backingIndexToFollow,
+                                            DataStream localDataStream,
+                                            DataStream remoteDataStream) {
+        if (localDataStream == null) {
+            // The data stream and the backing indices have been created and validated in the remote cluster,
+            // just copying the data stream is in this case safe.
+            return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
+                List.of(backingIndexToFollow), remoteDataStream.getGeneration());
+        } else {
+            List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
+            backingIndices.add(backingIndexToFollow);
+            return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices);
+        }
     }
 
     @Override

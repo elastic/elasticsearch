@@ -8,6 +8,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -930,6 +932,18 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getIndexResponse.getIndices(), arrayWithSize(1));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-foobar"));
         assertThat(getIndexResponse.getSettings().get("logs-foobar").get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
+    }
+
+    public void testClusterStateIncludeDataStream() throws Exception {
+        putComposableIndexTemplate("id1", List.of("metrics-foo*"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        // when querying a backing index then the data stream should be included as well.
+        ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-000001");
+        ClusterState state = client().admin().cluster().state(request).get().getState();
+        assertThat(state.metadata().dataStreams().size(), equalTo(1));
+        assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

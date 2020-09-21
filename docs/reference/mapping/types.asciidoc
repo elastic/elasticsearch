@@ -132,13 +132,12 @@ or preprocessing. _Runtime fields_ extend the flexibility of the
 <<search-search,search API>> to quickly make data searchable, even with minimal
 structure.
 
-// tag::runtime-fields-description[]
-Runtime fields are not indexed and do have <<doc-values,doc_values>>, meaning
-Lucene is unaware of their existence. However, runtime fields are accessible
-from the search API like any other field that has `doc_values` and is
-searchable. You can retrieve and query these fields, as well as aggregate and
-sort on them.
-// end::runtime-fields-description[]
+Instead of indexing all of your data, you can use runtime fields to
+search and aggregate on your data at query time. Runtime fields can incur
+performance costs at runtime depending on the runtime type, but don't use the
+disk space that is typically required to index your data. By removing the
+requirement to index everything, you gain the flexibility of choosing which
+fields to index.
 
 See <<runtime>> to learn more.
 

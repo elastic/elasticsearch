@@ -34,6 +34,10 @@ GET /_field_caps?fields=rating
 The field capabilities API returns the information about the capabilities of
 fields among multiple indices.
 
+Use the field capabilities API to return <<runtime,runtime fields>> like any
+other field. For example, a runtime field with a `runtime_type` of
+`keyword` returns as any other field that belongs to the `keyword` family.
+
 
 [[search-field-caps-api-path-params]]
 ==== {api-path-parms-title}

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -149,9 +150,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version CURRENT = V_7_10_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
+    private static final ImmutableOpenMap<String, Version> stringToVersion;
 
     static {
         final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
+        final ImmutableOpenMap.Builder<String, Version> builderByString = ImmutableOpenMap.builder();
 
         for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
@@ -178,6 +181,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                         }
                     }
                     final Version maybePrevious = builder.put(version.id, version);
+                    builderByString.put(version.toString(), version);
                     assert maybePrevious == null :
                         "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
@@ -189,7 +193,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
 
         builder.put(V_EMPTY_ID, V_EMPTY);
+        builderByString.put(V_EMPTY.toString(), V_EMPTY);
         idToVersion = builder.build();
+        stringToVersion = builderByString.build();
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -273,6 +279,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
+        final Version cached = stringToVersion.get(version);
+        if (cached != null) {
+            return cached;
+        }
+        return fromStringSlow(version);
+    }
+
+    private static Version fromStringSlow(String version) {
         final boolean snapshot; // this is some BWC for 2.x and before indices
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);

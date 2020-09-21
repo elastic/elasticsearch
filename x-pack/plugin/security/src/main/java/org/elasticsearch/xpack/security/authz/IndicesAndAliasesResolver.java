@@ -45,7 +45,6 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ORIGINAL_INDICES_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -119,13 +118,6 @@ class IndicesAndAliasesResolver {
     ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata, List<String> authorizedIndices) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
-        // We only care about the indices specified in the first layer of the request, as that's what the user actually asked for.
-        if (threadContext.getHeader(ORIGINAL_INDICES_HEADER_KEY) == null) {
-            threadContext.putHeader(ORIGINAL_INDICES_HEADER_KEY,
-                indicesRequest.indices() == null || indicesRequest.indices().length == 0
-                    ? Metadata.ALL
-                    : String.join(",", indicesRequest.indices()));
-        }
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
             /*
              * This is a special case since PutMappingRequests from dynamic mapping updates have a concrete index

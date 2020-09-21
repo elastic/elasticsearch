@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -191,5 +192,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             result.set(valueFetcher.fetchValues(lookup.source()));
         });
         return result.get();
+    }
+
+    protected void assertUpdates(XContentBuilder initial, XContentBuilder update, Predicate<MapperService> check) throws IOException {
+        MapperService mapperService = createMapperService(initial);
+        merge(mapperService, update);
+        assertTrue(check.test(mapperService));
+    }
+
+    protected void assertConflicts(String param, XContentBuilder initial, XContentBuilder update) throws IOException {
+        MapperService mapperService = createMapperService(initial);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, update));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [" + param + "]"));
     }
 }

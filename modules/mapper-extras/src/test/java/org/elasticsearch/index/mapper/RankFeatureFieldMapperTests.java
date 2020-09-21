@@ -30,27 +30,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
-public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatureFieldMapper.Builder> {
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
-    }
-
-    @Before
-    public void setup() {
-        addModifier("positive_score_impact", false, (a, b) -> {
-            a.positiveScoreImpact(true);
-            b.positiveScoreImpact(false);
-        });
-    }
+public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -67,18 +53,8 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatur
     }
 
     @Override
-    protected RankFeatureFieldMapper.Builder newBuilder() {
-        return new RankFeatureFieldMapper.Builder("rank-feature");
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "rank_feature");
-    }
-
-    @Override
-    protected boolean supportsMeta() {
-        return false;
     }
 
     public void testDefaults() throws Exception {
@@ -116,6 +92,15 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatur
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 > freq2);
+    }
+
+    public void testUpdatePositiveScoreImpact() throws Exception {
+        assertConflicts("positive_score_impact",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "rank_feature");
+                b.field("positive_score_impact", false);
+            }));
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {

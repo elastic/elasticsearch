@@ -130,7 +130,7 @@ public class TextSearchInfo {
     /**
      * What sort of term vectors are available
      */
-    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS }
+    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS, PAYLOADS, OFFSETS_PAYLOADS }
 
     /**
      * @return the type of term vectors available for this field

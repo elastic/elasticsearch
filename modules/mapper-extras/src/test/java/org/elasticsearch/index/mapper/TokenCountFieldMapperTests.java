@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -45,24 +46,20 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test for {@link TokenCountFieldMapper}.
  */
-public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
+public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+    protected Collection<Plugin> getPlugins() {
+        return Collections.singletonList(new MapperExtrasPlugin());
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "token_count").field("analyzer", "keyword");
     }
 
     public void testMerge() throws IOException {
-        String stage1Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("person")
-                    .startObject("properties")
-                        .startObject("tc")
-                            .field("type", "token_count")
-                            .field("analyzer", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         DocumentMapper stage1 = mapperService.merge("person",
                 new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 

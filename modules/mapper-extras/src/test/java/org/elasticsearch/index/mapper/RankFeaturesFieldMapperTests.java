@@ -30,14 +30,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
-public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeaturesFieldMapper.Builder> {
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
-    }
+public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -47,11 +41,6 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "rank_features");
-    }
-
-    @Override
-    protected boolean supportsMeta() {
-        return false;
     }
 
     public void testDefaults() throws Exception {
@@ -100,10 +89,5 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
         })));
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
-    }
-
-    @Override
-    protected RankFeaturesFieldMapper.Builder newBuilder() {
-        return new RankFeaturesFieldMapper.Builder("rf");
     }
 }

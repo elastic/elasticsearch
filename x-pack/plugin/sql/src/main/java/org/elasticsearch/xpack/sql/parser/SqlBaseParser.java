@@ -37,7 +37,8 @@ class SqlBaseParser extends Parser {
     SLASH=122, PERCENT=123, CAST_OP=124, CONCAT=125, DOT=126, PARAM=127, STRING=128, 
     INTEGER_VALUE=129, DECIMAL_VALUE=130, IDENTIFIER=131, DIGIT_IDENTIFIER=132, 
     TABLE_IDENTIFIER=133, QUOTED_IDENTIFIER=134, BACKQUOTED_IDENTIFIER=135, 
-    SIMPLE_COMMENT=136, BRACKETED_COMMENT=137, WS=138, UNRECOGNIZED=139, DELIMITER=140;
+    SIMPLE_COMMENT=136, BRACKETED_COMMENT=137, WS=138, UNRECOGNIZED=139, DELIMITER=140,
+    WEEK=141;
   public static final int
     RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2, 
     RULE_query = 3, RULE_queryNoWith = 4, RULE_limitClause = 5, RULE_queryTerm = 6, 
@@ -88,7 +89,7 @@ class SqlBaseParser extends Parser {
     "'OUTER'", "'PARSED'", "'PHYSICAL'", "'PIVOT'", "'PLAN'", "'RIGHT'", "'RLIKE'", 
     "'QUERY'", "'SCHEMAS'", "'SECOND'", "'SECONDS'", "'SELECT'", "'SHOW'", 
     "'SYS'", "'TABLE'", "'TABLES'", "'TEXT'", "'THEN'", "'TRUE'", "'TO'", 
-    "'TOP'", "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", "'WHEN'", "'WHERE'", 
+    "'TOP'", "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", "'WEEK'", "'WHEN'", "'WHERE'", 
     "'WITH'", "'YEAR'", "'YEARS'", null, null, null, null, null, null, null, 
     null, "'}'", "'='", "'<=>'", null, "'<'", "'<='", "'>'", "'>='", "'+'", 
     "'-'", "'*'", "'/'", "'%'", "'::'", "'||'", "'.'", "'?'"
@@ -113,7 +114,7 @@ class SqlBaseParser extends Parser {
     "CONCAT", "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", 
     "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", 
     "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", 
-    "UNRECOGNIZED", "DELIMITER"
+    "UNRECOGNIZED", "DELIMITER", "WEEK"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
@@ -6082,6 +6083,7 @@ class SqlBaseParser extends Parser {
     public TerminalNode YEARS() { return getToken(SqlBaseParser.YEARS, 0); }
     public TerminalNode MONTH() { return getToken(SqlBaseParser.MONTH, 0); }
     public TerminalNode MONTHS() { return getToken(SqlBaseParser.MONTHS, 0); }
+    public TerminalNode WEEK() { return getToken(SqlBaseParser.WEEK, 0); }
     public TerminalNode DAY() { return getToken(SqlBaseParser.DAY, 0); }
     public TerminalNode DAYS() { return getToken(SqlBaseParser.DAYS, 0); }
     public TerminalNode HOUR() { return getToken(SqlBaseParser.HOUR, 0); }
@@ -6118,7 +6120,7 @@ class SqlBaseParser extends Parser {
       {
       setState(797);
       _la = _input.LA(1);
-      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << DAY) | (1L << DAYS) | (1L << HOUR) | (1L << HOURS) | (1L << MINUTE) | (1L << MINUTES) | (1L << MONTH))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (MONTHS - 64)) | (1L << (SECOND - 64)) | (1L << (SECONDS - 64)) | (1L << (YEAR - 64)) | (1L << (YEARS - 64)))) != 0)) ) {
+      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << DAY) | (1L << DAYS) | (1L << HOUR) | (1L << HOURS) | (1L << MINUTE) | (1L << MINUTES) | (1L << MONTH))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (MONTHS - 64)) | (1L << (SECOND - 64)) | (1L << (SECONDS - 64)) | (1L << (YEAR - 64)) | (1L << (YEARS - 64)))) != 0) || ((((_la - 141)) & ~0x3f) == 0 && ((1L << (_la - 141)) & ((1L << (WEEK - 141)))) != 0)) ) {
       _errHandler.recoverInline(this);
       } else {
         consume();

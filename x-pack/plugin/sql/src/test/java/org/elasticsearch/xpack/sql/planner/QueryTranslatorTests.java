@@ -1359,30 +1359,6 @@ public class QueryTranslatorTests extends ESTestCase {
                     + "\"fixed_interval\":\"12960000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
     
-    public void testGroupByOneWeekHistogramQueryTranslator() {
-        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 WEEK) AS h FROM test GROUP BY h");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(1, eqe.output().size());
-        assertEquals("h", eqe.output().get(0).qualifiedName());
-        assertEquals(DATETIME, eqe.output().get(0).dataType());
-        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
-                    + "\"calendar_interval\":\"1w\",\"time_zone\":\"Z\"}}}]}}}"));
-    }
-    
-    public void testGroupByMoreWeekHistogramQueryTranslator() {
-        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 3 WEEK) AS h FROM test GROUP BY h");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(1, eqe.output().size());
-        assertEquals("h", eqe.output().get(0).qualifiedName());
-        assertEquals(DATETIME, eqe.output().get(0).dataType());
-        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
-                    + "\"calendar_interval\":\"1814400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
-    }
-    
     public void testGroupByOneDayHistogramQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 DAY) AS h FROM test GROUP BY h");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1420,6 +1396,30 @@ public class QueryTranslatorTests extends ESTestCase {
                         "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT120H\",\"v2\":\"INTERVAL_DAY\"}}," +
                         "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"," +
                         "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+
+    public void testGroupByOneWeekHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 WEEK) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"calendar_interval\":\"1w\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+    
+    public void testGroupByMoreWeekHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 3 WEEK) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"calendar_interval\":\"1814400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
     public void testGroupByYearAndScalarsQueryTranslator() {

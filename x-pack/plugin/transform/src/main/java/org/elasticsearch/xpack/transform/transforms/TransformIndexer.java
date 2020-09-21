@@ -527,7 +527,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      *
      * If the indexer isn't running, persist state if required and call the listener immediately.
      */
-    synchronized void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+    final synchronized void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        // this should be called from the generic threadpool
+        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
         IndexerState state = getState();
 
         // in case the indexer isn't running, respond immediately
@@ -535,7 +537,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
             // because save state is async we need to block the call until state is persisted, so that the job can not
-            // be triggered
+            // be triggered (ensured by synchronized)
             CountDownLatch latch = new CountDownLatch(1);
             try {
                 doSaveState(IndexerState.STARTED, getPosition(), () -> {
@@ -596,8 +598,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return currentListeners;
         });
 
-        // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
-        runSearchImmediately();
+        // only if getAndUpdate added a listener go on
+        if (saveStateListeners != null) {
+            // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
+            runSearchImmediately();
+        }
     }
 
     void stopAndSaveState() {

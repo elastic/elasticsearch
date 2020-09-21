@@ -222,7 +222,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     }
 
     private static Object parseFailure(XContentParser parser) throws IOException {
-       ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+       ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
        Token token;
        String index = null;
        String id = null;
@@ -232,7 +232,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
        ElasticsearchException bulkExc = null;
        ElasticsearchException searchExc = null;
        while ((token = parser.nextToken()) != Token.END_OBJECT) {
-           ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+           ensureExpectedToken(Token.FIELD_NAME, token, parser);
            String name = parser.currentName();
            token = parser.nextToken();
            if (token == Token.START_ARRAY) {

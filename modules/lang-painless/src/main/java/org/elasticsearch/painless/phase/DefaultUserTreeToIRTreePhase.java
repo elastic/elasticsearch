@@ -221,7 +221,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.
      * This includes injection of ir nodes to add a function to call
-     * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Lookup, String, MethodType, int, int, Object...)}
+     * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Map, Lookup, String, MethodType, int, int, Object...)}
      * to do the runtime resolution, and several supporting static fields.
      */
     protected void injectBootstrapMethod(ScriptScope scriptScope) {
@@ -1856,42 +1856,28 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
-
             PainlessMethod method = scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod();
-            List<AExpression> userCallArgumentNodes = userCallNode.getArgumentNodes();
-            int nextUserCallArgumentNode = 0;
+            Object[] injections = PainlessLookupUtility.buildInjections(method, scriptScope.getCompilerSettings().asMap());
+            Class<?>[] parameterTypes = method.javaMethod.getParameterTypes();
+            int augmentedOffset = method.javaMethod.getDeclaringClass() == method.targetClass ? 0 : 1;
 
-            if (method.annotations.containsKey(InjectConstantAnnotation.class)) {
-                if (method.javaMethod.getDeclaringClass() != method.targetClass) {
-                    // argument 0 is receiver if the method is augmented
-                    irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNodes.get(nextUserCallArgumentNode), scriptScope));
-                    nextUserCallArgumentNode++;
+            for (int i = 0; i < injections.length; i++) {
+                Object injection = injections[i];
+                Class<?> parameterType = parameterTypes[i + augmentedOffset];
+
+                if (parameterType != PainlessLookupUtility.typeToUnboxedType(injection.getClass())) {
+                    throw new IllegalStateException("illegal tree structure");
                 }
 
-                int nextArgument = nextUserCallArgumentNode;
-                Class<?>[] parameterTypes = method.javaMethod.getParameterTypes();
-                Map<String, Object> compilerSettings = scriptScope.getCompilerSettings().asMap();
-                for (String injectKey : ((InjectConstantAnnotation) method.annotations.get(InjectConstantAnnotation.class)).injects) {
-                    if (compilerSettings.containsKey(injectKey) == false) {
-                        throw new IllegalStateException("invalid tree structure");
-                    }
-
-                    Object injectValue = compilerSettings.get(injectKey);
-                    if (parameterTypes.length <= nextArgument ||
-                        parameterTypes[nextArgument] != PainlessLookupUtility.typeToUnboxedType(injectValue.getClass())) {
-
-                        throw new IllegalStateException("invalid tree structure");
-                    }
-                    nextArgument++;
-
-                    ConstantNode constantNode = new ConstantNode();
-                    constantNode.setConstant(injectValue);
-                    irInvokeCallNode.addArgumentNode(constantNode);
-                }
+                ConstantNode constantNode = new ConstantNode();
+                constantNode.setLocation(userCallNode.getLocation());
+                constantNode.setExpressionType(parameterType);
+                constantNode.setConstant(injection);
+                irInvokeCallNode.addArgumentNode(constantNode);
             }
 
-            for (; nextUserCallArgumentNode < userCallArgumentNodes.size(); nextUserCallArgumentNode++) {
-                irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNodes.get(nextUserCallArgumentNode), scriptScope));
+            for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {
+                irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNode, scriptScope));
             }
 
             irInvokeCallNode.setLocation(userCallNode.getLocation());

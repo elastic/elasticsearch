@@ -535,6 +535,17 @@ public final class PainlessLookupBuilder {
             }
         }
 
+        // injections alter the type parameters required for the user to call this method, since some are injected by compiler
+        if (annotations.containsKey(InjectConstantAnnotation.class)) {
+            int numInjections = ((InjectConstantAnnotation)annotations.get(InjectConstantAnnotation.class)).injects.size();
+
+            if (numInjections > 0) {
+                typeParameters.subList(0, numInjections).clear();
+            }
+
+            typeParametersSize = typeParameters.size();
+        }
+
         if (javaMethod.getReturnType() != typeToJavaType(returnType)) {
             throw new IllegalArgumentException("return type [" + typeToCanonicalTypeName(javaMethod.getReturnType()) + "] " +
                     "does not match the specified returned type [" + typeToCanonicalTypeName(returnType) + "] " +
@@ -564,20 +575,7 @@ public final class PainlessLookupBuilder {
         }
 
         MethodType methodType = methodHandle.type();
-
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
-
-        // Injections alter the type parameters required for the user to call this method, since some are injected by compiler
-        if (annotations.containsKey(InjectConstantAnnotation.class)) {
-            int numInjections = ((InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class)).injects.size();
-
-            for (int i = 0; i < numInjections; i++) {
-                typeParameters.remove(augmentedParameterOffset);
-            }
-
-            typeParametersSize = typeParameters.size();
-        }
-
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
         PainlessMethod existingPainlessMethod = isStatic ?
                 painlessClassBuilder.staticMethods.get(painlessMethodKey) :

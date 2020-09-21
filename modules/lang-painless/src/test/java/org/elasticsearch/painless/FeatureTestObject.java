@@ -94,15 +94,15 @@ public class FeatureTestObject {
         this.i = i;
     }
 
-    public int injectTimesX(int injected, int user) {
+    public int injectTimesX(int injected, short user) {
         return this.x * injected * user;
     }
 
-    public int timesSupplier(Function<Integer, Integer> fn, int fnArg, int userArg) {
+    public int timesSupplier(Function<Short, Integer> fn, short fnArg, int userArg) {
         return fn.apply(fnArg) * userArg;
     }
 
-    public int injectWithLambda(int injected, Function<Integer, Integer> fn, int arg) {
+    public int injectWithLambda(int injected, Function<Short, Integer> fn, short arg) {
         return this.x*fn.apply(arg)*injected;
     }
 

@@ -199,7 +199,6 @@ public final class Def {
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             // TODO(stu): this should have the augmentations
              PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
 
              if (painlessMethod == null) {
@@ -213,9 +212,7 @@ public final class Def {
                  MethodHandle injected = painlessMethod.methodHandle;
 
                  for (int i = 0; i < injections.length; i++) {
-                     // We know this a def type, so start injecting at 1 because there are no static defs
-                     // TODO(stu): ensure static objects aren't here and bail
-                     // TODO(stu): test multiple injections
+                     // method handle contains the "this" pointer so inject at arg 1 to i+1
                      injected = MethodHandles.insertArguments(injected, i + 1, injections[i]);
                  }
 
@@ -225,7 +222,6 @@ public final class Def {
              return painlessMethod.methodHandle;
          }
 
-        // TODO(stu): look up constants, this handles all def calls _with_ lambdas, DO THIS NEXT
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
          BitSet lambdaArgs = new BitSet(recipeString.length());
          for (int i = 0; i < recipeString.length(); i++) {
@@ -253,7 +249,15 @@ public final class Def {
                     "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
         }
 
-         MethodHandle handle = method.methodHandle;
+        MethodHandle handle = method.methodHandle;
+        Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
+
+        if (injections.length > 0) {
+            for (int i = 0; i < injections.length; i++) {
+                // method handle contains the "this" pointer so inject at arg 1 to i+1
+                handle = MethodHandles.insertArguments(handle, i + 1, injections[i]);
+            }
+        }
 
          int replaced = 0;
          upTo = 1;

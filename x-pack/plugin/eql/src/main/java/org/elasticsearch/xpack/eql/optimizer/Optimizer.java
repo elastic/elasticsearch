@@ -67,6 +67,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
+            // needed for replace wildcards
+            new BooleanLiteralsOnTheRight(),
+            new ReplaceWildcards(),
             new ReplaceSurrogateFunction(),
             new ReplaceMatchAll());
 
@@ -77,7 +80,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanLiteralsOnTheRight(),
                 new BooleanEqualsSimplification(),
                 // needs to occur before BinaryComparison combinations
-                new ReplaceWildcards(),
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
@@ -108,7 +110,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
-            if (expr.foldable()) {
+            if (expr instanceof Literal) {
                 Object value = expr.fold();
                 return value instanceof String && value.toString().contains("*");
             }

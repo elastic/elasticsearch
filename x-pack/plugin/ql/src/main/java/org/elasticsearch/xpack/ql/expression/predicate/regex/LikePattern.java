@@ -51,7 +51,7 @@ public class LikePattern implements StringPattern {
     @Override
     public boolean matchesAll() {
         for (int i = 0 ; i < pattern.length(); i++) {
-            if (pattern.charAt(i) != '*') {
+            if (pattern.charAt(i) != '%') {
                 return false;
             }
         }

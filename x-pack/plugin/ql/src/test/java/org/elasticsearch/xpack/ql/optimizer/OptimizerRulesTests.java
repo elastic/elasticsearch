@@ -1324,7 +1324,7 @@ public class OptimizerRulesTests extends ESTestCase {
     //
     //
     public void testMatchAllLikeToExist() throws Exception {
-        for (String s : Arrays.asList("*", "**", "***")) {
+        for (String s : Arrays.asList("%", "%%", "%%%")) {
             LikePattern pattern = new LikePattern(s, (char) 0);
             FieldAttribute fa = getFieldAttribute();
             Like l = new Like(EMPTY, fa, pattern);

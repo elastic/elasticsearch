@@ -1419,7 +1419,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
-                    + "\"calendar_interval\":\"1814400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+                    + "\"calendar_interval\":\"3w\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
     public void testGroupByYearAndScalarsQueryTranslator() {

@@ -255,17 +255,17 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         return Strings.toString(x);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
         return fetchSourceValue(mapper, sourceValue, null);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
         String field = mapper.name();
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);

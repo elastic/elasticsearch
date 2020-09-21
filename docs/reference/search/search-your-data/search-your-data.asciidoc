@@ -157,7 +157,7 @@ However, complete results can take longer for searches across
 <<frozen-indices,frozen indices>> or <<modules-cross-cluster-search,multiple
 clusters>>.
 
-To avoid long waits, you can use run an _asynchronous_, or _async_, search
+To avoid long waits, you can run an _asynchronous_, or _async_, search
 instead. An <<async-search-intro,async search>> lets you retrieve partial
 results for a long-running search now and get complete results later.
 

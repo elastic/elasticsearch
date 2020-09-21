@@ -40,7 +40,7 @@ restResources {
 testClusters.all {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
-  module project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile
+  module ':modules:lang-mustache'
 }
 
 thirdPartyAudit.ignoreMissingClasses(

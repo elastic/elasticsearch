@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -103,7 +105,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, true, TextSearchInfo.NONE, meta);
             this.dims = dims;
         }
 
@@ -128,7 +130,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public boolean isAggregatable() {
+            return false;
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
@@ -209,7 +216,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
@@ -228,7 +235,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected boolean docValuesByDefault() {
-        return false;
+        return true;
     }
 
     @Override

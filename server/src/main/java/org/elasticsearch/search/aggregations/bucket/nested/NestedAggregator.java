@@ -67,7 +67,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
             : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
-        this.collectsFromSingleBucket = cardinality != CardinalityUpperBound.MANY;
+        this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
     }
 
     @Override

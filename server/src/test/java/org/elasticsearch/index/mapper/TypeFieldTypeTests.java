@@ -35,7 +35,15 @@ public class TypeFieldTypeTests extends ESTestCase {
         Query query = ft.termQuery("_doc", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
+        query = ft.termQueryCaseInsensitive("_dOc", context);
+        assertEquals(new MatchAllDocsQuery(), query);
+        
+        
         query = ft.termQuery("other_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
+
+        query = ft.termQueryCaseInsensitive("other_Type", context);
+        assertEquals(new MatchNoDocsQuery(), query);
+    
     }
 }

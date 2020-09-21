@@ -558,23 +558,19 @@ public final class SearchPhaseController {
         }
     }
 
+    InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
+        return requestToAggReduceContextBuilder.apply(request);
+    }
+
     /**
-     * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
+     * Returns a new {@link QueryPhaseResultConsumer} instance. This might return an instance that reduces search responses incrementally.
      */
-    ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(Executor executor,
-                                                                     SearchProgressListener listener,
-                                                                     SearchRequest request,
-                                                                     int numShards,
-                                                                     Consumer<Exception> onPartialMergeFailure) {
-        SearchSourceBuilder source = request.source();
-        final boolean hasAggs = source != null && source.aggregations() != null;
-        final boolean hasTopDocs = source == null || source.size() != 0;
-        final int trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder = requestToAggReduceContextBuilder.apply(request);
-        int topNSize = getTopDocsSize(request);
-        int bufferSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), numShards)  : numShards;
-        return new QueryPhaseResultConsumer(executor, this,  listener, aggReduceContextBuilder, namedWriteableRegistry,
-            numShards, bufferSize, hasTopDocs, hasAggs, trackTotalHitsUpTo, topNSize, request.isFinalReduce(), onPartialMergeFailure);
+    QueryPhaseResultConsumer newSearchPhaseResults(Executor executor,
+                                                   SearchProgressListener listener,
+                                                   SearchRequest request,
+                                                   int numShards,
+                                                   Consumer<Exception> onPartialMergeFailure) {
+        return new QueryPhaseResultConsumer(request, executor, this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
     }
 
     static final class TopDocsStats {

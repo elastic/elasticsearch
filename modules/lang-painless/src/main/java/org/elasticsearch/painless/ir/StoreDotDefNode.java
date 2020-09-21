@@ -27,7 +27,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class StoreDotDefNode extends StoreAccessNode {
+public class StoreDotDefNode extends StoreNode {
 
     /* ---- begin node data ---- */
 
@@ -50,14 +50,13 @@ public class StoreDotDefNode extends StoreAccessNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getAccessNode().visit(irTreeVisitor, scope);
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getAccessNode().write(classWriter, methodWriter, writeScope);
         getChildNode().write(classWriter, methodWriter, writeScope);
 
         methodWriter.writeDebugInfo(location);

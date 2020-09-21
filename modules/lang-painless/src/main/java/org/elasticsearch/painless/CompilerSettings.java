@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.painless.api.Augmentation;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -167,7 +168,10 @@ public final class CompilerSettings {
         } else if (regexesEnabled == RegexEnabled.FALSE) {
             regexLimitFactor = Augmentation.DISABLED_PATTERN_FACTOR;
         }
-        return Collections.singletonMap("regex_limit_factor", regexLimitFactor);
+        Map<String, Object> map = new HashMap<>();
+        map.put("foo", 246);
+        map.put("regex_limit_factor", regexLimitFactor);
+        return map;
     }
 
     public enum RegexEnabled {

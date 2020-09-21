@@ -365,6 +365,7 @@ public final class Def {
                 ref.delegateMethodName,
                 ref.delegateMethodType,
                 ref.isDelegateInterface ? 1 : 0,
+                ref.isDelegateAugmented ? 1 : 0,
                 ref.delegateInjections
         );
         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));

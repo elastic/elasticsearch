@@ -79,6 +79,7 @@ public class FunctionRef {
             MethodType interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
             String delegateClassName;
             boolean isDelegateInterface;
+            boolean isDelegateAugmented;
             int delegateInvokeType;
             String delegateMethodName;
             MethodType delegateMethodType;
@@ -107,6 +108,7 @@ public class FunctionRef {
 
                 delegateClassName = CLASS_NAME;
                 isDelegateInterface = false;
+                isDelegateAugmented = false;
                 delegateInvokeType = H_INVOKESTATIC;
                 delegateMethodName = localFunction.getFunctionName();
                 delegateMethodType = localFunction.getMethodType();
@@ -129,6 +131,7 @@ public class FunctionRef {
 
                 delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
                 isDelegateInterface = false;
+                isDelegateAugmented = false;
                 delegateInvokeType = H_NEWINVOKESPECIAL;
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
                 delegateMethodType = painlessConstructor.methodType;
@@ -161,6 +164,7 @@ public class FunctionRef {
 
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
                 isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
+                isDelegateAugmented = painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.targetClass;
 
                 if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
                     delegateInvokeType = H_INVOKESTATIC;
@@ -201,7 +205,8 @@ public class FunctionRef {
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
             return new FunctionRef(interfaceMethodName, interfaceMethodType,
-                    delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
+                    delegateClassName, isDelegateInterface, isDelegateAugmented,
+                    delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
                     factoryMethodType
             );
         } catch (IllegalArgumentException iae) {
@@ -221,6 +226,8 @@ public class FunctionRef {
     public final String delegateClassName;
     /** whether a call is made on a delegate interface */
     public final boolean isDelegateInterface;
+    /** if delegate method is augmented */
+    public final boolean isDelegateAugmented;
     /** the invocation type of the delegate method */
     public final int delegateInvokeType;
     /** the name of the delegate method */
@@ -234,7 +241,7 @@ public class FunctionRef {
 
     private FunctionRef(
             String interfaceMethodName, MethodType interfaceMethodType,
-            String delegateClassName, boolean isDelegateInterface,
+            String delegateClassName, boolean isDelegateInterface, boolean isDelegateAugmented,
             int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
             MethodType factoryMethodType) {
 
@@ -242,6 +249,7 @@ public class FunctionRef {
         this.interfaceMethodType = interfaceMethodType;
         this.delegateClassName = delegateClassName;
         this.isDelegateInterface = isDelegateInterface;
+        this.isDelegateAugmented = isDelegateAugmented;
         this.delegateInvokeType = delegateInvokeType;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType;

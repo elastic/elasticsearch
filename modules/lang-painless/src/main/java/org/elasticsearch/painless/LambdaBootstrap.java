@@ -209,6 +209,7 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType,
             int isDelegateInterface,
+            int isDelegateAugmented,
             Object... injections)
             throws LambdaConversionException {
         Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
@@ -234,7 +235,7 @@ public final class LambdaBootstrap {
 
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
-            delegateMethodName, delegateMethodType, isDelegateInterface == 1, captures, injections);
+            delegateMethodName, delegateMethodType, isDelegateInterface == 1, isDelegateAugmented == 1, captures, injections);
 
         endLambdaClass(cw);
 
@@ -379,6 +380,7 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType,
             boolean isDelegateInterface,
+            boolean isDelegateAugmented,
             Capture[] captures,
             Object... injections)
             throws LambdaConversionException {
@@ -450,7 +452,7 @@ public final class LambdaBootstrap {
         // whether it's static or not then injections as necessary.
         Object[] args = new Object[2 + injections.length];
         args[0] = delegateHandle;
-        args[1] = delegateInvokeType == H_INVOKESTATIC ? 0 : 1;
+        args[1] = delegateInvokeType == H_INVOKESTATIC && isDelegateAugmented == false ? 0 : 1;
         System.arraycopy(injections, 0, args, 2, injections.length);
         iface.invokeDynamic(
                 delegateMethodName,

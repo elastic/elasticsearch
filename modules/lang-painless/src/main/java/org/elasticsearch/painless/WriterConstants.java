@@ -134,7 +134,7 @@ public final class WriterConstants {
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =
             MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class,
-                    MethodType.class, String.class, int.class, String.class, MethodType.class, int.class, Object[].class);
+                    MethodType.class, String.class, int.class, String.class, MethodType.class, int.class, int.class, Object[].class);
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
             new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
                 "lambdaBootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);

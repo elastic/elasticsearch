@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -439,12 +440,20 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (value.length() >= minChars) {
+                if (caseInsensitive) {
+                    return super.termQueryCaseInsensitive(value, context);
+                }
                 return super.termQuery(value, context);
             }
             List<Automaton> automata = new ArrayList<>();
-            automata.add(Automata.makeString(value));
+            if (caseInsensitive) {
+                automata.add(AutomatonQueries.toCaseInsensitiveString(value, Integer.MAX_VALUE));
+            } else {
+                automata.add(Automata.makeString(value));
+            }
+                
             for (int i = value.length(); i < minChars; i++) {
                 automata.add(Automata.makeAnyChar());
             }
@@ -632,11 +641,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
-                return super.prefixQuery(value, method, context);
+                return super.prefixQuery(value, method, caseInsensitive,context);
             }
-            Query tq = prefixFieldType.prefixQuery(value, method, context);
+            Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
             if (method == null || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
                 return new ConstantScoreQuery(tq);

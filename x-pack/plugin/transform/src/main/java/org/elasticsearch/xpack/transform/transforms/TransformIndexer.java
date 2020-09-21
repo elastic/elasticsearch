@@ -557,11 +557,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 // the transport wraps this with a REST status code
                 shouldStopAtCheckpointListener.onFailure(
                     new RuntimeException(
-                        "Timed out (" + PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC + "s) waiting for transform state to be stored.\"",
+                        "Timed out (" + PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC + "s) waiting for transform state to be stored.",
                         e
                     )
                 );
             } catch (Exception e) {
+                logger.error(new ParameterizedMessage("[{}] failed to persist transform state.", getJobId()), e);
                 shouldStopAtCheckpointListener.onFailure(e);
             }
             return;

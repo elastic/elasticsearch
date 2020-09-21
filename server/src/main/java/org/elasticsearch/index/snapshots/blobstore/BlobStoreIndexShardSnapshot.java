@@ -510,7 +510,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 final String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token.isValue()) {

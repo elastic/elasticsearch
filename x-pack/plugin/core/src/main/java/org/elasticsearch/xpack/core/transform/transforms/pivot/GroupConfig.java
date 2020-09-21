@@ -153,7 +153,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
 
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String destinationFieldName = parser.currentName();
             if (validAggMatcher.reset(destinationFieldName).matches() == false) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid group name [" + destinationFieldName
@@ -161,13 +161,13 @@ public class GroupConfig implements Writeable, ToXContentObject {
             }
 
             token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             SingleGroupSource.Type groupType = SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
 
             token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             SingleGroupSource groupSource;
             switch (groupType) {
             case TERMS:

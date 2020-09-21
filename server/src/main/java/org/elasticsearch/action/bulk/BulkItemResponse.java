@@ -94,16 +94,16 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      *           the item in the {@link BulkResponse#getItems} array.
      */
     public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         token = parser.nextToken();
 
         final OpType opType = OpType.fromString(currentFieldName);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         DocWriteResponse.Builder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
@@ -146,9 +146,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             }
         }
 
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
         token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {

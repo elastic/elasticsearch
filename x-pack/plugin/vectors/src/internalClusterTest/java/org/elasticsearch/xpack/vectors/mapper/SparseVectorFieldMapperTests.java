@@ -15,7 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -40,6 +42,14 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
+    }
+
+    public void testValueFetcherIsNotSupported() {
+        SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder("field");
+        SparseVectorFieldMapper fieldMapper = builder.build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath()));
+        UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class,
+            () -> fieldMapper.valueFetcher(null, null, null));
+        assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());
     }
 
     public void testSparseVectorWith8xIndex() throws Exception {

@@ -48,8 +48,8 @@ import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -287,7 +287,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
             @Override
             public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
         };
-        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"), () -> "foo");
+        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"));
         assertEquals(1L, cache.count());
 
         searcher.close();

@@ -10,6 +10,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -139,9 +140,15 @@ public class BooleanScriptMappedFieldType extends AbstractScriptMappedFieldType<
     }
 
     @Override
+    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
+        return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
+    }
+
+    @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value));
+        return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
     }
 
     @Override
@@ -152,7 +159,7 @@ public class BooleanScriptMappedFieldType extends AbstractScriptMappedFieldType<
         boolean trueAllowed = false;
         boolean falseAllowed = false;
         for (Object value : values) {
-            if (toBoolean(value)) {
+            if (toBoolean(value, false)) {
                 trueAllowed = true;
             } else {
                 falseAllowed = true;
@@ -177,10 +184,14 @@ public class BooleanScriptMappedFieldType extends AbstractScriptMappedFieldType<
         return new MatchNoDocsQuery("neither true nor false allowed");
     }
 
+    private static boolean toBoolean(Object value) {
+        return toBoolean(value, false);
+    }
+
     /**
      * Convert the term into a boolean. Inspired by {@link BooleanFieldMapper.BooleanFieldType#indexedValueForSearch(Object)}.
      */
-    private static boolean toBoolean(Object value) {
+    private static boolean toBoolean(Object value, boolean caseInsensitive) {
         if (value == null) {
             return false;
         }
@@ -192,6 +203,9 @@ public class BooleanScriptMappedFieldType extends AbstractScriptMappedFieldType<
             sValue = ((BytesRef) value).utf8ToString();
         } else {
             sValue = value.toString();
+        }
+        if (caseInsensitive) {
+            sValue = Strings.toLowercaseAscii(sValue);
         }
         return Booleans.parseBoolean(sValue);
     }

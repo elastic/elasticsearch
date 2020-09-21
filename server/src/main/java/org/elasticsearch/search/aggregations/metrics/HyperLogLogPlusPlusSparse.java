@@ -102,8 +102,20 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         LinearCounting(int p, BigArrays bigArrays, long initialBuckets) {
             super(p);
             this.bigArrays = bigArrays;
-            values = bigArrays.newObjectArray(initialBuckets);
-            sizes = bigArrays.newIntArray(initialBuckets);
+            ObjectArray<IntArray> values = null;
+            IntArray sizes = null;
+            boolean success = false;
+            try {
+                values = bigArrays.newObjectArray(initialBuckets);
+                sizes = bigArrays.newIntArray(initialBuckets);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(values, sizes);
+                }
+            }
+            this.values = values;
+            this.sizes = sizes;
             iterator = new LinearCountingIterator();
         }
 

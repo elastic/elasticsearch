@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.painless.api.Augmentation;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -169,7 +168,7 @@ public final class CompilerSettings {
             regexLimitFactor = Augmentation.DISABLED_PATTERN_FACTOR;
         }
         Map<String, Object> map = new HashMap<>();
-        map.put("foo", 246);
+        map.put("foo", 246); // TODO: change to regex_limit_factor in tests once it's working
         map.put("regex_limit_factor", regexLimitFactor);
         return map;
     }
@@ -180,7 +179,7 @@ public final class CompilerSettings {
         USE_FACTOR("use-factor");
         final String value;
 
-        private RegexEnabled(String value) {
+        RegexEnabled(String value) {
             this.value = value;
         }
 

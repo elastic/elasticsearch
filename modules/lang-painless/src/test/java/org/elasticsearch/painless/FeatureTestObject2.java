@@ -1,8 +1,5 @@
 package org.elasticsearch.painless;
 
-import java.util.List;
-import java.util.function.Function;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with

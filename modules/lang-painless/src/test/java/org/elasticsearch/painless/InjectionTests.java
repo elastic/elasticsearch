@@ -52,7 +52,8 @@ public class InjectionTests extends ScriptTestCase {
         assertEquals(7380,
                 exec(
                         "def ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
-                                "org.elasticsearch.painless.FeatureTestObject ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
+                                "org.elasticsearch.painless.FeatureTestObject ft1 = " +
+                                "       new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
                                 "ft1.timesSupplier(ft0::injectTimesX, (short)3, 5)"));
     }
 
@@ -98,7 +99,8 @@ public class InjectionTests extends ScriptTestCase {
         assertEquals(7380,
                 exec(
                         "def ft0 = new org.elasticsearch.painless.FeatureTestObject(2, 0); " +
-                                "org.elasticsearch.painless.FeatureTestObject ft1 = new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
+                                "org.elasticsearch.painless.FeatureTestObject ft1 = " +
+                                "       new org.elasticsearch.painless.FeatureTestObject(1000, 0); " +
                                 "ft1.augmentTimesSupplier(ft0::augmentInjectTimesX, (short)3, 5)"));
     }
 

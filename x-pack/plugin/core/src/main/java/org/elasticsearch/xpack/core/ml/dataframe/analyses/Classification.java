@@ -412,7 +412,7 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public String getStateDocIdPrefix(String jobId) {
-        return jobId + STATE_DOC_ID_SUFFIX;
+        return jobId + STATE_DOC_ID_INFIX;
     }
 
     @Override
@@ -437,7 +437,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {
-        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_INFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 

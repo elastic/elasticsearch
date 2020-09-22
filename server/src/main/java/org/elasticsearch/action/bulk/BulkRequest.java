@@ -108,6 +108,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Add a request to the current BulkRequest.
+     *
+     * Note for internal callers: This method does not respect all global parameters.
+     *                            Only the global index is applied to the request objects.
+     *                            Global parameters would be respected if the request was serialized for a REST call as it is
+     *                            in the high level rest client.
      * @param request Request to add
      * @return the current bulk request
      */
@@ -298,11 +303,35 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+     * - {@link BulkRequest#add(IndexRequest)}
+     * - {@link BulkRequest#add(UpdateRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest[])} )}
+     * - {@link BulkRequest#add(Iterable)}
+     * @param globalPipeline the global default setting
+     * @return Bulk request with global setting set
+     */
     public final BulkRequest pipeline(String globalPipeline) {
         this.globalPipeline = globalPipeline;
         return this;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+      - {@link BulkRequest#add(IndexRequest)}
+      - {@link BulkRequest#add(UpdateRequest)}
+      - {@link BulkRequest#add(DocWriteRequest)}
+      - {@link BulkRequest#add(DocWriteRequest[])} )}
+      - {@link BulkRequest#add(Iterable)}
+     * @param globalRouting the global default setting
+     * @return Bulk request with global setting set
+     */
     public final BulkRequest routing(String globalRouting){
         this.globalRouting = globalRouting;
         return this;
@@ -330,6 +359,18 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRequireAlias;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+     * - {@link BulkRequest#add(IndexRequest)}
+     * - {@link BulkRequest#add(UpdateRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest[])} )}
+     * - {@link BulkRequest#add(Iterable)}
+     * @param globalRequireAlias the global default setting
+     * @return Bulk request with global setting set
+     */
     public BulkRequest requireAlias(Boolean globalRequireAlias) {
         this.globalRequireAlias = globalRequireAlias;
         return this;

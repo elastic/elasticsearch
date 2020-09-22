@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -24,10 +25,14 @@ public class VersionFieldIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return Arrays.asList(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62705")
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(VersionFieldPlugin.class);
+    }
+
     public void testTermsAggregation() throws Exception {
         String indexName = "test";
         createIndex(indexName);

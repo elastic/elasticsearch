@@ -6,11 +6,16 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -30,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -137,5 +143,90 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
         });
+    }
+
+    public void testUserOptsOutOfTierMigration() throws Exception {
+        internalCluster().startMasterOnlyNodes(1, Settings.EMPTY);
+        logger.info("starting hot data node");
+        internalCluster().startNode(hotNode(Settings.EMPTY));
+
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();
+        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        assertTrue(res.isAcknowledged());
+
+        assertBusy(() -> {
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
+                explainRequest).get();
+
+            IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("warm"));
+            assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
+        });
+
+        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER).build();
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(managedIndex).settings(removeTierRoutingSetting);
+        assertAcked(client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+
+        assertBusy(() -> {
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
+                explainRequest).get();
+
+            IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("warm"));
+            assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
+            assertReplicaIsUnassigned();
+        }, 30, TimeUnit.SECONDS);
+
+        internalCluster().startNode(coldNode(Settings.EMPTY));
+
+        // the index should successfully allocate
+        ensureGreen(managedIndex);
+
+        // the index is successfully allocated but the migrate action from the cold phase re-configured the tier migration setting to the
+        // cold tier so ILM is stuck in `check-migration` in the cold phase this time
+        // we have 2 options to resume the ILM execution:
+        //  1. start another cold node so both the primary and replica can relocate to the cold nodes
+        //  2. remove the tier routing setting from the index again (we're doing this below)
+        assertBusy(() -> {
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
+                explainRequest).get();
+
+            IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
+            assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
+        });
+
+        // remove the tier routing setting again
+        assertAcked(client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+
+        // wait for lifecycle to complete in the cold phase
+        assertBusy(() -> {
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
+                explainRequest).get();
+
+            IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
+            assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
+            assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void assertReplicaIsUnassigned() {
+        ClusterAllocationExplainRequest explainReplicaShard =
+            new ClusterAllocationExplainRequest().setIndex(managedIndex).setPrimary(false).setShard(0);
+        ClusterAllocationExplainResponse response = client().admin().cluster().allocationExplain(explainReplicaShard).actionGet();
+        assertThat(response.getExplanation().getShardState(), is(ShardRoutingState.UNASSIGNED));
     }
 }

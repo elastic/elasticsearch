@@ -73,7 +73,7 @@ public class NettyAllocator {
                     SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
                 }
                 DESCRIPTION = "[name=unpooled, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={es.unsafe.use_unpooled_allocator=" + userForcedUnpooled()
+                    + ", factors={es.unsafe.use_unpooled_allocator=" + System.getProperty(USE_UNPOOLED)
                     + ", g1gc_enabled=" + g1gcEnabled
                     + ", g1gc_region_size=" + g1gcRegionSize
                     + ", heap_size=" + heapSize + "}]";

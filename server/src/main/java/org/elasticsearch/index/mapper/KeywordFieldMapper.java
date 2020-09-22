@@ -199,7 +199,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
                                 SimilarityProvider similarity, float boost, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE,
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(),
                 hasDocValues, new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchAnalyzer), meta);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);
@@ -207,7 +207,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -217,7 +217,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
-            super(name, true, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
         }
 
         @Override

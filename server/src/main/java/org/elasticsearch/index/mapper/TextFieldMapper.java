@@ -380,7 +380,7 @@ public class TextFieldMapper extends FieldMapper {
         final TextFieldType parent;
 
         PhraseFieldType(TextFieldType parent) {
-            super(parent.name() + FAST_PHRASE_SUFFIX, true, false, parent.getTextSearchInfo(), Collections.emptyMap());
+            super(parent.name() + FAST_PHRASE_SUFFIX, true, false, false, parent.getTextSearchInfo(), Collections.emptyMap());
             setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
             this.parent = parent;
         }
@@ -408,7 +408,7 @@ public class TextFieldMapper extends FieldMapper {
         final boolean hasPositions;
 
         PrefixFieldType(TextFieldType parentField, String name, int minChars, int maxChars, boolean hasPositions) {
-            super(name, true, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+            super(name, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -569,7 +569,7 @@ public class TextFieldMapper extends FieldMapper {
 
         public TextFieldType(String name, FieldType indexedFieldType, SimilarityProvider similarity, NamedAnalyzer searchAnalyzer,
                              NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, false,
+            super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, indexedFieldType.stored(), false,
                 new TextSearchInfo(indexedFieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
@@ -577,8 +577,8 @@ public class TextFieldMapper extends FieldMapper {
             fielddataMinSegmentSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;
         }
 
-        public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
-            super(name, indexed, false,
+        public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+            super(name, indexed, stored, false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER), meta);
             fielddata = false;
         }

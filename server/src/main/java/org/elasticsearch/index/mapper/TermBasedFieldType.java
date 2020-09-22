@@ -34,10 +34,11 @@ import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
  *  with the inverted index. */
-abstract class TermBasedFieldType extends SimpleMappedFieldType {
+public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
+    public TermBasedFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                       TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     /** Returns the indexed value used to construct search "values".
@@ -54,7 +55,7 @@ abstract class TermBasedFieldType extends SimpleMappedFieldType {
         if (boost() != 1f) {
             query = new BoostQuery(query, boost());
         }
-        return query;            
+        return query;
     }
 
     @Override

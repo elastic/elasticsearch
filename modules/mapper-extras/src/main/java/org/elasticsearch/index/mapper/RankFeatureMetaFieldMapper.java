@@ -42,7 +42,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
         private RankFeatureMetaFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

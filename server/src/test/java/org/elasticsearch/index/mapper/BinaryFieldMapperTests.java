@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -66,6 +67,15 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             if (randomBoolean()) {
                 b.field("doc_values", false);
             }
+        }));
+        assertExistsQuery(mapperService);
+    }
+
+    public void testExistsQueryStoreAndDocValuesDiabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", false);
+            b.field("doc_values", false);
         }));
         assertExistsQuery(mapperService);
     }

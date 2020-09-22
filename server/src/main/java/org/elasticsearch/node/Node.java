@@ -926,6 +926,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(injector.getInstance(RepositoriesService.class));
         toClose.add(() -> stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));

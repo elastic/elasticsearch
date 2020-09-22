@@ -24,7 +24,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -85,7 +84,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -107,7 +106,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
             context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));

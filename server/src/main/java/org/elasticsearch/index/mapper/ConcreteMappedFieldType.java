@@ -30,9 +30,9 @@ import java.util.Map;
 
 public abstract class ConcreteMappedFieldType extends MappedFieldType {
 
-    public ConcreteMappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo,
+    public ConcreteMappedFieldType(String name, boolean isIndexed, boolean isStored, boolean hasDocValues, TextSearchInfo textSearchInfo,
                                    Map<String, String> meta) {
-        super(name, isIndexed, hasDocValues, textSearchInfo, meta);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

@@ -128,8 +128,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             return new NumberFieldMapper(name,
-                new NumberFieldType(buildFullName(context), type, indexed.getValue(), hasDocValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                new NumberFieldType(buildFullName(context), type, indexed.getValue(), stored.getValue(), hasDocValues.getValue(),
+                    meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -894,14 +894,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         private final NumberType type;
 
-        public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
+                               boolean hasDocValues, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.type = Objects.requireNonNull(type);
             this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, true, Collections.emptyMap());
+            this(name, type, true, false, true, Collections.emptyMap());
         }
 
         @Override

@@ -105,7 +105,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, true, TextSearchInfo.NONE, meta);
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.dims = dims;
         }
 
@@ -185,7 +185,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                     context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
             }
-            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
 
             byteBuffer.putFloat(value);

@@ -55,7 +55,7 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_classification_state#";
+    private static final String STATE_DOC_ID_INFIX = "_classification_state#";
 
     private static final String NUM_CLASSES = "num_classes";
 

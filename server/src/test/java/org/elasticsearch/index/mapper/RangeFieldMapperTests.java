@@ -78,6 +78,15 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((RangeFieldMapper)m).coerce()));
+    }
+
     private Object getFrom(String type) {
         if (type.equals("date_range")) {
             return FROM_DATE;

@@ -143,7 +143,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private final Supplier<T> defaultValue;
         private final TriFunction<String, ParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
-        private final boolean updateable;
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
@@ -168,7 +167,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             this.value = null;
             this.parser = parser;
             this.initializer = initializer;
-            this.updateable = updateable;
             this.mergeValidator = (previous, toMerge) -> updateable || Objects.equals(previous, toMerge);
         }
 

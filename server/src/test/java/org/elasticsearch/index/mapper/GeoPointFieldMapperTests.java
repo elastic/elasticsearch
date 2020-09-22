@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,6 +55,24 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_point");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed.value());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue.value());
+        });
+        GeoPoint point = GeoUtils.parseFromString("41.12,-71.34");
+        // TODO this should not be updateable!
+        checker.registerUpdateCheck(b -> b.field("null_value", "41.12,-71.34"), m -> {
+            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
+            assertEquals(gpfm.nullValue, point);
+        });
     }
 
     public void testGeoHashValue() throws Exception {

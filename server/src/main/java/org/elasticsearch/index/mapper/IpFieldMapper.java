@@ -361,6 +361,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
+    boolean ignoreMalformed() {
+        return ignoreMalformed;
+    }
+
     @Override
     public IpFieldType fieldType() {
         return (IpFieldType) super.fieldType();

@@ -292,6 +292,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
+    boolean coerce() {
+        return coerce.value();
+    }
+
+    boolean ignoreMalformed() {
+        return ignoreMalformed.value();
+    }
+
     @Override
     public ScaledFloatFieldType fieldType() {
         return (ScaledFloatFieldType) super.fieldType();

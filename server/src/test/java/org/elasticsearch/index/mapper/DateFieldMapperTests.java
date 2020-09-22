@@ -51,6 +51,18 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void registerParameters(ParameterChecker checker) {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
+        checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((DateFieldMapper)m).getIgnoreMalformed()));
+    }
+
+    @Override
     protected void assertParseMaximalWarnings() {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }

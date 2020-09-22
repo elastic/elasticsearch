@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
@@ -50,6 +49,19 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // TODO check scaling_factor cannot be updated
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((ScaledFloatFieldMapper)m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((ScaledFloatFieldMapper)m).ignoreMalformed()));
     }
 
     public void testDefaults() throws Exception {

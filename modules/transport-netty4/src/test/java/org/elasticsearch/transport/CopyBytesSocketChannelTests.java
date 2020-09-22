@@ -28,6 +28,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.elasticsearch.common.SuppressForbidden;
@@ -47,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class CopyBytesSocketChannelTests extends ESTestCase {
 
     private final UnpooledByteBufAllocator alloc = new UnpooledByteBufAllocator(false);
+    private final RecvByteBufAllocator recvAllocator = new CopyBytesSocketChannel.SingleBufferRecvAllocator(64 * 1024);
     private final AtomicReference<CopyBytesSocketChannel> accepted = new AtomicReference<>();
     private final AtomicInteger serverBytesReceived = new AtomicInteger();
     private final AtomicInteger clientBytesReceived = new AtomicInteger();
@@ -65,7 +67,9 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         serverBootstrap.channel(CopyBytesServerSocketChannel.class);
         serverBootstrap.group(eventLoopGroup);
         serverBootstrap.option(ChannelOption.ALLOCATOR, alloc);
+        serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvAllocator);
         serverBootstrap.childOption(ChannelOption.ALLOCATOR, alloc);
+        serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvAllocator);
         serverBootstrap.childHandler(new ChannelInitializer<>() {
             @Override
             protected void initChannel(Channel ch) {
@@ -75,7 +79,8 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
                     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
                         ByteBuf buffer = (ByteBuf) msg;
                         serverBytesReceived.addAndGet(buffer.readableBytes());
-                        serverReceived.add(buffer.retain());
+                        serverReceived.add(Unpooled.copiedBuffer(buffer));
+                        buffer.readerIndex(buffer.writerIndex());
                     }
                 });
             }
@@ -103,6 +108,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(VerifyingCopyChannel.class);
         bootstrap.option(ChannelOption.ALLOCATOR, alloc);
+        bootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvAllocator);
         bootstrap.handler(new ChannelInitializer<>() {
             @Override
             protected void initChannel(Channel ch) {
@@ -111,7 +117,8 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
                     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
                         ByteBuf buffer = (ByteBuf) msg;
                         clientBytesReceived.addAndGet(buffer.readableBytes());
-                        clientReceived.add(buffer.retain());
+                        clientReceived.add(Unpooled.copiedBuffer(buffer));
+                        buffer.readerIndex(buffer.writerIndex());
                     }
                 });
             }
@@ -174,12 +181,6 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
             int written = socketChannel.write(ioBuffer);
             ioBuffer.limit(originalLimit);
             return written;
-        }
-
-        @Override
-        protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-            assertTrue("IO Buffer must be a direct byte buffer", ioBuffer.isDirect());
-            return socketChannel.read(ioBuffer);
         }
     }
 }

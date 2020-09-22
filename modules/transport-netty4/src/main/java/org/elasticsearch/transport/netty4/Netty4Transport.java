@@ -20,7 +20,6 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
@@ -52,6 +51,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.CopyBytesSocketChannel;
+import org.elasticsearch.transport.CopyBytesToHeapHandler;
 import org.elasticsearch.transport.Netty4NioSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.SharedGroupFactory;
@@ -84,17 +85,16 @@ public class Netty4Transport extends TcpTransport {
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
         "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> NETTY_BOSS_COUNT =
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
-    private final ByteSizeValue receivePredictorMin;
-    private final ByteSizeValue receivePredictorMax;
+    private final ByteSizeValue receivePredictorSize;
     private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
     private volatile Bootstrap clientBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
@@ -107,14 +107,11 @@ public class Netty4Transport extends TcpTransport {
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 
-        // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
-        this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
-        this.receivePredictorMax = NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
-        if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
-            recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorMax.getBytes());
+        this.receivePredictorSize = NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
+        if (NettyAllocator.getChannelType().equals(CopyBytesSocketChannel.class)) {
+            recvByteBufAllocator = new CopyBytesSocketChannel.SingleBufferRecvAllocator((int) receivePredictorSize.getBytes());
         } else {
-            recvByteBufAllocator = new AdaptiveRecvByteBufAllocator((int) receivePredictorMin.getBytes(),
-                (int) receivePredictorMin.getBytes(), (int) receivePredictorMax.getBytes());
+            recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorSize.getBytes());
         }
     }
 
@@ -193,9 +190,9 @@ public class Netty4Transport extends TcpTransport {
     private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroup) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
-            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
+            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}]",
                 name, sharedGroupFactory.getTransportWorkerCount(), profileSettings.portOrRange, profileSettings.bindHosts,
-                profileSettings.publishHosts, receivePredictorMin, receivePredictorMax);
+                profileSettings.publishHosts, receivePredictorSize);
         }
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
@@ -306,11 +303,15 @@ public class Netty4Transport extends TcpTransport {
 
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
+        protected final String copyToHeapHandlerName = "copy_to_heap";
+        protected final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
+
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
+            ch.pipeline().addLast(copyToHeapHandlerName, copyBytesHandler);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
@@ -326,6 +327,8 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
+        protected final String copyToHeapHandlerName = "copy_to_heap";
+        protected final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
 
         protected ServerChannelInitializer(String name) {
             this.name = name;
@@ -338,6 +341,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
+            ch.pipeline().addLast(copyToHeapHandlerName, copyBytesHandler);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
             serverAcceptedChannel(nettyTcpChannel);

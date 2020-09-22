@@ -60,6 +60,8 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.CopyBytesSocketChannel;
+import org.elasticsearch.transport.CopyBytesToHeapHandler;
 import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -161,12 +163,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
-        ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
-        recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
+        ByteSizeValue receivePredictorSize = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
+        if (NettyAllocator.getChannelType().equals(CopyBytesSocketChannel.class)) {
+            recvByteBufAllocator = new CopyBytesSocketChannel.SingleBufferRecvAllocator((int) receivePredictorSize.getBytes());
+        } else {
+            recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorSize.getBytes());
+        }
 
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
                 "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
-            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, receivePredictor, maxCompositeBufferComponents,
+            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, receivePredictorSize, maxCompositeBufferComponents,
             pipeliningMaxEvents);
     }
 
@@ -283,6 +289,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
+        protected final String copyToHeapHandlerName = "copy_to_heap";
+        protected final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
         private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;
@@ -299,6 +307,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
+            ch.pipeline().addLast(copyToHeapHandlerName, copyBytesHandler);
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),
                 handlingSettings.getMaxHeaderSize(),

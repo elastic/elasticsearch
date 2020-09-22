@@ -35,14 +35,12 @@ package org.elasticsearch.transport;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.buffer.UnpooledDirectByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelConfig;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.DefaultMaxMessagesRecvByteBufAllocator;
-import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.util.UncheckedBooleanSupplier;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -121,28 +119,9 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
         incompleteWrite(writeSpinCount < 0);
     }
 
-    @Override
-    protected int doReadBytes(ByteBuf byteBuf) throws Exception {
-        final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
-        int writeableBytes = Math.min(byteBuf.writableBytes(), MAX_BYTES_PER_WRITE);
-        allocHandle.attemptedBytesRead(writeableBytes);
-        ByteBuffer ioBuffer = getIoBuffer().limit(writeableBytes);
-        int bytesRead = readFromSocketChannel(javaChannel(), ioBuffer);
-        ioBuffer.flip();
-        if (bytesRead > 0) {
-            byteBuf.writeBytes(ioBuffer);
-        }
-        return bytesRead;
-    }
-
     // Protected so that tests can verify behavior and simulate partial writes
     protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
         return socketChannel.write(ioBuffer);
-    }
-
-    // Protected so that tests can verify behavior
-    protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-        return socketChannel.read(ioBuffer);
     }
 
     private static ByteBuffer getIoBuffer() {
@@ -207,40 +186,65 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
         }
     }
 
-    static class SingleBufferRecvAllocator extends DefaultMaxMessagesRecvByteBufAllocator {
+    public static class SingleBufferRecvAllocator extends DefaultMaxMessagesRecvByteBufAllocator {
 
-        private static final ThreadLocal<ByteBuf> readByteBuf = ThreadLocal.withInitial(() -> {
-            ByteBuffer directBuffer = ioBuffer.get();
-            directBuffer.clear();
-            directBuffer.limit(64 * 1024);
-            ByteBuf byteBuf = Unpooled.wrappedBuffer(directBuffer);
-            byteBuf.readerIndex(byteBuf.writerIndex());
-            return byteBuf;
-        });
+        private final int bytes;
+        private final ThreadLocal<ReadByteBuf> readBuffer;
+
+        public SingleBufferRecvAllocator(int bytes) {
+            this.bytes = bytes;
+            readBuffer = ThreadLocal.withInitial(() -> {
+                ByteBuffer directBuffer = getIoBuffer();
+                int initialLimit = directBuffer.limit();
+                directBuffer.limit(Math.min(bytes, directBuffer.capacity()));
+                ReadByteBuf readByteBuf = new ReadByteBuf(directBuffer);
+                directBuffer.limit(initialLimit);
+                // We always want the refcount to be 0 in between uses so that we can assert it is freed
+                // when accessing it.
+                readByteBuf.release();
+                return readByteBuf;
+            });
+        }
 
         @Override
-        public Handle newHandle() {
+        public ExtendedHandle newHandle() {
             return new SingleBufferHandle();
         }
 
         class SingleBufferHandle extends MaxMessageHandle {
 
-            private ByteBuf readBuffer;
-
             @Override
             public ByteBuf allocate(ByteBufAllocator alloc) {
-                ByteBuf byteBuf = readByteBuf.get();
-                assert byteBuf.refCnt() == 1;
-                byteBuf.writerIndex(0);
-                byteBuf.readerIndex(0);
-                return byteBuf.retain();
+                final ReadByteBuf readByteBuf = readBuffer.get();
+                assert readByteBuf.refCnt() == 0;
+                assert readByteBuf.readerIndex() == 0;
+                assert readByteBuf.writerIndex() == 0;
+                readByteBuf.resetReferenceCount();
+                return readByteBuf;
             }
 
             @Override
             public int guess() {
-                throw new UnsupportedOperationException();
+                return bytes;
             }
         }
+    }
 
+    private static class ReadByteBuf extends UnpooledDirectByteBuf {
+
+        protected ReadByteBuf(ByteBuffer buffer) {
+            super(UnpooledByteBufAllocator.DEFAULT, buffer, buffer.remaining());
+        }
+
+        private void resetReferenceCount() {
+            resetRefCnt();
+        }
+
+        @Override
+        protected void deallocate() {
+            // We only clear the reader/writer indexes. The super.deallocate() would also null out the
+            // internal ByteBuffer. However, we are going to reuse it.
+            clear();
+        }
     }
 }

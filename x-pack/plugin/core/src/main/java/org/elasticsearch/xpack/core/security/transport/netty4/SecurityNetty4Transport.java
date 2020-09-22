@@ -162,8 +162,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
-                    serverName));
+                ChannelHandler sslInitializer = new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
+                    serverName);
+                ch.pipeline().addAfter(copyToHeapHandlerName, "ssl_initializer", sslInitializer);
             }
         }
     }

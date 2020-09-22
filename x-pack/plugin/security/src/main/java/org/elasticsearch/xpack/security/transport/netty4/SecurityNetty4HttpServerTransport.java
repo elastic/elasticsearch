@@ -83,7 +83,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
             if (sslConfiguration != null) {
                 SSLEngine sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
                 sslEngine.setUseClientMode(false);
-                ch.pipeline().addFirst("ssl", new SslHandler(sslEngine));
+                ch.pipeline().addAfter(copyToHeapHandlerName, "ssl", new SslHandler(sslEngine));
             }
             ch.pipeline().addFirst("ip_filter", new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME));
         }

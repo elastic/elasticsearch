@@ -69,7 +69,7 @@ expected_event_ids  = [5]
 
 [[queries]]
 name = "concatEquals2"
-query = 'process where concat(serial_event_id) = "1"'
+query = 'process where concat(serial_event_id) == "1"'
 expected_event_ids  = [1]
 
 [[queries]]
@@ -98,7 +98,7 @@ expected_event_ids  = [1, 2, 3, 4]
 
 [[queries]]
 name = "numberStringConversion1"
-query = 'process where string(serial_event_id) = "1"'
+query = 'process where string(serial_event_id) == "1"'
 expected_event_ids  = [1]
 
 
@@ -223,8 +223,8 @@ query = "process where serial_event_id + ((1 + 3) * 2 / (3 - 1)) * 2 == 54 or 70
 name = "twoSequencesAdditional1"
 query = '''
 sequence
-  [process where serial_event_id = 1]
-  [process where serial_event_id = 2]
+  [process where serial_event_id == 1]
+  [process where serial_event_id == 2]
 '''
 expected_event_ids  = [1, 2]
 
@@ -232,7 +232,7 @@ expected_event_ids  = [1, 2]
 name = "twoSequencesAdditional2"
 query = '''
 sequence
-  [process where serial_event_id=1] by unique_pid
+  [process where serial_event_id==1] by unique_pid
   [process where true] by unique_ppid'''
 expected_event_ids  = [1, 2]
 

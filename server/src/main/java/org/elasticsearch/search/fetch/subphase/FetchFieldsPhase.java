@@ -55,11 +55,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 "in the mappings for index [" + fetchContext.getIndexName() + "]");
         }
 
-        FieldValueRetriever retriever = FieldValueRetriever.create(mapperService, searchLookup, fetchFieldsContext.fields());
+        FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, searchLookup, fetchFieldsContext.fields());
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                retriever.setNextReader(readerContext);
+                fieldFetcher.setNextReader(readerContext);
             }
 
             @Override
@@ -68,7 +68,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 SourceLookup sourceLookup = hitContext.sourceLookup();
 
                 Set<String> ignoredFields = getIgnoredFields(hit);
-                Map<String, DocumentField> documentFields = retriever.retrieve(sourceLookup, ignoredFields);
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(sourceLookup, ignoredFields);
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }

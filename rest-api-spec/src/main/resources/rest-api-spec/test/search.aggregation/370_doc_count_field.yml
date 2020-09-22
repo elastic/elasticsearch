@@ -18,15 +18,15 @@ setup:
         refresh: true
         body:
           - '{"index": {}}'
-          - '{"_doc_count": 10, "str": "abc", "number" : 500 }'
+          - '{"_doc_count": 10, "str": "abc", "number" : 500, "unmapped": "abc" }'
           - '{"index": {}}'
-          - '{"_doc_count": 5, "str": "xyz", "number" : 100 }'
+          - '{"_doc_count": 5, "str": "xyz", "number" : 100, "unmapped": "xyz" }'
           - '{"index": {}}'
-          - '{"_doc_count": 7, "str": "foo", "number" : 100 }'
+          - '{"_doc_count": 7, "str": "foo", "number" : 100, "unmapped": "foo" }'
           - '{"index": {}}'
-          - '{"_doc_count": 1, "str": "foo", "number" : 200 }'
+          - '{"_doc_count": 1, "str": "foo", "number" : 200, "unmapped": "foo" }'
           - '{"index": {}}'
-          - '{"str": "abc", "number" : 500 }'
+          - '{"str": "abc", "number" : 500, "unmapped": "abc" }'
 
 ---
 "Test numeric terms agg with doc_count":
@@ -50,7 +50,7 @@ setup:
 
 
 ---
-"Test string terms agg with doc_count":
+"Test keyword terms agg with doc_count":
   - skip:
       version: " - 7.99.99"
       reason: "Doc count fields are only implemented in 8.0"
@@ -67,3 +67,29 @@ setup:
   - match: { aggregations.str_terms.buckets.1.doc_count: 8 }
   - match: { aggregations.str_terms.buckets.2.key: "xyz" }
   - match: { aggregations.str_terms.buckets.2.doc_count: 5 }
+
+---
+
+"Test unmapped string terms agg with doc_count":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Doc count fields are only implemented in 8.0"
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"_doc_count": 10, "str": "abc" }'
+          - '{"index": {}}'
+          - '{"str": "abc" }'
+  - do:
+      search:
+        index: test_2
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str.keyword" } } } }
+
+  - match: { hits.total: 2 }
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: "abc" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 11 }

@@ -146,7 +146,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
         int randomSequenceExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomSequenceExecutions;
         for (int i = 0; i < randomSequenceExecutions; i++) {
-            runEql("sequence [process where serial_event_id = 1] [process where serial_event_id = 2]");
+            runEql("sequence [process where serial_event_id == 1] [process where serial_event_id == 2]");
         }
         responseAsMap = getStats();
         metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head");
@@ -179,7 +179,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 "  [process where opcode == 1] by user" + 
                 "  [process where opcode == 2] by user" + 
                 "  [file where parent_process_name == \\\"file_delete_event\\\"] by exit_code" +
-                " until [process where opcode=1] by ppid" + 
+                " until [process where opcode==1] by ppid" +
                 " | head 4" + 
                 " | tail 2");
         }
@@ -271,8 +271,8 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 runEql(
                     randomFrom(
                         "process where missing_field < 4 | tail 2",
-                        "sequence abc [process where serial_event_id = 1]",
-                        "sequence with maxspan=1x [process where serial_event_id = 1]",
+                        "sequence abc [process where serial_event_id == 1]",
+                        "sequence with maxspan=1x [process where serial_event_id == 1]",
                         "sequence by exit_code, user [process where serial_event_id < 4] by ppid",
                         "sequence by"
                     )

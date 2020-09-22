@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -21,21 +20,17 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 

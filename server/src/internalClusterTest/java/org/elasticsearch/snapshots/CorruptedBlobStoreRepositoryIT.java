@@ -49,6 +49,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -111,8 +112,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 .put("compress", false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+        startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
@@ -180,8 +180,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify index-N blob is found at the new location");
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 1));
 
-        logger.info("--> delete snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+        startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> verify index-N blob is found at the expected location");
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
@@ -241,7 +240,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
+        assertAcked(startDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
@@ -291,7 +290,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
     }
 
-    public void testHandleSnapshotErrorWithBwCFormat() throws IOException {
+    public void testHandleSnapshotErrorWithBwCFormat() throws IOException, ExecutionException, InterruptedException {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
@@ -315,13 +314,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertFileExists(initialShardMetaPath);
         Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
 
-        logger.info("--> delete old version snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, oldVersionSnapshot).get();
+        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
 
         createFullSnapshot(repoName, "snapshot-2");
     }
 
-    public void testRepairBrokenShardGenerations() throws IOException {
+    public void testRepairBrokenShardGenerations() throws Exception {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
@@ -336,8 +334,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createFullSnapshot(repoName, "snapshot-1");
 
-        logger.info("--> delete old version snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, oldVersionSnapshot).get();
+        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
 
         logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
         final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);

@@ -376,14 +376,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
                 };
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(
-                        BooleanFieldScript.CONTEXT,
-                        DateFieldScript.CONTEXT,
-                        DoubleFieldScript.CONTEXT,
-                        IpFieldScript.CONTEXT,
-                        StringFieldScript.CONTEXT,
-                        LongFieldScript.CONTEXT
-                    );
+                    return Set.copyOf(new RuntimeFields().getContexts());
                 }
             };
         }

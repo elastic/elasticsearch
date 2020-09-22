@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public final class DoubleScriptDocValues extends SortedNumericDoubleValues {
@@ -32,7 +31,7 @@ public final class DoubleScriptDocValues extends SortedNumericDoubleValues {
     }
 
     @Override
-    public double nextValue() throws IOException {
+    public double nextValue() {
         return script.values()[cursor++];
     }
 

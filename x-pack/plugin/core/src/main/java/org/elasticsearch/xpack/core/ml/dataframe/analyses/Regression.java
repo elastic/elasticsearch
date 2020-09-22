@@ -178,6 +178,7 @@ public class Regression implements DataFrameAnalysis {
         return predictionFieldName;
     }
 
+    @Override
     public double getTrainingPercent() {
         return trainingPercent;
     }

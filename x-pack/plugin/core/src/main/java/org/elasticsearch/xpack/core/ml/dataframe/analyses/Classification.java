@@ -231,6 +231,7 @@ public class Classification implements DataFrameAnalysis {
         return numTopClasses;
     }
 
+    @Override
     public double getTrainingPercent() {
         return trainingPercent;
     }

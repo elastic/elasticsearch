@@ -17,9 +17,6 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.yaml-rest-test'
-
 esplugin {
   description 'A test module that allows to delay aggregations on shards with a configurable time'
   classname 'org.elasticsearch.search.aggregations.DelayedShardAggregationPlugin'

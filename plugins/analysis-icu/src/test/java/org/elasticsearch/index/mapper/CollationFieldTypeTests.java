@@ -42,8 +42,12 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
 
     private static final Collator DEFAULT_COLLATOR = Collator.getInstance(ULocale.ROOT).freeze();
 
+    private static CollationFieldType createFieldType() {
+        return new CollationFieldType("field", DEFAULT_COLLATOR);
+    }
+
     public void testIsFieldWithinQuery() throws IOException {
-        CollationFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);
+        CollationFieldType ft = createFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
             RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
@@ -89,38 +93,37 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("foo.*", 0, 0, 10, null, randomMockShardContext()));
         assertEquals("[regexp] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
         assertEquals("[fuzzy] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testPrefixQuery() {
-        MappedFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.prefixQuery("prefix", null, randomMockShardContext()));
         assertEquals("[prefix] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);
+        MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("foo*", null, randomMockShardContext()));
         assertEquals("[wildcard] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
 
     public void testRangeQuery() {
-        Collator collator = DEFAULT_COLLATOR;
-        MappedFieldType ft = new CollationFieldType("field", collator);
-        RawCollationKey aKey = collator.getRawCollationKey("a", null);
-        RawCollationKey bKey = collator.getRawCollationKey("b", null);
+        MappedFieldType ft = createFieldType();
+        RawCollationKey aKey = DEFAULT_COLLATOR.getRawCollationKey("a", null);
+        RawCollationKey bKey = DEFAULT_COLLATOR.getRawCollationKey("b", null);
 
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef(aKey.bytes, 0, aKey.size),
             new BytesRef(bKey.bytes, 0, bKey.size), false, false);
@@ -132,7 +135,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
         assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
                 "'search.allow_expensive_queries' is set to false.", ee.getMessage());
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, true, collator, Collections.emptyMap());
+        MappedFieldType unsearchable = new CollationFieldType("field", false, true, DEFAULT_COLLATOR, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());

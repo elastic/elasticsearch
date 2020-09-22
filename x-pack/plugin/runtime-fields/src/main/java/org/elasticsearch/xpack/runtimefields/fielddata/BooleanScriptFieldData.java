@@ -19,8 +19,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 
-import java.io.IOException;
-
 public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
@@ -66,7 +64,7 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+    public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) {
         return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)));
     }
 

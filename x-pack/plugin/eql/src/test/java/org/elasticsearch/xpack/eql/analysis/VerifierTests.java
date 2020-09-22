@@ -90,11 +90,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testProcessRelationshipsUnsupported() {
         assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where opcode=1 and process_name == \"csrss.exe\"\n" +
-                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode=0]"));
+                errorParsing("process where opcode==1 and process_name == \"csrss.exe\"\n" +
+                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode==0]"));
         assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where process_name=\"svchost.exe\"\n" +
-                        "  and child of [file where file_name=\"svchost.exe\" and opcode=0]"));
+                errorParsing("process where process_name==\"svchost.exe\"\n" +
+                        "  and child of [file where file_name=\"svchost.exe\" and opcode==0]"));
     }
 
     // Some functions fail with "Unsupported" message at the parse stage
@@ -122,10 +122,10 @@ public class VerifierTests extends ESTestCase {
     // Test valid/supported queries
     public void testQueryOk() {
         // Mismatched type, still ok
-        accept("process where serial_event_id = \"abcdef\"");
+        accept("process where serial_event_id == \"abcdef\"");
 
         // Equals condition
-        accept("process where serial_event_id = 1");
+        accept("process where serial_event_id == 1");
 
         // Less then condition
         accept("process where serial_event_id < 4");
@@ -136,7 +136,7 @@ public class VerifierTests extends ESTestCase {
 
         // Or and And/And Not
         accept("process where process_name == \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)");
-        accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode=3 and opcode>2)");
+        accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode==3 and opcode>2)");
 
         // In statement
         accept("process where not (exit_code > -1)\n" +

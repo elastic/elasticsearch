@@ -195,7 +195,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         boolean mapUnmappedFieldsAsText;
 
         PercolatorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, false, false, TextSearchInfo.NONE, meta);
         }
 
         @Override

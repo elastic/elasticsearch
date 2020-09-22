@@ -38,11 +38,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 
 public class GrokTests extends ESTestCase {
-    private static final Map<String, String> basePatterns = Grok.getBuiltinPatterns();
-
     public void testMatchWithoutCaptures() {
         String line = "value";
-        Grok grok = new Grok(basePatterns, "value", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "value", logger::warn);
         Map<String, Object> matches = grok.captures(line);
         assertEquals(0, matches.size());
     }
@@ -54,7 +52,7 @@ public class GrokTests extends ESTestCase {
 
     public void testSimpleSyslogLine() {
         String line = "Mar 16 00:01:25 evita postfix/smtpd[1713]: connect from camomile.cloud9.net[168.100.1.3]";
-        Grok grok = new Grok(basePatterns, "%{SYSLOGLINE}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{SYSLOGLINE}", logger::warn);
         Map<String, Object> matches = grok.captures(line);
         assertEquals("evita", matches.get("logsource"));
         assertEquals("Mar 16 00:01:25", matches.get("timestamp"));
@@ -66,7 +64,7 @@ public class GrokTests extends ESTestCase {
     public void testSyslog5424Line() {
         String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] " +
                 "Hello, syslog.";
-        Grok grok = new Grok(basePatterns, "%{SYSLOG5424LINE}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{SYSLOG5424LINE}", logger::warn);
         Map<String, Object> matches = grok.captures(line);
         assertEquals("191", matches.get("syslog5424_pri"));
         assertEquals("1", matches.get("syslog5424_ver"));
@@ -81,13 +79,13 @@ public class GrokTests extends ESTestCase {
 
     public void testDatePattern() {
         String line = "fancy 12-12-12 12:12:12";
-        Grok grok = new Grok(basePatterns, "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
         Map<String, Object> matches = grok.captures(line);
         assertEquals("12-12-12 12:12:12", matches.get("timestamp"));
     }
 
     public void testNilCoercedValues() {
-        Grok grok = new Grok(basePatterns, "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals(28.4f, matches.get("duration"));
         matches = grok.captures("test N/A");
@@ -95,7 +93,7 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNilWithNoCoercion() {
-        Grok grok = new Grok(basePatterns, "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals("28.4", matches.get("duration"));
         matches = grok.captures("test N/A");
@@ -103,7 +101,7 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testUnicodeSyslog() {
-        Grok grok = new Grok(basePatterns, "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} " +
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} " +
                 "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) " +
                 "%{GREEDYDATA:syslog_message}", logger::warn);
         Map<String, Object> matches = grok.captures("<22>Jan  4 07:50:46 mailmaster postfix/policy-spf[9454]: : " +
@@ -115,19 +113,19 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNamedFieldsWithWholeTextMatch() {
-        Grok grok = new Grok(basePatterns, "%{DATE_EU:stimestamp}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{DATE_EU:stimestamp}", logger::warn);
         Map<String, Object> matches = grok.captures("11/01/01");
         assertThat(matches.get("stimestamp"), equalTo("11/01/01"));
     }
 
     public void testWithOniguramaNamedCaptures() {
-        Grok grok = new Grok(basePatterns, "(?<foo>\\w+)", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "(?<foo>\\w+)", logger::warn);
         Map<String, Object> matches = grok.captures("hello world");
         assertThat(matches.get("foo"), equalTo("hello"));
     }
 
     public void testISO8601() {
-        Grok grok = new Grok(basePatterns, "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "^%{TIMESTAMP_ISO8601}$", logger::warn);
         List<String> timeMessages = Arrays.asList(
                 "2001-01-01T00:00:00",
                 "1974-03-02T04:09:09",
@@ -151,7 +149,7 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNotISO8601() {
-        Grok grok = new Grok(basePatterns, "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "^%{TIMESTAMP_ISO8601}$", logger::warn);
         List<String> timeMessages = Arrays.asList(
                 "2001-13-01T00:00:00", // invalid month
                 "2001-00-01T00:00:00", // invalid month
@@ -264,7 +262,7 @@ public class GrokTests extends ESTestCase {
 
     public void testBooleanCaptures() {
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
-        Grok g = new Grok(basePatterns, pattern, logger::warn);
+        Grok g = new Grok(Grok.BUILTIN_PATTERNS, pattern, logger::warn);
 
         String text = "active=true";
         Map<String, Object> expected = new HashMap<>();
@@ -314,7 +312,7 @@ public class GrokTests extends ESTestCase {
         String logLine = "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
                 "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"";
-        Grok grok = new Grok(basePatterns, "%{COMBINEDAPACHELOG}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{COMBINEDAPACHELOG}", logger::warn);
         Map<String, Object> matches = grok.captures(logLine);
 
         assertEquals("31.184.238.164", matches.get("clientip"));
@@ -432,7 +430,7 @@ public class GrokTests extends ESTestCase {
             });
             t.start();
         };
-        Grok grok = new Grok(basePatterns, grokPattern, MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, grokPattern, MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
             logger::warn);
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
@@ -473,24 +471,24 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testUnsupportedBracketsInFieldName() {
-        Grok grok = new Grok(basePatterns, "%{WORD:unsuppo(r)ted}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{WORD:unsuppo(r)ted}", logger::warn);
         Map<String, Object> matches = grok.captures("line");
         assertNull(matches);
     }
 
     public void testJavaClassPatternWithUnderscore() {
-        Grok grok = new Grok(basePatterns, "%{JAVACLASS}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{JAVACLASS}", logger::warn);
         assertThat(grok.match("Test_Class.class"), is(true));
     }
 
     public void testJavaFilePatternWithSpaces() {
-        Grok grok = new Grok(basePatterns, "%{JAVAFILE}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{JAVAFILE}", logger::warn);
         assertThat(grok.match("Test Class.java"), is(true));
     }
 
     public void testLogCallBack(){
         AtomicReference<String> message = new AtomicReference<>();
-        Grok grok = new Grok(basePatterns, ".*\\[.*%{SPACE}*\\].*", message::set);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, ".*\\[.*%{SPACE}*\\].*", message::set);
         grok.match("[foo]");
         //this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
@@ -498,7 +496,7 @@ public class GrokTests extends ESTestCase {
 
     private void assertGrokedField(String fieldName) {
         String line = "foo";
-        Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{WORD:" + fieldName + "}", logger::warn);
         Map<String, Object> matches = grok.captures(line);
         assertEquals(line, matches.get(fieldName));
     }

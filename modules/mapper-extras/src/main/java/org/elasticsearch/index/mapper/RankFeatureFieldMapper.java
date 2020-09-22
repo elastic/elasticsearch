@@ -100,7 +100,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, true, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }

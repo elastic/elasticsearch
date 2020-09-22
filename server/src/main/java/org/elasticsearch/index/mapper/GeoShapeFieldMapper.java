@@ -68,7 +68,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         private GeoShapeFieldType buildFieldType(BuilderContext context) {
-            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
             GeometryParser geometryParser = new GeometryParser(ft.orientation.getAsBoolean(), coerce().value(),
                 ignoreZValue().value());
             ft.setGeometryParser(new GeoShapeParser(geometryParser));
@@ -87,8 +87,8 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
-        public GeoShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
         }
 
         @Override

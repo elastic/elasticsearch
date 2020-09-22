@@ -74,7 +74,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final class NestedPathFieldType extends StringFieldType {
 
         NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NestedPathFieldMapper.name(settings), true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -62,7 +64,7 @@ public class TypeFieldTypeTests extends ESTestCase {
         assertEquals(new MatchAllDocsQuery(), query);
 
         query = ft.termQueryCaseInsensitive("my_Type", context);
-        assertEquals(new MatchAllDocsQuery(), query);
+        assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("_type", "my_Type")), query);
 
         Mockito.when(mapperService.hasNested()).thenReturn(true);
         query = ft.termQuery("my_type", context);
@@ -75,7 +77,7 @@ public class TypeFieldTypeTests extends ESTestCase {
         assertEquals(new MatchNoDocsQuery(), query);
 
         query = ft.termQueryCaseInsensitive("other_Type", context);
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("_type", "other_Type")), query);
 
     }
 }

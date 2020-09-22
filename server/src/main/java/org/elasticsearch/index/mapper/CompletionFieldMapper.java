@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -240,8 +241,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType(String name, NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
-            super(name, true, false,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
+            super(name, true, false, false, new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
         }
 
         public void setPreserveSep(boolean preserveSep) {
@@ -540,7 +540,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

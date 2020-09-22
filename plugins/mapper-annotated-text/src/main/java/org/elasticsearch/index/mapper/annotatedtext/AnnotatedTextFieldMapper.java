@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -402,8 +403,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           }
         }
 
-
-
         @Override
         public void reset() throws IOException {
             pendingStates.clear();
@@ -468,6 +467,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 return false;
             }
         }
+
         private void setType(AnnotationToken token) {
             //Default annotation type - in future AnnotationTokens may contain custom type info
             typeAtt.setType("annotation");
@@ -514,7 +514,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
       }
 
-
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
         public AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
@@ -523,7 +522,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
-            super(name, true, meta);
+            super(name, true, false, meta);
         }
 
         public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
@@ -541,7 +540,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-
     }
 
     private int positionIncrementGap;
@@ -589,7 +587,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

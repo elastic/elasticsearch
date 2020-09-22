@@ -82,7 +82,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         private final String joinField;
 
         MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.joinField = joinField;
         }
 
@@ -140,7 +140,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
     }
 

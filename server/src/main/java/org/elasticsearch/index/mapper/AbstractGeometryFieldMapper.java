@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -184,7 +185,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
@@ -242,8 +243,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Parser<Parsed> geometryParser;
         protected QueryProcessor geometryQueryBuilder;
 
-        protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {

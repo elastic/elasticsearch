@@ -59,28 +59,26 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48861")
     public void testWatchdog() throws Exception {
-        TimeValue timeout = TimeValue.timeValueMillis(500);
+        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(10, 500));
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
-            TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
-
+            final TimeoutChecker.TimeoutCheckerWatchdog watchdog = (TimeoutChecker.TimeoutCheckerWatchdog) TimeoutChecker.watchdog;
             Matcher matcher = mock(Matcher.class);
-            TimeoutChecker.watchdog.register(matcher);
+            watchdog.register(matcher);
             assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(1));
             try {
                 assertBusy(() -> {
                     verify(matcher).interrupt();
                 });
             } finally {
-                TimeoutChecker.watchdog.unregister(matcher);
+                watchdog.unregister(matcher);
                 assertThat(watchdog.registry.get(Thread.currentThread()).matchers.size(), equalTo(0));
             }
         }
     }
 
     public void testGrokCaptures() throws Exception {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(), "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog, logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog, logger::warn);
         TimeValue timeout = TimeValue.timeValueMillis(1);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("grok captures test", timeout, scheduler)) {
 

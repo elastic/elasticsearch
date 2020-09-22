@@ -43,18 +43,21 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         """
     }
 
-    def "builds distribution from branch via archives assemble"() {
+    def "builds distribution from branches via archives assemble"() {
         when:
         def result = gradleRunner(new File(testProjectDir.root, "remote"),
                 ":distribution:bwc:bugfix:buildBwcDarwinTar",
+                ":distribution:bwc:bugfix:buildBwcOssDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin")
                 .build()
         then:
         result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
         result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
     }
 
     File setupGitRemote() {

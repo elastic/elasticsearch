@@ -17,7 +17,17 @@
  * under the License.
  */
 
-include ":distribution:bwc:bugfix"
-include ":distribution:bwc:minor"
-include ":distribution:archives:darwin-tar"
-include ":distribution:archives:oss-darwin-tar"
+subprojects {
+    apply plugin:'base'
+
+    tasks.register('tar', Tar) {
+        from('.')
+        destinationDirectory.set(file('build/distributions'))
+        archiveBaseName.set("elasticsearch${project.name.startsWith('oss')?'-oss':''}")
+        archiveVersion.set("8.0.1-SNAPSHOT")
+        archiveClassifier.set("darwin-x86_64")
+        archiveExtension.set('tar.gz')
+    }
+
+    assemble.dependsOn('tar')
+}

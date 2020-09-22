@@ -49,7 +49,7 @@ import java.util.Objects;
  *  2. Document id is extracted from this line.
  *  3. Document with this id is searched for in .ml-state* indices
  *  4. If the document is found, it is overwritten in place (i.e. in the same index) with the new content.
- *     Otherwise, it is written to the index pointed by the current write alias, i.e. .ml-state-writei
+ *     Otherwise, it is written to the index pointed by the current write alias, i.e. .ml-state-write
  */
 public class IndexingStateProcessor implements StateProcessor {
 

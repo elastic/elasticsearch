@@ -36,16 +36,20 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 
+# On systems that are built upon glibc, We need to check the version of
+# glibc because Elasticsearch bundles JDK 15, which requires glibc >= 2.14
 check_glibc_version() {
-  # We need to check the version of glibc, because JDK >=15 requires
-  # glibc 2.14
-  GLIBC_VERSION="$( getconf GNU_LIBC_VERSION 2>/dev/null | cut -d' ' -f2)"
+  local GETCONF="$( getconf GNU_LIBC_VERSION 2>/dev/null )"
   if [[ $? -ne 0 ]]; then
     # Must be on a POSIX system that isn't using glibc.
     return 0
   fi
 
-  if echo "$GLIBC_VERSION" | awk '{ if ($1 >= 2.14) { exit 1 } else { exit 0 } }'; then
+  local GLIBC_VERSION="$( echo "$GETCONF" | cut -d' ' -f2 )"
+  local MAJOR="$( echo $GLIBC_VERSION | cut -d. -f1 )"
+  local MINOR="$( echo $GLIBC_VERSION | cut -d. -f2 )"
+
+  if [[ "$MAJOR" -lt 2 || "$MINOR" -lt 14 ]]; then
     cat >&2 <<EOF
 
 ERROR: The JDK bundled with Elasticsearch requires glibc >= 2.14, but

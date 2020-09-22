@@ -20,7 +20,11 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.PoolArenaMetric;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocatorMetric;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
@@ -315,8 +319,10 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
+                long numOfHugAllocations = getHugeAllocationCount();
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
+                    assertThat(getHugeAllocationCount(), equalTo(numOfHugAllocations));
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
                     byte[] bytes = new byte[response.content().readableBytes()];
                     response.content().readBytes(bytes);
@@ -326,6 +332,20 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private long getHugeAllocationCount() {
+        long numOfHugAllocations = 0;
+        ByteBufAllocator allocator = NettyAllocator.getAllocator();
+        if (allocator instanceof NettyAllocator.NoDirectBuffers) {
+            ByteBufAllocator delegate = ((NettyAllocator.NoDirectBuffers) allocator).getDelegate();
+            if (delegate instanceof PooledByteBufAllocator) {
+                PooledByteBufAllocatorMetric metric = ((PooledByteBufAllocator) delegate).metric();
+                numOfHugAllocations = metric.heapArenas().stream().mapToLong(PoolArenaMetric::numHugeAllocations).sum();
+            }
+
+        }
+        return 0;
     }
 
     public void testCorsRequest() throws InterruptedException {

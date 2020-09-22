@@ -181,7 +181,7 @@ public class NettyAllocator {
         }
     }
 
-    private static class NoDirectBuffers implements ByteBufAllocator {
+    public static class NoDirectBuffers implements ByteBufAllocator {
 
         private final ByteBufAllocator delegate;
 
@@ -288,6 +288,10 @@ public class NettyAllocator {
         @Override
         public int calculateNewCapacity(int minNewCapacity, int maxCapacity) {
             return delegate.calculateNewCapacity(minNewCapacity, maxCapacity);
+        }
+
+        public ByteBufAllocator getDelegate() {
+            return delegate;
         }
     }
 }

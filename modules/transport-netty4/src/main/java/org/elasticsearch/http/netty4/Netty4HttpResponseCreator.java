@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
+import io.netty.handler.codec.compression.JdkZlibEncoder;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
@@ -33,7 +34,7 @@ import org.elasticsearch.transport.NettyAllocator;
 import java.util.List;
 
 /**
- * Split up large responses to prevent batch compression or other CPU intensive operations down the pipeline.
+ * Split up large responses to prevent batch compression {@link JdkZlibEncoder} down the pipeline.
  */
 @ChannelHandler.Sharable
 class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {

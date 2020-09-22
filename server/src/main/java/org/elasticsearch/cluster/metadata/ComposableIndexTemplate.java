@@ -138,7 +138,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         } else {
             this.dataStreamTemplate = null;
         }
-        if (in.getVersion().after(Version.V_7_10_0)) {
+        if (in.getVersion().after(Version.V_8_0_0)) {
             this.allowAutoCreate = in.readOptionalBoolean();
         } else {
             this.allowAutoCreate = null;

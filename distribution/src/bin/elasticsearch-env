@@ -49,7 +49,15 @@ check_glibc_version() {
   local MAJOR="$( echo $GLIBC_VERSION | cut -d. -f1 )"
   local MINOR="$( echo $GLIBC_VERSION | cut -d. -f2 )"
 
-  if [[ "$MAJOR" -lt 2 || "$MINOR" -lt 14 ]]; then
+  local STATUS=pass
+
+  if [[ "$MAJOR" -lt 2 ]]; then
+    STATUS=fail
+  elif [[ "$MAJOR" -eq 2 && "$MINOR" -lt 14  ]]; then
+    STATUS=fail
+  fi
+
+  if [[ "$STATUS" == "fail" ]]; then
     cat >&2 <<EOF
 
 ERROR: The JDK bundled with Elasticsearch requires glibc >= 2.14, but

@@ -537,7 +537,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                         throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("unexpected token  [{}]", token);
+                    throw new ElasticsearchParseException("unexpected token [{}]", token);
                 }
             }
         }

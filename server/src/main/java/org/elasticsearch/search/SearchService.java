@@ -606,7 +606,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw new IllegalArgumentException("Session id must be specified");
         }
         if (sessionId.equals(id.getSessionId()) == false) {
-            throw new IllegalArgumentException("Session id is mismatched; expected [" + sessionId + "], got [" + id.getSessionId() + "]");
+            throw new SearchContextMissingException(id);
         }
         return activeReaders.get(id.getId());
     }

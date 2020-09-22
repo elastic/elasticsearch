@@ -1086,7 +1086,7 @@ expressions.
 process.name == "*regsvr32*" or process.name == "*explorer*"
 wildcard(process.name, "*regsvr32*", "*explorer*")
 
-// process.name == "regsvr32.exe"
+// process.name = "regsvr32.exe"
 wildcard(process.name, "*regsvr32*")                // returns true
 wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
 wildcard(process.name, "*explorer*")                // returns false

@@ -26,7 +26,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,13 +59,13 @@ public class IndexingStateProcessor implements StateProcessor {
 
     private final String jobId;
     private final AbstractAuditor<? extends AbstractAuditMessage> auditor;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
 
     public IndexingStateProcessor(String jobId,
-                                  ResultsPersisterService resultsPersisterService,
+                                  RetryingPersister retryingPersister,
                                   AbstractAuditor<? extends AbstractAuditMessage> auditor) {
         this.jobId = jobId;
-        this.resultsPersisterService = resultsPersisterService;
+        this.retryingPersister = retryingPersister;
         this.auditor = auditor;
     }
 
@@ -144,7 +144,7 @@ public class IndexingStateProcessor implements StateProcessor {
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
             try {
-                resultsPersisterService.bulkIndexWithRetry(bulkRequest,
+                retryingPersister.bulkIndexWithRetry(bulkRequest,
                     jobId,
                     () -> true,
                     (msg) -> auditor.warning(jobId, "Bulk indexing of state failed " + msg));
@@ -222,7 +222,7 @@ public class IndexingStateProcessor implements StateProcessor {
                         .trackTotalHits(false)
                         .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(documentId))));
         SearchResponse searchResponse =
-            resultsPersisterService.searchWithRetry(
+            retryingPersister.searchWithRetry(
                 searchRequest,
                 jobId,
                 () -> true,

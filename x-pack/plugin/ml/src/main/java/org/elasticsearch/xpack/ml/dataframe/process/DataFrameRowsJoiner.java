@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,19 +41,19 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private final Settings settings;
     private final TaskId parentTaskId;
     private final DataFrameDataExtractor dataExtractor;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
     private LinkedList<RowResults> currentResults;
     private volatile String failure;
     private volatile boolean isCancelled;
 
     DataFrameRowsJoiner(String analyticsId, Settings settings, TaskId parentTaskId, DataFrameDataExtractor dataExtractor,
-                        ResultsPersisterService resultsPersisterService) {
+                        RetryingPersister retryingPersister) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.settings = Objects.requireNonNull(settings);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
-        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.retryingPersister = Objects.requireNonNull(retryingPersister);
         this.dataFrameRowsIterator = new ResultMatchingDataFrameRows();
         this.currentResults = new LinkedList<>();
     }
@@ -104,7 +104,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private void executeBulkRequest(BulkRequest bulkRequest) {
         bulkRequest.setParentTask(parentTaskId);
-        resultsPersisterService.bulkIndexWithHeadersWithRetry(
+        retryingPersister.bulkIndexWithHeadersWithRetry(
             dataExtractor.getHeaders(),
             bulkRequest,
             analyticsId,

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -75,7 +75,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private DataFrameAnalyticsConfig dataFrameAnalyticsConfig;
     private DataFrameDataExtractorFactory dataExtractorFactory;
     private DataFrameDataExtractor dataExtractor;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private AnalyticsProcessManager processManager;
 
     @SuppressWarnings("unchecked")
@@ -113,10 +113,10 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
 
-        resultsPersisterService = mock(ResultsPersisterService.class);
+        retryingPersister = mock(RetryingPersister.class);
         modelLoadingService = mock(ModelLoadingService.class);
         processManager = new AnalyticsProcessManager(Settings.EMPTY, client, executorServiceForJob, executorServiceForProcess,
-            processFactory, auditor, trainedModelProvider, modelLoadingService, resultsPersisterService, 1);
+            processFactory, auditor, trainedModelProvider, modelLoadingService, retryingPersister, 1);
     }
 
     public void testRunJob_TaskIsStopping() {

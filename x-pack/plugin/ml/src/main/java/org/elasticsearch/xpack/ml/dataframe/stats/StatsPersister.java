@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,18 +27,18 @@ public class StatsPersister {
     private static final Logger LOGGER = LogManager.getLogger(StatsPersister.class);
 
     private final String jobId;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final DataFrameAnalyticsAuditor auditor;
 
-    public StatsPersister(String jobId, ResultsPersisterService resultsPersisterService, DataFrameAnalyticsAuditor auditor) {
+    public StatsPersister(String jobId, RetryingPersister retryingPersister, DataFrameAnalyticsAuditor auditor) {
         this.jobId = Objects.requireNonNull(jobId);
-        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.retryingPersister = Objects.requireNonNull(retryingPersister);
         this.auditor = Objects.requireNonNull(auditor);
     }
 
     public void persistWithRetry(ToXContentObject result, Function<String, String> docIdSupplier) {
         try {
-            resultsPersisterService.indexWithRetry(jobId,
+            retryingPersister.indexWithRetry(jobId,
                 MlStatsIndex.writeAlias(),
                 result,
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),

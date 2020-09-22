@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -105,7 +105,7 @@ import static org.mockito.Mockito.mock;
 public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobProvider;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private AnomalyDetectionAuditor auditor;
 
     @Before
@@ -118,13 +118,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                RetryingPersister.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, builder.build());
+        retryingPersister = new RetryingPersister(originSettingClient, clusterService, builder.build());
         auditor = new AnomalyDetectionAuditor(client(), "test_node");
         waitForMlTemplates();
     }
@@ -882,7 +882,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexDataCounts(DataCounts counts, String jobId) {
-        JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
+        JobDataCountsPersister persister = new JobDataCountsPersister(client(), retryingPersister, auditor);
         persister.persistDataCounts(jobId, counts);
     }
 
@@ -904,13 +904,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
         JobResultsPersister persister =
-            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), retryingPersister, auditor);
         persister.persistModelSizeStats(modelSizeStats, () -> true);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
         JobResultsPersister persister =
-            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), retryingPersister, auditor);
         persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
     }
 
@@ -919,7 +919,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, new IndexNameExpressionResolver(), future);
         future.actionGet();
         JobResultsPersister persister =
-            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);
+            new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), retryingPersister, auditor);
         persister.persistQuantiles(quantiles, () -> true);
     }
 

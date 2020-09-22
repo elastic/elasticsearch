@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -80,14 +80,14 @@ public class JobResultsPersister {
     private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
     private final OriginSettingClient client;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final AnomalyDetectionAuditor auditor;
 
     public JobResultsPersister(OriginSettingClient client,
-                               ResultsPersisterService resultsPersisterService,
+                               RetryingPersister retryingPersister,
                                AnomalyDetectionAuditor auditor) {
         this.client = client;
-        this.resultsPersisterService = resultsPersisterService;
+        this.retryingPersister = retryingPersister;
         this.auditor = auditor;
     }
 
@@ -242,7 +242,7 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
-            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, (msg) -> {
+            retryingPersister.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, (msg) -> {
                 auditor.warning(jobId, "Bulk indexing of results failed " + msg);
             });
             bulkRequest = new BulkRequest();
@@ -279,7 +279,7 @@ public class JobResultsPersister {
         String quantilesDocId = Quantiles.documentId(jobId);
         SearchRequest searchRequest = buildQuantilesDocIdSearch(quantilesDocId);
         SearchResponse searchResponse =
-            resultsPersisterService.searchWithRetry(
+            retryingPersister.searchWithRetry(
                 searchRequest,
                 jobId,
                 shouldRetry,
@@ -486,7 +486,7 @@ public class JobResultsPersister {
         BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
             logCall(indexName);
             try {
-                return resultsPersisterService.indexWithRetry(jobId,
+                return retryingPersister.indexWithRetry(jobId,
                     indexName,
                     object,
                     params,

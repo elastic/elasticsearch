@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 
@@ -36,12 +36,12 @@ public class JobDataCountsPersister {
 
     private static final Logger logger = LogManager.getLogger(JobDataCountsPersister.class);
 
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
 
-    public JobDataCountsPersister(Client client, ResultsPersisterService resultsPersisterService, AnomalyDetectionAuditor auditor) {
-        this.resultsPersisterService = resultsPersisterService;
+    public JobDataCountsPersister(Client client, RetryingPersister retryingPersister, AnomalyDetectionAuditor auditor) {
+        this.retryingPersister = retryingPersister;
         this.client = client;
         this.auditor = auditor;
     }
@@ -59,7 +59,7 @@ public class JobDataCountsPersister {
      */
     public void persistDataCounts(String jobId, DataCounts counts) {
         try {
-            resultsPersisterService.indexWithRetry(jobId,
+            retryingPersister.indexWithRetry(jobId,
                 AnomalyDetectorsIndex.resultsWriteAlias(jobId),
                 counts,
                 ToXContent.EMPTY_PARAMS,

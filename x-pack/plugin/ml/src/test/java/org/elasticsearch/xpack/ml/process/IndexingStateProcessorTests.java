@@ -17,7 +17,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -66,23 +66,23 @@ public class IndexingStateProcessorTests extends ESTestCase {
     private static final int LARGE_DOC_SIZE = 1000000;
 
     private IndexingStateProcessor stateProcessor;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private SearchResponse searchResponse;
 
     @Before
     public void initialize() {
         searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        resultsPersisterService = mock(ResultsPersisterService.class);
-        doReturn(searchResponse).when(resultsPersisterService).searchWithRetry(any(SearchRequest.class), any(), any(), any());
-        doReturn(mock(BulkResponse.class)).when(resultsPersisterService).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        retryingPersister = mock(RetryingPersister.class);
+        doReturn(searchResponse).when(retryingPersister).searchWithRetry(any(SearchRequest.class), any(), any(), any());
+        doReturn(mock(BulkResponse.class)).when(retryingPersister).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
         AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
-        stateProcessor = spy(new IndexingStateProcessor(JOB_ID, resultsPersisterService, auditor));
+        stateProcessor = spy(new IndexingStateProcessor(JOB_ID, retryingPersister, auditor));
     }
 
     @After
     public void verifyNoMoreClientInteractions() {
-        verifyNoMoreInteractions(resultsPersisterService);
+        verifyNoMoreInteractions(retryingPersister);
     }
 
     public void testExtractDocId() throws IOException {
@@ -103,10 +103,10 @@ public class IndexingStateProcessorTests extends ESTestCase {
         assertEquals(threeStates[0], capturedBytes.get(0).utf8ToString());
         assertEquals(threeStates[1], capturedBytes.get(1).utf8ToString());
         assertEquals(threeStates[2], capturedBytes.get(2).utf8ToString());
-        verify(resultsPersisterService, times(3)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
-        verify(resultsPersisterService, times(3)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        verify(retryingPersister, times(3)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
+        verify(retryingPersister, times(3)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
         ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(resultsPersisterService, times(3)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
+        verify(retryingPersister, times(3)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
         for (BulkRequest bulkRequest : bulkRequestArgumentCaptor.getAllValues()) {
             for (DocWriteRequest<?> request : bulkRequest.requests()) {
                 assertThat(request.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
@@ -190,10 +190,10 @@ public class IndexingStateProcessorTests extends ESTestCase {
         ByteArrayInputStream stream = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
         stateProcessor.process(stream);
         verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(eq(".ml-state-write"), any());
-        verify(resultsPersisterService, times(NUM_LARGE_DOCS)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
-        verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        verify(retryingPersister, times(NUM_LARGE_DOCS)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
+        verify(retryingPersister, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
         ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
+        verify(retryingPersister, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
         for (BulkRequest bulkRequest : bulkRequestArgumentCaptor.getAllValues()) {
             for (DocWriteRequest<?> request : bulkRequest.requests()) {
                 assertTrue(request.isRequireAlias());

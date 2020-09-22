@@ -333,7 +333,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -508,7 +508,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                RetryingPersister.PERSIST_RESULTS_MAX_RETRIES,
                 NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND
             );
     }
@@ -590,14 +590,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService.getNodeName());
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        RetryingPersister retryingPersister = new RetryingPersister(originSettingClient, clusterService, settings);
         AnnotationPersister anomalyDetectionAnnotationPersister =
-            new AnnotationPersister(resultsPersisterService, anomalyDetectionAuditor);
+            new AnnotationPersister(retryingPersister, anomalyDetectionAuditor);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings, indexNameExpressionResolver);
         JobResultsPersister jobResultsPersister =
-            new JobResultsPersister(originSettingClient, resultsPersisterService, anomalyDetectionAuditor);
+            new JobResultsPersister(originSettingClient, retryingPersister, anomalyDetectionAuditor);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client,
-            resultsPersisterService,
+            retryingPersister,
             anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
@@ -631,7 +631,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     settings,
                     nativeController,
                     clusterService,
-                    resultsPersisterService,
+                    retryingPersister,
                     anomalyDetectionAuditor);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(
@@ -639,7 +639,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     nativeController,
                     clusterService,
                     xContentRegistry,
-                    resultsPersisterService,
+                    retryingPersister,
                     dataFrameAnalyticsAuditor);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
@@ -688,7 +688,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.datafeedManager.set(datafeedManager);
 
         // Inference components
-        final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(resultsPersisterService,
+        final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(retryingPersister,
             originSettingClient,
             indexNameExpressionResolver,
             clusterService,
@@ -713,7 +713,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             dataFrameAnalyticsAuditor,
             trainedModelProvider,
             modelLoadingService,
-            resultsPersisterService,
+            retryingPersister,
             EsExecutors.allocatedProcessors(settings));
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(

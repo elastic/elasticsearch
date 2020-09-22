@@ -31,7 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.time.Instant;
 
@@ -148,7 +148,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         OriginSettingClient originSettingClient = new OriginSettingClient(client, "modelstatsservicetests");
         ClusterService clusterService = mock(ClusterService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ResultsPersisterService persisterService = mock(ResultsPersisterService.class);
+        RetryingPersister persisterService = mock(RetryingPersister.class);
 
         TrainedModelStatsService service = new TrainedModelStatsService(persisterService,
             originSettingClient, resolver, clusterService, threadPool);

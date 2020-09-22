@@ -61,7 +61,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -168,7 +168,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ClusterSettings clusterSettings =
             new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES)));
+                    RetryingPersister.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         Metadata metadata = Metadata.builder()
             .indices(ImmutableOpenMap.<String, IndexMetadata>builder()

@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.util.Deque;
 import java.util.HashMap;
@@ -47,7 +47,7 @@ public class InferenceRunner {
     private final Settings settings;
     private final Client client;
     private final ModelLoadingService modelLoadingService;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final TaskId parentTaskId;
     private final DataFrameAnalyticsConfig config;
     private final ExtractedFields extractedFields;
@@ -56,12 +56,12 @@ public class InferenceRunner {
     private volatile boolean isCancelled;
 
     public InferenceRunner(Settings settings, Client client, ModelLoadingService modelLoadingService,
-                           ResultsPersisterService resultsPersisterService, TaskId parentTaskId, DataFrameAnalyticsConfig config,
+                           RetryingPersister retryingPersister, TaskId parentTaskId, DataFrameAnalyticsConfig config,
                            ExtractedFields extractedFields, ProgressTracker progressTracker, DataCountsTracker dataCountsTracker) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
-        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.retryingPersister = Objects.requireNonNull(retryingPersister);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.config = Objects.requireNonNull(config);
         this.extractedFields = Objects.requireNonNull(extractedFields);
@@ -155,7 +155,7 @@ public class InferenceRunner {
     }
 
     private void executeBulkRequest(BulkRequest bulkRequest) {
-        resultsPersisterService.bulkIndexWithHeadersWithRetry(
+        retryingPersister.bulkIndexWithHeadersWithRetry(
             config.getHeaders(),
             bulkRequest,
             config.getId(),

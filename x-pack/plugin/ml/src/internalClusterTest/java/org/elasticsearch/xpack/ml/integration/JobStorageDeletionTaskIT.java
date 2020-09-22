@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -67,16 +67,16 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                RetryingPersister.PERSIST_RESULTS_MAX_RETRIES,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        RetryingPersister retryingPersister = new RetryingPersister(originSettingClient, clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver());
         jobResultsPersister = new JobResultsPersister(
-            originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node"));
+            originSettingClient, retryingPersister, new AnomalyDetectionAuditor(client(), "test_node"));
     }
 
     public void testUnrelatedIndexNotTouched() throws Exception {

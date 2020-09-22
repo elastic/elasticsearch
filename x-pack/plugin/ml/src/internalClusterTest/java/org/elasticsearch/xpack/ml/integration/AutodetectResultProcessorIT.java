@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.After;
 import org.junit.Before;
 
@@ -119,7 +119,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private AutodetectResultProcessor resultProcessor;
     private Renormalizer renormalizer;
     private AutodetectProcess process;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -146,19 +146,19 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ClusterService.USER_DEFINED_METADATA,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                RetryingPersister.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        retryingPersister = new RetryingPersister(originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
                 client(),
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
-                new AnnotationPersister(resultsPersisterService, auditor),
+                new JobResultsPersister(originSettingClient, retryingPersister, new AnomalyDetectionAuditor(client(), "test_node")),
+                new AnnotationPersister(retryingPersister, auditor),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {

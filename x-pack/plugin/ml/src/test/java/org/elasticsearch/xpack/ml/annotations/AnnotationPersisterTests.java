@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterServiceTests;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersisterTests;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -64,7 +64,7 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     private Client client;
     private OriginSettingClient originSettingClient;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private AbstractAuditor<?> auditor;
 
     private ArgumentCaptor<BulkRequest> bulkRequestCaptor;
@@ -78,7 +78,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
-        resultsPersisterService = ResultsPersisterServiceTests.buildResultsPersisterService(originSettingClient);
+        retryingPersister = RetryingPersisterTests.buildResultsPersisterService(originSettingClient);
 
         auditor = mock(AbstractAuditor.class);
 
@@ -96,7 +96,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, auditor);
+        AnnotationPersister persister = new AnnotationPersister(retryingPersister, auditor);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
         Tuple<String, Annotation> result = persister.persistAnnotation(null, annotation);
         assertThat(result, is(equalTo(tuple(ANNOTATION_ID, annotation))));
@@ -119,7 +119,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, auditor);
+        AnnotationPersister persister = new AnnotationPersister(retryingPersister, auditor);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
         Tuple<String, Annotation> result = persister.persistAnnotation(ANNOTATION_ID, annotation);
         assertThat(result, is(equalTo(tuple(ANNOTATION_ID, annotation))));
@@ -142,7 +142,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, auditor);
+        AnnotationPersister persister = new AnnotationPersister(retryingPersister, auditor);
         persister.bulkPersisterBuilder(JOB_ID)
             .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
             .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
@@ -162,7 +162,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, auditor, 2);
+        AnnotationPersister persister = new AnnotationPersister(retryingPersister, auditor, 2);
         persister.bulkPersisterBuilder(JOB_ID)
             .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
             .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
@@ -181,7 +181,7 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     public void testPersistMultipleAnnotationsWithBulk_EmptyRequest() {
-        AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, auditor);
+        AnnotationPersister persister = new AnnotationPersister(retryingPersister, auditor);
         assertThat(persister.bulkPersisterBuilder(JOB_ID).executeRequest(), is(nullValue()));
     }
 
@@ -191,7 +191,7 @@ public class AnnotationPersisterTests extends ESTestCase {
             .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{bulkItemFailure("2")}, 0L)))  // (3)
             .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, auditor);
+        AnnotationPersister persister = new AnnotationPersister(retryingPersister, auditor);
         AnnotationPersister.Builder persisterBuilder = persister.bulkPersisterBuilder(JOB_ID)
             .persistAnnotation("1", AnnotationTests.randomAnnotation(JOB_ID))
             .persistAnnotation("2", AnnotationTests.randomAnnotation(JOB_ID));

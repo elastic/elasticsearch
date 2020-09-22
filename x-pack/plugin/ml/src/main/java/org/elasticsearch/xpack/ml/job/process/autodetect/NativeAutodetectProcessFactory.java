@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -45,7 +45,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private final Settings settings;
     private final NativeController nativeController;
     private final ClusterService clusterService;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final AnomalyDetectionAuditor auditor;
     private volatile Duration processConnectTimeout;
 
@@ -53,13 +53,13 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                           Settings settings,
                                           NativeController nativeController,
                                           ClusterService clusterService,
-                                          ResultsPersisterService resultsPersisterService,
+                                          RetryingPersister retryingPersister,
                                           AnomalyDetectionAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.clusterService = clusterService;
-        this.resultsPersisterService = resultsPersisterService;
+        this.retryingPersister = retryingPersister;
         this.auditor = auditor;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
@@ -85,7 +85,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
-        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(job.getId(), resultsPersisterService, auditor);
+        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(job.getId(), retryingPersister, auditor);
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(

@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class InferenceRunnerTests extends ESTestCase {
 
     private Client client;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private ModelLoadingService modelLoadingService;
     private DataFrameAnalyticsConfig config;
     private ProgressTracker progressTracker;
@@ -65,7 +65,7 @@ public class InferenceRunnerTests extends ESTestCase {
     @Before
     public void setupTests() {
         client = mock(Client.class);
-        resultsPersisterService = mock(ResultsPersisterService.class);
+        retryingPersister = mock(RetryingPersister.class);
         config = new DataFrameAnalyticsConfig.Builder()
             .setId("test")
             .setAnalysis(RegressionTests.createRandom())
@@ -114,7 +114,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
-        verify(resultsPersisterService).bulkIndexWithHeadersWithRetry(any(), argumentCaptor.capture(), any(), any(), any());
+        verify(retryingPersister).bulkIndexWithHeadersWithRetry(any(), argumentCaptor.capture(), any(), any(), any());
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(100));
 
         BulkRequest bulkRequest = argumentCaptor.getAllValues().get(0);
@@ -151,7 +151,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
         inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator);
 
-        Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
+        Mockito.verifyNoMoreInteractions(localModel, retryingPersister);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
     }
 
@@ -177,7 +177,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
-        return new InferenceRunner(Settings.EMPTY, client, modelLoadingService,  resultsPersisterService, parentTaskId, config,
+        return new InferenceRunner(Settings.EMPTY, client, modelLoadingService, retryingPersister, parentTaskId, config,
             extractedFields, progressTracker, new DataCountsTracker());
     }
 }

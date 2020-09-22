@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContex
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -382,18 +382,18 @@ public class JobResultsPersisterTests extends ESTestCase {
         };
     }
 
-    private ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
+    private RetryingPersister buildResultsPersisterService(OriginSettingClient client) {
         ThreadPool tp = mock(ThreadPool.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                RetryingPersister.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
 
-        return new ResultsPersisterService(client, clusterService, Settings.EMPTY);
+        return new RetryingPersister(client, clusterService, Settings.EMPTY);
     }
 
     private AnomalyDetectionAuditor makeAuditor() {

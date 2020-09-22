@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.utils.persistence;
+package org.elasticsearch.xpack.core.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.status;
 
-public class ResultsPersisterService {
+public class RetryingPersister {
     /**
      * List of rest statuses that we consider irrecoverable
      */
@@ -65,7 +65,7 @@ public class ResultsPersisterService {
         )
     ));
 
-    private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
+    private static final Logger LOGGER = LogManager.getLogger(RetryingPersister.class);
 
     public static final Setting<Integer> PERSIST_RESULTS_MAX_RETRIES = Setting.intSetting(
         "xpack.ml.persist_results_max_retries",
@@ -83,15 +83,15 @@ public class ResultsPersisterService {
     private final OriginSettingClient client;
     private volatile int maxFailureRetries;
 
-    public ResultsPersisterService(OriginSettingClient client, ClusterService clusterService, Settings settings) {
+    public RetryingPersister(OriginSettingClient client, ClusterService clusterService, Settings settings) {
         this(Thread::sleep, client, clusterService, settings);
     }
 
     // Visible for testing
-    ResultsPersisterService(CheckedConsumer<Integer, InterruptedException> sleeper,
-                            OriginSettingClient client,
-                            ClusterService clusterService,
-                            Settings settings) {
+    RetryingPersister(CheckedConsumer<Integer, InterruptedException> sleeper,
+                      OriginSettingClient client,
+                      ClusterService clusterService,
+                      Settings settings) {
         this.sleeper = sleeper;
         this.client = client;
         this.maxFailureRetries = PERSIST_RESULTS_MAX_RETRIES.get(settings);

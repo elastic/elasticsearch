@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -42,7 +42,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private final Environment env;
     private final NativeController nativeController;
     private final NamedXContentRegistry namedXContentRegistry;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final DataFrameAnalyticsAuditor auditor;
     private volatile Duration processConnectTimeout;
 
@@ -50,13 +50,13 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
                                          NativeController nativeController,
                                          ClusterService clusterService,
                                          NamedXContentRegistry namedXContentRegistry,
-                                         ResultsPersisterService resultsPersisterService,
+                                         RetryingPersister retryingPersister,
                                          DataFrameAnalyticsAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
         this.auditor = auditor;
-        this.resultsPersisterService = resultsPersisterService;
+        this.retryingPersister = retryingPersister;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -103,7 +103,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService,
                               NativeAnalyticsProcess process) throws IOException {
         if (config.getAnalysis().persistsState()) {
-            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
+            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), retryingPersister, auditor);
             process.start(executorService, stateProcessor);
         } else {
             process.start(executorService);

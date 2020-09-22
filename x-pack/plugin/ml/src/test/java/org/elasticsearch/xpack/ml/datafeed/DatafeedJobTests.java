@@ -46,8 +46,8 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterServiceTests;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersisterTests;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
@@ -89,7 +89,7 @@ public class DatafeedJobTests extends ESTestCase {
     private DataExtractor dataExtractor;
     private DatafeedTimingStatsReporter timingStatsReporter;
     private Client client;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private DelayedDataDetector delayedDataDetector;
     private DataDescription.Builder dataDescription;
     private ActionFuture<PostDataAction.Response> postDataFuture;
@@ -113,8 +113,8 @@ public class DatafeedJobTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        resultsPersisterService =
-            ResultsPersisterServiceTests.buildResultsPersisterService(new OriginSettingClient(client, ClientHelper.ML_ORIGIN));
+        retryingPersister =
+            RetryingPersisterTests.buildResultsPersisterService(new OriginSettingClient(client, ClientHelper.ML_ORIGIN));
         dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         postDataFuture = mock(ActionFuture.class);
@@ -491,7 +491,7 @@ public class DatafeedJobTests extends ESTestCase {
                                           long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, new AnnotationPersister(resultsPersisterService, auditor), currentTimeSupplier,
+            client, auditor, new AnnotationPersister(retryingPersister, auditor), currentTimeSupplier,
             delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
     }
 

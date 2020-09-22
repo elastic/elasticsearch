@@ -16,7 +16,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -47,19 +47,19 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     private static final Map<String, String> HEADERS = Collections.singletonMap("foo", "bar");
 
     private DataFrameDataExtractor dataExtractor;
-    private ResultsPersisterService resultsPersisterService;
+    private RetryingPersister retryingPersister;
     private ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
     @Before
     public void setUpMocks() {
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.getHeaders()).thenReturn(HEADERS);
-        resultsPersisterService = mock(ResultsPersisterService.class);
+        retryingPersister = mock(RetryingPersister.class);
     }
 
     public void testProcess_GivenNoResults() {
         givenProcessResults(Collections.emptyList());
-        verifyNoMoreInteractions(resultsPersisterService);
+        verifyNoMoreInteractions(retryingPersister);
     }
 
     public void testProcess_GivenSingleRowAndResult() throws IOException {
@@ -127,7 +127,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         RowResults result = new RowResults(2, resultFields);
         givenProcessResults(Arrays.asList(result));
 
-        verifyNoMoreInteractions(resultsPersisterService);
+        verifyNoMoreInteractions(retryingPersister);
     }
 
     public void testProcess_GivenSingleBatchWithSkippedRows() throws IOException {
@@ -282,14 +282,14 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
         givenProcessResults(Collections.emptyList());
 
-        verifyNoMoreInteractions(resultsPersisterService);
+        verifyNoMoreInteractions(retryingPersister);
         verify(dataExtractor).cancel();
         verify(dataExtractor, times(2)).next();
     }
 
     private void givenProcessResults(List<RowResults> results) {
         try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, Settings.EMPTY, new TaskId(""), dataExtractor,
-            resultsPersisterService)) {
+            retryingPersister)) {
             results.forEach(joiner::processRowResults);
         }
     }
@@ -325,7 +325,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenClientHasNoFailures() {
-        when(resultsPersisterService.bulkIndexWithHeadersWithRetry(
+        when(retryingPersister.bulkIndexWithHeadersWithRetry(
             eq(HEADERS), bulkRequestCaptor.capture(), eq(ANALYTICS_ID), any(), any()))
             .thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
     }

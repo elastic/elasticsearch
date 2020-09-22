@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +74,7 @@ public class TrainedModelStatsService {
         new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
     private final Map<String, InferenceStats> statsQueue;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final OriginSettingClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
@@ -82,12 +82,12 @@ public class TrainedModelStatsService {
     private volatile boolean stopped;
     private volatile ClusterState clusterState;
 
-    public TrainedModelStatsService(ResultsPersisterService resultsPersisterService,
+    public TrainedModelStatsService(RetryingPersister retryingPersister,
                                     OriginSettingClient client,
                                     IndexNameExpressionResolver indexNameExpressionResolver,
                                     ClusterService clusterService,
                                     ThreadPool threadPool) {
-        this.resultsPersisterService = resultsPersisterService;
+        this.retryingPersister = retryingPersister;
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = threadPool;
@@ -197,7 +197,7 @@ public class TrainedModelStatsService {
         if (stopped) {
             return;
         }
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest,
+        retryingPersister.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
             () -> stopped == false,
             (msg) -> {});

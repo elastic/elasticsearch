@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.core.ml.utils.persistence.RetryingPersister;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,7 +68,7 @@ public class AnalyticsProcessManager {
     private final DataFrameAnalyticsAuditor auditor;
     private final TrainedModelProvider trainedModelProvider;
     private final ModelLoadingService modelLoadingService;
-    private final ResultsPersisterService resultsPersisterService;
+    private final RetryingPersister retryingPersister;
     private final int numAllocatedProcessors;
 
     public AnalyticsProcessManager(Settings settings,
@@ -78,7 +78,7 @@ public class AnalyticsProcessManager {
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
                                    ModelLoadingService modelLoadingService,
-                                   ResultsPersisterService resultsPersisterService,
+                                   RetryingPersister retryingPersister,
                                    int numAllocatedProcessors) {
         this(
             settings,
@@ -89,7 +89,7 @@ public class AnalyticsProcessManager {
             auditor,
             trainedModelProvider,
             modelLoadingService,
-            resultsPersisterService,
+            retryingPersister,
             numAllocatedProcessors);
     }
 
@@ -102,7 +102,7 @@ public class AnalyticsProcessManager {
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
                                    ModelLoadingService modelLoadingService,
-                                   ResultsPersisterService resultsPersisterService,
+                                   RetryingPersister retryingPersister,
                                    int numAllocatedProcessors) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
@@ -112,7 +112,7 @@ public class AnalyticsProcessManager {
         this.auditor = Objects.requireNonNull(auditor);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
-        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.retryingPersister = Objects.requireNonNull(retryingPersister);
         this.numAllocatedProcessors = numAllocatedProcessors;
     }
 
@@ -345,7 +345,7 @@ public class AnalyticsProcessManager {
 
         if (processContext.config.getAnalysis().supportsInference()) {
             refreshDest(parentTaskClient, processContext.config);
-            InferenceRunner inferenceRunner = new InferenceRunner(settings, parentTaskClient, modelLoadingService, resultsPersisterService,
+            InferenceRunner inferenceRunner = new InferenceRunner(settings, parentTaskClient, modelLoadingService, retryingPersister,
                 task.getParentTaskId(), processContext.config, extractedFields, task.getStatsHolder().getProgressTracker(),
                 task.getStatsHolder().getDataCountsTracker());
             processContext.setInferenceRunner(inferenceRunner);
@@ -419,7 +419,7 @@ public class AnalyticsProcessManager {
 
         ProcessContext(DataFrameAnalyticsConfig config) {
             this.config = Objects.requireNonNull(config);
-            this.statsPersister = new StatsPersister(config.getId(), resultsPersisterService, auditor);
+            this.statsPersister = new StatsPersister(config.getId(), retryingPersister, auditor);
         }
 
         String getFailureReason() {
@@ -505,7 +505,7 @@ public class AnalyticsProcessManager {
                                                                DataFrameDataExtractorFactory dataExtractorFactory) {
             DataFrameRowsJoiner dataFrameRowsJoiner =
                 new DataFrameRowsJoiner(config.getId(), settings, task.getParentTaskId(),
-                        dataExtractorFactory.newExtractor(true), resultsPersisterService);
+                        dataExtractorFactory.newExtractor(true), retryingPersister);
             return new AnalyticsResultProcessor(
                 config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, statsPersister,
                 dataExtractor.get().getExtractedFields());

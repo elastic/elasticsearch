@@ -165,9 +165,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         });
 
         // a throttled search might be waiting to be executed, stop it
-        if (scheduledNextSearch != null) {
-            scheduledNextSearch.reschedule(TimeValue.ZERO);
-        }
+        runSearchImmediately();
 
         return indexerState;
     }
@@ -264,7 +262,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return;
         }
 
-        reQueueThrottledSearch(false);
+        reQueueThrottledSearch();
     }
 
     /**
@@ -274,12 +272,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * complete a full cycle.
      */
     protected void runSearchImmediately() {
-        reQueueThrottledSearch(true);
+        if (scheduledNextSearch != null) {
+            scheduledNextSearch.reschedule(TimeValue.ZERO);
+        }
     }
 
     // protected, so it can be overwritten by tests
     protected long getTimeNanos() {
         return System.nanoTime();
+    }
+
+    // only for testing purposes
+    protected ScheduledRunnable getScheduledNextSearch() {
+        return scheduledNextSearch;
     }
 
     /**
@@ -511,7 +516,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
-                    nextSearch();
+                    if (triggerSaveState()) {
+                        doSaveState(IndexerState.INDEXING, newPosition, () -> { nextSearch(); });
+                    } else {
+                        nextSearch();
+                    }
                 } catch (Exception e) {
                     finishWithFailure(e);
                 }
@@ -565,8 +574,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     () -> triggerNextSearch(executionDelay.getNanos())
                 );
 
-                // corner case: if for whatever reason stop() has been called meanwhile fast forward
-                if (getState().equals(IndexerState.STOPPING)) {
+                // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
+                if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
                     scheduledNextSearch.reschedule(TimeValue.ZERO);
                 }
                 return;
@@ -581,6 +590,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return;
         }
 
+        // cleanup the scheduled runnable
+        scheduledNextSearch = null;
         stats.markStartSearch();
         lastSearchStartTimeNanos = getTimeNanos();
 
@@ -617,11 +628,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
     }
 
-    private synchronized void reQueueThrottledSearch(boolean now) {
+    private synchronized void reQueueThrottledSearch() {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
         if (scheduledNextSearch != null) {
-            TimeValue executionDelay = now ? TimeValue.ZERO : calculateThrottlingDelay(
+            TimeValue executionDelay = calculateThrottlingDelay(
                 currentMaxDocsPerSecond,
                 lastDocCount,
                 lastSearchStartTimeNanos,

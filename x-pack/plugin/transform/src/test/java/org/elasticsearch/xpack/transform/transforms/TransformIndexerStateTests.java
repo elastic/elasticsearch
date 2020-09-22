@@ -12,6 +12,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -27,6 +28,8 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -90,10 +93,14 @@ public class TransformIndexerStateTests extends ESTestCase {
 
     class MockedTransformIndexer extends TransformIndexer {
 
+        private final ThreadPool threadPool;
+        private final String executorName;
+
         private TransformState persistedState;
         private int saveStateListenerCallCount = 0;
         // used for synchronizing with the test
         private CountDownLatch searchLatch;
+        private CountDownLatch doProcessLatch;
 
         MockedTransformIndexer(
             ThreadPool threadPool,
@@ -124,6 +131,9 @@ public class TransformIndexerStateTests extends ESTestCase {
                 TransformCheckpoint.EMPTY,
                 context
             );
+            this.threadPool = threadPool;
+            this.executorName = executorName;
+
             persistedState = new TransformState(
                 context.getTaskState(),
                 initialState.get(),
@@ -140,8 +150,12 @@ public class TransformIndexerStateTests extends ESTestCase {
             this.initializeFunction();
         }
 
-        public CountDownLatch newSearchLatch(int count) {
+        public CountDownLatch createAwaitForSearchLatch(int count) {
             return searchLatch = new CountDownLatch(count);
+        }
+
+        public CountDownLatch createCountDownOnResponseLatch(int count) {
+            return doProcessLatch = new CountDownLatch(count);
         }
 
         @Override
@@ -158,12 +172,15 @@ public class TransformIndexerStateTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE);
+            threadPool.executor(executorName).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
         }
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-            nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100));
+            if (doProcessLatch != null) {
+                doProcessLatch.countDown();
+            }
+            threadPool.executor(executorName).execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
         }
 
         @Override
@@ -190,6 +207,17 @@ public class TransformIndexerStateTests extends ESTestCase {
             } finally {
                 next.run();
             }
+        }
+
+        @Override
+        protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
+            // pretend that we processed 10k documents for each call
+            getStats().incrementNumDocuments(10_000);
+            return new IterationResult<>(Collections.singletonList(new IndexRequest()), new TransformIndexerPosition(null, null), false);
+        }
+
+        public boolean waitingForNextSearch() {
+            return super.getScheduledNextSearch() != null;
         }
 
         public int getSaveStateListenerCallCount() {
@@ -337,7 +365,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertEquals(indexer.getState(), IndexerState.INDEXING);
 
             // slow down the indexer
-            CountDownLatch searchLatch = indexer.newSearchLatch(1);
+            CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
 
             // this time call 5 times and change stopAtCheckpoint every time
             List<CountDownLatch> responseLatches = new ArrayList<>();
@@ -381,7 +409,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertEquals(indexer.getState(), IndexerState.INDEXING);
 
             // slow down the indexer
-            CountDownLatch searchLatch = indexer.newSearchLatch(1);
+            CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
 
             List<CountDownLatch> responseLatches = new ArrayList<>();
             for (int i = 0; i < 3; ++i) {
@@ -411,6 +439,72 @@ public class TransformIndexerStateTests extends ESTestCase {
             assertThat(indexer.getSaveStateListenerCallCount(), greaterThanOrEqualTo(1));
             assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(6));
         }
+    }
+
+    public void testStopAtCheckpointForThrottledTransform() throws Exception {
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(null, Float.valueOf(1.0f))
+        );
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
+
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        final MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            null,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // create a latch to wait until data has been processed once
+        CountDownLatch onResponseLatch = indexer.createCountDownOnResponseLatch(1);
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(indexer.getState(), IndexerState.INDEXING);
+
+        // wait until we processed something, the indexer should throttle
+        onResponseLatch.await();
+        // re-create the latch for the next use (before setStop, otherwise the other thread might overtake)
+        onResponseLatch = indexer.createCountDownOnResponseLatch(1);
+
+        // the calls are likely executed _before_ the next search is even scheduled
+        assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertResponse(listener -> setStopAtCheckpoint(indexer, false, listener));
+        assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertResponse(listener -> setStopAtCheckpoint(indexer, false, listener));
+
+        onResponseLatch.await();
+        onResponseLatch = indexer.createCountDownOnResponseLatch(1);
+
+        // wait until a search is scheduled
+        assertBusy(() -> assertTrue(indexer.waitingForNextSearch()), 5, TimeUnit.SECONDS);
+        assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+
+        onResponseLatch.await();
+        onResponseLatch = indexer.createCountDownOnResponseLatch(1);
+
+        assertBusy(() -> assertTrue(indexer.waitingForNextSearch()), 5, TimeUnit.SECONDS);
+        assertResponse(listener -> setStopAtCheckpoint(indexer, false, listener));
+        onResponseLatch.await();
+        assertBusy(() -> assertTrue(indexer.waitingForNextSearch()), 5, TimeUnit.SECONDS);
+        assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+
+        indexer.stop();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
     }
 
     private void setStopAtCheckpoint(
@@ -445,7 +539,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             ),
             latch
         );
-
         function.accept(listener);
     }
 

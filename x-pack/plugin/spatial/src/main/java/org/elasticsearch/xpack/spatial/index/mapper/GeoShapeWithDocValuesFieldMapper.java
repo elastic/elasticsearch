@@ -89,7 +89,8 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
             if (docValuesSet == false) {
                 hasDocValues = Version.V_7_8_0.onOrBefore(context.indexCreatedVersion());
             }
-            GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(buildFullName(context), indexed, fieldType.stored(),
+                hasDocValues, meta);
             // @todo check coerce
             GeometryParser geometryParser = new GeometryParser(ft.orientation().getAsBoolean(), coerce().value(),
                 ignoreZValue().value());
@@ -129,8 +130,9 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends GeoShapeFieldMapper.GeoShapeFieldType {
-        public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                              Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
         }
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {

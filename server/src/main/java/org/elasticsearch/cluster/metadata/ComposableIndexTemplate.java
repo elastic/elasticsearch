@@ -205,7 +205,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalWriteable(dataStreamTemplate);
         }
-        if (out.getVersion().after(Version.V_7_10_0)) {
+        if (out.getVersion().after(Version.V_8_0_0)) {
             out.writeOptionalBoolean(allowAutoCreate);
         }
     }

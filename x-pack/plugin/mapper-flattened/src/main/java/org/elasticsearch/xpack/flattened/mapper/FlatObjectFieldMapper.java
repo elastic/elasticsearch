@@ -232,7 +232,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public KeyedFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, String key,
                                         boolean splitQueriesOnWhitespace, Map<String, String> meta) {
-            super(name, indexed, hasDocValues,
+            super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -299,8 +299,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
-        
-        
 
         @Override
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
@@ -310,7 +308,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
             return query;
         }
-        
+
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             if (value == null) {
@@ -329,7 +327,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             failIfNoDocValues();
             return new KeyedFlatObjectFieldData.Builder(name(), key, CoreValuesSourceType.BYTES);
         }
-
     }
 
     /**
@@ -446,7 +443,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
                                        boolean splitQueriesOnWhitespace) {
-            super(name, indexed, hasDocValues,
+            super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -480,7 +477,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
-
     }
 
     private FlatObjectFieldParser fieldParser;

@@ -31,7 +31,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +43,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class Grok {
+    /**
+     * Patterns built in to the grok library.
+     */
+    public static final Map<String, String> BUILTIN_PATTERNS = loadBuiltinPatterns();
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
@@ -62,16 +65,7 @@ public final class Grok {
     private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,
             GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
 
-    private static final Map<String, String> builtinPatterns;
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; //sanity limit
-
-    static {
-        try {
-            builtinPatterns = loadBuiltinPatterns();
-        } catch (IOException e) {
-            throw new UncheckedIOException("unable to load built-in grok patterns", e);
-        }
-    }
 
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
@@ -278,21 +272,23 @@ public final class Grok {
         }
     }
 
-    public static Map<String, String> getBuiltinPatterns() {
-        return builtinPatterns;
-    }
-
-    private static Map<String, String> loadBuiltinPatterns() throws IOException {
-        // Code for loading built-in grok patterns packaged with the jar file:
-        String[] PATTERN_NAMES = new String[] {
+    /**
+     * Load built-in patterns. 
+     */
+    private static Map<String, String> loadBuiltinPatterns() {
+        String[] patternNames = new String[] {
             "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
             "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
             "postgresql", "rails", "redis", "ruby", "squid"
         };
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
-        for (String pattern : PATTERN_NAMES) {
-            try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
-                loadPatterns(builtinPatterns, is);
+        for (String pattern : patternNames) {
+            try {
+                try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                    loadPatterns(builtinPatterns, is);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("failed to load built-in patterns", e);
             }
         }
         return Collections.unmodifiableMap(builtinPatterns);

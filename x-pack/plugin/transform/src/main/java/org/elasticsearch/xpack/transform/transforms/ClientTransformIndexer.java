@@ -243,6 +243,9 @@ class ClientTransformIndexer extends TransformIndexer {
         // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
         if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+            if (saveStateListenersAtTheMomentOfCalling != null) {
+                ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
+            }
             next.run();
             return;
         }

@@ -49,17 +49,17 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        gitExtension = new BwcGitExtension(project.getObjects());
         this.project = project;
-        project.getExtensions().add("bwcGitConfig", new BwcGitExtension(project.getObjects()));
+        gitExtension = new BwcGitExtension(project.getObjects());
+        project.getExtensions().add("bwcGitConfig", gitExtension);
         ProviderFactory providers = project.getProviders();
         Provider<String> remote = project.getProviders().systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
 
-        RegularFileProperty checkoutDir = gitExtension.checkoutDir;
+        final RegularFileProperty checkoutDir = gitExtension.getCheckoutDir();
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
-            createClone.onlyIf(task -> gitExtension.checkoutDir.get().getAsFile().exists() == false);
-            createClone.setCommandLine(asList("git", "clone", project.getRootDir(), gitExtension.checkoutDir.get().getAsFile()));
+            createClone.onlyIf(task -> checkoutDir.get().getAsFile().exists() == false);
+            createClone.setCommandLine(asList("git", "clone", project.getRootDir(), checkoutDir.get().getAsFile()));
         });
 
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
@@ -81,7 +81,12 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             addRemote.onlyIf(task -> ((boolean) project.getExtensions().getExtraProperties().get("remoteExists")) == false);
             addRemote.setWorkingDir(checkoutDir.get());
             String remoteRepo = remote.get();
-            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, "https://github.com/" + remoteRepo + "/elasticsearch.git"));
+            // for testing only we can override the base remote url
+            String remoteRepoUrl = project.getProviders()
+                .systemProperty("testRemoteRepo")
+                .forUseAtConfigurationTime()
+                .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
+            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
         });
 
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
@@ -109,7 +114,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             checkoutBwcBranch.doLast(t -> {
                 Logger logger = project.getLogger();
 
-                String bwcBranch = gitExtension.bwcBranch.get();
+                String bwcBranch = gitExtension.getBwcBranch().get();
                 final String refspec = providers.systemProperty("bwc.refspec." + bwcBranch)
                     .orElse(providers.systemProperty("tests.bwc.refspec." + bwcBranch))
                     .getOrElse(remote.get() + "/" + bwcBranch);
@@ -187,7 +192,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         ExecResult exec = project.exec(execSpec -> {
             execSpec.setStandardOutput(os);
-            execSpec.workingDir(gitExtension.checkoutDir.getAsFile());
+            execSpec.workingDir(gitExtension.getCheckoutDir().getAsFile());
             execSpecConfig.execute(execSpec);
         });
         exec.assertNormalExitValue();

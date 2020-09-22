@@ -19,29 +19,54 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest {
 
+    @Rule
+    TemporaryFolder remoteRepoDirs = new TemporaryFolder()
+
+    File remoteGitRepo
+
     def setup() {
-        settingsFile << """
-            // project paths referenced absolute from BwcVersions.UnreleasedVersionInfo%gradleProjectPath
-            include ":distribution:bwc:bugfix"
-            include ":distribution:bwc:minor"
+        remoteGitRepo = new File(setupGitRemote(), '.git')
+
+        "git clone ${remoteGitRepo.absolutePath}".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        File buildScript = new File(testProjectDir.root, 'remote/build.gradle')
+        internalBuild(buildScript)
+        buildScript << """
+            apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
     }
 
-    def "applies common configuration to bwc subprojects"() {
-        given:
-        internalBuild();
-        buildFile << """
-            apply plugin: 'elasticsearch.internal-distribution-bwc-setup'  
-        """
+    def "builds distribution from branch via archives assemble"() {
         when:
-        def result = gradleRunner("assemble").build()
+        def result = gradleRunner(new File(testProjectDir.root, "remote"),
+                ":distribution:bwc:bugfix:buildBwcDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin")
+                .build()
         then:
-        result.task(":distribution:bwc:bugfix:assemble").outcome == TaskOutcome.SKIPPED
-        result.task(":distribution:bwc:minor:assemble").outcome == TaskOutcome.SKIPPED
+        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "assemble task triggered"
+        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+    }
+
+    File setupGitRemote() {
+        URL fakeRemote = getClass().getResource("fake_git/remote")
+        File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')
+        FileUtils.copyDirectory(new File(fakeRemote.file), workingRemoteGit)
+        fakeRemote.file + "/.git"
+        gradleRunner(workingRemoteGit, "wrapper").build()
+        "git init".execute(Collections.emptyList(), workingRemoteGit).waitFor()
+        "git add .".execute(Collections.emptyList(), workingRemoteGit).waitFor()
+        'git commit -m"Initial"'.execute(Collections.emptyList(), workingRemoteGit).waitFor()
+        "git checkout -b origin/8.0".execute(Collections.emptyList(), workingRemoteGit).waitFor()
+        return workingRemoteGit;
     }
 }

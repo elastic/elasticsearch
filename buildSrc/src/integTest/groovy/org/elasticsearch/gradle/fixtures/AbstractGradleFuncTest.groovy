@@ -43,9 +43,14 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(String... arguments) {
+        return gradleRunner(testProjectDir.root, arguments)
+
+    }
+
+    GradleRunner gradleRunner(File projectDir, String... arguments) {
         GradleRunner.create()
                 .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                .withProjectDir(testProjectDir.root)
+                .withProjectDir(projectDir)
                 .withArguments(arguments)
                 .withPluginClasspath()
                 .forwardOutput()
@@ -106,6 +111,12 @@ abstract class AbstractGradleFuncTest extends Specification {
 
         BuildParams.init { it.setBwcVersions(versions) }
         """
+    }
+
+    void setupLocalGitRepo() {
+        "git init".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        "git add .".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        'git commit -m "Initial"'.execute(Collections.emptyList(), testProjectDir.root).waitFor()
     }
 
 }

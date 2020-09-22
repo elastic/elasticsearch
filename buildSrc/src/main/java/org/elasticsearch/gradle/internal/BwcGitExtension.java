@@ -24,15 +24,41 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 
+import java.io.File;
+
 public class BwcGitExtension {
 
-    Property<Version> bwcVersion;
-    Property<String> bwcBranch;
-    RegularFileProperty checkoutDir;
+    private Property<Version> bwcVersion;
+    private Property<String> bwcBranch;
+    private RegularFileProperty checkoutDir;
 
     BwcGitExtension(ObjectFactory objectFactory) {
         bwcVersion = objectFactory.property(Version.class);
         bwcBranch = objectFactory.property(String.class);
         checkoutDir = objectFactory.fileProperty();
+    }
+
+    public Property<Version> getBwcVersion() {
+        return bwcVersion;
+    }
+
+    public void setBwcVersion(Property<Version> bwcVersion) {
+        this.bwcVersion = bwcVersion;
+    }
+
+    public Property<String> getBwcBranch() {
+        return bwcBranch;
+    }
+
+    public void setBwcBranch(Property<String> bwcBranch) {
+        this.bwcBranch = bwcBranch;
+    }
+
+    public RegularFileProperty getCheckoutDir() {
+        return checkoutDir;
+    }
+
+    public void setCheckoutDir(File checkoutDir) {
+        this.checkoutDir.set(checkoutDir);
     }
 }

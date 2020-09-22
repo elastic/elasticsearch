@@ -88,9 +88,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         extraProps.set("checkoutDir", checkoutDir);
         extraProps.set("remote", remote.get());
 
-        gitExtension.bwcVersion.set(unreleasedVersion.version);
-        gitExtension.bwcBranch.set(bwcBranch);
-        gitExtension.checkoutDir.set(checkoutDir);
+        gitExtension.getBwcVersion().set(unreleasedVersion.version);
+        gitExtension.getBwcBranch().set(bwcBranch);
+        gitExtension.setCheckoutDir(checkoutDir);
 
         bwcProject.getPlugins().apply("distribution");
         // Not published so no need to assemble
@@ -113,7 +113,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String extension = projectName;
             if (bwcVersion.onOrAfter("7.0.0") && (projectName.contains("zip") || projectName.contains("tar"))) {
                 int index = projectName.indexOf('-');
-                classifier = projectName.substring(0, index) + "-x86_64";
+                classifier = "-" + projectName.substring(0, index) + "-x86_64";
                 extension = projectName.substring(index + 1);
                 if (extension.equals("tar")) {
                     extension += ".gz";
@@ -133,7 +133,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     + "/build/distributions/elasticsearch-oss-"
                     + bwcVersion
                     + "-SNAPSHOT"
-                    + (classifier.isEmpty() ? classifier : "-" + classifier)
+                    + classifier
                     + "."
                     + extension;
 
@@ -158,7 +158,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 + "/build/distributions/elasticsearch-"
                 + bwcVersion
                 + "-SNAPSHOT"
-                + (classifier.isEmpty() ? classifier : "-" + classifier)
+                + classifier
                 + "."
                 + extension;
             File projectArtifact = new File(checkoutDir, relativePath);
@@ -240,7 +240,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     getJavaHome(
                         Integer.parseInt(
                             javaVersionsString.lines()
-                                .filter(l -> l.startsWith("ES_BUILD_JAVA="))
+                                .filter(l -> l.trim().startsWith("ES_BUILD_JAVA="))
                                 .map(l -> l.replace("ES_BUILD_JAVA=java", "").trim())
                                 .map(l -> l.replace("ES_BUILD_JAVA=openjdk", "").trim())
                                 .collect(Collectors.joining("!!"))
@@ -252,8 +252,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     getJavaHome(
                         Integer.parseInt(
                             javaVersionsString.lines()
-                                .filter(l -> l.startsWith("ES_RUNTIME_JAVA=java"))
+                                .filter(l -> l.trim().startsWith("ES_RUNTIME_JAVA="))
                                 .map(l -> l.replace("ES_RUNTIME_JAVA=java", "").trim())
+                                .map(l -> l.replace("ES_RUNTIME_JAVA=openjdk", "").trim())
                                 .collect(Collectors.joining("!!"))
                         )
                     )
@@ -300,7 +301,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private String readFromFile(File file) {
         try {
-            return FileUtils.readFileToString(file);
+            return FileUtils.readFileToString(file).trim();
         } catch (IOException ioException) {
             throw new GradleException("Cannot read java properties file.", ioException);
         }

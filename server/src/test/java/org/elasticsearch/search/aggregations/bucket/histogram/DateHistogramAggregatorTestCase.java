@@ -97,7 +97,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
-        return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, true,
+        return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
             Collections.emptyMap());

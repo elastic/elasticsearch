@@ -66,7 +66,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
-
     }
 
     private static SourceFieldMapper toType(FieldMapper in) {
@@ -102,10 +101,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     static final class SourceFieldType extends MappedFieldType {
 
-        public static final SourceFieldType INSTANCE = new SourceFieldType();
-
-        private SourceFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        private SourceFieldType(boolean enabled) {
+            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -125,7 +122,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private final boolean enabled;
-
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
     private final boolean complete;
 
@@ -137,7 +133,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
-        super(SourceFieldType.INSTANCE); // Only stored.
+        super(new SourceFieldType(enabled));
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;

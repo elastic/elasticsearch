@@ -27,11 +27,18 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class NettyAllocator {
+
+    private static final Logger logger = LogManager.getLogger(NettyAllocator.class);
+    private static final AtomicBoolean descriptionLogged = new AtomicBoolean(false);
 
     private static final ByteBufAllocator ALLOCATOR;
     private static final String DESCRIPTION;
@@ -92,6 +99,12 @@ public class NettyAllocator {
                     + ", g1gc_region_size=" + g1gcRegionSize + "}]";
             }
             ALLOCATOR = new NoDirectBuffers(delegate);
+        }
+    }
+
+    public static void logAllocatorDescriptionIfNeeded() {
+        if (descriptionLogged.compareAndSet(false, true)) {
+            logger.info("creating NettyAllocator with the following configs: " + NettyAllocator.getAllocatorDescription());
         }
     }
 

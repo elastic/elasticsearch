@@ -345,7 +345,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
 
         }
-        return 0;
+        return numOfHugAllocations;
     }
 
     public void testCorsRequest() throws InterruptedException {

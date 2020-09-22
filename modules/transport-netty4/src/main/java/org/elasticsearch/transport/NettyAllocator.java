@@ -153,6 +153,8 @@ public class NettyAllocator {
     private static boolean useUnpooled(long heapSizeInBytes, boolean g1gcEnabled, boolean g1gcRegionSizeIsKnown, long g1RegionSize) {
         if (userForcedUnpooled()) {
             return true;
+        } else if (userForcedPooled()) {
+            return true;
         } else if (heapSizeInBytes <= 1 << 30) {
             // If the heap is 1GB or less we use unpooled
             return true;
@@ -168,6 +170,14 @@ public class NettyAllocator {
     private static boolean userForcedUnpooled() {
         if (System.getProperty(USE_UNPOOLED) != null) {
             return Booleans.parseBoolean(System.getProperty(USE_UNPOOLED));
+        } else {
+            return false;
+        }
+    }
+
+    private static boolean userForcedPooled() {
+        if (System.getProperty(USE_UNPOOLED) != null) {
+            return Booleans.parseBoolean(System.getProperty(USE_UNPOOLED)) == false;
         } else {
             return false;
         }

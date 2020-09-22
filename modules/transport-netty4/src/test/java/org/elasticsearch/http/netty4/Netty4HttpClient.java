@@ -189,9 +189,10 @@ class Netty4HttpClient implements Closeable {
             ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
-                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
+                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
                     final FullHttpResponse response = (FullHttpResponse) msg;
-                    content.add(response.copy());
+                    ByteBuf newContent = Unpooled.copiedBuffer(((FullHttpResponse) msg).content());
+                    content.add(response.replace(newContent));
                     latch.countDown();
                 }
 

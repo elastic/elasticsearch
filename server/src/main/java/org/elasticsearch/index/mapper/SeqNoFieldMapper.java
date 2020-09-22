@@ -173,7 +173,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
-
     }
 
     public SeqNoFieldMapper() {

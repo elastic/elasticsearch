@@ -164,7 +164,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
                         breakerService, mapperService);
-                    return new IndexFieldData<LeafFieldData>() {
+                    return new IndexFieldData<>() {
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();

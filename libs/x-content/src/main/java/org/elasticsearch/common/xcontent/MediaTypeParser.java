@@ -73,12 +73,13 @@ public class MediaTypeParser<T extends MediaType> {
                         //spaces are allowed between parameters, but not between '=' sign
                         String[] keyValueParam = split[i].trim().split("=");
                         if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
-                            return null;
+                            throw new IllegalArgumentException("Spaces are not allowed between parameters. " + headerValue);
                         }
                         String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT);
                         String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT);
                         if (isValidParameter(typeWithSubtype, parameterName, parameterValue) == false) {
-                            return null;
+                            throw new IllegalArgumentException("unrecognized parameter "
+                                + parameterName + " " + parameterValue + " headerValue=" + headerValue);
                         }
                         parameters.put(parameterName, parameterValue);
                     }
@@ -87,7 +88,7 @@ public class MediaTypeParser<T extends MediaType> {
             }
 
         }
-        return null;
+        throw new IllegalArgumentException("unrecognized media type: " + headerValue);
     }
 
     private boolean isValidParameter(String typeWithSubtype, String parameterName, String parameterValue) {
@@ -127,13 +128,13 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     public static class Builder<T extends MediaType> {
-        private final Map<String, T> formatMap = new HashMap<>();
-        private final Map<String, T> typeMap = new HashMap<>();
+        private final Map<String, T> formatToMediaType = new HashMap<>();
+        private final Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
         private final Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
         public Builder<T> withMediaTypeAndParams(String alternativeMediaType, T mediaType, Map<String, Pattern> paramNameAndValueRegex) {
-            typeMap.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
-            formatMap.put(mediaType.format(), mediaType);
+            typeWithSubtypeToMediaType.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
+            formatToMediaType.put(mediaType.format(), mediaType);
 
             Map<String, Pattern> parametersForMediaType = new HashMap<>(paramNameAndValueRegex.size());
             for (Map.Entry<String, Pattern> params : paramNameAndValueRegex.entrySet()) {
@@ -147,8 +148,15 @@ public class MediaTypeParser<T extends MediaType> {
             return this;
         }
 
+        public Builder<T> copyFromMediaTypeParser(MediaTypeParser<? extends T> mediaTypeParser) {
+            formatToMediaType.putAll(mediaTypeParser.formatToMediaType);
+            typeWithSubtypeToMediaType.putAll(mediaTypeParser.typeWithSubtypeToMediaType);
+            parametersMap.putAll(mediaTypeParser.parametersMap);
+            return this;
+        }
+
         public MediaTypeParser<T> build() {
-            return new MediaTypeParser<>(formatMap, typeMap, parametersMap);
+            return new MediaTypeParser<>(formatToMediaType, typeWithSubtypeToMediaType, parametersMap);
         }
     }
 }

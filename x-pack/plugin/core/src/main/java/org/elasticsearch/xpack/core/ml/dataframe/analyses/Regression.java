@@ -51,7 +51,7 @@ public class Regression implements DataFrameAnalysis {
     public static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_regression_state#";
+    private static final String STATE_DOC_ID_INFIX = "_regression_state#";
 
     private static final ConstructingObjectParser<Regression, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Regression, Void> STRICT_PARSER = createParser(false);

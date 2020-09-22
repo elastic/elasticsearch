@@ -25,7 +25,7 @@ import java.util.List;
 
 public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
-    protected KeyedFlatObjectFieldType createFieldType() {
+    private static KeyedFlatObjectFieldType createFieldType() {
         return new KeyedFlatObjectFieldType("field", true, true, "key", false, Collections.emptyMap());
     }
 

@@ -102,8 +102,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(query, instanceOf(TermQuery.class));
             TermQuery termQuery = (TermQuery) query;
             assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
-            //we always perform a term query against _field_names, even in cases where the field
-            // is not get added to _field_names because it does not have lucene data structures
+            //we always perform a term query against _field_names, even when the field
+            // is not added to _field_names because it is not indexed nor stored
             assertEquals("field", termQuery.getTerm().text());
             assertNoDocValuesField(fields, "field");
             if (fieldType.isSearchable() || fieldType.isStored()) {

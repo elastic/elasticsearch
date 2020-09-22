@@ -68,6 +68,7 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatur
         TermQuery termQuery = (TermQuery) query;
         assertEquals("_feature", termQuery.getTerm().field());
         assertEquals("field", termQuery.getTerm().text());
+        assertNotNull(fields.getField("_feature"));
     }
 
     @Override

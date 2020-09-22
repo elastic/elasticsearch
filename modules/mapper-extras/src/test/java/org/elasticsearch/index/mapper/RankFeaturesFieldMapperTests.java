@@ -40,7 +40,7 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
     }
 
     @Override
-    protected void assertExistsQuery(MapperService mapperService) throws IOException {
+    protected void assertExistsQuery(MapperService mapperService) {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
         assertEquals("[rank_features] fields do not support [exists] queries", iae.getMessage());
     }

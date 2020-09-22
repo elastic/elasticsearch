@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.nodes;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -60,6 +61,8 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
+    private final String nodeExecutor;
+
     protected TransportNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Writeable.Reader<NodesRequest> request, Writeable.Reader<NodeRequest> nodeRequest, String nodeExecutor,
@@ -71,7 +74,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
 
         this.transportNodeAction = actionName + "[n]";
-
+        this.nodeExecutor = nodeExecutor;
         transportService.registerRequestHandler(
             transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
     }
@@ -226,15 +229,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
 
         private void finishHim() {
-            NodesResponse finalResponse;
-            try {
-                finalResponse = newResponse(request, responses);
-            } catch (Exception e) {
-                logger.debug("failed to combine responses from nodes", e);
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(finalResponse);
+            threadPool.executor(nodeExecutor).execute(ActionRunnable.supply(listener, () -> newResponse(request, responses)));
         }
     }
 

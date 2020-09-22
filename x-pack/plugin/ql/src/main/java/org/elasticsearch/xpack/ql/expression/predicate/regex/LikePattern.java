@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Objects;
@@ -50,12 +55,8 @@ public class LikePattern implements StringPattern {
 
     @Override
     public boolean matchesAll() {
-        for (int i = 0 ; i < pattern.length(); i++) {
-            if (pattern.charAt(i) != '%') {
-                return false;
-            }
-        }
-        return true;
+        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
+        return Operations.isTotal(MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES));
     }
 
     /**

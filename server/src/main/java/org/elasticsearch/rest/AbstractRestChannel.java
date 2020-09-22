@@ -98,9 +98,9 @@ public abstract class AbstractRestChannel implements RestChannel {
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
         if (responseContentType == null) {
-            //TODO PG shoudld format vs acceptHeader be always the same, do we allow overriding?
-            responseContentType = XContentType.fromFormat(format);
-            if (responseContentType == null) {
+            if (Strings.hasText(format)) {
+                responseContentType = XContentType.fromFormat(format);
+            } else if (Strings.hasText(acceptHeader)) {
                 responseContentType = XContentType.fromMediaType(acceptHeader);
             }
         }

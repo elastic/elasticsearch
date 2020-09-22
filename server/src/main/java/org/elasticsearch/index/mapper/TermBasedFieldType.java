@@ -25,6 +25,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.List;
@@ -32,9 +33,10 @@ import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
  *  with the inverted index. */
-abstract class TermBasedFieldType extends SimpleMappedFieldType {
+public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+    public TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo,
+        Map<String, String> meta) {
         super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 
@@ -43,6 +45,16 @@ abstract class TermBasedFieldType extends SimpleMappedFieldType {
      *  query factory methods such as {@link #termQuery}. */
     protected BytesRef indexedValueForSearch(Object value) {
         return BytesRefs.toBytesRef(value);
+    }
+
+    @Override
+    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        failIfNotIndexed();
+        Query query = AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+        if (boost() != 1f) {
+            query = new BoostQuery(query, boost());
+        }
+        return query;            
     }
 
     @Override

@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -95,7 +95,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithPendingShards() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -122,7 +122,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithPendingShardsAndTargetRoleNotPresentInCluster() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -159,7 +159,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteIsComplete() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -181,7 +181,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithGenericDataNodes() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -198,6 +198,52 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         Result result = step.isConditionMet(index, clusterState);
         assertThat(result.isComplete(), is(true));
         assertThat(result.getInfomationContext(), is(nullValue()));
+    }
+
+    public void testExecuteForIndexWithoutTierRoutingInformationWaitsForReplicasToBeActive() {
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(1).build();
+        Index index = indexMetadata.getIndex();
+        {
+            IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
+                .addReplica();
+
+            ClusterState clusterState =
+                ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
+                    .nodes(DiscoveryNodes.builder()
+                        .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
+                    )
+                    .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+                    .build();
+            DataTierMigrationRoutedStep step = createRandomInstance();
+            Result expectedResult = new Result(false, waitingForActiveShardsAllocationInfo(1));
+
+            Result result = step.isConditionMet(index, clusterState);
+            assertThat(result.isComplete(), is(false));
+            assertThat(result.getInfomationContext(), is(expectedResult.getInfomationContext()));
+        }
+
+        {
+            IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", false, ShardRoutingState.STARTED));
+
+            ClusterState clusterState =
+                ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())
+                    .nodes(DiscoveryNodes.builder()
+                        .add(newNode("node1", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE)))
+                        .add(newNode("node2", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE)))
+                    )
+                    .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+                    .build();
+            DataTierMigrationRoutedStep step = createRandomInstance();
+
+            Result result = step.isConditionMet(index, clusterState);
+            assertThat(result.isComplete(), is(true));
+            assertThat(result.getInfomationContext(), is(nullValue()));
+        }
     }
 
     private DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {

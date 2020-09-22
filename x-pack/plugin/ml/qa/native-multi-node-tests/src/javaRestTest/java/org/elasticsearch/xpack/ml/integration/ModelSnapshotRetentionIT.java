@@ -16,7 +16,10 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +47,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -51,6 +56,12 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
     private static final long MS_IN_DAY = TimeValue.timeValueDays(1).millis();
 
+    @Before
+    public void addMlState() {
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, new IndexNameExpressionResolver(), future);
+        future.actionGet();
+    }
     @After
     public void cleanUpTest() {
         cleanUp();

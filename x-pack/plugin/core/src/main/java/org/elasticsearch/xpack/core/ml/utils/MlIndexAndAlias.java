@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -88,16 +89,28 @@ public final class MlIndexAndAlias {
                                                       String alias,
                                                       ActionListener<Boolean> finalListener) {
 
+        final ActionListener<Boolean> loggingListener = ActionListener.wrap(
+            finalListener::onResponse,
+            e -> {
+                logger.error(new ParameterizedMessage(
+                        "Failed to create alias and index with pattern [{}] and alias [{}]",
+                        indexPatternPrefix,
+                        alias),
+                    e);
+                finalListener.onFailure(e);
+            }
+        );
+
         // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
         ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
             created -> {
                 if (created) {
-                    waitForShardsReady(client, alias, finalListener);
+                    waitForShardsReady(client, alias, loggingListener);
                 } else {
-                    finalListener.onResponse(false);
+                    loggingListener.onResponse(false);
                 }
             },
-            finalListener::onFailure
+            loggingListener::onFailure
         );
 
         boolean isHiddenAttributeAvailable = clusterState.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION);
@@ -135,7 +148,7 @@ public final class MlIndexAndAlias {
                     ActionListener.wrap(
                         unused -> updateWriteAlias(
                             client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, isHiddenAttributeAvailable, indexCreatedListener),
-                        finalListener::onFailure)
+                        loggingListener::onFailure)
                 );
                 return;
             }
@@ -146,12 +159,12 @@ public final class MlIndexAndAlias {
             if (indexPointedByCurrentWriteAlias.isPresent() == false) {
                 assert concreteIndexNames.length > 0;
                 String latestConcreteIndexName = Arrays.stream(concreteIndexNames).max(INDEX_NAME_COMPARATOR).get();
-                updateWriteAlias(client, alias, null, latestConcreteIndexName, isHiddenAttributeAvailable, finalListener);
+                updateWriteAlias(client, alias, null, latestConcreteIndexName, isHiddenAttributeAvailable, loggingListener);
                 return;
             }
         }
         // If the alias is set, there is nothing more to do.
-        finalListener.onResponse(false);
+        loggingListener.onResponse(false);
     }
 
     private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {

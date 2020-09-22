@@ -89,9 +89,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     @Override
     protected TermQueryBuilder createQueryBuilder(String fieldName, Object value) {
         TermQueryBuilder result = new TermQueryBuilder(fieldName, value);
-        if (randomBoolean()) {
-            result.caseInsensitive(true);
-        }
         return result;
     }
 

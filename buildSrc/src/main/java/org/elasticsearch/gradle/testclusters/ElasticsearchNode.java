@@ -125,20 +125,21 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path workingDir;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
-    private final List<Provider<File>> plugins = new ArrayList<>();
-    private final List<Provider<File>> modules = new ArrayList<>();
-    private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
-    private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
-    private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
-    private final LazyPropertyList<CliEntry> cliSetup = new LazyPropertyList<>("CLI setup commands", this);
-    private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
-    private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
-    private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
-    private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
-    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
-    private final List<Map<String, String>> credentials = new ArrayList<>();
+    private final Map<String, Configuration> pluginAndModuleConfigurations;
+    private final List<Provider<File>> plugins;
+    private final List<Provider<File>> modules;
+    private final LazyPropertyMap<String, CharSequence> settings;
+    private final LazyPropertyMap<String, CharSequence> keystoreSettings;
+    private final LazyPropertyMap<String, File> keystoreFiles;
+    private final LazyPropertyList<CliEntry> cliSetup;
+    private final LazyPropertyMap<String, CharSequence> systemProperties;
+    private final LazyPropertyMap<String, CharSequence> environment;
+    private final LazyPropertyList<CharSequence> jvmArgs;
+    private final LazyPropertyMap<String, File> extraConfigFiles;
+    private final LazyPropertyList<File> extraJarFiles;
+    private final List<Map<String, String>> credentials;
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
+    private final File workingDirBase;
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -160,12 +161,33 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String transportPort = "0";
     private Path confPathData;
     private String keystorePassword = "";
+    private Set<String> versionsSet = new HashSet<>();
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
+        this(path, name, project, reaper, workingDirBase, null);
+    }
+
+    /**
+     * Copy and merge constructor. The project specific configuration is pulled from the 'keep' node. The user specific configuration
+     * is pulled from 'copy' node. The copy node should be fully configured prior to calling this.
+     */
+    public ElasticsearchNode(ElasticsearchNode keep, ElasticsearchNode copy) {
+        this(keep.path, keep.name, keep.project, keep.reaper, keep.workingDirBase, copy);
+    }
+
+    private ElasticsearchNode(
+        String path,
+        String name,
+        Project project,
+        ReaperService reaper,
+        File workingDirBase,
+        ElasticsearchNode copy
+    ) {
         this.path = path;
         this.name = name;
         this.project = project;
         this.reaper = reaper;
+        this.workingDirBase = workingDirBase;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -179,8 +201,40 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 
-        setTestDistribution(TestDistribution.INTEG_TEST);
-        setVersion(VersionProperties.getElasticsearch());
+        if (copy != null) {
+            pluginAndModuleConfigurations = copy.pluginAndModuleConfigurations;
+            plugins = copy.plugins;
+            modules = copy.modules;
+            settings = copy.settings;
+            keystoreSettings = copy.keystoreSettings;
+            keystoreFiles = copy.keystoreFiles;
+            cliSetup = copy.cliSetup;
+            systemProperties = copy.systemProperties;
+            environment = copy.environment;
+            jvmArgs = copy.jvmArgs;
+            extraConfigFiles = copy.extraConfigFiles;
+            extraJarFiles = copy.extraJarFiles;
+            setTestDistribution(copy.testDistribution);
+            copy.versionsSet.forEach(this::setVersion);
+            credentials = copy.credentials;
+            nameCustomization = copy.nameCustomization;
+        } else {
+            pluginAndModuleConfigurations = new HashMap<>();
+            plugins = new ArrayList<>();
+            modules = new ArrayList<>();
+            settings = new LazyPropertyMap<>("Settings", this);
+            keystoreSettings = new LazyPropertyMap<>("Keystore", this);
+            keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
+            cliSetup = new LazyPropertyList<>("CLI setup commands", this);
+            systemProperties = new LazyPropertyMap<>("System properties", this);
+            environment = new LazyPropertyMap<>("Environment", this);
+            jvmArgs = new LazyPropertyList<>("JVM arguments", this);
+            extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
+            extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
+            credentials = new ArrayList<>();
+            setTestDistribution(TestDistribution.INTEG_TEST);
+            setVersion(VersionProperties.getElasticsearch());
+        }
     }
 
     @Input
@@ -196,6 +250,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void setVersion(String version) {
+        versionsSet.add(version);
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         checkFrozen();
         distributions.clear();
@@ -204,6 +259,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void setVersions(List<String> versions) {
+        versionsSet.addAll(versions);
         requireNonNull(versions, "null version list passed when configuring test cluster `" + this + "`");
         distributions.clear();
         for (String version : versions) {
@@ -454,7 +510,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
                 final String[] arguments = Stream.concat(
                     Stream.of("install", "--batch"),
-                    plugins.stream().map(Provider::get).map(p -> p.toURI().toString())
+                    plugins.stream().map(Provider::get).distinct().map(p -> p.toURI().toString())
                 ).toArray(String[]::new);
                 runElasticsearchBinScript("elasticsearch-plugin", arguments);
             } else {

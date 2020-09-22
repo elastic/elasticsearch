@@ -154,6 +154,14 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.prefixQuery("version", "21.11")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
+
+        // test case sensitivity / insensitivity
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.prefixQuery("version", "2.1.0-A")).get();
+        assertEquals(0, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.prefixQuery("version", "2.1.0-A").caseInsensitive(true)).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[0].getSourceAsMap().get("version"));
     }
 
     public void testSort() throws IOException {
@@ -243,7 +251,6 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getTotalHits().value);
         assertEquals("1.0.0alpha2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
         assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
-
     }
 
     public void testFuzzyQuery() throws Exception {
@@ -315,6 +322,17 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         checkWildcardQuery(indexName, "*-*", new String[] { "1.0.0-alpha.2.1.0-rc.1", "2.1.0-alpha.beta", "3.1.1-a" });
         checkWildcardQuery(indexName, "1.3.0+b*", new String[] { "1.3.0+build.1234567" });
         checkWildcardQuery(indexName, "3.1.1??", new String[] { "3.1.1-a", "3.1.1+b", "3.1.123" });
+
+        // test case sensitivity / insensitivity
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*Alpha*")).get();
+        assertEquals(0, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.wildcardQuery("version", "*Alpha*").caseInsensitive(true))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("1.0.0-alpha.2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
     }
 
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {

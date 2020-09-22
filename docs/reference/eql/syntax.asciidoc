@@ -98,6 +98,8 @@ Returns `true` if the value to the left of the operator is greater than the
 value to the right. Otherwise returns `false`.
 ====
 
+NOTE: `=` is not supported as an equality operator. Use `==` instead. 
+
 You cannot chain comparison operators. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
 example, `foo < bar <= baz` is not supported. However, you can rewrite the

@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,11 +38,11 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
 
     private static final byte WILDCARD_CHAR = '?';
 
-    VersionFieldWildcardQuery(Term term) {
-        super(term, toAutomaton(term), Integer.MAX_VALUE, true);
+    VersionFieldWildcardQuery(Term term, boolean caseInsensitive) {
+        super(term, toAutomaton(term, caseInsensitive), Integer.MAX_VALUE, true);
     }
 
-    private static Automaton toAutomaton(Term wildcardquery) {
+    private static Automaton toAutomaton(Term wildcardquery, boolean caseInsensitive) {
         List<Automaton> automata = new ArrayList<>();
 
         BytesRef wildcardText = wildcardquery.bytes();
@@ -96,7 +97,11 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     automata.add(Automata.makeChar(c));
                     break;
                 default:
-                    automata.add(Automata.makeChar(c));
+                    if (caseInsensitive == false) {
+                        automata.add(Automata.makeChar(c));
+                    } else {
+                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c, Integer.MAX_VALUE));
+                    }
             }
             i += length;
         }

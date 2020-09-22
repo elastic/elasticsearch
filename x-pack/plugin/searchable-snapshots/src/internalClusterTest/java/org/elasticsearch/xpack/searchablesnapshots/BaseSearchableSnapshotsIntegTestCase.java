@@ -125,14 +125,29 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
         return snapshotInfo.snapshotId();
     }
 
-    protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings indexSettings) throws Exception {
+    protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)
+        throws Exception {
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, restoredIndexSettings);
+        return restoredIndexName;
+    }
+
+    protected void mountSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings restoredIndexSettings
+    ) throws Exception {
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             restoredIndexName,
             repositoryName,
             snapshotName,
             indexName,
-            Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString()).put(indexSettings).build(),
+            Settings.builder()
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
+                .put(restoredIndexSettings)
+                .build(),
             Strings.EMPTY_ARRAY,
             true
         );
@@ -140,7 +155,6 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
         final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(getNumShards(restoredIndexName).numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
-        return restoredIndexName;
     }
 
     protected void createRepo(String fsRepoName) {

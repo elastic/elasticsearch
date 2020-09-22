@@ -56,7 +56,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void writeField(XContentBuilder builder) {
-        //do nothing
+        // do nothing
     }
 
     @Override

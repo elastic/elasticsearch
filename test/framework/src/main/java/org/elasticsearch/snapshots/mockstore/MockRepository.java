@@ -322,9 +322,13 @@ public class MockRepository extends FsRepository {
                 }
             }
 
-            private void blockExecutionAndMaybeWait(final String blobName) {
+            private void blockExecutionAndMaybeWait(final String blobName) throws IOException {
                 logger.info("[{}] blocking I/O operation for file [{}] at path [{}]", metadata.name(), blobName, path());
-                if (blockExecution() && waitAfterUnblock > 0) {
+                final boolean wasBlocked = blockExecution();
+                if (wasBlocked && lifecycle.stoppedOrClosed()) {
+                    throw new IOException("already closed");
+                }
+                if (wasBlocked && waitAfterUnblock > 0) {
                     try {
                         // Delay operation after unblocking
                         // So, we can start node shutdown while this operation is still running.

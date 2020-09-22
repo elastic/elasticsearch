@@ -440,6 +440,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 
+    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+    }
+
     protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);

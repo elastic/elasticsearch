@@ -157,10 +157,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     }
 
     public EqlSearchRequest size(int size) {
-        this.size = size;
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be greater than 0");
+        if (size < 0) {
+            throw new IllegalArgumentException("size must be greater than or equal to 0");
         }
+        this.size = size;
         return this;
     }
 
@@ -169,10 +169,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     }
 
     public EqlSearchRequest fetchSize(int fetchSize) {
-        this.fetchSize = fetchSize;
         if (fetchSize < 2) {
             throw new IllegalArgumentException("fetch size must be greater than 1");
         }
+        this.fetchSize = fetchSize;
         return this;
     }
 
@@ -226,6 +226,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
+                Objects.equals(size, that.size) &&
+                Objects.equals(fetchSize, that.fetchSize) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&

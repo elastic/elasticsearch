@@ -73,6 +73,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         b.field("type", "long_range");
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     private Object getFrom(String type) {
         if (type.equals("date_range")) {
             return FROM_DATE;
@@ -332,7 +337,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
@@ -348,7 +353,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             fetchSourceValue(dateMapper, dateRange));
     }
 
-    public void testParseSourceValueWithFormat() {
+    public void testParseSourceValueWithFormat() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +87,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

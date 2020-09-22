@@ -23,6 +23,7 @@ elasticsearch_distributions {
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
+
 preProcessFixture {
   dependsOn copyKeystore, elasticsearch_distributions.docker
   doLast {
@@ -34,4 +35,8 @@ preProcessFixture {
 
 tasks.named('composeUp').configure {
   dependsOn "preProcessFixture"
+}
+
+tasks.named('composePull').configure {
+  enabled = false // this task fails due to docker-compose oddities
 }

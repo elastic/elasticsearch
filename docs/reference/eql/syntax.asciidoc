@@ -8,7 +8,8 @@
 
 experimental::[]
 
-IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>>.
+IMPORTANT: {es} supports a subset of {eql-ref}/index.html[EQL syntax]. See
+<<eql-syntax-limitations>>.
 
 [discrete]
 [[eql-basic-syntax]]
@@ -69,44 +70,6 @@ You can specify and combine these criteria using the following operators:
 <   <=   ==   !=   >=   >
 ----
 
-You cannot use comparison operators to compare a variable, such as a field
-value, to another variable, even if those variables are modified using a
-<<eql-functions,function>>.
-
-*Example* +
-The following EQL query compares the `process.parent_name` field
-value to a static value, `foo`. This comparison is supported.
-
-However, the query also compares the `process.parent.name` field value to the
-`process.name` field. This comparison is not supported and will return an
-error for the entire query.
-
-[source,eql]
-----
-process where process.parent.name == "foo" and process.parent.name == process.name
-----
-
-Instead, you can rewrite the query to compare both the `process.parent.name`
-and `process.name` fields to static values.
-
-[source,eql]
-----
-process where process.parent.name == "foo" and process.name == "foo"
-----
-
-[IMPORTANT]
-====
-Avoid using the equal operator (`==`) to perform exact matching on
-<<text,`text`>> field values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
-
 .*Definitions*
 [%collapsible]
 ====
@@ -133,6 +96,49 @@ to the value to the right. Otherwise returns `false`.
 `>` (greater than)::
 Returns `true` if the value to the left of the operator is greater than the
 value to the right. Otherwise returns `false`.
+====
+
+You cannot chain comparison operators. Instead, use a
+<<eql-syntax-logical-operators,logical operator>> between comparisons. For
+example, `foo < bar <= baz` is not supported. However, you can rewrite the
+expression as `foo < bar and bar <= baz`, which is supported.
+
+You also cannot use comparison operators to compare a variable, such as a field
+value, to another variable, even if those variables are modified using a
+<<eql-functions,function>>.
+
+*Example* +
+The following EQL query compares the `process.parent_name` field
+value to a static value, `foo`. This comparison is supported.
+
+However, the query also compares the `process.parent.name` field value to the
+`process.name` field. This comparison is not supported and will return an
+error for the entire query.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.parent.name == process.name
+----
+
+Instead, you can rewrite the query to compare both the `process.parent.name`
+and `process.name` fields to static values.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.name == "foo"
+----
+
+[IMPORTANT]
+====
+Avoid using the `==` operator to perform exact matching on <<text,`text`>> field
+values.
+
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
+
+To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
+DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
 ====
 
 [discrete]
@@ -249,21 +255,21 @@ process where ( 4.0 / process.args_count ) == 1
 [[eql-syntax-strings]]
 ==== Strings
 
-Strings are enclosed with double quotes (`"`) or single quotes (`'`).
+Strings are enclosed with double quotes (`"`).
 
 [source,eql]
 ----
 "hello world"
-"hello world with 'substring'"
 ----
+
+Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-wildcards]]
 ===== Wildcards
 
-You can use the wildcard operator (`*`) within a string to match specific
-patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
-operators:
+When comparing strings using the `==` or `!=` operators, you can use the `*`
+operator within the string to match specific patterns:
 
 [source,eql]
 ----
@@ -315,9 +321,12 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |`\t`             | A tab character
 |`\\`             | A backslash (`\`) character
 |`\"`             | A double quote (`"`) character
-|`\'`             | A single quote (`'`) character
 |====
 ====
+
+IMPORTANT: The single quote (`'`) character is reserved for future use. You
+cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
+double quote (`\"`) instead. 
 
 [discrete]
 [[eql-syntax-raw-strings]]
@@ -328,11 +337,11 @@ literal characters.
 
 [source,eql]
 ----
-?"String with a literal 'blackslash' \ character included"
+?"String with a literal blackslash \ character included"
 ----
 
-You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
-the backslash remains in the resulting string.
+You can escape double quotes (`"`) with a backslash, but the backslash remains
+in the resulting string.
 
 [source,eql]
 ----
@@ -669,6 +678,17 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 You cannot use EQL to search the values of a <<nested,`nested`>> field or the
 sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
+
+[discrete]
+[[single-quote-strings]]
+==== Single quote strings
+
+In {es} EQL, the single quote (`'`) character is reserved for future use. 
+Strings enclosed in single quotes are not supported. Enclose strings in
+double quotes (`"`) instead.
+
+You cannot use an escaped single quote (`\'`) for literal strings. Use an
+escaped double quote (`\"`) instead. 
 
 [discrete]
 [[eql-unsupported-syntax]]

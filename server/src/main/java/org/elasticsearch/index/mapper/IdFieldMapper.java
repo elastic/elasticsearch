@@ -257,11 +257,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
         context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }

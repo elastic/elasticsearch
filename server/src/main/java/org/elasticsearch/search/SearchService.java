@@ -300,8 +300,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            final ReaderContext removed = removeReaderContext(context.id().getId());
-            assert removed == context;
+            removeReaderContext(context.id().getId());
             throw new IndexNotFoundException(index);
         }
     }
@@ -967,9 +966,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
-            String indexName = context.indexShard().shardId().getIndexName();
-            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
-                indexName, context.mapperService(), source.fetchFields());
+            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {
@@ -1031,9 +1028,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                if (context.version()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [version] is requested");
-                }
                 if (context.sourceRequested()) {
                     throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
                 }

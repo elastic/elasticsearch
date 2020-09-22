@@ -139,6 +139,7 @@ The license level of the trained model.
 (object)
 An object containing metadata about the trained model. For example, models
 created by {dfanalytics} contain `analysis_config` and `input` objects.
++
 .Properties of metadata
 [%collapsible%open]
 =====

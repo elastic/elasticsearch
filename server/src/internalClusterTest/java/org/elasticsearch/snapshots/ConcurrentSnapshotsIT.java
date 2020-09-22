@@ -807,7 +807,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
         expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
         assertAcked(deleteFuture.get());
-        expectThrows(ElasticsearchException.class, createBlockedSnapshot::actionGet);
+        try {
+            createBlockedSnapshot.actionGet();
+        } catch (ElasticsearchException ex) {
+            // Ignored, thrown most of the time but due to retries when shutting down the master could randomly pass when the request is
+            // retried and gets executed after the above delete
+        }
     }
 
     public void testMultipleSnapshotsQueuedAfterDelete() throws Exception {

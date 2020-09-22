@@ -53,8 +53,27 @@ public class ForLoopNode extends LoopNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitForLoop(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForLoop(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (initializerNode != null) {
+            initializerNode.visit(irTreeVisitor, scope);
+        }
+
+        if (getConditionNode() != null) {
+            getConditionNode().visit(irTreeVisitor, scope);
+        }
+
+        if (afterthoughtNode != null) {
+            afterthoughtNode.visit(irTreeVisitor, scope);
+        }
+
+        if (getBlockNode() != null) {
+            getBlockNode().visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */

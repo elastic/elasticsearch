@@ -149,14 +149,14 @@ PUT /test
       "filter": {
         "term": { "user.id": "kimchy" }
       },
-      "routing": "kimchy"
+      "routing": "shard-1"
     }
   }
 }
 --------------------------------------------------
 
 [[create-index-wait-for-active-shards]]
-===== Wait For active shards
+===== Wait for active shards
 
 By default, index creation will only return a response to the client when the primary copies of
 each shard have been started, or the request times out. The index creation response will indicate

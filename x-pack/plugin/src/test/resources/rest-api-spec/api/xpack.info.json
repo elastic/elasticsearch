@@ -22,8 +22,11 @@
       },
       "accept_enterprise":{
         "type":"boolean",
-        "description":"Supported for backwards compatibility with 7.x. If this param is used it must be set to true",
-        "deprecated":true
+        "description":"If this param is used it must be set to true",
+        "deprecated":{
+          "version":"8.0.0",
+          "description":"Supported for backwards compatibility with 7.x"
+        }
       }
     }
   }

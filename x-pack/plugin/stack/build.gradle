@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -26,4 +24,3 @@ gradle.projectsEvaluated {
     .each { check.dependsOn it.check }
 }
 
-integTest.enabled = false

@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put Trained Model API
+=== Put trained model API
 
 Creates a new trained model for inference.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Trained Model request
+==== Put trained model request
 
 A +{request}+ requires the following argument:
 
@@ -19,10 +19,10 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The configuration of the {infer} Trained Model to create
+<1> The configuration of the {infer} trained model to create
 
 [id="{upid}-{api}-config"]
-==== Trained Model configuration
+==== Trained model configuration
 
 The `TrainedModelConfig` object contains all the details about the trained model
 configuration and contains the following arguments:

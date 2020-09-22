@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[searchable-snapshots-api-mount-snapshot]]
 === Mount snapshot API
 ++++
@@ -8,7 +8,7 @@
 
 experimental[]
 
-Mount a snapshot as a searchable index.
+Mount a snapshot as a snapshot backed index.
 
 [[searchable-snapshots-api-mount-request]]
 ==== {api-request-title}

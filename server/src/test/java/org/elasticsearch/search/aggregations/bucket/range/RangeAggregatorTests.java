@@ -119,7 +119,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testDateFieldNanosecondResolution() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
@@ -143,7 +143,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void  testMissingDateWithDateField() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
@@ -289,9 +289,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
-            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
+            assertThat(pc.cardinality().map(i -> i), equalTo(2));
             pc = ranges.get(1).getAggregations().get("c");
-            assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.MANY));
+            assertThat(pc.cardinality().map(i -> i), equalTo(2));
         });
     }
 

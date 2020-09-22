@@ -141,7 +141,17 @@ public class AnalyticsProcessManager {
             // Fetch existing model state (if any)
             BytesReference state = getModelState(config);
 
-            if (processContext.startProcess(dataExtractorFactory, task, state)) {
+            boolean isProcessStarted;
+            try {
+                isProcessStarted = processContext.startProcess(dataExtractorFactory, task, state);
+            } catch (Exception e) {
+                processContext.stop();
+                task.setFailed(processContext.getFailureReason() == null ?
+                        e : ExceptionsHelper.serverError(processContext.getFailureReason()));
+                return;
+            }
+
+            if (isProcessStarted) {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.get().process(processContext.process.get()));
                 executorServiceForProcess.execute(() -> processData(task, processContext, state));
             } else {
@@ -178,7 +188,7 @@ public class AnalyticsProcessManager {
         AnalyticsProcess<AnalyticsResult> process = processContext.process.get();
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
-            writeHeaderRecord(dataExtractor, process);
+            writeHeaderRecord(dataExtractor, process, task);
             writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
             process.flushStream();
@@ -268,8 +278,11 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeHeaderRecord(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process) throws IOException {
+    private void writeHeaderRecord(DataFrameDataExtractor dataExtractor,
+                                   AnalyticsProcess<AnalyticsResult> process,
+                                   DataFrameAnalyticsTask task) throws IOException {
         List<String> fieldNames = dataExtractor.getFieldNames();
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
 
         // We add 2 extra fields, both named dot:
         //   - the document hash

@@ -15,11 +15,11 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.eql.EqlSearchResponse.Event;
 import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
 import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -133,7 +133,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     protected void assertResponse(EqlSearchResponse response) {
         Hits hits = response.hits();
         if (hits.events() != null) {
-            assertSearchHits(hits.events());
+            assertEvents(hits.events());
         }
         else if (hits.sequences() != null) {
             assertSequences(hits.sequences());
@@ -169,7 +169,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         return highLevelClient;
     }
 
-    protected void assertSearchHits(List<SearchHit> events) {
+    protected void assertEvents(List<Event> events) {
         assertNotNull(events);
         long[] expected = eventIds;
         long[] actual = extractIds(events);
@@ -178,20 +178,20 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
                 expected, actual);
     }
 
-    private static long[] extractIds(List<SearchHit> events) {
+    private static long[] extractIds(List<Event> events) {
         final int len = events.size();
         final long ids[] = new long[len];
         for (int i = 0; i < len; i++) {
-            ids[i] = ((Number) events.get(i).getSourceAsMap().get("serial_event_id")).longValue();
+            ids[i] = ((Number) events.get(i).sourceAsMap().get("serial_event_id")).longValue();
         }
         return ids;
     }
 
     protected void assertSequences(List<Sequence> sequences) {
-        List<SearchHit> events = sequences.stream()
+        List<Event> events = sequences.stream()
                 .flatMap(s -> s.events().stream())
                 .collect(toList());
-        assertSearchHits(events);
+        assertEvents(events);
     }
 
     @Override

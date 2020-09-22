@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
@@ -47,7 +47,7 @@ subprojects {
   }
 
 
-  tasks.withType(RestTestRunnerTask).configureEach {
+  tasks.withType(RestIntegTestTask).configureEach {
     dependsOn copyTestClasses
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts

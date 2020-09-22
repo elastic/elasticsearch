@@ -101,16 +101,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
-
-        assertBusy(() -> {
-            try {
-                assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().snapshotsStatus(
-                        new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots().get(0)
-                        .getState());
-            } catch (SnapshotMissingException sme) {
-                throw new AssertionError(sme);
-            }
-        }, 1L, TimeUnit.MINUTES);
+        awaitNumberOfSnapshotsInProgress(1);
+        assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().prepareSnapshotStatus("test-repo")
+                .setSnapshots("test-snap").get().getSnapshots().get(0).getState());
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");
@@ -160,15 +153,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet());
     }
 
-    public void testGetSnapshotsWithoutIndices() {
+    public void testGetSnapshotsWithoutIndices() throws Exception {
         createRepository("test-repo", "fs");
 
         logger.info("--> snapshot");
-        final SnapshotInfo snapshotInfo =
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setIndices().setWaitForCompletion(true).get().getSnapshotInfo();
-
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = assertSuccessful(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                .setIndices().setWaitForCompletion(true).execute());
         assertThat(snapshotInfo.totalShards(), is(0));
 
         logger.info("--> verify that snapshot without index shows up in non-verbose listing");

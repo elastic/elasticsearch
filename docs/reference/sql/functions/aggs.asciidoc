@@ -25,7 +25,7 @@ AVG(numeric_field) <1>
 
 *Output*: `double` numeric value
 
-*Description*: Returns the https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
+*Description*: Returns the {wikipedia}/Arithmetic_mean[Average] (arithmetic mean) of input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -424,7 +424,7 @@ KURTOSIS(field_name) <1>
 
 *Description*:
 
-https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution of input values in the field `field_name`.
+{wikipedia}/Kurtosis[Quantify] the shape of the distribution of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -458,7 +458,7 @@ MAD(field_name) <1>
 
 *Description*:
 
-https://en.wikipedia.org/wiki/Median_absolute_deviation[Measure] the variability of the input values in the field `field_name`.
+{wikipedia}/Median_absolute_deviation[Measure] the variability of the input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -490,7 +490,7 @@ PERCENTILE(
 
 *Description*:
 
-Returns the nth https://en.wikipedia.org/wiki/Percentile[percentile] (represented by `numeric_exp` parameter)
+Returns the nth {wikipedia}/Percentile[percentile] (represented by `numeric_exp` parameter)
 of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
@@ -523,7 +523,7 @@ PERCENTILE_RANK(
 
 *Description*:
 
-Returns the nth https://en.wikipedia.org/wiki/Percentile_rank[percentile rank] (represented by `numeric_exp` parameter)
+Returns the nth {wikipedia}/Percentile_rank[percentile rank] (represented by `numeric_exp` parameter)
 of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
@@ -553,7 +553,7 @@ SKEWNESS(field_name) <1>
 
 *Description*:
 
-https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of input values in the field `field_name`.
+{wikipedia}/Skewness[Quantify] the asymmetric distribution of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -587,7 +587,7 @@ STDDEV_POP(field_name) <1>
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Standard_deviations[population standard deviation] of input values in the field `field_name`.
+Returns the {wikipedia}/Standard_deviations[population standard deviation] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -616,7 +616,7 @@ STDDEV_SAMP(field_name) <1>
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Standard_deviations[sample standard deviation] of input values in the field `field_name`.
+Returns the {wikipedia}/Standard_deviations[sample standard deviation] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -674,7 +674,7 @@ VAR_POP(field_name) <1>
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Variance[population variance] of input values in the field `field_name`.
+Returns the {wikipedia}/Variance[population variance] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -704,7 +704,7 @@ VAR_SAMP(field_name) <1>
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Variance[sample variance] of input values in the field `field_name`.
+Returns the {wikipedia}/Variance[sample variance] of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

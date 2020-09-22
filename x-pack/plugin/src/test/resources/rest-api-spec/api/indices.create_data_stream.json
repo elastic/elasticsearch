@@ -2,7 +2,7 @@
   "indices.create_data_stream":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Creates or updates a data stream"
+      "description":"Creates a data stream"
     },
     "stability":"stable",
     "url":{
@@ -22,9 +22,6 @@
       ]
     },
     "params":{
-    },
-    "body":{
-      "description":"The data stream definition"
     }
   }
 }

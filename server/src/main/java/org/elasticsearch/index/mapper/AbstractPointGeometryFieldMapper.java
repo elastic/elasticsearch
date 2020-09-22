@@ -96,9 +96,6 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 Object propNode = entry.getValue();
 
                 if (Names.NULL_VALUE.match(propName, LoggingDeprecationHandler.INSTANCE)) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
                     nullValue = propNode;
                     iterator.remove();
                 }
@@ -117,8 +114,9 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
     public abstract static class AbstractPointGeometryFieldType<Parsed, Processed>
             extends AbstractGeometryFieldType<Parsed, Processed> {
-        protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                                 Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
         }
     }
 
@@ -146,7 +144,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (nullValue != null) {
+        if (nullValue != null || includeDefaults) {
             builder.field(Names.NULL_VALUE.getPreferredName(), nullValue);
         }
     }

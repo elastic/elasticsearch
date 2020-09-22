@@ -125,7 +125,7 @@ This is "bursty" instead of "smooth".
 [[docs-update-by-query-slice]]
 ===== Slicing
 
-Update by query supports <<sliced-scroll, sliced scroll>> to parallelize the
+Update by query supports <<slice-scroll, sliced scroll>> to parallelize the
 update process. This can improve efficiency and provide a
 convenient way to break the request down into smaller parts.
 
@@ -168,7 +168,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   
 `conflicts`::
-  (Optional, string) What to do if delete by query hits version conflicts: 
+  (Optional, string) What to do if update by query hits version conflicts: 
   `abort` or `proceed`. Defaults to `abort`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
@@ -600,7 +600,7 @@ Which results in a sensible `total` like this one:
 ===== Use automatic slicing
 
 You can also let update by query automatically parallelize using
-<<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
+<<slice-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
 [source,console]

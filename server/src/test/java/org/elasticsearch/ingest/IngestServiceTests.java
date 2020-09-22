@@ -63,6 +63,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -160,7 +161,8 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -636,17 +638,27 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
-        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline(id).setFinalPipeline("_none");
+
+        BulkRequest bulkRequest = new BulkRequest();
+        final IndexRequest indexRequest1 =
+            new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_none").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 =
+            new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline(id).setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+
         final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
             assertThat(e.getCause(), instanceOf(IllegalStateException.class));
             assertThat(e.getCause().getMessage(), equalTo("error"));
             failure.set(true);
+            assertThat(slot, equalTo(1));
         };
 
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
+            completionHandler, indexReq -> {}, Names.WRITE);
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -665,22 +677,26 @@ public class IngestServiceTests extends ESTestCase {
 
         BulkRequest bulkRequest = new BulkRequest();
 
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        IndexRequest indexRequest1 =
+            new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_none").setFinalPipeline("_none");
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 =
-            new IndexRequest("_index").id("_id").source(Collections.emptyMap()).setPipeline("does_not_exist").setFinalPipeline("_none");
+            new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 =
+            new IndexRequest("_index").id("_id3").source(Collections.emptyMap()).setPipeline("does_not_exist").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
-            completionHandler, indexReq -> {});
+            completionHandler, indexReq -> {}, Names.WRITE);
         verify(failureHandler, times(1)).accept(
             argThat(new CustomTypeSafeMatcher<>("failure handler was not called with the expected arguments") {
                 @Override
                 protected boolean matchesSafely(Integer item) {
-                    return item == 1;
+                    return item == 2;
                 }
 
             }),
@@ -709,7 +725,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -728,7 +745,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -774,7 +792,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         verify(processor).execute(any(), any());
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -806,7 +825,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -848,7 +868,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         verify(failureHandler, never()).accept(eq(0), any(IngestProcessorException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -886,7 +907,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -937,7 +959,8 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
             @Override
@@ -989,7 +1012,8 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1046,7 +1070,8 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1").setFinalPipeline("_none");
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         final IngestStats afterFirstRequestStats = ingestService.stats();
         assertThat(afterFirstRequestStats.getPipelineStats().size(), equalTo(2));
 
@@ -1064,7 +1089,8 @@ public class IngestServiceTests extends ESTestCase {
 
 
         indexRequest.setPipeline("_id2");
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         final IngestStats afterSecondRequestStats = ingestService.stats();
         assertThat(afterSecondRequestStats.getPipelineStats().size(), equalTo(2));
         //total
@@ -1083,7 +1109,8 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         final IngestStats afterThirdRequestStats = ingestService.stats();
         assertThat(afterThirdRequestStats.getPipelineStats().size(), equalTo(2));
         //total
@@ -1107,7 +1134,8 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {},
+            Names.WRITE);
         final IngestStats afterForthRequestStats = ingestService.stats();
         assertThat(afterForthRequestStats.getPipelineStats().size(), equalTo(2));
         //total
@@ -1176,18 +1204,27 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest =
-            new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+
+        BulkRequest bulkRequest = new BulkRequest();
+        final IndexRequest indexRequest1 =
+            new IndexRequest("_index").id("_id1").source(Collections.emptyMap()).setPipeline("_none").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+
+        IndexRequest indexRequest2 =
+            new IndexRequest("_index").id("_id2").source(Collections.emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final IntConsumer dropHandler = mock(IntConsumer.class);
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, dropHandler);
+        ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
+            completionHandler, dropHandler, Names.WRITE);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        verify(dropHandler, times(1)).accept(0);
+        verify(dropHandler, times(1)).accept(1);
     }
 
     public void testIngestClusterStateListeners_orderOfExecution() {
@@ -1250,7 +1287,7 @@ public class IngestServiceTests extends ESTestCase {
                 new IndexRequest("_index").id("_doc-id").source(builder).setPipeline("_id").setFinalPipeline("_none");
 
             ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest),
-                (integer, e) -> {}, (thread, e) -> {}, indexReq -> {});
+                (integer, e) -> {}, (thread, e) -> {}, indexReq -> {}, Names.WRITE);
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));

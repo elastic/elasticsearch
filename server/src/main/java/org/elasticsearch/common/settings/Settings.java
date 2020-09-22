@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -582,7 +583,7 @@ public final class Settings implements ToXContentFragment {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Builder innerBuilder = Settings.builder();
         StringBuilder currentKeyBuilder = new StringBuilder();
         fromXContent(parser, currentKeyBuilder, innerBuilder, allowNullValues);
@@ -1016,6 +1017,19 @@ public final class Settings implements ToXContentFragment {
                         }
                     }
                 }
+            }
+        }
+
+        /**
+         * Loads settings from a map.
+         */
+        public Builder loadFromMap(Map<String, ?> map) {
+            // TODO: do this without a serialization round-trip
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.map(map);
+                return loadFromSource(Strings.toString(builder), builder.contentType());
+            } catch (IOException e) {
+                throw new ElasticsearchGenerationException("Failed to generate [" + map + "]", e);
             }
         }
 

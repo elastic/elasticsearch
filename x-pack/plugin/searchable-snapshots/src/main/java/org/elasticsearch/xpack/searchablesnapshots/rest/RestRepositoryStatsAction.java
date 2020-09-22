@@ -19,7 +19,13 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+/**
+ * @deprecated This API is superseded by the Repositories Metering API
+ */
+@Deprecated
 public class RestRepositoryStatsAction extends BaseRestHandler {
+
+    private static final String ENDPOINT = "/_snapshot/{repository}/_stats";
 
     @Override
     public String getName() {
@@ -28,7 +34,20 @@ public class RestRepositoryStatsAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return Collections.singletonList(new RestHandler.Route(GET, "/_snapshot/{repository}/_stats"));
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return List.of(
+            new DeprecatedRoute(
+                GET,
+                ENDPOINT,
+                '['
+                    + ENDPOINT
+                    + "] is deprecated, use the Repositories Metering API [/_nodes/{nodeId}/_repositories_metering] in the future."
+            )
+        );
     }
 
     @Override

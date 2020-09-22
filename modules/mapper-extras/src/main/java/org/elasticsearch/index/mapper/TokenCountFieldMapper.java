@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -159,12 +160,17 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        return value.toString();
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
     }
 
     /**

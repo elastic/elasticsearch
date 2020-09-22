@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -45,6 +46,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
@@ -76,8 +78,8 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), hasDocValues.getValue(), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), stored.getValue(),
+                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -85,12 +87,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final class BinaryFieldType extends MappedFieldType {
 
-        public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
+        public BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {
-            this(name, true, Collections.emptyMap());
+            this(name, false, true, Collections.emptyMap());
         }
 
         @Override
@@ -123,7 +125,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
@@ -190,11 +192,16 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value;
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
     }
 
     @Override

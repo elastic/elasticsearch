@@ -39,11 +39,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -296,11 +299,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     // original markup form in order to inject annotations.
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
         private final Analyzer delegate;
-        private final HitContext hitContext;
-        public AnnotatedHighlighterAnalyzer(Analyzer delegate, HitContext hitContext){
+        private AnnotatedText[] annotations;
+
+        public AnnotatedHighlighterAnalyzer(Analyzer delegate){
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
-            this.hitContext = hitContext;
         }
 
         @Override
@@ -308,10 +311,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           return delegate;
         }
 
+        public void setAnnotations(AnnotatedText[] annotations) {
+            this.annotations = annotations;
+        }
+
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
             AtomicInteger readerNum = new AtomicInteger(0);
             return new TokenStreamComponents(r -> {
                 String plainText = readToString(r);
@@ -397,8 +403,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           }
         }
 
-
-
         @Override
         public void reset() throws IOException {
             pendingStates.clear();
@@ -463,6 +467,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 return false;
             }
         }
+
         private void setType(AnnotationToken token) {
             //Default annotation type - in future AnnotationTokens may contain custom type info
             typeAtt.setType("annotation");
@@ -509,7 +514,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
       }
 
-
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
         public AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
@@ -518,7 +522,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
-            super(name, true, meta);
+            super(name, true, false, meta);
         }
 
         public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
@@ -536,7 +540,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-
     }
 
     private int positionIncrementGap;
@@ -584,11 +587,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value.toString();
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
     }
 
     @Override

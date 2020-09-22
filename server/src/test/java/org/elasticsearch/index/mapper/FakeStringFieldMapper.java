@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,7 +66,8 @@ public class FakeStringFieldMapper extends FieldMapper {
         public FakeStringFieldMapper build(BuilderContext context) {
             return new FakeStringFieldMapper(
                 fieldType,
-                new FakeStringFieldType(name, new TextSearchInfo(fieldType, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
+                new FakeStringFieldType(name, fieldType.stored(),
+                    new TextSearchInfo(fieldType, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -76,7 +78,8 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String fieldName, Map<String, Object> node,
+                                       ParserContext parserContext) throws MapperParsingException {
             FakeStringFieldMapper.Builder builder = new FakeStringFieldMapper.Builder(fieldName);
             parseTextField(builder, fieldName, node, parserContext);
             return builder;
@@ -85,9 +88,8 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     public static final class FakeStringFieldType extends StringFieldType {
 
-
-        public FakeStringFieldType(String name, TextSearchInfo textSearchInfo) {
-            super(name, true, true, textSearchInfo, Collections.emptyMap());
+        public FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
+            super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
@@ -134,8 +136,13 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value, String format) {
-        return value.toString();
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
     }
 
     @Override

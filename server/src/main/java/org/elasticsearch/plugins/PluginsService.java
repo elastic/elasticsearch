@@ -28,6 +28,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.util.SPIClassIterator;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -366,6 +367,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         final Bundle bundle = new Bundle(info, plugin);
         if (bundles.add(bundle) == false) {
             throw new IllegalStateException("duplicate " + type + ": " + info);
+        }
+        if (type.equals("module") && info.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+            throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
         }
         return bundle;
     }

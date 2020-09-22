@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,6 +51,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
@@ -183,14 +185,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected Object parseSourceValue(Object value, String format) {
-        if (format == null) {
-            format = GeoJsonGeometryFormat.NAME;
-        }
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        return geometryParser.parseAndFormatObject(value, this, format);
+        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return valueParser.apply(value);
+            }
+        };
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
@@ -236,8 +243,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Parser<Parsed> geometryParser;
         protected QueryProcessor geometryQueryBuilder;
 
-        protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {

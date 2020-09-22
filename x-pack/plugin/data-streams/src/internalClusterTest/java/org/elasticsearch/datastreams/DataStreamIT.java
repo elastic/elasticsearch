@@ -282,6 +282,47 @@ public class DataStreamIT extends ESIntegTestCase {
             BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
             assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
         }
+
+        {
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
+                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
+                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
+                new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON),
+                new DeleteRequest(dataStreamName, "_id"),
+                new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
+                new DeleteRequest(dataStreamName + "-baz", "_id"),
+                new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            );
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems(), arrayWithSize(8));
+            assertThat(
+                bulkResponse.getItems()[0].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+            assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            assertThat(
+                bulkResponse.getItems()[2].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+            assertThat(
+                bulkResponse.getItems()[3].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+            assertThat(
+                bulkResponse.getItems()[4].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+            assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)));
+            assertThat(
+                bulkResponse.getItems()[6].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+            assertThat(
+                bulkResponse.getItems()[7].getFailure().getMessage(),
+                containsString("only write ops with an op_type of create are allowed in data streams")
+            );
+        }
     }
 
     /**

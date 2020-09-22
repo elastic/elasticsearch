@@ -44,7 +44,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         public PointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                       Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new PointIndexer(ft));
             ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
@@ -127,8 +127,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     }
 
     public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
-        public PointFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        public PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
         }
 
         @Override

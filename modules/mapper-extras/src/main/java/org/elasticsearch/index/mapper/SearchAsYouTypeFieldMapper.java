@@ -249,7 +249,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
                                  NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false,
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(), false,
                 new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
         }
 
@@ -354,7 +354,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final String parentField;
 
         PrefixFieldType(String parentField, TextSearchInfo textSearchInfo, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, textSearchInfo, Collections.emptyMap());
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, false, textSearchInfo, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -487,7 +487,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixFieldType;
 
         ShingleFieldType(String name, int shingleSize, TextSearchInfo textSearchInfo) {
-            super(name, true, false, textSearchInfo, Collections.emptyMap());
+            super(name, true, false, false, textSearchInfo, Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 

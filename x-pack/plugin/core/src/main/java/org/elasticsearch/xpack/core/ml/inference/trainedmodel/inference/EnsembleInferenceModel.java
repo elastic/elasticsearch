@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -114,19 +115,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         return targetType;
     }
 
-    private double[] getFeatures(Map<String, Object> fields) {
-        double[] features = new double[featureNames.length];
-        int i = 0;
-        for (String featureName : featureNames) {
-            Double val = InferenceHelpers.toDouble(fields.get(featureName));
-            features[i++] = val == null ? Double.NaN : val;
-        }
-        return features;
-    }
-
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
-        return innerInfer(getFeatures(fields), config, featureDecoderMap);
+        return innerInfer(InferenceModel.extractFeatures(featureNames, fields), config, featureDecoderMap);
     }
 
     @Override
@@ -142,9 +133,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (preparedForInference == false) {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
-        LOGGER.debug("Inference called with feature names [{}]",
-            featureNames == null ? "<null>" : Strings.arrayToCommaDelimitedString(featureNames));
-        assert featureNames != null && featureNames.length > 0;
+        LOGGER.debug(
+            () -> new ParameterizedMessage("Inference called with feature names [{}]", Strings.arrayToCommaDelimitedString(featureNames))
+        );
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;
@@ -244,27 +235,28 @@ public class EnsembleInferenceModel implements InferenceModel {
     }
 
     @Override
-    public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
-        LOGGER.debug("rewriting features {}", newFeatureIndexMapping);
+    public void rewriteFeatureIndices(final Map<String, Integer> newFeatureIndexMapping) {
+        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }
         preparedForInference = true;
+        Map<String, Integer> featureIndexMapping = new HashMap<>();
         if (newFeatureIndexMapping == null || newFeatureIndexMapping.isEmpty()) {
             Set<String> referencedFeatures = subModelFeatures();
-            LOGGER.debug("detected submodel feature names {}", referencedFeatures);
+            LOGGER.debug(() -> new ParameterizedMessage("detected submodel feature names {}", referencedFeatures));
             int newFeatureIndex = 0;
-            newFeatureIndexMapping = new HashMap<>();
+            featureIndexMapping = new HashMap<>();
             this.featureNames = new String[referencedFeatures.size()];
             for (String featureName : referencedFeatures) {
-                newFeatureIndexMapping.put(featureName, newFeatureIndex);
+                featureIndexMapping.put(featureName, newFeatureIndex);
                 this.featureNames[newFeatureIndex++] = featureName;
             }
         } else {
             this.featureNames = new String[0];
         }
         for (InferenceModel model : models) {
-            model.rewriteFeatureIndices(newFeatureIndexMapping);
+            model.rewriteFeatureIndices(featureIndexMapping);
         }
     }
 

@@ -92,7 +92,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 }
             });
         private final Parameter<Double> nullValue = new Parameter<>("null_value", false, () -> null,
-            (n, c, o) -> XContentMapValues.nodeDoubleValue(o), m -> toType(m).nullValue);
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o), m -> toType(m).nullValue).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -125,8 +125,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(BuilderContext context) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), hasDocValues.getValue(),
-                meta.getValue(), scalingFactor.getValue());
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue());
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -137,13 +137,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         private final double scalingFactor;
 
-        public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                    Map<String, String> meta, double scalingFactor) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.scalingFactor = scalingFactor;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, true, Collections.emptyMap(), scalingFactor);
+            this(name, true, false, true, Collections.emptyMap(), scalingFactor);
         }
 
         public double getScalingFactor() {
@@ -397,7 +398,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
@@ -544,5 +545,25 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
+        @Override
+        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+            SortedNumericDoubleValues values = getDoubleValues();
+            return new DocValueFetcher.Leaf() {
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    return values.advanceExact(docId);
+                }
+
+                @Override
+                public int docValueCount() throws IOException {
+                    return values.docValueCount();
+                }
+
+                @Override
+                public Object nextValue() throws IOException {
+                    return format.format(values.nextValue());
+                }
+            };
+        }
     }
 }

@@ -2,7 +2,7 @@
 [[ilm-searchable-snapshot]]
 === Searchable snapshot
 
-Phases allowed: cold, frozen.
+Phases allowed: cold.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.

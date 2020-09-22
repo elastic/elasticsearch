@@ -99,7 +99,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     public static final class ParentIdFieldType extends StringFieldType {
         ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Map<String, String> meta) {
-            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
@@ -190,7 +190,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
     }
 

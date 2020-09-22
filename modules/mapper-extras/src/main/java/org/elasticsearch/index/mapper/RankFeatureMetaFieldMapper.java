@@ -42,7 +42,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
         private RankFeatureMetaFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -64,17 +64,6 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     private RankFeatureMetaFieldMapper() {
         super(RankFeatureMetaFieldType.INSTANCE);
     }
-
-    @Override
-    public void preParse(ParseContext context) {}
-
-    @Override
-    protected void parseCreateField(ParseContext context) {
-        throw new AssertionError("Should never be called");
-    }
-
-    @Override
-    public void postParse(ParseContext context) {}
 
     @Override
     protected String contentType() {

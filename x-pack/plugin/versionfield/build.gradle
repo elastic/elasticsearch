@@ -1,0 +1,20 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'versionfield'
+  description 'A plugin for a field type to store sofware versions'
+  classname 'org.elasticsearch.xpack.versionfield.VersionFieldPlugin'
+  extendedPlugins = ['x-pack-core', 'lang-painless']
+}
+archivesBaseName = 'x-pack-versionfield'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(':modules:lang-painless')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('analytics'), configuration: 'default')
+}

@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -145,7 +147,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
-        private Function<T, String> conflictSerializer = Object::toString;
+        private BooleanSupplier serializerPredicate = () -> true;
+        private Function<T, String> conflictSerializer = Objects::toString;
+        private BiPredicate<T, T> mergeValidator;
         private T value;
         private boolean isSet;
 
@@ -165,6 +169,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             this.parser = parser;
             this.initializer = initializer;
             this.updateable = updateable;
+            this.mergeValidator = (previous, toMerge) -> updateable || Objects.equals(previous, toMerge);
         }
 
         /**
@@ -229,6 +234,24 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets an additional check on whether or not this parameter should be serialized,
+         * after the existing 'set' and 'include_defaults' checks.
+         */
+        public Parameter<T> setShouldSerialize(BooleanSupplier shouldSerialize) {
+            this.serializerPredicate = shouldSerialize;
+            return this;
+        }
+
+        /**
+         * Sets a custom merge validator.  By default, merges are accepted if the
+         * parameter is updateable, or if the previous and new values are equal
+         */
+        public Parameter<T> setMergeValidator(BiPredicate<T, T> mergeValidator) {
+            this.mergeValidator = mergeValidator;
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
@@ -246,15 +269,15 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
             T value = initializer.apply(toMerge);
             T current = getValue();
-            if (updateable == false && Objects.equals(current, value) == false) {
-                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
-            } else {
+            if (mergeValidator.test(current, value)) {
                 setValue(value);
+            } else {
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
             }
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (includeDefaults || isConfigured()) {
+            if ((includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean()) {
                 serializer.serialize(builder, name, getValue());
             }
         }
@@ -558,6 +581,12 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     }
                     throw new MapperParsingException("unknown parameter [" + propName
                         + "] on mapper [" + name + "] of type [" + type + "]");
+                }
+                if (Objects.equals("boost", propName)) {
+                    deprecationLogger.deprecate(
+                        "boost",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                        name);
                 }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException("[" + propName + "] on mapper [" + name

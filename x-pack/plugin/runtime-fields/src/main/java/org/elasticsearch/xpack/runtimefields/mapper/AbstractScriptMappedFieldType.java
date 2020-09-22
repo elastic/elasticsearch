@@ -43,7 +43,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
         TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
         Map<String, String> meta
     ) {
-        super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
         this.factory = factory;
     }
@@ -133,12 +133,12 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
     }
 
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
     }
 

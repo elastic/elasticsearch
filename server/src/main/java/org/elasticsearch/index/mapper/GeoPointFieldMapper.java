@@ -74,7 +74,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                          MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new GeoPointIndexer(ft));
             ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
@@ -172,12 +172,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     }
 
     public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
-        public GeoPointFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        public GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
         }
 
         public GeoPointFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, Collections.emptyMap());
         }
 
         @Override

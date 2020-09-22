@@ -111,3 +111,39 @@ teardown:
       close_point_in_time:
         body:
           id: "$pit_id"
+
+---
+"Point in time CCS with only remote indices requires no privileges on local cluster":
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      open_point_in_time:
+        index: "my_*:point_in_time_index"
+        keep_alive: 5m
+  - set: {id: pit_id}
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      search:
+        rest_total_hits_as_int: true
+        sort: created_at
+        body:
+          query:
+            range:
+              created_at:
+                gte: "2020-01-03"
+          pit:
+            id: "$pit_id"
+            keep_alive: 1m
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "my_remote_cluster:point_in_time_index" }
+  - match: { hits.hits.0._source.f: "r3" }
+  - match: { hits.hits.1._index: "my_remote_cluster:point_in_time_index" }
+  - match: { hits.hits.1._source.f: "r4" }
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      close_point_in_time:
+        body:
+          id: "$pit_id"

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +27,9 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
+import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 
 /**
  * Checks whether all shards have been correctly routed in response to updating the allocation rules for an index in order
@@ -71,11 +73,23 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
-        String destinationTier = INDEX_ROUTING_INCLUDE_SETTING.get(idxMeta.getSettings());
+        String destinationTier = INDEX_ROUTING_PREFER_SETTING.get(idxMeta.getSettings());
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            logger.debug("[{}] migration of index [{}] to the [{}] tier cannot progress, as not all shards are active",
+            if (Strings.isEmpty(destinationTier)) {
+                logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
+                    getKey().getAction(), index.getName());
+            } else {
+                logger.debug("[{}] migration of index [{}] to the [{}] tier cannot progress, as not all shards are active",
                     getKey().getAction(), index.getName(), destinationTier);
-            return new Result(false, AllocationInfo.waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
+            }
+            return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
+        }
+
+        if (Strings.isEmpty(destinationTier)) {
+            logger.debug("index [{}] has no data tier routing setting configured and all its shards are active. considering the [{}] " +
+                "step condition met and continuing to the next step", index.getName(), getKey().getName());
+            // the user removed the tier routing setting and all the shards are active so we'll cary on
+            return new Result(true, null);
         }
 
         int allocationPendingAllShards = getPendingAllocations(index, ALLOCATION_DECIDERS, clusterState);

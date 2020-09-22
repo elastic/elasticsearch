@@ -42,8 +42,11 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
     public void testMasterFailoverDuringCleanup() throws Exception {
         startBlockedCleanup("test-repo");
 
+        final int nodeCount = internalCluster().numDataAndMasterNodes();
         logger.info("-->  stopping master node");
         internalCluster().stopCurrentMasterNode();
+
+        ensureStableCluster(nodeCount - 1);
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
         assertBusy(() -> {
@@ -102,6 +105,8 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
 
         logger.info("--> waiting for block to kick in on " + masterNode);
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(60));
+        awaitClusterState(state ->
+                state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress());
         return masterNode;
     }
 

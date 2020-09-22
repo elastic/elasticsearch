@@ -86,6 +86,11 @@ There are several thread pools, but the important ones include:
     Thread pool type is `fixed` and a default maximum size of
     `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 
+`system_write`::
+    For write operations on system indices.
+    Thread pool type is `fixed` and a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread
 pool:

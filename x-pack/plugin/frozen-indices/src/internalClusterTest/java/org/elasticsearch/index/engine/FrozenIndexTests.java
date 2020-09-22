@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
@@ -118,13 +119,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         } while (searchResponse.getHits().getHits().length > 0);
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        String readerId = openReaders(TimeValue.timeValueMinutes(1), "index");
+        String pitId = openReaders(TimeValue.timeValueMinutes(1), "index");
         try {
-            // now readerId
             for (int from = 0; from < 3; from++) {
                 searchResponse = client().prepareSearch()
                     .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1))
+                    .setPointInTime(new PointInTimeBuilder(pitId))
                     .setSize(1)
                     .setFrom(from)
                     .get();
@@ -139,7 +139,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 }
             }
         } finally {
-            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(searchResponse.pointInTimeId())).get();
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).get();
         }
     }
 

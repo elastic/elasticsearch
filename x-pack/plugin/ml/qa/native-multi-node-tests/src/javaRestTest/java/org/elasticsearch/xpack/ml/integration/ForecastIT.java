@@ -187,7 +187,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
                 equalTo("Cannot run forecast: Forecast cannot be executed as job requires data to have been processed and modeled"));
     }
 
-    public void testMemoryStatus() throws Exception {
+    public void testMemoryStatus() {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 
@@ -287,6 +287,74 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
     }
 
+    public void testDeleteWildCard() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+
+        Job.Builder job = new Job.Builder("forecast-it-test-delete-wildcard");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 50 * bucketSpan.seconds();
+        List<String> data = new ArrayList<>();
+        while (timestamp < now) {
+            data.add(createJsonRecord(createRecord(timestamp, 10.0)));
+            data.add(createJsonRecord(createRecord(timestamp, 30.0)));
+            timestamp += bucketSpan.seconds();
+        }
+
+        postData(job.getId(), data.stream().collect(Collectors.joining()));
+        flushJob(job.getId(), false);
+        String forecastIdDefaultDurationDefaultExpiry = forecast(job.getId(), null, null);
+        String forecastIdDuration1HourNoExpiry = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
+        String forecastId2Duration1HourNoExpiry = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
+        String forecastId2Duration1HourNoExpiry2 = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
+        waitForecastToFinish(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+        waitForecastToFinish(job.getId(), forecastIdDuration1HourNoExpiry);
+        waitForecastToFinish(job.getId(), forecastId2Duration1HourNoExpiry);
+        waitForecastToFinish(job.getId(), forecastId2Duration1HourNoExpiry2);
+        closeJob(job.getId());
+
+        assertNotNull(getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry));
+        assertNotNull(getForecastStats(job.getId(), forecastIdDuration1HourNoExpiry));
+        assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry));
+        assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
+
+        {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(),
+                forecastIdDefaultDurationDefaultExpiry.substring(0, forecastIdDefaultDurationDefaultExpiry.length() - 2) + "*"
+                    + ","
+                    + forecastIdDuration1HourNoExpiry);
+            AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+            assertTrue(response.isAcknowledged());
+
+            assertNull(getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry));
+            assertNull(getForecastStats(job.getId(), forecastIdDuration1HourNoExpiry));
+            assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry));
+            assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
+        }
+
+        {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), "*");
+            AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+            assertTrue(response.isAcknowledged());
+
+            assertNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry));
+            assertNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
+        }
+
+    }
+
     public void testDelete() throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
 
@@ -317,6 +385,8 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         flushJob(job.getId(), false);
         String forecastIdDefaultDurationDefaultExpiry = forecast(job.getId(), null, null);
         String forecastIdDuration1HourNoExpiry = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
+        String forecastId2Duration1HourNoExpiry = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
+        String forecastId2Duration1HourNoExpiry2 = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
         waitForecastToFinish(job.getId(), forecastIdDefaultDurationDefaultExpiry);
         waitForecastToFinish(job.getId(), forecastIdDuration1HourNoExpiry);
         closeJob(job.getId());
@@ -333,13 +403,11 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
                 forecastIdDefaultDurationDefaultExpiry + "," + forecastIdDuration1HourNoExpiry);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
-        }
 
-        {
-            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
-            assertNull(forecastStats);
-            ForecastRequestStats otherStats = getForecastStats(job.getId(), forecastIdDuration1HourNoExpiry);
-            assertNull(otherStats);
+            assertNull(getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry));
+            assertNull(getForecastStats(job.getId(), forecastIdDuration1HourNoExpiry));
+            assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry));
+            assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
         }
 
         {
@@ -354,6 +422,9 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), Metadata.ALL);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
+
+            assertNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry));
+            assertNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
         }
 
         {

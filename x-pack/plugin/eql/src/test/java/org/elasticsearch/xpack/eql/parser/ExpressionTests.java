@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -84,8 +85,8 @@ public class ExpressionTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("'hello world'"));
         assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name='hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=='hello world'"));
+        assertEquals("line 1:22: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 
@@ -96,12 +97,12 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testSingleQuotedUnescapedStringForbidden() {
+    public void testSingleQuotedUnescapedStringDisallowed() {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
         assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name==?'hello world'"));
+        assertEquals("line 1:22: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 
@@ -159,6 +160,9 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(new GreaterThanOrEqual(null, field, value, UTC), expr(fieldText + ">=" + valueText));
         assertEquals(new GreaterThan(null, field, value, UTC), expr(fieldText + ">" + valueText));
         assertEquals(new LessThan(null, field, value, UTC), expr(fieldText + "<" + valueText));
+
+        expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr(fieldText + "=" + valueText));
     }
 
     public void testBoolean() {
@@ -220,5 +224,44 @@ public class ExpressionTests extends ESTestCase {
     public void testInEmptySet() {
         expectThrows(ParsingException.class, "Expected syntax error",
             () -> expr("name in ()"));
+    }
+
+    public void testComplexComparison() {
+        String comparison;
+        if (randomBoolean()) {
+            comparison = "1 * -2 <= -3 * 4";
+        } else {
+            comparison = "(1 * -2) <= (-3 * 4)";
+        }
+
+        Mul left = new Mul(null,
+                new Literal(null, 1, DataTypes.INTEGER),
+                new Neg(null, new Literal(null, 2, DataTypes.INTEGER)));
+        Mul right = new Mul(null,
+                new Neg(null, new Literal(null, 3, DataTypes.INTEGER)),
+                new Literal(null, 4, DataTypes.INTEGER));
+
+        assertEquals(new LessThanOrEqual(null, left, right, UTC), expr(comparison));
+    }
+
+    public void testChainedComparisonsDisallowed() {
+        int noComparisions = randomIntBetween(2, 20);
+        String firstComparator = "";
+        String secondComparator = "";
+        StringBuilder sb = new StringBuilder("a ");
+        for (int i = 0 ; i < noComparisions; i++) {
+            String comparator = randomFrom("==", "!=", "<", "<=", ">", ">=");
+            sb.append(comparator).append(" a ");
+
+            if (i == 0) {
+                firstComparator = comparator;
+            } else if (i == 1) {
+                secondComparator = comparator;
+            }
+        }
+        ParsingException e = expectThrows(ParsingException.class, () -> expr(sb.toString()));
+        assertEquals("line 1:" + (6 + firstComparator.length()) + ": mismatched input '" + secondComparator +
+                        "' expecting {<EOF>, 'and', 'in', 'not', 'or', '+', '-', '*', '/', '%', '.', '['}",
+                e.getMessage());
     }
 }

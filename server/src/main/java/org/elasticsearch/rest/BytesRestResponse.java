@@ -160,7 +160,7 @@ public class BytesRestResponse extends RestResponse {
 
     public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         ElasticsearchException exception = null;
         RestStatus status = null;
@@ -172,7 +172,7 @@ public class BytesRestResponse extends RestResponse {
             }
             if (STATUS.equals(currentFieldName)) {
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                     status = RestStatus.fromCode(parser.intValue());
                 }
             } else {

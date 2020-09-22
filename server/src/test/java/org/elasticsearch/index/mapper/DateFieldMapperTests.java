@@ -50,6 +50,11 @@ public class DateFieldMapperTests extends MapperTestCase {
         b.field("type", "date");
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
@@ -266,8 +271,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             .field("format", "yyyy/MM/dd")));
 
         assertThat(mapperService.fieldType("field"), notNullValue());
-        assertFalse(mapperService.fieldType("field")
-            .getTextSearchInfo().isStored());
+        assertFalse(mapperService.fieldType("field").isStored());
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis"))));

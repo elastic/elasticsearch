@@ -31,7 +31,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +43,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class Grok {
+    /**
+     * Patterns built in to the grok library.
+     */
+    public static final Map<String, String> BUILTIN_PATTERNS = loadBuiltinPatterns();
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
@@ -62,21 +65,13 @@ public final class Grok {
     private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,
             GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
 
-    private static final Map<String, String> builtinPatterns;
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; //sanity limit
-
-    static {
-        try {
-            builtinPatterns = loadBuiltinPatterns();
-        } catch (IOException e) {
-            throw new UncheckedIOException("unable to load built-in grok patterns", e);
-        }
-    }
 
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
     private final MatcherWatchdog matcherWatchdog;
+    private final List<GrokCaptureConfig> captureConfig;
 
     public Grok(Map<String, String> patternBank, String grokPattern, Consumer<String> logCallBack) {
         this(patternBank, grokPattern, true, MatcherWatchdog.noop(), logCallBack);
@@ -106,6 +101,12 @@ public final class Grok {
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
         this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE,
             message -> logCallBack.accept(message));
+
+        List<GrokCaptureConfig> captureConfig = new ArrayList<>();
+        for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
+            captureConfig.add(new GrokCaptureConfig(entry.next()));
+        }
+        this.captureConfig = List.copyOf(captureConfig);
     }
 
     /**
@@ -151,7 +152,7 @@ public final class Grok {
         }
     }
 
-    public String groupMatch(String name, Region region, String pattern) {
+    private String groupMatch(String name, Region region, String pattern) {
         int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
             name.getBytes(StandardCharsets.UTF_8).length, region);
         int begin = region.beg[number];
@@ -167,7 +168,7 @@ public final class Grok {
      *
      * @return named regex expression
      */
-    public String toRegex(String grokPattern) {
+    protected String toRegex(String grokPattern) {
         StringBuilder res = new StringBuilder();
         for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
             byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
@@ -257,19 +258,12 @@ public final class Grok {
             // TODO: I think we should throw an error here?
             return null;
         } else if (compiledExpression.numberOfNames() > 0) {
-            Map<String, Object> fields = new HashMap<>();
+            Map<String, Object> fields = new HashMap<>(captureConfig.size());
             Region region = matcher.getEagerRegion();
-            for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
-                NameEntry e = entry.next();
-                String groupName = new String(e.name, e.nameP, e.nameEnd - e.nameP, StandardCharsets.UTF_8);
-                for (int number : e.getBackRefs()) {
-                    if (region.beg[number] >= 0) {
-                        String matchValue = new String(textAsBytes, region.beg[number], region.end[number] - region.beg[number],
-                            StandardCharsets.UTF_8);
-                        GrokMatchGroup match = new GrokMatchGroup(groupName, matchValue);
-                        fields.put(match.getName(), match.getValue());
-                        break;
-                    }
+            for (GrokCaptureConfig config: captureConfig) {
+                Object v = config.extract(textAsBytes, region);
+                if (v != null) {
+                    fields.put(config.name(), v);
                 }
             }
             return fields;
@@ -278,21 +272,30 @@ public final class Grok {
         }
     }
 
-    public static Map<String, String> getBuiltinPatterns() {
-        return builtinPatterns;
+    /**
+     * The list of values that this {@linkplain Grok} can capture.
+     */
+    public List<GrokCaptureConfig> captureConfig() {
+        return captureConfig;
     }
 
-    private static Map<String, String> loadBuiltinPatterns() throws IOException {
-        // Code for loading built-in grok patterns packaged with the jar file:
-        String[] PATTERN_NAMES = new String[] {
+    /**
+     * Load built-in patterns. 
+     */
+    private static Map<String, String> loadBuiltinPatterns() {
+        String[] patternNames = new String[] {
             "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
             "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
             "postgresql", "rails", "redis", "ruby", "squid"
         };
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
-        for (String pattern : PATTERN_NAMES) {
-            try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
-                loadPatterns(builtinPatterns, is);
+        for (String pattern : patternNames) {
+            try {
+                try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                    loadPatterns(builtinPatterns, is);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("failed to load built-in patterns", e);
             }
         }
         return Collections.unmodifiableMap(builtinPatterns);

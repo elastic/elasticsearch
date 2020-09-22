@@ -282,13 +282,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public static SearchResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
         parser.nextToken();
         return innerFromXContent(parser);
     }
 
     public static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;
         Aggregations aggs = null;

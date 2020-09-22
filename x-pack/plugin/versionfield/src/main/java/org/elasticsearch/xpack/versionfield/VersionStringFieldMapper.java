@@ -244,7 +244,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                 );
             }
 
-            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value));
+            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive);
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }

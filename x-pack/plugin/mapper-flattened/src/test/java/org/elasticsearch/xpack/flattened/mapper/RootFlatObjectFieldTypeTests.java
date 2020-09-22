@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -43,6 +44,10 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         Query expected = new TermQuery(new Term("field", "value"));
         assertEquals(expected, ft.termQuery("value", null));
 
+        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
+        assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
+        
+        
         RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
             Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

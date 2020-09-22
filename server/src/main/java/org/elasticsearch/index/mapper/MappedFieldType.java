@@ -176,6 +176,13 @@ public abstract class MappedFieldType {
      */
     // TODO: Standardize exception types
     public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
+    
+    
+    // Case insensitive form of term query (not supported by all fields so must be overridden to enable)
+    public Query termQueryCaseInsensitive(Object value, @Nullable QueryShardContext context) {
+        throw new QueryShardException(context, "[" + name + "] field which is of type [" + typeName() + 
+            "], does not support case insensitive term queries");
+    }    
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
@@ -206,14 +213,27 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    // Case sensitive form of prefix query
+    public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        return prefixQuery(value, method, false, context);
+    }    
+    
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, boolean caseInsensitve, 
+        QueryShardContext context) {
         throw new QueryShardException(context, "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
+    // Case sensitive form of wildcard query
+    public final Query wildcardQuery(String value,
+        @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context
+    ) {
+        return wildcardQuery(value, method, false, context);
+    }
+    
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
-                               QueryShardContext context) {
+                               boolean caseInsensitve, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

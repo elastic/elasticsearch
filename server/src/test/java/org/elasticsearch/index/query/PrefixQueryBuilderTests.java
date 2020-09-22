@@ -101,7 +101,8 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0 } }}";
+                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0" 
+                + "} }}";
 
         PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

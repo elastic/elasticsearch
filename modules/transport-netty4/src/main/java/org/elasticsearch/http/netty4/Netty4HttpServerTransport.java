@@ -288,9 +288,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
-        private final Netty4HttpServerTransport transport;
         protected final String copyToHeapHandlerName = "copy_to_heap";
-        protected final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
+
+        private final Netty4HttpServerTransport transport;
+        private final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
         private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;

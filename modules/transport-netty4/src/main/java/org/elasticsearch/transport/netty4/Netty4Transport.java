@@ -304,7 +304,7 @@ public class Netty4Transport extends TcpTransport {
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String copyToHeapHandlerName = "copy_to_heap";
-        protected final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
+        private final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
@@ -328,7 +328,7 @@ public class Netty4Transport extends TcpTransport {
 
         protected final String name;
         protected final String copyToHeapHandlerName = "copy_to_heap";
-        protected final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
+        private final CopyBytesToHeapHandler copyBytesHandler = new CopyBytesToHeapHandler();
 
         protected ServerChannelInitializer(String name) {
             this.name = name;

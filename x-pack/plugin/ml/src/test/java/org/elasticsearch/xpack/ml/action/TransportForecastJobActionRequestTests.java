@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -130,7 +131,7 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
     static class NullAuditor extends AbstractAuditor<AnomalyDetectionAuditMessage> {
 
         protected NullAuditor() {
-            super(mock(Client.class), "test", "null", "foo", AnomalyDetectionAuditMessage::new);
+            super(new OriginSettingClient(mock(Client.class), "foo"), "test", "null", AnomalyDetectionAuditMessage::new);
         }
 
         @Override

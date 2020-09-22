@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.core.common.notifications;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,26 +21,22 @@ import java.util.Date;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
-    private final Client client;
+    private final OriginSettingClient client;
     private final String nodeName;
     private final String auditIndex;
-    private final String executionOrigin;
     private final AbstractAuditMessageFactory<T> messageFactory;
 
-    protected AbstractAuditor(Client client,
+    protected AbstractAuditor(OriginSettingClient client,
                               String nodeName,
                               String auditIndex,
-                              String executionOrigin,
                               AbstractAuditMessageFactory<T> messageFactory) {
         this.client = Objects.requireNonNull(client);
         this.nodeName = Objects.requireNonNull(nodeName);
         this.auditIndex = auditIndex;
-        this.executionOrigin = executionOrigin;
         this.messageFactory = Objects.requireNonNull(messageFactory);
     }
 
@@ -67,13 +64,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         IndexRequest indexRequest = new IndexRequest(auditIndex);
         indexRequest.source(toXContentBuilder(toXContent));
         indexRequest.timeout(TimeValue.timeValueSeconds(5));
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            executionOrigin,
-            indexRequest,
-            ActionListener.wrap(
-                this::onIndexResponse,
-                this::onIndexFailure
-            ), client::index);
+        client.execute(IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+            this::onIndexResponse,
+            this::onIndexFailure
+        ));
     }
 
     private XContentBuilder toXContentBuilder(ToXContent toXContent) {

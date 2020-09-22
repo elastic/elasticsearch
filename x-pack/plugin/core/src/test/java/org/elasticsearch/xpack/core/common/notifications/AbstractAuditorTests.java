@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -115,7 +116,8 @@ public class AbstractAuditorTests extends ESTestCase {
     private static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
 
         TestAuditor(Client client) {
-            super(client, TEST_NODE_NAME, TEST_INDEX, TEST_ORIGIN, AbstractAuditMessageTests.TestAuditMessage::new);
+            super(new OriginSettingClient(client, TEST_ORIGIN), TEST_NODE_NAME, TEST_INDEX,
+                AbstractAuditMessageTests.TestAuditMessage::new);
         }
     }
 }

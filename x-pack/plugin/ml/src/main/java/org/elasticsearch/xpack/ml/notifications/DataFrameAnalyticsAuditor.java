@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.DataFrameAnalyticsAuditMessage;
@@ -15,6 +16,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 public class DataFrameAnalyticsAuditor extends AbstractAuditor<DataFrameAnalyticsAuditMessage> {
 
     public DataFrameAnalyticsAuditor(Client client, String nodeName) {
-        super(client, nodeName, NotificationsIndex.NOTIFICATIONS_INDEX, ML_ORIGIN, DataFrameAnalyticsAuditMessage::new);
+        super(new OriginSettingClient(client, ML_ORIGIN), nodeName, NotificationsIndex.NOTIFICATIONS_INDEX,
+            DataFrameAnalyticsAuditMessage::new);
     }
 }

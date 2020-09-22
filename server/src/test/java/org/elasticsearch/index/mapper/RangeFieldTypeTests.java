@@ -484,7 +484,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     
     public void testCaseInsensitiveQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = createDefaultFieldType(FIELDNAME);
+        RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
         QueryShardException ex = expectThrows(QueryShardException.class,

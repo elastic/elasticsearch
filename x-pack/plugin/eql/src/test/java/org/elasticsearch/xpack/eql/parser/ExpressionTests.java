@@ -85,8 +85,8 @@ public class ExpressionTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("'hello world'"));
         assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name='hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=='hello world'"));
+        assertEquals("line 1:22: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 
@@ -101,8 +101,8 @@ public class ExpressionTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
         assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name==?'hello world'"));
+        assertEquals("line 1:22: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 
@@ -160,6 +160,9 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(new GreaterThanOrEqual(null, field, value, UTC), expr(fieldText + ">=" + valueText));
         assertEquals(new GreaterThan(null, field, value, UTC), expr(fieldText + ">" + valueText));
         assertEquals(new LessThan(null, field, value, UTC), expr(fieldText + "<" + valueText));
+
+        expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr(fieldText + "=" + valueText));
     }
 
     public void testBoolean() {
@@ -247,7 +250,7 @@ public class ExpressionTests extends ESTestCase {
         String secondComparator = "";
         StringBuilder sb = new StringBuilder("a ");
         for (int i = 0 ; i < noComparisions; i++) {
-            String comparator = randomFrom("=", "==", "!=", "<", "<=", ">", ">=");
+            String comparator = randomFrom("==", "!=", "<", "<=", ">", ">=");
             sb.append(comparator).append(" a ");
 
             if (i == 0) {

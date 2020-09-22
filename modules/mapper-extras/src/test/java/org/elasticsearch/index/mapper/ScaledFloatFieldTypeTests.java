@@ -65,7 +65,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // this test checks that searching scaled floats yields the same results as
         // searching doubles that are rounded to the closest half float
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-                    "scaled_float", true, false, Collections.emptyMap(), 0.1 + randomDouble() * 100);
+                    "scaled_float", true, false, false, Collections.emptyMap(), 0.1 + randomDouble() * 100);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         final int numDocs = 1000;

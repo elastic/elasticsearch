@@ -39,7 +39,7 @@ setup:
       eql.search:
         index: eql_test
         body:
-          query: 'process where user = "SYSTEM"'
+          query: 'process where user == "SYSTEM"'
 
   - match: {timed_out: false}
   - match: {hits.total.value: 3}
@@ -55,7 +55,7 @@ setup:
       eql.search:
         index: eql_test
         body:
-          query: 'sequence by user [process where user = "SYSTEM"] [process where true]'
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
   - match: {timed_out: false}
   - match: {hits.total.value: 2}
   - match: {hits.total.relation: "eq"}
@@ -72,7 +72,7 @@ setup:
       eql.search:
         index: eql_test
         body:
-          query: 'sequence by id [process where user = "SYSTEM"] [process where true]'
+          query: 'sequence by id [process where user == "SYSTEM"] [process where true]'
   - match: {timed_out: false}
   - match: {hits.total.value: 2}
   - match: {hits.total.relation: "eq"}
@@ -89,7 +89,7 @@ setup:
       eql.search:
         index: eql_test
         body:
-          query: 'sequence by valid [process where user = "SYSTEM"] [process where true]'
+          query: 'sequence by valid [process where user == "SYSTEM"] [process where true]'
   - match: {timed_out: false}
   - match: {hits.total.value: 1}
   - match: {hits.total.relation: "eq"}
@@ -105,7 +105,7 @@ setup:
         wait_for_completion_timeout: "0ms"
         keep_on_completion: true
         body:
-          query: 'process where user = "SYSTEM"'
+          query: 'process where user == "SYSTEM"'
 
   - is_true: id
   - set: {id: id}

@@ -251,7 +251,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),
+            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, meta.getValue());
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
@@ -275,24 +275,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
 
-        public DateFieldType(String name, boolean isSearchable, boolean hasDocValues,
+        public DateFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                              DateFormatter dateTimeFormatter, Resolution resolution, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
         }
 
         public DateFieldType(String name) {
-            this(name, true, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
+            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, true, dateFormatter, Resolution.MILLISECONDS, Collections.emptyMap());
+            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, true, DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
+            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
         }
 
         @Override

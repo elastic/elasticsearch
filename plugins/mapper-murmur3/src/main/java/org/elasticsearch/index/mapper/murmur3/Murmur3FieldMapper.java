@@ -70,7 +70,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
-            return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), meta),
+            return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), fieldType.stored(), meta),
                     multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -97,8 +97,8 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
-        public Murmur3FieldType(String name, Map<String, String> meta) {
-            super(name, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
+            super(name, false, isStored, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         @Override

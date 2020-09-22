@@ -36,9 +36,9 @@ import java.util.Map;
  *  with the inverted index. */
 public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    public TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo,
-        Map<String, String> meta) {
-        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
+    public TermBasedFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                       TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     /** Returns the indexed value used to construct search "values".
@@ -55,7 +55,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         if (boost() != 1f) {
             query = new BoostQuery(query, boost());
         }
-        return query;            
+        return query;
     }
 
     @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

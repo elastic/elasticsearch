@@ -85,7 +85,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public static final TypeFieldType INSTANCE = new TypeFieldType();
 
         private TypeFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -173,9 +173,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             if (caseInsensitive) {
                 AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
                 QueryParsers.setRewriteMethod(query, method);
-                return query;            
+                return query;
             }
-            
+
             WildcardQuery query = new WildcardQuery(term);
             QueryParsers.setRewriteMethod(query, method);
             return query;

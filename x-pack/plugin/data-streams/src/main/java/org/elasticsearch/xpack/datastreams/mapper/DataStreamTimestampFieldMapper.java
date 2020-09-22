@@ -14,10 +14,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -43,7 +43,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final class TimestampFieldType extends MappedFieldType {
 
         public TimestampFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -60,7 +60,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         public Query existsQuery(QueryShardContext context) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
         }
-
     }
 
     private static DataStreamTimestampFieldMapper toType(FieldMapper in) {

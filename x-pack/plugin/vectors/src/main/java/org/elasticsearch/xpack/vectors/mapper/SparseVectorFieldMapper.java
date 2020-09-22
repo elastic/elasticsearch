@@ -90,7 +90,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final class SparseVectorFieldType extends MappedFieldType {
 
         public SparseVectorFieldType(String name, Map<String, String> meta) {
-            super(name, false, true, TextSearchInfo.NONE, meta);
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
         }
 
         @Override

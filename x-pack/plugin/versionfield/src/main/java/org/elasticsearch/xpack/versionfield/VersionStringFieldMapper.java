@@ -139,7 +139,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitve, QueryShardContext context) {
-            return wildcardQuery(value + "*", method, context);
+            return wildcardQuery(value + "*", method, caseInsensitve, context);
         }
 
         /**
@@ -244,7 +244,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
                 );
             }
 
-            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value));
+            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitve);
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }

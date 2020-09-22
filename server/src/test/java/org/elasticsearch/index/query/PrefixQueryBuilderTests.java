@@ -45,9 +45,6 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         if (randomBoolean()) {
             query.rewrite(getRandomRewriteMethod());
         }
-        if (randomBoolean()) {
-            query.caseInsensitive(true);
-        }         
         return query;
     }
 
@@ -76,7 +73,8 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class), 
             instanceOf(AutomatonQuery.class)));
-        if (context.fieldMapper(queryBuilder.fieldName()) != null) { // The field is mapped
+        if (context.fieldMapper(queryBuilder.fieldName()) != null 
+            && queryBuilder.caseInsensitive() == false) { // The field is mapped and case sensitive
             PrefixQuery prefixQuery = (PrefixQuery) query;
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());

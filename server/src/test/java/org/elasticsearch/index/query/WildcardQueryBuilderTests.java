@@ -42,9 +42,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         if (randomBoolean()) {
             query.rewrite(randomFrom(getRandomRewriteMethod()));
         }
-        if (randomBoolean()) {
-            query.caseInsensitive(true);
-        }         
         return query;
     }
 

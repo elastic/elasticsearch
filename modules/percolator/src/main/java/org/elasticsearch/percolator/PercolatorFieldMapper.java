@@ -55,7 +55,6 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -183,7 +182,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
     }
 
-    static class PercolatorFieldType extends ConcreteMappedFieldType {
+    static class PercolatorFieldType extends MappedFieldType {
 
         MappedFieldType queryTermsField;
         MappedFieldType extractionResultField;
@@ -193,7 +192,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         RangeFieldMapper.RangeFieldType rangeField;
         boolean mapUnmappedFieldsAsText;
 
-        PercolatorFieldType(String name, Map<String, String> meta) {
+        private PercolatorFieldType(String name, Map<String, String> meta) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
         }
 

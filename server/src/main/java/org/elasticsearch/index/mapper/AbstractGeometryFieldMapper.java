@@ -235,7 +235,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends ConcreteMappedFieldType {
+    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
         protected Indexer<Parsed, Processed> geometryIndexer;
         protected Parser<Parsed> geometryParser;
         protected QueryProcessor geometryQueryBuilder;

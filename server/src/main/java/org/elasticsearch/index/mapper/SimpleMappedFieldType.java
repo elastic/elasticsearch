@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * {@link MappedFieldType} base impl for field types that are neither dates nor ranges.
  */
-public abstract class SimpleMappedFieldType extends ConcreteMappedFieldType {
+public abstract class SimpleMappedFieldType extends MappedFieldType {
 
     protected SimpleMappedFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                                     TextSearchInfo textSearchInfo, Map<String, String> meta) {

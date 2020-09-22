@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -101,7 +100,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class DenseVectorFieldType extends ConcreteMappedFieldType {
+    public static final class DenseVectorFieldType extends MappedFieldType {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {

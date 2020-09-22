@@ -53,7 +53,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
-import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -209,11 +208,11 @@ public class WildcardFieldMapper extends FieldMapper {
      public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);
      public static final String TOKEN_END_STRING = TOKEN_START_STRING + TOKEN_START_STRING;
 
-     public static final class WildcardFieldType extends ConcreteMappedFieldType {
+     public static final class WildcardFieldType extends MappedFieldType {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
             super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);

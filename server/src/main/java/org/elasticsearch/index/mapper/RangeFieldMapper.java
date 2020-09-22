@@ -147,7 +147,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final class RangeFieldType extends ConcreteMappedFieldType {
+    public static final class RangeFieldType extends MappedFieldType {
         protected final RangeType rangeType;
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;

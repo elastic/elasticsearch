@@ -267,7 +267,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
-    public static final class DateFieldType extends ConcreteMappedFieldType {
+    public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;

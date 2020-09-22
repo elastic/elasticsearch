@@ -83,7 +83,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     public static final class FakeStringFieldType extends StringFieldType {
 
-        public FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
+        private FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
             super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }

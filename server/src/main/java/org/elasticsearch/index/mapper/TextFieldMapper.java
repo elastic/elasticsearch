@@ -379,7 +379,7 @@ public class TextFieldMapper extends FieldMapper {
 
         final TextFieldType parent;
 
-        PhraseFieldType(TextFieldType parent) {
+        private PhraseFieldType(TextFieldType parent) {
             super(parent.name() + FAST_PHRASE_SUFFIX, true, false, false, parent.getTextSearchInfo(), Collections.emptyMap());
             setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
             this.parent = parent;

@@ -29,7 +29,6 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -96,8 +95,8 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
-    public static class Murmur3FieldType extends ConcreteMappedFieldType {
-        public Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
+    public static class Murmur3FieldType extends MappedFieldType {
+        private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
             super(name, false, isStored, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 

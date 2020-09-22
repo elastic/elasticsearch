@@ -127,7 +127,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     }
 
     public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
-        public PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+        private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
         }
 

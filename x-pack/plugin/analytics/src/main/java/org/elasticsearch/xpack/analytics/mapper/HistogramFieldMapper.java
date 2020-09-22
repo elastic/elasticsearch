@@ -36,7 +36,6 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.ConcreteMappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -180,7 +179,7 @@ public class HistogramFieldMapper extends FieldMapper {
         };
     }
 
-    public static class HistogramFieldType extends ConcreteMappedFieldType {
+    public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);

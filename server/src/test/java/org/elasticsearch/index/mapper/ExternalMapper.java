@@ -117,7 +117,7 @@ public class ExternalMapper extends FieldMapper {
 
     static class ExternalFieldType extends TermBasedFieldType {
 
-        ExternalFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues) {
+        private ExternalFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 

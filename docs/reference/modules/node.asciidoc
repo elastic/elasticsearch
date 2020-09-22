@@ -14,12 +14,12 @@ clients.
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
 
-By default, a node is all of the following types: master-eligible, data, ingest,
+By default, a node is all of the following types: control, data, ingest,
 and (if available) machine learning. All data nodes are also transform nodes.
 // end::modules-node-description-tag[]
 
 TIP: As the cluster grows and in particular if you have large {ml} jobs or
-{ctransforms}, consider separating dedicated master-eligible nodes from
+{ctransforms}, consider separating dedicated control nodes from
 dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 [[node-roles]]
@@ -27,29 +27,31 @@ dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 You can define the roles of a node by setting `node.roles`. If you don't 
 configure this setting, then the node has the following roles by default: 
-`master`, `data`, `ingest`, `ml`.
+`control`, `data`, `ingest`, `ml`.
 
 If you set node.roles, the node is assigned only the roles you specify.
 
-<<master-node,Master-eligible node>>::
+Control::
 
-A node that has the `master` role (default), which makes it eligible to be
-<<modules-discovery,elected as the _master_ node>>, which controls the cluster.
+A node that has the `control` role performs cluster control tasks 
+and participates in the <<modules-discovery, manager election process>>. 
+By default, a control node is eligible to become the cluster manager that
+facilitates cluster-wide actions.
 
-<<data-node,Data node>>::
+Data::
 
-A node that has the `data` role (default). Data nodes hold data and perform data
+A node that has the `data` role holds data and perform data
 related operations such as CRUD, search, and aggregations.
 
-<<node-ingest-node,Ingest node>>::
+Ingest::
 
 A node that has the `ingest` role (default). Ingest nodes are able to apply an
 <<pipeline,ingest pipeline>> to a document in order to transform and enrich the
 document before indexing. With a heavy ingest load, it makes sense to use
 dedicated ingest nodes and to not include the `ingest` role from nodes that have
-the `master` or `data` roles.
+the `control` or `data` roles.
 
-<<ml-node,Machine learning node>>::
+Machine learning::
 
 A node that has `xpack.ml.enabled` and the `ml` role, which is the default
 behavior in the {es} {default-dist}. If you want to use {ml-features}, there
@@ -89,93 +91,85 @@ memory and CPU in order to deal with the gather phase.
 ===============================================
 
 [[master-node]]
-==== Master-eligible node
+==== Manager node
 
-The master node is responsible for lightweight cluster-wide actions such as
+The manager node is responsible for lightweight cluster-wide actions such as
 creating or deleting an index, tracking which nodes are part of the cluster,
 and deciding which shards to allocate to which nodes. It is important for
-cluster health to have a stable master node.
+cluster health to have a stable manager node.
 
-Any master-eligible node that is not a <<voting-only-node,voting-only node>> may
-be elected to become the master node by the <<modules-discovery,master election
-process>>.
+Any control node that is not a <<voting-only-node,voting-only node>> can
+become the manager through the <<modules-discovery, election process>>.
 
-IMPORTANT: Master nodes must have access to the `data/` directory (just like
+IMPORTANT: Control nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node
 restarts.
 
-[[dedicated-master-node]]
-===== Dedicated master-eligible node
+[[dedicated-control-node]]
+===== Dedicated control nodes
 
-It is important for the health of the cluster that the elected master node has
-the resources it needs to fulfill its responsibilities. If the elected master
-node is overloaded with other tasks then the cluster may not operate well. In
+It is important for the health of the cluster that the control nodes have
+the resources it needs to fulfill its responsibilities. If the manager
+is overloaded with other tasks then the cluster may not operate well. In
 particular, indexing and searching your data can be very resource-intensive, so
 in large or high-throughput clusters it is a good idea to avoid using the
-master-eligible nodes for tasks such as indexing and searching. You can do this
-by configuring three of your nodes to be dedicated master-eligible nodes.
-Dedicated master-eligible nodes only have the `master` role, allowing them to
-focus on managing the cluster. While master nodes can also behave as
+control nodes for tasks such as indexing and searching. You can do this
+by configuring three of your nodes to be dedicated control nodes.
+Dedicated control nodes only have the `control` role, allowing them to
+focus on cluster management tasks. While control nodes can also behave as
 <<coordinating-node,coordinating nodes>> and route search and indexing requests
-from clients to data nodes, it is better _not_ to use dedicated master nodes for
+from clients to data nodes, it is better _not_ to use dedicated control nodes for
 this purpose.
 
-To create a dedicated master-eligible node, set:
+To create a dedicated control node, set:
 
 [source,yaml]
 -------------------
-node.roles: [ master ]
+node.roles: [ control ]
 -------------------
 
 [[voting-only-node]]
-===== Voting-only master-eligible node
+===== Voting-only control nodes
 
-A voting-only master-eligible node is a node that participates in
-<<modules-discovery,master elections>> but which will not act as the cluster's
-elected master node. In particular, a voting-only node can serve as a tiebreaker
+A voting-only control node participates in the
+<<modules-discovery,election process>> and cluster state publishing, 
+but can never become the manager node. 
+In particular, a voting-only node can serve as a tiebreaker
 in elections.
 
-It may seem confusing to use the term "master-eligible" to describe a
-voting-only node since such a node is not actually eligible to become the master
-at all. This terminology is an unfortunate consequence of history:
-master-eligible nodes are those nodes that participate in elections and perform
-certain tasks during cluster state publications, and voting-only nodes have the
-same responsibilities even if they can never become the elected master.
-
-To configure a master-eligible node as a voting-only node, include `master` and
-`voting_only` in the list of roles. For example to create a voting-only data
+To configure a control node as a voting-only node, include `control` and
+`voting_only` in its list of roles. For example to create a voting-only data
 node:
 
 [source,yaml]
 -------------------
-node.roles: [ data, master, voting_only ]
+node.roles: [ data, control, voting_only ]
 -------------------
 
 IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not
 supported in the {oss-dist}. If you use the {oss-dist} and add the `voting_only`
 role then the node will fail to start.  Also note that only nodes with the
-`master` role can be marked as having the `voting_only` role.
+`control` role can have the `voting_only` role.
 
-High availability (HA) clusters require at least three master-eligible nodes, at
-least two of which are not voting-only nodes. Such a cluster will be able to
-elect a master node even if one of the nodes fails.
+High availability (HA) clusters require at least three control nodes, at
+least two of which are not voting-only nodes. This enables a cluster to
+promote a control node to manager even if one of the control nodes fails.
 
-Since voting-only nodes never act as the cluster's elected master, they may
-require require less heap and a less powerful CPU than the true master nodes.
-However all master-eligible nodes, including voting-only nodes, require
+Since voting-only nodes never act as the cluster's manager, they may
+require less heap and a less powerful CPU.
+However all control nodes, including voting-only nodes, require
 reasonably fast persistent storage and a reliable and low-latency network
 connection to the rest of the cluster, since they are on the critical path for
 <<cluster-state-publishing,publishing cluster state updates>>.
 
-Voting-only master-eligible nodes may also fill other roles in your cluster.
-For instance, a node may be both a data node and a voting-only master-eligible
-node. A _dedicated_ voting-only master-eligible nodes is a voting-only
-master-eligible node that fills no other roles in the cluster. To create a
-dedicated voting-only master-eligible node in the {default-dist}, set:
+Voting-only control nodes may also fill other roles in your cluster.
+For instance, a node may be both a data node and a voting-only control
+node. A _dedicated_ voting-only control node fills no other roles in the cluster. 
+To create a dedicated voting-only control node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-node.roles: [ master, voting_only ]
+node.roles: [ control, voting_only ]
 -------------------
 
 [[data-node]]
@@ -186,7 +180,7 @@ nodes handle data related operations like CRUD, search, and aggregations.
 These operations are I/O-, memory-, and CPU-intensive. It is important to
 monitor these resources and to add more data nodes if they are overloaded.
 
-The main benefit of having dedicated data nodes is the separation of the master
+The main benefit of having dedicated data nodes is the separation of the control
 and data roles.
 
 To create a dedicated data node, set:
@@ -221,19 +215,19 @@ an ingest pipeline to transform and enrich a document before indexing. Default:
 [[coordinating-only-node]]
 ==== Coordinating only node
 
-If you take away the ability to be able to handle master duties, to hold data,
+If you take away the ability to be able to handle control duties, to hold data,
 and pre-process documents, then you are left with a _coordinating_ node that
 can only route requests, handle the search reduce phase, and distribute bulk
 indexing. Essentially, coordinating only nodes behave as smart load balancers.
 
 Coordinating only nodes can benefit large clusters by offloading the
-coordinating node role from data and master-eligible nodes.  They join the
+coordinating node role from data and control nodes.  They join the
 cluster and receive the full <<cluster-state,cluster state>>, like every other
 node, and they use the cluster state to route requests directly to the
 appropriate place(s).
 
 WARNING: Adding too many coordinating only nodes to a cluster can increase the
-burden on the entire cluster because the elected master node must await
+burden on the entire cluster because the manager node must await
 acknowledgement of cluster state updates from every node! The benefit of
 coordinating only nodes should not be overstated -- data nodes can happily
 serve the same purpose.
@@ -253,7 +247,7 @@ requests. If `xpack.ml.enabled` is set to `true` and the node does not have the
 `ml` role, the node can service API requests but it cannot run jobs.
 
 If you want to use {ml-features} in your cluster, you must enable {ml}
-(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
+(set `xpack.ml.enabled` to `true`) on all control nodes. If you want to
 use {ml-features} in clients (including {kib}), it must also be enabled on all
 coordinating nodes. If you have the {oss-dist}, do not use these settings.
 
@@ -291,7 +285,7 @@ Each data node maintains the following data on disk:
 * the index metadata corresponding with every shard allocated to that node, and
 * the cluster-wide metadata, such as settings and index templates.
 
-Similarly, each master-eligible node maintains the following data on disk:
+Similarly, each control node maintains the following data on disk:
 
 * the index metadata for every index in the cluster, and
 * the cluster-wide metadata, such as settings and index templates.
@@ -301,20 +295,20 @@ unexpected data then it will refuse to start. This is to avoid importing
 unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
 to a red cluster health. To be more precise, nodes without the `data` role will
 refuse to start if they find any shard data on disk at startup, and nodes 
-without both the `master` and `data` roles will refuse to start if they have any 
+without both the `control` and `data` roles will refuse to start if they have any 
 index metadata on disk at startup.
 
 It is possible to change the roles of a node by adjusting its
 `elasticsearch.yml` file and restarting it. This is known as _repurposing_ a
 node. In order to satisfy the checks for unexpected data described above, you
 must perform some extra steps to prepare a node for repurposing when starting
-the node without the `data` or `master` roles.
+the node without the `data` or `control` roles.
 
 * If you want to repurpose a data node by removing the `data` role then you
   should first use an <<allocation-filtering,allocation filter>> to safely
   migrate all the shard data onto other nodes in the cluster.
 
-* If you want to repurpose a node to have neither the `data` nor `master` roles
+* If you want to repurpose a node to have neither the `data` nor `control` roles
   then it is simplest to start a brand-new node with an empty data path and the
   desired roles. You may find it safest to use an
   <<allocation-filtering,allocation filter>> to migrate the shard data elsewhere
@@ -330,7 +324,7 @@ excess data that prevents a node from starting.
 [[data-path]]
 ==== `path.data`
 
-Every data and master-eligible node requires access to a data directory where
+Every data and control node requires access to a data directory where
 shards and index and cluster metadata will be stored. The `path.data` defaults
 to `$ES_HOME/data` but can be configured in the `elasticsearch.yml` config
 file an absolute path or a path relative to `$ES_HOME` as follows:

@@ -3,27 +3,27 @@
 
 Discovery is the process by which the cluster formation module finds other
 nodes with which to form a cluster. This process runs when you start an
-Elasticsearch node or when a node believes the master node failed and continues
-until the master node is found or a new master node is elected.
+Elasticsearch node or when a node believes the manager node failed and continues
+until the manager node is found or a new manager node is elected.
 
 This process starts with a list of _seed_ addresses from one or more
 <<built-in-hosts-providers,seed hosts providers>>, together with the addresses
-of any master-eligible nodes that were in the last-known cluster. The process
+of any control nodes that were in the last-known cluster. The process
 operates in two phases: First, each node probes the seed addresses by
 connecting to each address and attempting to identify the node to which it is
-connected and to verify that it is master-eligible. Secondly, if successful, it
-shares with the remote node a list of all of its known master-eligible peers
+connected and to verify that it is a control node. Secondly, if successful, it
+shares with the remote node a list of all of its known control peers
 and the remote node responds with _its_ peers in turn. The node then probes all
 the new nodes that it just discovered, requests their peers, and so on.
 
-If the node is not master-eligible then it continues this discovery process
-until it has discovered an elected master node. If no elected master is
+If the node is not a control node then it continues this discovery process
+until it has discovered a manager node. If no manager is
 discovered then the node will retry after `discovery.find_peers_interval` which
 defaults to `1s`.
 
-If the node is master-eligible then it continues this discovery process until
-it has either discovered an elected master node or else it has discovered
-enough masterless master-eligible nodes to complete an election. If neither of
+If the node is a control node then it continues this discovery process until
+it has either discovered a manager node or else it has discovered
+enough control nodes with no manager to complete an election. If neither of
 these occur quickly enough then the node will retry after
 `discovery.find_peers_interval` which defaults to `1s`.
 

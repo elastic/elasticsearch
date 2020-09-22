@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.analytics.aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
@@ -19,6 +21,8 @@ import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBack
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedAvgAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentilesAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedMaxAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedMinAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedSumAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentilesAggregator;
@@ -92,6 +96,14 @@ public class AnalyticsAggregatorFactory {
             true);
     }
 
+    public static void registerHistoBackedMinggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(MinAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMinAggregator::new, true);
+    }
+
+    public static void registerHistoBackedMaxggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(MaxAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMaxAggregator::new, true);
+    }
+
     public static void registerCardinalityBackedCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.CARDINALITY,
@@ -107,4 +119,5 @@ public class AnalyticsAggregatorFactory {
             },
             true);
     }
+
 }

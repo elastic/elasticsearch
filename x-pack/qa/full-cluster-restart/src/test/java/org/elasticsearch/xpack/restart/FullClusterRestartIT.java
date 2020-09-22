@@ -327,7 +327,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster() == false) {
             Response response = client().performRequest(new Request("GET", "_slm/stats"));
-            XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+            XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, response.getEntity().getContent())) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));

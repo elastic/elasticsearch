@@ -162,5 +162,3 @@ testClusters.yamlRestTest {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
 }
 
-tasks.named("testingConventions").configure { enabled = false }
-

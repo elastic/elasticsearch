@@ -158,6 +158,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedMaxggregator,
             AnalyticsAggregatorFactory::registerCardinalityBackedCardinalityAggregator
         );
     }

@@ -387,22 +387,22 @@ public class HllFieldMapper extends FieldMapper {
             }
             ByteArrayList runLens = null;
             // should be an object
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be a field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(SKETCH_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     runLens = new ByteArrayList();
                     token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         int newValue = subParser.intValue();
                         if (newValue < 0) {
                             throw new MapperParsingException("error parsing field ["

@@ -114,7 +114,7 @@ public class GetResultTests extends ESTestCase {
         // Test that we can parse the result of toXContentEmbedded()
         GetResult parsedEmbeddedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             parsedEmbeddedGetResult = GetResult.fromXContentEmbedded(parser);
             assertNull(parser.nextToken());
         }

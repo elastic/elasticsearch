@@ -181,7 +181,7 @@ public class DiscoveryNodeFilters {
                         }
                     }
                 }
-            } else if ("_tier".equals(attr)) {
+            } else if (attr != null && attr.startsWith("_tier")) {
                 // Always allow _tier as an attribute, will be handled elsewhere
                 return true;
             } else {

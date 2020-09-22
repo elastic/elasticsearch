@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 
 public class PriorityComparatorTests extends ESTestCase {
@@ -203,32 +204,29 @@ public class PriorityComparatorTests extends ESTestCase {
                             final String currentName = currentMeta.getIndex().getName();
 
                             if (prevName.equals(currentName) == false) {
-                                assertTrue(
-                                    "indexName mismatch, expected:"
-                                        + currentName
-                                        + " after "
-                                        + prevName
-                                        + " "
-                                        + prevName.compareTo(currentName),
-                                    prevName.compareTo(currentName) > 0
+                                assertThat(
+                                    "indexName mismatch, expected:" + currentName + " after " + prevName,
+                                    prevName,
+                                    greaterThan(currentName)
                                 );
                             }
                         } else {
-                            assertTrue(
+                            assertThat(
                                 "creationDate mismatch, expected:" + currentCreationDate + " after " + prevCreationDate,
-                                prevCreationDate > currentCreationDate
+                                prevCreationDate, greaterThan(currentCreationDate)
                             );
                         }
                     } else {
-                        assertTrue(
+                        assertThat(
                             "priority mismatch, expected:" + currentPriority + " after " + prevPriority,
-                            prevPriority > currentPriority
+                            prevPriority, greaterThan(currentPriority)
                         );
                     }
                 } else {
-                    assertTrue(
+                    assertThat(
                         "system mismatch, expected:" + currentMeta.isSystem() + " after " + prevMeta.isSystem(),
-                        prevMeta.isSystem() && currentMeta.isSystem() == false
+                        prevMeta.isSystem(),
+                        greaterThan(currentMeta.isSystem())
                     );
                 }
             }

@@ -26,6 +26,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -151,7 +152,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testUpdatesAreRejected() {
-        for (String indexName : List.of("<test-{2015.05.05||+1d}>", "test")) {
+        for (String indexName : Arrays.asList("<test-{2015.05.05||+1d}>", "test")) {
             assertAcked(client().admin().indices().prepareCreate(indexName)
                     .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
                     .setSettings(Settings.builder()

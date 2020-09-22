@@ -23,12 +23,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldTermQuery> {
     @Override
     protected StringScriptFieldTermQuery createTestInstance() {
-        return new StringScriptFieldTermQuery(randomScript(), leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(6));
+        return new StringScriptFieldTermQuery(randomScript(), leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(6), randomBoolean());
     }
 
     @Override
     protected StringScriptFieldTermQuery copy(StringScriptFieldTermQuery orig) {
-        return new StringScriptFieldTermQuery(orig.script(), leafFactory, orig.fieldName(), orig.term());
+        return new StringScriptFieldTermQuery(orig.script(), leafFactory, orig.fieldName(), orig.term(), orig.caseInsensitive());
     }
 
     @Override
@@ -36,7 +36,8 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
         Script script = orig.script();
         String fieldName = orig.fieldName();
         String term = orig.term();
-        switch (randomInt(2)) {
+        boolean caseInsensitive = orig.caseInsensitive();
+        switch (randomInt(3)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
                 break;
@@ -46,18 +47,27 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
             case 2:
                 term += "modified";
                 break;
+            case 3:
+                caseInsensitive = !caseInsensitive;
+                break;
             default:
                 fail();
         }
-        return new StringScriptFieldTermQuery(script, leafFactory, fieldName, term);
+        return new StringScriptFieldTermQuery(script, leafFactory, fieldName, term, caseInsensitive);
     }
 
     @Override
     public void testMatches() {
-        StringScriptFieldTermQuery query = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo");
+        StringScriptFieldTermQuery query = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo", false);
         assertTrue(query.matches(List.of("foo")));
+        assertFalse(query.matches(List.of("foO")));
         assertFalse(query.matches(List.of("bar")));
         assertTrue(query.matches(List.of("foo", "bar")));
+
+        StringScriptFieldTermQuery ciQuery = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo", true);
+        assertTrue(ciQuery.matches(List.of("Foo")));
+        assertTrue(ciQuery.matches(List.of("fOo", "bar")));
+
     }
 
     @Override

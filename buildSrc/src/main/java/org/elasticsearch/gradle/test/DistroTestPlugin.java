@@ -162,9 +162,11 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
         }
 
-        project.getTasks().withType(Test.class, t ->
-            addSysprop(t, IS_BUNDLED_JDK_SUPPORTED, () -> Boolean.toString(BuildParams.isBundledJdkSupported()))
-        );
+        project.getTasks()
+            .withType(
+                Test.class,
+                t -> addSysprop(t, IS_BUNDLED_JDK_SUPPORTED, () -> Boolean.toString(BuildParams.isBundledJdkSupported()))
+            );
 
         // setup jdks used by no-jdk tests, and by gradle executing
         TaskProvider<Copy> linuxGradleJdk = createJdk(project, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, "linux", "x64");
@@ -287,8 +289,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdkProvider, "", ""));
-        vagrant.vmEnv("JAVA_HOME", convertPath(project, vagrant, gradleJdkProvider, "", "")); // make sure any default java on the system is ignored
-        // also set RUNTIME_JAVA_HOME, not because it is used, but to ensure the bundled jdk version is not loaded by gradle on legacy systems
+        vagrant.vmEnv("JAVA_HOME", convertPath(project, vagrant, gradleJdkProvider, "", "")); // make sure any default java on the system is
+                                                                                              // ignored
+        // also set RUNTIME_JAVA_HOME, not because it is used, but to ensure the bundled jdk version is not loaded by gradle on legacy
+        // systems
         vagrant.vmEnv("RUNTIME_JAVA_HOME", convertPath(project, vagrant, gradleJdkProvider, "", ""));
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdkProvider, "/bin:$PATH", "\\bin;$Env:PATH"));
         // pass these along to get correct build scans

@@ -32,8 +32,9 @@ public class Platforms {
     public static final boolean DARWIN = OS_NAME.startsWith("Mac OS X");
     public static final PlatformAction NO_ACTION = () -> {};
 
-    public static final boolean IS_BUNDLED_JDK_SUPPORTED =
-        Booleans.parseBoolean(System.getProperty("tests.is_bundled_jdk_supported", "true"));
+    public static final boolean IS_BUNDLED_JDK_SUPPORTED = Booleans.parseBoolean(
+        System.getProperty("tests.is_bundled_jdk_supported", "true")
+    );
 
     public static String getOsRelease() {
         if (LINUX) {

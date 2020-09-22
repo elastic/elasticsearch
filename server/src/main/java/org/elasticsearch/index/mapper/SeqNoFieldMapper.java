@@ -97,7 +97,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
         SeqNoFieldType() {
-            super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -173,7 +173,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
-
     }
 
     public SeqNoFieldMapper() {

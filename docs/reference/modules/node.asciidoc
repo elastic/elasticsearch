@@ -1,7 +1,7 @@
 [[modules-node]]
 === Node
 
-Any time that you start an instance of {es}, you are starting a _node_. A 
+Any time that you start an instance of {es}, you are starting a _node_. A
 collection of connected nodes is called a <<modules-cluster,cluster>>. If you
 are running a single node of {es}, then you have a cluster of one node.
 
@@ -25,11 +25,16 @@ dedicated data nodes, {ml} nodes, and {transform} nodes.
 [[node-roles]]
 ==== Node roles
 
-You can define the roles of a node by setting `node.roles`. If you don't 
-configure this setting, then the node has the following roles by default: 
-`master`, `data`, `ingest`, `ml`.
+You can define the roles of a node by setting `node.roles`. If you don't
+configure this setting, then the node has the following roles by default:
 
-If you set node.roles, the node is assigned only the roles you specify.
+* `master`
+* `data`
+* `ingest`
+* `ml`
+* `remote_cluster_client`
+
+NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
 
 <<master-node,Master-eligible node>>::
 
@@ -48,6 +53,12 @@ A node that has the `ingest` role (default). Ingest nodes are able to apply an
 document before indexing. With a heavy ingest load, it makes sense to use
 dedicated ingest nodes and to not include the `ingest` role from nodes that have
 the `master` or `data` roles.
+
+<<remote-node,Remote-eligible node>>::
+
+A node that has the `remote_cluster_client` role (default), which makes it
+eligible to act as a remote client. By default, any node in the cluster can act
+as a cross-cluster client and connect to remote clusters.
 
 <<ml-node,Machine learning node>>::
 
@@ -191,9 +202,9 @@ and data roles.
 
 To create a dedicated data node, set:
 [source,yaml]
--------------------
+----
 node.roles: [ data ]
--------------------
+----
 
 [[node-ingest-node]]
 ==== Ingest node
@@ -206,15 +217,15 @@ ingest nodes, that will only perform this specific task.
 To create a dedicated ingest node, set:
 
 [source,yaml]
--------------------
+----
 node.roles: [ ingest ]
--------------------
+----
 
 [[node-ingest-node-setting]]
 // tag::node-ingest-tag[]
 `node.ingest` {ess-icon}::
-Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply 
-an ingest pipeline to transform and enrich a document before indexing. Default: 
+Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply
+an ingest pipeline to transform and enrich a document before indexing. Default:
 `true`.
 // end::node-ingest-tag[]
 
@@ -241,9 +252,22 @@ serve the same purpose.
 To create a dedicated coordinating node, set:
 
 [source,yaml]
--------------------
+----
 node.roles: [ ]
--------------------
+----
+
+[[remote-node]]
+==== Remote-eligible node
+
+By default, any node in a cluster can act as a cross-cluster client and connect
+to <<modules-remote-clusters,remote clusters>>. Once connected, you can search
+remote clusters using <<modules-cross-cluster-search,{ccs}>>. You can also sync
+data between clusters using <<xpack-ccr,{ccr}>>.
+
+[source,yaml]
+----
+node.roles: [ remote_cluster_client ]
+----
 
 [[ml-node]]
 ==== [xpack]#Machine learning node#
@@ -262,25 +286,25 @@ For more information about these settings, see <<ml-settings>>.
 To create a dedicated {ml} node in the {default-dist}, set:
 
 [source,yaml]
--------------------
+----
 node.roles: [ ml ]
 xpack.ml.enabled: true <1>
--------------------
+----
 <1> The `xpack.ml.enabled` setting is enabled by default.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
-{transform-cap} nodes run {transforms} and handle {transform} API requests. If 
-you have the {oss-dist}, do not use these settings. For more information, see 
+{transform-cap} nodes run {transforms} and handle {transform} API requests. If
+you have the {oss-dist}, do not use these settings. For more information, see
 <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 
 [source,yaml]
--------------------
+----
 node.roles: [ transform ]
--------------------
+----
 
 [[change-node-role]]
 ==== Changing the role of a node
@@ -300,8 +324,8 @@ Each node checks the contents of its data path at startup. If it discovers
 unexpected data then it will refuse to start. This is to avoid importing
 unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
 to a red cluster health. To be more precise, nodes without the `data` role will
-refuse to start if they find any shard data on disk at startup, and nodes 
-without both the `master` and `data` roles will refuse to start if they have any 
+refuse to start if they find any shard data on disk at startup, and nodes
+without both the `master` and `data` roles will refuse to start if they have any
 index metadata on disk at startup.
 
 It is possible to change the roles of a node by adjusting its
@@ -336,16 +360,16 @@ to `$ES_HOME/data` but can be configured in the `elasticsearch.yml` config
 file an absolute path or a path relative to `$ES_HOME` as follows:
 
 [source,yaml]
------------------------
+----
 path.data:  /var/elasticsearch/data
------------------------
+----
 
 Like all node settings, it can also be specified on the command line as:
 
 [source,sh]
------------------------
+----
 ./bin/elasticsearch -Epath.data=/var/elasticsearch/data
------------------------
+----
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
 should be configured to locate the data directory outside the {es} home

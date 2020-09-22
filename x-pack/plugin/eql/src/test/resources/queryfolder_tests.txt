@@ -19,7 +19,7 @@ null
 ;
 
 singleNumericFilterEquals
-process where serial_event_id = 1
+process where serial_event_id == 1
 ;
 "term":{"serial_event_id":{"value":1
 ;

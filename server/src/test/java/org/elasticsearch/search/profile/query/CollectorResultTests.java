@@ -78,7 +78,7 @@ public class CollectorResultTests extends ESTestCase {
             mutated = originalBytes;
         }
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             CollectorResult parsed = CollectorResult.fromXContent(parser);
             assertNull(parser.nextToken());
             assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);

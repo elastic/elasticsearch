@@ -92,7 +92,7 @@ public class MigrateAction implements LifecycleAction {
             Settings.Builder migrationSettings = Settings.builder();
             String dataTierName = "data_" + phase;
             assert DataTier.validTierName(dataTierName) : "invalid data tier name:" + dataTierName;
-            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, dataTierName);
+            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, dataTierName);
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
                 migrationSettings.build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);

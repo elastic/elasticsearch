@@ -315,23 +315,23 @@ public class HistogramFieldMapper extends FieldMapper {
             DoubleArrayList values = null;
             IntArrayList counts = null;
             // should be an object
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     values = new DoubleArrayList();
                     token = subParser.nextToken();
                     double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         double val = subParser.doubleValue();
                         if (val < previousVal) {
                             // values must be in increasing order
@@ -346,12 +346,12 @@ public class HistogramFieldMapper extends FieldMapper {
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     counts = new IntArrayList();
                     token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         counts.add(subParser.intValue());
                         token = subParser.nextToken();
                     }

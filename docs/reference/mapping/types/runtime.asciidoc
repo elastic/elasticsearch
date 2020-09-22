@@ -11,23 +11,50 @@ PUT /my-index
 
 Typically, you must index fields to {es} before they can be retrieved,
 aggregated, or searched. With runtime fields, you can explicitly define a field
-in the mapping and access it at runtime without indexing your data. This
-flexibility allows you to more quickly ingest raw data into the Elastic Stack
-and immediately access it. By dynamically evaluating runtime fields at query
-time, you can choose which fields to index and optimize disk space.
+in the mapping and access it at search time without indexing your data.
 
-Runtime fields are not indexed, but are accessible from the search API like any
-other field that has <<doc-values,doc_values>> and is searchable. You can
-retrieve and query these fields, as well as aggregate and
-sort on them.
+Runtime fields are accessible from the search API like any other field that has
+<<doc-values,doc_values>> and is searchable. You can retrieve and query these
+fields, as well as aggregate on them.
 
-NOTE: Runtime fields can be incur performance costs at search time, depending
-on the <<runtime-params-runtime-type,`runtime_type`>>.
+Runtime fields help to alleviate several common issues when using {es}:
 
-==== Specifying runtime fields
-You specify runtime fields in the mapping by
+* Reindexing your data between development iterations is slow and can make
+experimenting on large datasets difficult
+* Indexing data before searching makes running one-off searches costly and
+resource intensive
+* Indexing all of your data instead of just the fields you want to search
+requires more disk space to gain search time performance
+* Reindexing data for time-based indices to ensure that existing indices
+include any new fields in the index template is slow
+* Determining how a field is evaluated in {kib} at index or search time is
+difficult for scripted fields because they have different needs based on where
+they are implemented
+
+Because runtime fields aren't indexed, you can more quickly ingest raw data
+into the Elastic Stack and immediately access it. By dynamically evaluating
+runtime fields at search time, you can optimize disk space by choosing which
+fields to index.
+
+Runtime fields incur performance costs at search time, depending
+on the <<runtime-params-runtime-type,`runtime_type`>>. For example, let's say
+you created an anomaly detection job that operates on the `timestamp` field.
+If the `timestamp` field is a runtime field, the search cost would be extremely
+high because the data isn't indexed and {es} must compute the value for each
+document that matches the query.
+
+Runtime fields are useful when working with log data, especially when you're
+unsure about the data structure. Your search speed decreases, but your index
+size is much smaller and you can more quickly process logs without having to
+index them.
+
+[[runtime-mapping-fields]]
+==== Mapping a runtime field
+You map runtime fields by
 <<modules-scripting-using,defining a script>>. At search time, the script runs
 and generates values for each scripted field.
+
+NOTE: When mapping a runtime field, indexing is disabled by default.
 
 The script in the following request extracts the day of the week from the
 `timestamp` field, which is defined as a `date` data type.
@@ -51,26 +78,14 @@ PUT /my-index/_mappings
 <1> Runtime fields are of the `runtime` data type.
 <2> Each runtime has its own field type, defined by `runtime_type`.
 
-[[runtime-params]]
-==== Parameters for `runtime` fields
-Runtime fields accept the following parameters:
-
-`type`::
-The type of runtime computation to perform at query time. Currently, runtime
-fields only support the `runtime` data type.
-
-[[runtime-params-runtime-type]]
-`runtime_type`::
-The <<mapping-types,field type>> for each scripted field. {es}
-supports `boolean`, `date`, `double`, `ip`, `keyword`, and `long`.
-+
-Runtime fields with a `runtime_type` of `date` can accept the
-<<mapping-date-format,`format`>> parameter exactly as the `date` field type.
-
-==== Retrieving runtime fields
+[[runtime-retrieving-fields]]
+==== Retrieving a runtime field
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. This API works for all fields, even those that
 were not sent as part of the original `_source`.
+
+NOTE: We highly recommended using the <<async-search,asynchronous search API>>
+to run searches that use runtime fields.
 
 The following request uses the search API to retrieve the `day_of_week` field
 that the previous request defined in the mapping.
@@ -88,3 +103,23 @@ GET /my-index/_search
   }
 }
 ----
+
+[[runtime-params]]
+++++
+<titleabbrev>Parameters</titleabbrev>
+++++
+==== Parameters for `runtime` fields
+Runtime fields accept the following parameters:
+
+[[runtime-params-type]]
+`type`::
+The type of runtime computation to perform at query time. Currently, runtime
+fields only support the `runtime` data type.
+
+[[runtime-params-runtime-type]]
+`runtime_type`::
+The <<mapping-types,field type>> for each scripted field. {es}
+supports `boolean`, `date`, `double`, `ip`, `keyword`, and `long`.
++
+Runtime fields with a `runtime_type` of `date` can accept the
+<<mapping-date-format,`format`>> parameter exactly as the `date` field type.

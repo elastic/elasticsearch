@@ -108,11 +108,10 @@ as-you-type completion.
 === Arrays
 In {es}, arrays do not require a dedicated field data type. Any field can contain
 zero or more values by default, however, all values in the array must be of the
-same field type.
-
-See <<array>> to learn more.
+same field type. See <<array>>.
 
 [discrete]
+[[types-multi-fields]]
 === Multi-fields
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
@@ -126,20 +125,29 @@ This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
 
 [discrete]
+[[types-runtime]]
 === Runtime
-Oftentimes, you just want to make your data available to {es} without indexing
-or preprocessing. _Runtime fields_ extend the flexibility of the
-<<search-search,search API>> to quickly make data searchable, even with minimal
-structure.
+{es} indexes most field types by default to promote faster search. However,
+indexing all of your data can be slow and requires more disk space. If you're
+experimenting with your data or are unsure which fields you need for search,
+use _runtime fields_.
 
-Instead of indexing all of your data, you can use runtime fields to
-search and aggregate on your data at query time. Runtime fields can incur
-performance costs at runtime depending on the runtime type, but don't use the
-disk space that is typically required to index your data. By removing the
-requirement to index everything, you gain the flexibility of choosing which
-fields to index.
+{es} treats runtime fields like any other field, except that their values are
+only extracted or computed at search time. When mapping a runtime field, you
+define a script that determines how to extract or compute field values from
+your unindexed data.
 
-See <<runtime>> to learn more.
+Runtime fields use less disk space and provide flexibility in how you access
+your data, but impact search performance based on the computation defined in
+the runtime script. See <<runtime>>.
+
+// Runtime fields optimize disk space by evaluating each runtime script at search
+// time, instead of indexing fields and using disk space.
+//
+// Runtime fields use less disk space and provide flexibility in how you want to
+// access your data. Use runtime fields to quickly get data into the Elastic Stack
+//
+// Runtime fields make searches slower, as computing their values for each document that might match the query is costly, depending on how they are calculated.
 
 include::types/alias.asciidoc[]
 

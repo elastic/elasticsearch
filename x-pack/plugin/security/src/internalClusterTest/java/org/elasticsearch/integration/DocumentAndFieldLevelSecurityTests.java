@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -154,19 +153,19 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testUpdatesAreRejected() {
         for (String indexName : Arrays.asList("<test-{2015.05.05||+1d}>", "test")) {
             assertAcked(client().admin().indices().prepareCreate(indexName)
-                    .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
+                    .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text")
                     .setSettings(Settings.builder()
                             .put("index.number_of_replicas", 0)
                             .put("index.number_of_shards", 1))
             );
-            client().prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1")
+            client().prepareIndex(indexName, "type1", "1").setSource("id", "1", "field1", "value1")
                     .setRefreshPolicy(IMMEDIATE)
                     .get();
 
             ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, () -> {
                 client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER,
                         basicAuthHeaderValue("user1", USERS_PASSWD)))
-                        .prepareUpdate(indexName, "1")
+                        .prepareUpdate(indexName, "type1", "1")
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
                         .get();
             });
@@ -176,7 +175,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1",
                     USERS_PASSWD)))
                     .prepareBulk()
-                    .add(client().prepareUpdate(indexName, "1")
+                    .add(client().prepareUpdate(indexName, "type1", "1")
                             .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2"))
                     .get();
             assertThat(bulkResponse.getItems().length, is(1));

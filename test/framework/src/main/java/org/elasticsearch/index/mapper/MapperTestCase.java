@@ -63,13 +63,27 @@ import static org.mockito.Mockito.when;
 public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
+    /**
+     * Writes the field and a sample value for it to the provided {@link XContentBuilder}.
+     * To be overridden in case the field should not be written at all in documents,
+     * like in the case of runtime fields.
+     */
     protected void writeField(XContentBuilder builder) throws IOException {
         builder.field("field");
         writeFieldValue(builder);
     }
 
+    /**
+     * Writes a sample value for the field to the provided {@link XContentBuilder}.
+     */
     protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
 
+    /**
+     * This test verifies that the exists query created is the appropriate one, and aligns with the data structures
+     * being created for a document with a value for the field. This can only be verified for the minimal mapping.
+     * Field types that allow configurable doc_values or norms should write their own tests that creates the different
+     * mappings combinations and invoke {@link #assertExistsQuery(MapperService)} to verify the behaviour.
+     */
     public final void testExistsQueryMinimalMapping() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertExistsQuery(mapperService);

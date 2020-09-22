@@ -191,6 +191,8 @@ class Netty4HttpClient implements Closeable {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
                     final FullHttpResponse response = (FullHttpResponse) msg;
+                    // We copy the buffer manually to avoid a huge allocation on a pooled allocator. We have
+                    // a test that tracks huge allocations, so we want to avoid them in this test code.
                     ByteBuf newContent = Unpooled.copiedBuffer(((FullHttpResponse) msg).content());
                     content.add(response.replace(newContent));
                     latch.countDown();

@@ -56,12 +56,21 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
     private static final long MS_IN_DAY = TimeValue.timeValueDays(1).millis();
 
+    /**
+     * In production the only way to create a model snapshot is to open a job, and
+     * opening a job ensures that the state index exists. This suite does not open jobs
+     * but instead inserts snapshot and state documents directly to the results and
+     * state indices. This means it needs to create the state index explicitly. This
+     * method should not be copied to test suites that run jobs in the way they are
+     * run in production.
+     */
     @Before
     public void addMlState() {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, new IndexNameExpressionResolver(), future);
         future.actionGet();
     }
+
     @After
     public void cleanUpTest() {
         cleanUp();

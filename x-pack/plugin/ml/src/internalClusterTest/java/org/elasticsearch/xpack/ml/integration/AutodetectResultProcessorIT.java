@@ -169,6 +169,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         };
         waitForMlTemplates();
         putJob();
+        // In production opening a job ensures the state index exists. These tests
+        // do not open jobs, but instead feed JSON directly to the results processor.
+        // A a result they must create the index as part of the test setup. Do not
+        // copy this setup to tests that run jobs in the way they are run in production.
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, new IndexNameExpressionResolver(), future);
         future.get();

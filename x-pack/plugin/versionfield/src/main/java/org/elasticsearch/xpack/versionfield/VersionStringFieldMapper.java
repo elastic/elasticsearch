@@ -138,8 +138,8 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            return wildcardQuery(value + "*", method, context);
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+            return wildcardQuery(value + "*", method, caseInsensitive, context);
         }
 
         /**
@@ -237,7 +237,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."

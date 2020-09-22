@@ -22,10 +22,12 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -45,11 +47,15 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         if (fetchFieldsContext == null) {
             return null;
         }
-        FieldValueRetriever retriever = fetchFieldsContext.fieldValueRetriever(
-            fetchContext.getIndexName(),
-            fetchContext.mapperService(),
-            fetchContext.searchLookup()
-        );
+
+        MapperService mapperService = fetchContext.mapperService();
+        SearchLookup searchLookup = fetchContext.searchLookup();
+        if (fetchContext.mapperService().documentMapper().sourceMapper().enabled() == false) {
+            throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
+                "in the mappings for index [" + fetchContext.getIndexName() + "]");
+        }
+
+        FieldValueRetriever retriever = FieldValueRetriever.create(mapperService, searchLookup, fetchFieldsContext.fields());
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {

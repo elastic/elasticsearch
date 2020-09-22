@@ -43,11 +43,9 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldValueRetriever {
-    public static FieldValueRetriever create(
-        MapperService mapperService,
-        SearchLookup searchLookup,
-        Collection<FieldAndFormat> fieldAndFormats
-    ) {
+    public static FieldValueRetriever create(MapperService mapperService,
+                                             SearchLookup searchLookup,
+                                             Collection<FieldAndFormat> fieldAndFormats) {
         MappingLookup fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fieldContexts = new ArrayList<>();
 

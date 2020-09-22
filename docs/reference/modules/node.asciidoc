@@ -57,8 +57,8 @@ the `master` or `data` roles.
 <<remote-node,Remote-eligible node>>::
 
 A node that has the `remote_cluster_client` role (default), which makes it
-eligible to act as a remote node. Any node in the cluster can act as a
-cross-cluster client and connect to remote clusters.
+eligible to act as a remote client. By default, any node in the cluster can act
+as a cross-cluster client and connect to remote clusters.
 
 <<ml-node,Machine learning node>>::
 

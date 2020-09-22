@@ -165,7 +165,7 @@ public class PriorityComparatorTests extends ESTestCase {
             }
             // else sometimes just use the defaults
 
-            indices[i] = IndexMetadata.builder("idx_2015_04_" + String.format(Locale.ROOT, "%02d", i))
+            indices[i] = IndexMetadata.builder(String.format(Locale.ROOT, "idx_%04d", i))
                 .system(isSystem)
                 .settings(buildSettings(creationDate, priority))
                 .build();

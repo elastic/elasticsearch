@@ -481,10 +481,14 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         // the calls are likely executed _before_ the next search is even scheduled
         assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertTrue(indexer.getPersistedState().shouldStopAtNextCheckpoint());
         assertResponse(listener -> setStopAtCheckpoint(indexer, false, listener));
+        assertFalse(indexer.getPersistedState().shouldStopAtNextCheckpoint());
         assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertTrue(indexer.getPersistedState().shouldStopAtNextCheckpoint());
         assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
         assertResponse(listener -> setStopAtCheckpoint(indexer, false, listener));
+        assertFalse(indexer.getPersistedState().shouldStopAtNextCheckpoint());
 
         onResponseLatch.await();
         onResponseLatch = indexer.createCountDownOnResponseLatch(1);
@@ -492,15 +496,19 @@ public class TransformIndexerStateTests extends ESTestCase {
         // wait until a search is scheduled
         assertBusy(() -> assertTrue(indexer.waitingForNextSearch()), 5, TimeUnit.SECONDS);
         assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertTrue(indexer.getPersistedState().shouldStopAtNextCheckpoint());
 
         onResponseLatch.await();
         onResponseLatch = indexer.createCountDownOnResponseLatch(1);
 
         assertBusy(() -> assertTrue(indexer.waitingForNextSearch()), 5, TimeUnit.SECONDS);
         assertResponse(listener -> setStopAtCheckpoint(indexer, false, listener));
+        assertFalse(indexer.getPersistedState().shouldStopAtNextCheckpoint());
+
         onResponseLatch.await();
         assertBusy(() -> assertTrue(indexer.waitingForNextSearch()), 5, TimeUnit.SECONDS);
         assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+        assertTrue(indexer.getPersistedState().shouldStopAtNextCheckpoint());
         assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
 
         indexer.stop();

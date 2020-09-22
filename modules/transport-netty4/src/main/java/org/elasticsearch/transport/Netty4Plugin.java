@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,7 +51,13 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
 
+    private static final Logger logger = LogManager.getLogger(Netty4Plugin.class);
+
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
+
+    public Netty4Plugin() {
+        logger.info("creating NettyAllocator with the following configs: " + NettyAllocator.getAllocatorDescription());
+    }
 
     @Override
     public List<Setting<?>> getSettings() {

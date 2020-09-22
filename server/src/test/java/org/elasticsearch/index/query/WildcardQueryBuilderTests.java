@@ -41,9 +41,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         if (randomBoolean()) {
             query.rewrite(randomFrom(getRandomRewriteMethod()));
         }
-        if (randomBoolean()) {
-            query.caseInsensitive(true);
-        }         
         return query;
     }
 
@@ -106,8 +103,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testFromJson() throws IOException {
-        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0,"
-            + "\"case_insensitive\" : true\n"            
+        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0"
             + " } }}";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

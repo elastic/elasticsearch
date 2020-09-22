@@ -44,9 +44,6 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         if (randomBoolean()) {
             query.rewrite(getRandomRewriteMethod());
         }
-        if (randomBoolean()) {
-            query.caseInsensitive(true);
-        }         
         return query;
     }
 
@@ -104,8 +101,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0, " 
-                + " \"case_insensitive\" : true\n"            
+                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0" 
                 + "} }}";
 
         PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -309,13 +310,28 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
     public void testHealthOnMasterFailover() throws Exception {
         final String node = internalCluster().startDataOnlyNode();
+        boolean withIndex = randomBoolean();
+        if (withIndex) {
+            // Create index with many shards to provoke the health request to wait (for green) while master is being shut down.
+            // Notice that this is set to 0 after the test completed starting a number of health requests and master restarts.
+            // This ensures that the cluster is yellow when the health request is made, making the health request wait on the observer,
+            // triggering a call to observer.onClusterServiceClose when master is shutdown.
+            createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 10)).build());
+        }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
         // without exceptions
         for (int i = 0; i < 20; ++i) {
             responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForGreenStatus().execute());
+                .setWaitForGreenStatus().setMasterNodeTimeout(TimeValue.timeValueMinutes(1)).execute());
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
+        }
+        if (withIndex) {
+            assertAcked(
+                client().admin().indices()
+                    .updateSettings(new UpdateSettingsRequest("test")
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))).get()
+            );
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {
             assertSame(responseFuture.get().getStatus(), ClusterHealthStatus.GREEN);

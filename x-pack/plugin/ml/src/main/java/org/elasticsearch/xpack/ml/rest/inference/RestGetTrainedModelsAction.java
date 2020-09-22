@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,12 +56,17 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         if (Strings.isNullOrEmpty(modelId)) {
             modelId = Metadata.ALL;
         }
-        boolean includeModelDefinition = restRequest.paramAsBoolean(
-            GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION.getPreferredName(),
-            false
-        );
         List<String> tags = asList(restRequest.paramAsStringArray(TrainedModelConfig.TAGS.getPreferredName(), Strings.EMPTY_ARRAY));
-        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId, includeModelDefinition, tags);
+        Set<String> includes = new HashSet<>(
+            asList(
+                restRequest.paramAsStringArray(
+                    GetTrainedModelsAction.Request.INCLUDE.getPreferredName(),
+                    Strings.EMPTY_ARRAY)));
+        final GetTrainedModelsAction.Request request = restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION) ?
+            new GetTrainedModelsAction.Request(modelId,
+                restRequest.paramAsBoolean(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION, false),
+                tags) :
+            new GetTrainedModelsAction.Request(modelId, tags, includes);
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));

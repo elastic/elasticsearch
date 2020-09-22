@@ -132,6 +132,12 @@ public final class TransportSettings {
             Arrays.asList("internal:coordination/fault_detection/*"),
             Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
+    // Time that processing an inbound message on a transport thread may take at the most before a warning is logged
+    public static final Setting<TimeValue> SLOW_OPERATION_THRESHOLD_SETTING =
+            Setting.positiveTimeSetting("transport.slow_operation_logging_threshold", TimeValue.timeValueSeconds(5),
+                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+
     private TransportSettings() {
     }
 }

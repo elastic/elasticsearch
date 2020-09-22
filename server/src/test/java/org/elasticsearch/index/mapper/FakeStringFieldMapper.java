@@ -78,7 +78,8 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?> parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String fieldName, Map<String, Object> node,
+                                       ParserContext parserContext) throws MapperParsingException {
             FakeStringFieldMapper.Builder builder = new FakeStringFieldMapper.Builder(fieldName);
             parseTextField(builder, fieldName, node, parserContext);
             return builder;

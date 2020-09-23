@@ -30,8 +30,8 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -107,7 +107,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         if (fieldType.hasDocValues()) {
             assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery)query;
+            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
             assertDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
@@ -258,17 +258,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("boost", 2.0);
             }));
             assertWarnings("Parameter [boost] on field [field] is deprecated and has no effect");
-        }
-        catch (MapperParsingException e) {
+        } catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(
                 containsString("Unknown parameter [boost]"),
                 containsString("[boost : 2.0]")));
         }
 
         MapperParsingException e
-            = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b-> {
-                minimalMapping(b);
-                b.field("boost", 2.0);
+            = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("boost", 2.0);
         })));
         assertThat(e.getMessage(), anyOf(
             containsString("Unknown parameter [boost]"),
@@ -300,7 +299,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
-            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            .fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            })
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         SetOnce<List<?>> result = new SetOnce<>();
         withLuceneIndex(mapperService, iw -> {
@@ -358,6 +359,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         /**
          * Register a check that a parameter can be updated, using the minimal mapping as a base
+         *
          * @param update a field builder applied on top of the minimal mapping
          * @param check  a check that the updated parameter has been applied to the FieldMapper
          */
@@ -368,9 +370,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         /**
          * Register a check that a parameter can be updated
-         * @param init      the initial mapping
-         * @param update    the updated mapping
-         * @param check     a check that the updated parameter has been applied to the FieldMapper
+         *
+         * @param init   the initial mapping
+         * @param update the updated mapping
+         * @param check  a check that the updated parameter has been applied to the FieldMapper
          */
         public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
                                         CheckedConsumer<XContentBuilder, IOException> update,
@@ -380,8 +383,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         /**
          * Register a check that a parameter update will cause a conflict, using the minimal mapping as a base
-         * @param param     the parameter name, expected to appear in the error message
-         * @param update    a field builder applied on top of the minimal mapping
+         *
+         * @param param  the parameter name, expected to appear in the error message
+         * @param update a field builder applied on top of the minimal mapping
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
             conflictChecks.put(param, new ConflictCheck(
@@ -395,9 +399,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         /**
          * Register a check that a parameter update will cause a conflict
-         * @param param     the parameter name, expected to appear in the error message
-         * @param init      the initial mapping
-         * @param update    the updated mapping
+         *
+         * @param param  the parameter name, expected to appear in the error message
+         * @param init   the initial mapping
+         * @param update the updated mapping
          */
         public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
             conflictChecks.put(param, new ConflictCheck(init, update));

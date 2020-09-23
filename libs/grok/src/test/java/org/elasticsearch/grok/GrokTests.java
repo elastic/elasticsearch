@@ -21,6 +21,7 @@ package org.elasticsearch.grok;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,10 +46,21 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GrokTests extends ESTestCase {
     public void testMatchWithoutCaptures() {
-        String line = "value";
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "value", logger::warn);
-        Map<String, Object> matches = grok.captures(line);
-        assertEquals(0, matches.size());
+        assertThat(grok.captures("value"), equalTo(Map.of()));
+        assertThat(grok.captures("prefix_value"), equalTo(Map.of()));
+        assertThat(grok.captures("no_match"), nullValue());
+    }
+
+    public void testCaputuresBytes() {
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{NUMBER:n:int}", logger::warn);
+        byte[] utf8 = "10".getBytes(StandardCharsets.UTF_8);
+        assertThat(grok.captures(utf8, 0, utf8.length), equalTo(Map.of("n", 10)));
+        assertThat(grok.captures(utf8, 0, 1), equalTo(Map.of("n", 1)));
+        utf8 = "10 11 12".getBytes(StandardCharsets.UTF_8);
+        assertThat(grok.captures(utf8, 0, 2), equalTo(Map.of("n", 10)));
+        assertThat(grok.captures(utf8, 3, 2), equalTo(Map.of("n", 11)));
+        assertThat(grok.captures(utf8, 6, 2), equalTo(Map.of("n", 12)));
     }
 
     public void testNoMatchingPatternInDictionary() {

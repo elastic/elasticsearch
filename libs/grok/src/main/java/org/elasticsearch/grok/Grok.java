@@ -235,19 +235,29 @@ public final class Grok {
     }
 
     /**
-     * Matches and returns any named captures within a compiled grok expression that matched
-     * within the provided text.
+     * Matches and returns any named captures.
      *
      * @param text the text to match and extract values from.
      * @return a map containing field names and their respective coerced values that matched.
      */
     public Map<String, Object> captures(String text) {
-        byte[] textAsBytes = text.getBytes(StandardCharsets.UTF_8);
-        Matcher matcher = compiledExpression.matcher(textAsBytes);
+        byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
+        return captures(utf8Bytes, 0, utf8Bytes.length);
+    }
+
+    /**
+     * Matches and returns any named captures.
+     * @param utf8Bytes array containing the text to match against encoded in utf-8
+     * @param offset offset {@code utf8Bytes} of the start of the text
+     * @param length length of the text to match
+     * @return a map containing field names and their respective coerced values that matched.
+     */
+    public Map<String, Object> captures(byte[] utf8Bytes, int offset, int length) {
+        Matcher matcher = compiledExpression.matcher(utf8Bytes, offset, offset + length);
         int result;
         try {
             matcherWatchdog.register(matcher);
-            result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
+            result = matcher.search(offset, length, Option.DEFAULT);
         } finally {
             matcherWatchdog.unregister(matcher);
         }
@@ -261,7 +271,7 @@ public final class Grok {
             Map<String, Object> fields = new HashMap<>(captureConfig.size());
             Region region = matcher.getEagerRegion();
             for (GrokCaptureConfig config: captureConfig) {
-                Object v = config.extract(textAsBytes, region);
+                Object v = config.extract(utf8Bytes, offset, region);
                 if (v != null) {
                     fields.put(config.name(), v);
                 }

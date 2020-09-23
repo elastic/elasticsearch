@@ -94,8 +94,12 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                             + "without a bundled JDK is not supported."
                     );
                 }
+                String distributionProjectName = distributionProjectName(distribution);
+                String projectConfig = unreleasedInfo.version.onOrAfter("7.10.0")
+                    ? "exploded-" + distributionProjectName
+                    : distributionProjectName;
                 return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution))
+                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
                 );
             }
             return null;

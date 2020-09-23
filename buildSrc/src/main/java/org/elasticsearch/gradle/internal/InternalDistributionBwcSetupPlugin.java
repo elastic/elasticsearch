@@ -244,11 +244,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     + "."
                     + extension
             );
+            // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
-                this.explodedDistDir = new File(
-                    checkoutDir,
-                    baseDir + "/" + name + "/build/install/elasticsearch-" + version.toString() + "-SNAPSHOT"
-                );
+                this.explodedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");
             }
         }
 

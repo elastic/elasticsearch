@@ -74,14 +74,13 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         then:
         result.task(":distribution:archives:linux-tar:buildExploded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated(distroVersion, "build/distro", 'current-marker.txt')
+        assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
 
-    def "resolves bwc versions from source"() {
+    def "resolves expanded bwc versions from source"() {
         given:
         internalBuild()
         bwcMinorProjectSetup()
-        def distroVersion = "8.1.0"
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 
@@ -102,9 +101,10 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
         def result = gradleRunner("setupDistro").build()
         then:
-        result.task(":distribution:bwc:minor:buildBwcTask").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:minor:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated(distroVersion, "build/distro", 'bwc-marker.txt')
+        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/elastic-distro",
+                'bwc-marker.txt')
     }
 
     def "fails on resolving bwc versions with no bundled jdk"() {
@@ -143,6 +143,8 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=minor"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             apply plugin:'base'
+            
+            // packed distro
             configurations.create("linux-tar")
             tasks.register("buildBwcTask", Tar) {
                 from('bwc-marker.txt')
@@ -151,6 +153,19 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             }
             artifacts {
                 it.add("linux-tar", buildBwcTask)
+            }
+            
+            // exploded dist
+            configurations.create("exploded-linux-tar")
+            def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
+                from('bwc-marker.txt')
+                into('build/install/elastic-distro')
+            }
+            artifacts {
+                it.add("exploded-linux-tar", file('build/install')) {
+                    builtBy expandedTask
+                    type = 'directory'
+                }
             }
         """
     }
@@ -192,7 +207,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
     }
 
-    boolean assertExtractedDistroIsCreated(String version, String relativeDistroPath, String markerFileName) {
+    boolean assertExtractedDistroIsCreated(String relativeDistroPath, String markerFileName) {
         File extractedFolder = new File(testProjectDir.root, relativeDistroPath)
         assert extractedFolder.exists()
         assert new File(extractedFolder, markerFileName).exists()

@@ -27,16 +27,28 @@ public class HLLDocValuesBuilderTests extends ESTestCase {
         }
     }
 
+    public void testRandomMergeTiny() throws IOException {
+        doTestMergeRegisters(randomInt(10));
+    }
+
     public void testRandomMedium() throws IOException {
         for (int i =0; i < 5; i++) {
             doTestRandom(randomIntBetween(10, 10000));
         }
     }
 
+    public void testRandomMergeMedium() throws IOException {
+        doTestMergeRegisters(randomIntBetween(10, 10000));
+    }
+
     public void testRandomBig() throws IOException {
         for (int i =0; i < 5; i++) {
             doTestRandom(randomIntBetween(10000, 1000000));
         }
+    }
+
+    public void testRandomMergeBig() throws IOException {
+        doTestMergeRegisters(randomIntBetween(10000, 1000000));
     }
 
     private void doTestRandom(final int values) throws IOException {
@@ -56,7 +68,7 @@ public class HLLDocValuesBuilderTests extends ESTestCase {
         assertThat(false, equalTo(value.next()));
     }
 
-    public void testMergeRegisters() throws IOException {
+    private void doTestMergeRegisters(int values) throws IOException {
         final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
         final int precisionHigh = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
         final int precisionLow = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, precisionHigh);
@@ -66,7 +78,6 @@ public class HLLDocValuesBuilderTests extends ESTestCase {
         final SimpleHyperLogLog countsLow = new SimpleHyperLogLog(precisionLow);
         final SimpleHyperLogLog counts = new SimpleHyperLogLog(precisionLow);
 
-        final int values = randomIntBetween(10000, 1000000);
         for (int i =0; i < values; i++) {
             final long value = randomHash(hash);
             if (randomBoolean()) {

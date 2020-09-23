@@ -376,26 +376,7 @@ public class HllFieldMapper extends FieldMapper {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(SKETCH_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-                    // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    runLens = new ByteArrayList();
-                    token = subParser.nextToken();
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                        int newValue = subParser.intValue();
-                        if (newValue < 0) {
-                            throw new MapperParsingException("error parsing field ["
-                                + name() + "], ["+ SKETCH_FIELD + "] elements must be >= 0 but got " + newValue);
-                        }
-                        if (newValue > Byte.MAX_VALUE) { // is that correct? what is the real max value for a runLen?
-                            throw new MapperParsingException("error parsing field ["
-                                + name() + "], ["+ SKETCH_FIELD + "] elements must be <= " + Byte.MAX_VALUE + " but got " + newValue);
-                        }
-                        runLens.add((byte) newValue);
-                        token = subParser.nextToken();
-                    }
+                    runLens = parseHLLSketch(subParser);
                 } else {
                     throw new MapperParsingException("error parsing field [" +
                         name() + "], with unknown parameter [" + fieldName + "]");
@@ -436,6 +417,30 @@ public class HllFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private ByteArrayList parseHLLSketch(XContentSubParser subParser) throws IOException {
+        XContentParser.Token token = subParser.nextToken();
+        // should be an array
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
+        ByteArrayList runLens = new ByteArrayList(m);
+        token = subParser.nextToken();
+        while (token != XContentParser.Token.END_ARRAY) {
+            // should be a number
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
+            int newValue = subParser.intValue();
+            if (newValue < 0) {
+                throw new MapperParsingException("error parsing field ["
+                    + name() + "], ["+ SKETCH_FIELD + "] elements must be >= 0 but got " + newValue);
+            }
+            if (newValue > Byte.MAX_VALUE) { // is that correct? what is the real max value for a runLen?
+                throw new MapperParsingException("error parsing field ["
+                    + name() + "], ["+ SKETCH_FIELD + "] elements must be <= " + Byte.MAX_VALUE + " but got " + newValue);
+            }
+            runLens.add((byte) newValue);
+            token = subParser.nextToken();
+        }
+        return runLens;
     }
 
     @Override

@@ -205,20 +205,15 @@ public final class Def {
                          "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
              }
 
+             MethodHandle handle = painlessMethod.methodHandle;
              Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
              if (injections.length > 0) {
-                 MethodHandle injected = painlessMethod.methodHandle;
-
-                 for (int i = 0; i < injections.length; i++) {
-                     // method handle contains the "this" pointer so inject at arg 1 to i+1
-                     injected = MethodHandles.insertArguments(injected, i + 1, injections[i]);
-                 }
-
-                 return injected;
+                 // method handle contains the "this" pointer so start injections at 1
+                 handle = MethodHandles.insertArguments(handle, 1, injections);
              }
 
-             return painlessMethod.methodHandle;
+             return handle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -252,10 +247,8 @@ public final class Def {
         Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
 
         if (injections.length > 0) {
-            for (int i = 0; i < injections.length; i++) {
-                // method handle contains the "this" pointer so inject at arg 1 to i+1
-                handle = MethodHandles.insertArguments(handle, i + 1, injections[i]);
-            }
+            // method handle contains the "this" pointer so start injections at 1
+            handle = MethodHandles.insertArguments(handle, 1, injections);
         }
 
          int replaced = 0;

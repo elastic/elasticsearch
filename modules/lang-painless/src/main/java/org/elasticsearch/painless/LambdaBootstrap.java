@@ -534,8 +534,8 @@ public final class LambdaBootstrap {
                                              int isVirtual,
                                              Object... injections) {
 
-        for (int i = 0; i < injections.length; i++) {
-            delegateMethodHandle = MethodHandles.insertArguments(delegateMethodHandle, i + isVirtual, injections[i]);
+        if (injections.length > 0) {
+            delegateMethodHandle = MethodHandles.insertArguments(delegateMethodHandle, isVirtual, injections);
         }
 
         return new ConstantCallSite(delegateMethodHandle.asType(interfaceMethodType));

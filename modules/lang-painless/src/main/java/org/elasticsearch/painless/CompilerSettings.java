@@ -75,6 +75,9 @@ public final class CompilerSettings {
      * For testing. Do not use.
      */
     private int initialCallSiteDepth = 0;
+    private int testInject0 = 2;
+    private int testInject1 = 4;
+    private int testInject2 = 6;
 
     /**
      * Are regexes enabled? Defaults to using the factor setting.
@@ -169,6 +172,12 @@ public final class CompilerSettings {
         }
         Map<String, Object> map = new HashMap<>();
         map.put("regex_limit_factor", regexLimitFactor);
+
+        // for testing only
+        map.put("testInject0", testInject0);
+        map.put("testInject1", testInject1);
+        map.put("testInject2", testInject2);
+
         return map;
     }
 

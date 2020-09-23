@@ -23,9 +23,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,11 +48,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "boolean");
-    }
-
-    @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -178,17 +170,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         fields = doc.getFields("bool3");
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
-    }
-
-    public void testBoosts() throws Exception {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("boost", 2.0);
-        }));
-
-        MappedFieldType ft = mapperService.fieldType("field");
-        assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
-        assertParseMaximalWarnings();
     }
 
     public void testFetchSourceValue() throws IOException {

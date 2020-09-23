@@ -110,8 +110,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft = new KeywordFieldType("field", false, fieldType, randomBoolean(), null, null, null, 1.0f,
-                Collections.emptyMap());
+            KeywordFieldType ft
+                = new KeywordFieldType("field", false, fieldType, randomBoolean(), null, null, null, Collections.emptyMap());
             assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
         }
         {

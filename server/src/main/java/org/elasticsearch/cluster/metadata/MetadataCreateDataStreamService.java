@@ -155,7 +155,7 @@ public class MetadataCreateDataStreamService {
             // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
             // auto index/data stream creation.
             // (otherwise bulk execution fails later, because data stream will also not have been created)
-            throw new ElasticsearchStatusException("data stream could not be created, because backing index [{}] already exists",
+            throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
                 RestStatus.BAD_REQUEST, e, firstBackingIndexName);
         }
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);

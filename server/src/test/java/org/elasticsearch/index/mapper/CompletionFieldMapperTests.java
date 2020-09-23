@@ -87,7 +87,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
         checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
         checker.registerConflictCheck("preserve_position_increments", b -> b.field("preserve_position_increments", false));

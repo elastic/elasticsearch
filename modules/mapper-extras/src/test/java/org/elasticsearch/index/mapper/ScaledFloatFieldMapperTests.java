@@ -57,8 +57,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // TODO check scaling_factor cannot be updated
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck(
+            "scaling_factor",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "scaled_float");
+                b.field("scaling_factor", 5.0);
+            }));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));

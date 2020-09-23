@@ -66,7 +66,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("strength", b -> b.field("strength", "secondary"));
         checker.registerConflictCheck("decomposition", b -> b.field("decomposition", "canonical"));
         checker.registerConflictCheck("alternate", b -> b.field("alternate", "non-ignorable"));

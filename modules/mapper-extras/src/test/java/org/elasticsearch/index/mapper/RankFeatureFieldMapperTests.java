@@ -54,7 +54,7 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatur
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
 

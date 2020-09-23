@@ -317,52 +317,95 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return result.get();
     }
 
-    private static class UpdateCheck {
-        final CheckedConsumer<XContentBuilder, IOException> update;
+    private class UpdateCheck {
+        final XContentBuilder init;
+        final XContentBuilder update;
         final Consumer<FieldMapper> check;
 
-        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check) {
-            this.update = update;
+        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
+                            Consumer<FieldMapper> check) throws IOException {
+            this.init = fieldMapping(MapperTestCase.this::minimalMapping);
+            this.update = fieldMapping(b -> {
+                minimalMapping(b);
+                update.accept(b);
+            });
+            this.check = check;
+        }
+
+        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
+                            CheckedConsumer<XContentBuilder, IOException> update,
+                            Consumer<FieldMapper> check) throws IOException {
+            this.init = fieldMapping(init);
+            this.update = fieldMapping(update);
             this.check = check;
         }
     }
 
-    public static class ParameterChecker {
+    private static class ConflictCheck {
+        final XContentBuilder init;
+        final XContentBuilder update;
 
-        List<UpdateCheck> updateChecks = new ArrayList<>();
-        Map<String, CheckedConsumer<XContentBuilder, IOException>> conflictChecks = new HashMap<>();
-
-        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check) {
-            updateChecks.add(new UpdateCheck(update, check));
-        }
-
-        public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) {
-            conflictChecks.put(param, update);
+        private ConflictCheck(XContentBuilder init, XContentBuilder update) {
+            this.init = init;
+            this.update = update;
         }
     }
 
-    protected abstract void registerParameters(ParameterChecker checker);
+    public class ParameterChecker {
+
+        List<UpdateCheck> updateChecks = new ArrayList<>();
+        Map<String, ConflictCheck> conflictChecks = new HashMap<>();
+
+        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
+                                        Consumer<FieldMapper> check) throws IOException {
+            updateChecks.add(new UpdateCheck(update, check));
+        }
+
+        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
+                                        CheckedConsumer<XContentBuilder, IOException> update,
+                                        Consumer<FieldMapper> check) throws IOException {
+            updateChecks.add(new UpdateCheck(init, update, check));
+        }
+
+        public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
+            conflictChecks.put(param, new ConflictCheck(
+                fieldMapping(MapperTestCase.this::minimalMapping),
+                fieldMapping(b -> {
+                    minimalMapping(b);
+                    update.accept(b);
+                })
+            ));
+        }
+
+        public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
+            conflictChecks.put(param, new ConflictCheck(init, update));
+        }
+    }
+
+    protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
     public void testUpdates() throws IOException {
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
         for (UpdateCheck updateCheck : checker.updateChecks) {
-            MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-            merge(mapperService, fieldMapping(b -> {
-                minimalMapping(b);
-                updateCheck.update.accept(b);
-            }));
+            MapperService mapperService = createMapperService(updateCheck.init);
+            merge(mapperService, updateCheck.update);
             FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             updateCheck.check.accept(mapper);
+            // do it again to ensure that we don't get conflicts the second time
+            merge(mapperService, updateCheck.update);
+            mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            updateCheck.check.accept(mapper);
+
         }
         for (String param : checker.conflictChecks.keySet()) {
-            MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+            MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
+            // merging the same change is fine
+            merge(mapperService, checker.conflictChecks.get(param).init);
+            // merging the conflicting update should throw an exception
             Exception e = expectThrows(IllegalArgumentException.class,
                 "No conflict when updating parameter [" + param + "]",
-                () -> merge(mapperService, fieldMapping(b -> {
-                    minimalMapping(b);
-                    checker.conflictChecks.get(param).accept(b);
-                })));
+                () -> merge(mapperService, checker.conflictChecks.get(param).update));
             assertThat(e.getMessage(), anyOf(
                 containsString("Cannot update parameter [" + param + "]"),
                 containsString("different [" + param + "]")));

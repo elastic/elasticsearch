@@ -58,7 +58,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
             assertTrue(gpfm.ignoreMalformed.value());

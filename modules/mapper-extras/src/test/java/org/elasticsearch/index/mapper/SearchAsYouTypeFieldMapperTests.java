@@ -77,7 +77,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<SearchAsYouTypeFieldMapper.Builder> {
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("max_shingle_size", b -> b.field("max_shingle_size", 4));
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("index", b -> b.field("index", false));
@@ -86,7 +86,27 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
         checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
 
-        // TODO norms
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms",
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            }));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "search_as_you_type");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "search_as_you_type");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
 
         checker.registerUpdateCheck(b -> {
                 b.field("analyzer", "default");

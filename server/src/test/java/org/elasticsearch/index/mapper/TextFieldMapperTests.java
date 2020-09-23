@@ -130,7 +130,7 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("fielddata", true), m -> {
             TextFieldType ft = (TextFieldType) m.fieldType();
             assertTrue(ft.fielddata());
@@ -177,8 +177,27 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         // TODO position_increment_gap should not be updateable!
         //checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
-        // TODO norms can be updated one way but not the other, need to be able to
-        // test specific transitions
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms",
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            }));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
 
     }
 

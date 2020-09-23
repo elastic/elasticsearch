@@ -145,11 +145,20 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("value", "foo"), m -> {
             ConstantKeywordFieldType ft = (ConstantKeywordFieldType) m.fieldType();
             assertEquals("foo", ft.value());
         });
+        checker.registerConflictCheck("value",
+            fieldMapping(b -> {
+                b.field("type", "constant_keyword");
+                b.field("value", "foo");
+            }),
+            fieldMapping(b -> {
+                b.field("type", "constant_keyword");
+                b.field("value", "bar");
+            }));
     }
 
     public void testFetchValue() throws Exception {

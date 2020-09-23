@@ -55,7 +55,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
+    protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper) m;
             assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());

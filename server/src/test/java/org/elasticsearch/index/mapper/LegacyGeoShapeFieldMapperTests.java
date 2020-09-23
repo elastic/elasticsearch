@@ -80,8 +80,15 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // TODO - how to test against a different minimal mapping? Need to check updating strategy fails
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+
+        checker.registerConflictCheck("strategy",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "geo_shape");
+                b.field("strategy", "term");
+            }));
+
         checker.registerConflictCheck("tree", b -> b.field("tree", "geohash"));
         checker.registerConflictCheck("tree_levels", b -> b.field("tree_levels", 5));
         checker.registerConflictCheck("precision", b -> b.field("precision", 10));

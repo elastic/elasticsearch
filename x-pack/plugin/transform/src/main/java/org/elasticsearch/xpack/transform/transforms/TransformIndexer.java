@@ -589,14 +589,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     return null;
                 }
 
-                currentListeners = new ArrayList<>();
+                return Collections.singletonList(shouldStopAtCheckpointListener);
             }
-            currentListeners.add(shouldStopAtCheckpointListener);
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            return currentListeners;
+
+            List<ActionListener<Void>> newListeners = new ArrayList<>(currentListeners);
+            newListeners.add(shouldStopAtCheckpointListener);
+            return newListeners;
         }) == null) {
             shouldStopAtCheckpointListener.onResponse(null);
         } else {
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
             // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
             runSearchImmediately();
         }

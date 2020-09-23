@@ -145,6 +145,8 @@ public class WaitForHttpResource {
         configureSslContext(connection, ssl);
         configureBasicAuth(connection);
         connection.setRequestMethod("GET");
+        connection.setRequestProperty("Accept", "text/plain; charset=UTF-8");
+        //        retConnection.setRequestProperty(Constants.HeaderConstants.ACCEPT, Constants.HeaderConstants.XML_TYPE);
         return connection;
     }
 

@@ -83,6 +83,7 @@ public class BytesRestResponse extends RestResponse {
     /**
      * Creates a binary response.
      */
+    //todo pg this should probably be acceptType? (2nd param)
     public BytesRestResponse(RestStatus status, String contentType, BytesReference content) {
         this.status = status;
         this.content = content;

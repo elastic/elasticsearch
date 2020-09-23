@@ -71,6 +71,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newBuilder() throws IOException {
+        System.out.println(request.path()+" "+request.getHeaders().keySet().toString() +" "+request.getHeaders().values().toString());
         return newBuilder(request.getXContentType(), true);
     }
 
@@ -103,7 +104,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
-            } else if (Strings.hasText(acceptHeader) && acceptHeader.equals("*/*") == false) { //TODO PG previously we would just null for */*. where is that set??
+            } else if (Strings.hasText(acceptHeader) && acceptHeader.equals("*/*") == false && acceptHeader.startsWith("text/plain")==false) { //TODO PG previously we would just null for */*. where is that set??
                 try {
                     responseContentType = XContentType.fromMediaType(acceptHeader);
                 }catch (IllegalArgumentException e){

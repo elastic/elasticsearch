@@ -53,7 +53,8 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
-            this.bodyContentType = XContentType.fromMediaType(contentType);
+            //todo pg it feels like there is a lot of 'ifs' around text being returned. shouldn't we treat text as the same json and others?
+            this.bodyContentType = contentType.startsWith("text/plain")? null : XContentType.fromMediaType(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 //skip parsing if we got text back (e.g. if we called _cat apis)

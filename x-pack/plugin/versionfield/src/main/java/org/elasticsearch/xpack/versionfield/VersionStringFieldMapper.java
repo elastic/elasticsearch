@@ -68,8 +68,8 @@ import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
  */
 public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
-    private static byte[] MIN_VALUE = new byte[16];
-    private static byte[] MAX_VALUE = new byte[16];
+    private static final byte[] MIN_VALUE = new byte[16];
+    private static final byte[] MAX_VALUE = new byte[16];
     static {
         Arrays.fill(MIN_VALUE, (byte) 0);
         Arrays.fill(MAX_VALUE, (byte) -1);
@@ -123,7 +123,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
         public VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+            super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -138,8 +138,8 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitve, QueryShardContext context) {
-            return wildcardQuery(value + "*", method, context);
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+            return wildcardQuery(value + "*", method, caseInsensitive, context);
         }
 
         /**
@@ -237,14 +237,14 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitve, QueryShardContext context) {
+        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
 
-            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value));
+            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive);
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }

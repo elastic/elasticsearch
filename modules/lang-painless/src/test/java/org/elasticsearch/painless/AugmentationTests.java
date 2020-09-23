@@ -288,18 +288,31 @@ public class AugmentationTests extends ScriptTestCase {
         assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
     }
 
-    public void testRegexInject() {
-        int regexLimitFactor = 2;
+    public void testRegexMatcherInject() {
         // This regex has backtracking due to .*
         String script = "/abc123.*def/.matcher('abc123doremidef').matches()";
-        Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        setRegexLimitFactor(2);
         assertEquals(Boolean.TRUE, exec(script));
 
         // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
-        regexLimitFactor = 1;
-        settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        setRegexLimitFactor(1);
         expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+    }
+
+    // We need these tests for every code path: directly calling, using def and using method references
+    // TODO(stu): write tests for Patter.split(Charsequence)
+    // TODO(stu): write tests for Patter.split(Charsequence, int)
+    // TODO(stu): write tests for Patter.splitAsStream(Charsequence)
+    // TODO(stu): write tests for Patter.matcher(Charsequence)
+
+//    public void testInjectRegexSplitWithLimit() {
+//        String script = "/abc123.*def/.split('abcdoremidefhij abc123fasolatidefo', 100)";
+//        setRegexLimitFactor(2);
+//        assertEquals(new String[]{"", ""}, exec(script));
+//    }
+
+    private void setRegexLimitFactor(int factor) {
+        Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
     }
 }

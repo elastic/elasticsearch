@@ -1585,7 +1585,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final boolean enabled;
 
         public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "_data_stream_timestamp";

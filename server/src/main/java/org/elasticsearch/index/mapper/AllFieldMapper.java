@@ -82,7 +82,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     static final class AllFieldType extends StringFieldType {
         AllFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

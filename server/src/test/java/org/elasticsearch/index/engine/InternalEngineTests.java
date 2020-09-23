@@ -135,6 +135,8 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -5784,6 +5786,69 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
             assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
         }
+    }
+
+    public void testIndexThrottling() throws Exception {
+        engine = spy(engine);
+
+        long sleepInMillis = 1000;
+        engine.activateThrottling();
+        Long timeTaken = concurrentIndexingWithSleep(sleepInMillis);
+        assertTrue(timeTaken > (2 * sleepInMillis));
+
+        engine.deactivateThrottling();
+        timeTaken = concurrentIndexingWithSleep(sleepInMillis);
+        assertTrue(timeTaken < (2 * sleepInMillis));
+    }
+
+    private long concurrentIndexingWithSleep(long sleepInMillis) throws Exception {
+        CountDownLatch countDownLatch = new CountDownLatch(3);
+        Mockito.doAnswer((Answer<InternalEngine.IndexingStrategy>) invocation -> {
+            try {
+                Thread.sleep(sleepInMillis);
+                return (InternalEngine.IndexingStrategy) invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(engine).indexingStrategyForOperation(Mockito.any(Engine.Index.class));
+
+        Thread indexer1 = new Thread(() -> {
+            try {
+                countDownLatch.countDown();
+                countDownLatch.await();
+                Engine.Index index = indexForDoc(createParsedDoc("1", null));
+                engine.index(index);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            } catch (AlreadyClosedException e) {
+                return;
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+
+        Thread indexer2 = new Thread(() -> {
+            try {
+                countDownLatch.countDown();
+                countDownLatch.await();
+                Engine.Index index = indexForDoc(createParsedDoc("2", null));
+                engine.index(index);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            } catch (AlreadyClosedException e) {
+                return;
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        indexer1.start();
+        indexer2.start();
+        long start = System.nanoTime();
+        countDownLatch.countDown();
+        countDownLatch.await();
+        indexer1.join();
+        indexer2.join();
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
     }
 
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {

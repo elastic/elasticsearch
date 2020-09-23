@@ -24,7 +24,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -90,9 +89,6 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     }
 
     @Override
-    public abstract Query termsQuery(List<?> values, QueryShardContext context);
-
-    @Override
     public final Query rangeQuery(
         Object lowerTerm,
         Object upperTerm,
@@ -153,9 +149,6 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     ) {
         throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
     }
-
-    @Override
-    public abstract Query existsQuery(QueryShardContext context);
 
     @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {

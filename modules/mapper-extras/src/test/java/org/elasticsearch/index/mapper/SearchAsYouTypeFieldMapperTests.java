@@ -79,6 +79,11 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<SearchAsYouTypeFieldMapper.Builder> {
 
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("new york city");
+    }
+
     @Before
     public void addModifiers() {
         addModifier("max_shingle_size", false, (a, b) -> {
@@ -172,7 +177,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             fieldMapping(
                 b -> b.field("type", "search_as_you_type").field("analyzer", analyzerName).field("max_shingle_size", maxShingleSize)
             )
-        ); 
+        );
 
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
         assertRootFieldMapper(rootMapper, maxShingleSize, analyzerName);

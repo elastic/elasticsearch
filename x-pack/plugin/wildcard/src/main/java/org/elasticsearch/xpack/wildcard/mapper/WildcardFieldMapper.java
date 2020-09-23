@@ -212,7 +212,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
             super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
@@ -839,12 +839,6 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
-        }
-
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override

@@ -292,7 +292,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
-    public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+    public synchronized void setShouldStopAtCheckpoint(
+        boolean shouldStopAtCheckpoint,
+        ActionListener<Void> shouldStopAtCheckpointListener
+    ) {
         logger.debug(
             "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),

@@ -11,7 +11,8 @@ PUT /my-index
 
 Typically, you must index fields to {es} before they can be retrieved,
 aggregated, or searched. With runtime fields, you can explicitly define a field
-in the mapping and access it at search time without indexing your data.
+in the mapping and access it at search time without indexing your data during
+ingest time.
 
 Runtime fields are accessible from the search API like any other field that has
 <<doc-values,doc_values>> and is searchable. You can retrieve and query these
@@ -105,9 +106,6 @@ GET /my-index/_search
 ----
 
 [[runtime-params]]
-++++
-<titleabbrev>Parameters</titleabbrev>
-++++
 ==== Parameters for `runtime` fields
 Runtime fields accept the following parameters:
 
@@ -123,3 +121,193 @@ supports `boolean`, `date`, `double`, `ip`, `keyword`, and `long`.
 +
 Runtime fields with a `runtime_type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+
+[[runtime-examples]]
+==== Examples
+Consider a large set of log data that you want to extract fields from.
+Indexing the data is time consuming and uses a lot of disk space, and you just
+want to explore the data structure without committing to a schema up front.
+
+You know that your log data contains specific fields that you want to extract.
+By using runtime fields, you can define scripts to calculate values at search
+time for the `clientip`, `request`, `status`, and `size` fields.
+
+[source,console]
+----
+PUT /my-index/_mappings
+{
+  "properties": {
+    "@timestamp": {
+    "format": "strict_date_optional_time||epoch_second",
+    "type": "date"
+  },
+  "message": {
+    "type": "keyword",
+    "index": false,
+    "doc_values": true
+  },
+  "clientip": {
+    "type": "runtime",
+    "runtime_type": "ip",
+    "script" : {
+      "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
+    }
+  },
+    "request": {
+    "type": "runtime",
+    "runtime_type": "keyword",
+    "script" : {
+      "source" : "String m = doc[\"message\"].value; int start = m.indexOf(\"\\\"\") + 1; int end = m.indexOf(\"\\\"\", start); emit(m.substring(start, end));"
+    }
+  },
+  "status": {
+    "type": "runtime",
+    "runtime_type": "long",
+    "script" : {
+      "source" : "String m = doc[\"message\"].value; int end = m.lastIndexOf(\" \"); int start = m.lastIndexOf(\" \", end - 1) + 1; emit(Long.parseLong(m.substring(start, end)));"
+    }
+  },
+  "size": {
+    "type": "runtime",
+    "runtime_type": "long",
+    "script" : {
+      "source" : "String m = doc[\"message\"].value; int start = m.lastIndexOf(\" \") + 1; emit(Long.parseLong(m.substring(start)));"
+    }
+  }
+ }
+}
+----
+
+After mapping the fields you want to retrieve, you can index a few records from
+your log data into {es}. The following request uses the <<docs-bulk,bulk API>>
+to index raw log data into `my-index`. Instead of indexing all of your log
+data, you can use a small sample to experiment with the runtime fields defined
+in the mapping.
+
+[source,console]
+----
+POST /my-index/_bulk
+{ "index": {}}
+{ "timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [2020-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [2020-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [2020-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [2020-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_brdl.gif HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_arw.gif HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:32-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:32-05:00] \"GET /images/nav_bg_top.gif HTTP/1.0\" 200 929"}
+{ "index": {}}
+{ "timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
+----
+
+Using the `clientip` field, you can define a simple query to run a search for a
+specific IP address and return all related fields.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "match": {
+      "clientip": "211.11.9.0"
+    }
+  },
+  "fields" : ["*"]
+}
+----
+
+The API returns the following result.
+
+[source,console-result]
+----
+{
+  "took" : 1,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_type" : "_doc",
+        "_id" : "8GRivHQBddAsv33YHS9W",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : "2020-06-21T15:00:01-05:00",
+          "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+        },
+        "fields" : {
+          "request" : [
+            "GET /english/index.html HTTP/1.0"
+          ],
+          "size" : [
+            0
+          ],
+          "clientip" : [
+            "211.11.9.0"
+          ],
+          "message" : [
+            """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+          ],
+          "timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
+          "status" : [
+            304
+          ]
+        }
+      },
+      {
+        "_index" : "my-index",
+        "_type" : "_doc",
+        "_id" : "8WRivHQBddAsv33YHS9W",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : "2020-06-21T15:00:01-05:00",
+          "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+        },
+        "fields" : {
+          "request" : [
+            "GET /english/index.html HTTP/1.0"
+          ],
+          "size" : [
+            0
+          ],
+          "clientip" : [
+            "211.11.9.0"
+          ],
+          "message" : [
+            """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+          ],
+          "timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
+          "status" : [
+            304
+          ]
+        }
+      }
+    ]
+  }
+}
+----

@@ -292,7 +292,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         /**
@@ -562,12 +562,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 context.path().remove();
                 return;
             }
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an object sub-field with name a metric name
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 Metric metric = Metric.valueOf(fieldName);
 
@@ -580,7 +580,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 token = subParser.nextToken();
                 // Make sure that the value is a number. Probably this will change when
                 // new aggregate metric types are added (histogram, cardinality etc)
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
                 // We don't accept arrays of metrics
                 if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {

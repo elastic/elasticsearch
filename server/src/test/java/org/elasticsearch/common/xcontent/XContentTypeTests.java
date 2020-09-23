@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class XContentTypeTests extends ESTestCase {

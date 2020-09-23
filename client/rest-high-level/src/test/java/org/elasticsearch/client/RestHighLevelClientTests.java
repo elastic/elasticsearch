@@ -302,7 +302,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
         {
             NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
-            IllegalArgumentException ise = expectThrows(IllegalArgumentException.class, () -> restHighLevelClient.parseEntity(entity, null));
+            IllegalArgumentException ise = expectThrows(IllegalArgumentException.class,
+                () -> restHighLevelClient.parseEntity(entity, null));
             assertEquals("unrecognized media type: " + entity.getContentType().getValue(), ise.getMessage());
         }
         {

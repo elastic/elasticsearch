@@ -103,7 +103,8 @@ public abstract class AbstractRestChannel implements RestChannel {
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
-            } else if (Strings.hasText(acceptHeader) && acceptHeader.equals("*/*") == false && acceptHeader.startsWith("text/plain")==false) { //TODO PG previously we would just null for */*. where is that set??
+            } else if (Strings.hasText(acceptHeader) && acceptHeader.equals("*/*") == false
+                && acceptHeader.startsWith("text/plain")==false) { //TODO PG previously we would just null for */*. where is that set??
                 try {
                     responseContentType = XContentType.fromMediaType(acceptHeader);
                 }catch (IllegalArgumentException e){

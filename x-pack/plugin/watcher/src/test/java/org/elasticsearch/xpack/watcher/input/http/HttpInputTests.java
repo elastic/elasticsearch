@@ -120,7 +120,8 @@ public class HttpInputTests extends ESTestCase {
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
-        //TODO PG this test will fail now when it has `unrecognized_content_type` as we throw an exception. Is this ok? or should we catch a parse exception and somehow return httpinput.result?
+        //TODO PG this test will fail now when it has `unrecognized_content_type` as we throw an exception.
+        // Is this ok? or should we catch a parse exception and somehow return httpinput.result?
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), hasEntry("key", "value"));
     }

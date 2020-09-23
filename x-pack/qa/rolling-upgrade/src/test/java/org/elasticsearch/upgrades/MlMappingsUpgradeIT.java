@@ -163,7 +163,8 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             Request getMappings = new Request("GET", ".ml-config/_mappings");
-            getMappings.addParameter("allow_system_index_access", "true");
+            getMappings.setOptions(expectWarnings("this request accesses system indices: [.ml-config], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
             Response response = client().performRequest(getMappings);
 
             Map<String, Object> responseLevel = entityAsMap(response);

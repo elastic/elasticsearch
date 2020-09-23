@@ -77,14 +77,16 @@ public class TransformInternalIndexIT extends ESRestTestCase {
             + "\"frequency\":\"1s\""
             + "}";
         Request indexRequest = new Request("PUT", OLD_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
-        indexRequest.addParameter("allow_system_index_access", "true");
+        indexRequest.setOptions(expectWarnings("this request accesses system indices: [" + OLD_INDEX + "], but in a future major " +
+            "version, direct access to system indices will be prevented by default"));
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity(config);
         assertOK(client().performRequest(indexRequest));
 
         {
             Request getRequest = new Request("GET", OLD_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
-            getRequest.addParameter("allow_system_index_access", "true");
+            getRequest.setOptions(expectWarnings("this request accesses system indices: [" + OLD_INDEX + "], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
             Response getResponse = client().performRequest(getRequest);
             assertOK(getResponse);
         }
@@ -103,7 +105,8 @@ public class TransformInternalIndexIT extends ESRestTestCase {
         // Old should now be gone
         {
             Request getRequest = new Request("GET", OLD_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
-            getRequest.addParameter("allow_system_index_access", "true");
+            getRequest.setOptions(expectWarnings("this request accesses system indices: [" + OLD_INDEX + "], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
             try {
                 Response getResponse = client().performRequest(getRequest);
                 assertThat(getResponse.getStatusLine().getStatusCode(), equalTo(404));
@@ -116,7 +119,8 @@ public class TransformInternalIndexIT extends ESRestTestCase {
         // New should be here
         {
             Request getRequest = new Request("GET", CURRENT_INDEX + "/_doc/" + TransformConfig.documentId(transformId));
-            getRequest.addParameter("allow_system_index_access", "true");
+            getRequest.setOptions(expectWarnings("this request accesses system indices: [" + CURRENT_INDEX + "], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
             Response getResponse = client().performRequest(getRequest);
             assertOK(getResponse);
         }

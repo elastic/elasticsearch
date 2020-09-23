@@ -61,7 +61,6 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYS
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.RestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1428,11 +1427,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
 
-            // We run "upgrade" tests from the current version as well, so if we're on a recent enough version we need to specify that
-            // we need system index access here.
-            if (minimumNodeVersion().onOrAfter(ALLOW_SYSTEM_INDEX_ADDED_VERSION)) {
-                getTasksIndex.addParameter("allow_system_index_access", "true");
-            }
+            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+                final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
+                    "access to system indices will be prevented by default";
+                v.current(systemIndexWarning);
+                v.compatible(systemIndexWarning);
+            }));
             assertBusy(() -> {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));

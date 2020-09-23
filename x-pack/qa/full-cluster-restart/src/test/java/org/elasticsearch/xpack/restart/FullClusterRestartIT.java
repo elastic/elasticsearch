@@ -101,7 +101,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.addParameter("allow_system_index_access", "true");
+            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.security], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
@@ -177,7 +178,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.info("checking that the Watches index is the correct version");
 
             final Request getSettingsRequest = new Request("GET", "/.watches/_settings/index.format");
-            getSettingsRequest.addParameter("allow_system_index_access", "true");
+            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.watches], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);

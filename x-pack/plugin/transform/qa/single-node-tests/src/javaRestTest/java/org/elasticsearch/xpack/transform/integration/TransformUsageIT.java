@@ -62,7 +62,9 @@ public class TransformUsageIT extends TransformRestTestCase {
                 + ":"
                 + TransformStoredDoc.NAME
         );
-        statsExistsRequest.addParameter("allow_system_index_access", "true");
+        statsExistsRequest.setOptions(expectWarnings("this request accesses system indices: [" +
+            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
+            "be prevented by default"));
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));

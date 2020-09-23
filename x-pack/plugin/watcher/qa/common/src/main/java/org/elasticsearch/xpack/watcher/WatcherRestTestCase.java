@@ -73,7 +73,12 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
 
         Request deleteWatchesIndexRequest = new Request("DELETE", ".watches");
         deleteWatchesIndexRequest.addParameter("ignore_unavailable", "true");
-        deleteWatchesIndexRequest.addParameter("allow_system_index_access", "true");
+        deleteWatchesIndexRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.watches], but in a future major "
+                    + "version, direct access to system indices will be prevented by default"
+            )
+        );
         ESRestTestCase.adminClient().performRequest(deleteWatchesIndexRequest);
 
         Request deleteWatchHistoryRequest = new Request("DELETE", ".watcher-history-*");

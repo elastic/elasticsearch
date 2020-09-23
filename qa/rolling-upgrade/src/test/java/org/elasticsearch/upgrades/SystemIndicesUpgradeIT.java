@@ -27,7 +27,6 @@ import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
-import static org.elasticsearch.rest.RestHandler.ALLOW_SYSTEM_INDEX_ADDED_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -72,11 +71,11 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
 
-            // We run "upgrade" tests from the current version as well, so if we're on a recent enough version we need to specify that
-            // we need system index access here.
-            if (minimumNodeVersion().onOrAfter(ALLOW_SYSTEM_INDEX_ADDED_VERSION)) {
-                getTasksIndex.addParameter("allow_system_index_access", "true");
-            }
+            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+                final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
+                    "access to system indices will be prevented by default";
+                v.compatible(systemIndexWarning);
+            }));
             assertBusy(() -> {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));

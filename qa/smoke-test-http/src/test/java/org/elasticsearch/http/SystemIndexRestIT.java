@@ -75,10 +75,11 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         }
 
 
-        // make sure the system index now exists (with allow_system_index_access flag)
+        // make sure the system index now exists
         assertBusy(() -> {
             Request searchRequest = new Request("GET", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_count");
-            searchRequest.addParameter("allow_system_index_access", "true");
+            searchRequest.setOptions(expectWarnings("this request accesses system indices: [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME +
+                "], but in a future major version, direct access to system indices will be prevented by default"));
 
             // Disallow no indices to cause an exception if the flag above doesn't work
             searchRequest.addParameter("allow_no_indices", "false");
@@ -90,9 +91,6 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             assertThat(responseMap, hasKey("count"));
             assertThat(responseMap.get("count"), equalTo(1));
         });
-
-        // now try without `allow_system_index_access`
-        assertDeprecationWarningOnAccess(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // And with a partial wildcard
         assertDeprecationWarningOnAccess(".test-*", SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
@@ -112,10 +110,9 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         {
             String expectedWarning = "this request accesses system indices: [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "], but in a " +
                 "future major version, direct access to system indices will be prevented by default";
-            RequestOptions expectWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(expectedWarning::equals).build();
             Request putDocDirectlyRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_doc/43");
             putDocDirectlyRequest.setJsonEntity("{\"some_field\":  \"some_other_value\"}");
-            putDocDirectlyRequest.setOptions(expectWarningOptions);
+            putDocDirectlyRequest.setOptions(expectWarnings(expectedWarning));
             Response response = getRestClient().performRequest(putDocDirectlyRequest);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
         }
@@ -124,18 +121,22 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
     private void assertDeprecationWarningOnAccess(String queryPattern, String warningIndexName) throws IOException {
         String expectedWarning = "this request accesses system indices: [" + warningIndexName + "], but in a " +
             "future major version, direct access to system indices will be prevented by default";
-        RequestOptions expectWarningOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(w -> w.contains(expectedWarning) == false || w.size() != 1)
-            .build();
         Request searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search"));
         searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
         // Disallow no indices to cause an exception if this resolves to zero indices, so that we're sure it resolved the index
         searchRequest.addParameter("allow_no_indices", "false");
-        searchRequest.setOptions(expectWarningOptions);
+        searchRequest.setOptions(expectWarnings(expectedWarning));
 
         Response response = getRestClient().performRequest(searchRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
+
+    private RequestOptions expectWarnings(String expectedWarning) {
+        return RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(w -> w.contains(expectedWarning) == false || w.size() != 1)
+            .build();
+    }
+
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
 

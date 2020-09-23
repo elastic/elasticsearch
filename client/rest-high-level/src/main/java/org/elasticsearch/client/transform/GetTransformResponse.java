@@ -48,11 +48,11 @@ public class GetTransformResponse {
     static final ConstructingObjectParser<GetTransformResponse, Void> PARSER = new ConstructingObjectParser<>(
         "get_transform",
         true,
-        args -> new GetTransformResponse((List<TransformConfig>) args[0], (int) args[1], (InvalidTransforms) args[2])
+        args -> new GetTransformResponse((List<TransformConfig>) args[0], (long) args[1], (InvalidTransforms) args[2])
     );
     static {
         // Discard the count field which is the size of the transforms array
-        INVALID_TRANSFORMS_PARSER.declareInt((a, b) -> {}, COUNT);
+        INVALID_TRANSFORMS_PARSER.declareLong((a, b) -> {}, COUNT);
         INVALID_TRANSFORMS_PARSER.declareStringArray(constructorArg(), TRANSFORMS);
 
         PARSER.declareObjectArray(constructorArg(), TransformConfig.PARSER::apply, TRANSFORMS);
@@ -115,7 +115,7 @@ public class GetTransformResponse {
             this.transformIds = transformIds;
         }
 
-        public int getCount() {
+        public long getCount() {
             return transformIds.size();
         }
 

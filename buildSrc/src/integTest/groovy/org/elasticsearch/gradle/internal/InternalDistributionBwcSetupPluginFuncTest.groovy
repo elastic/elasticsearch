@@ -132,7 +132,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         and: "assemble task triggered"
         result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
         normalizedOutput(result.output)
-                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/build/install/elasticsearch-8.0.1-SNAPSHOT")
+                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/" +
+                        "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.1-SNAPSHOT")
     }
 
     File setupGitRemote() {

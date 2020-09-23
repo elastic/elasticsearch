@@ -42,12 +42,10 @@ import java.util.Set;
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
-public class FieldValueRetriever {
-    public static FieldValueRetriever create(
-        MapperService mapperService,
-        SearchLookup searchLookup,
-        Collection<FieldAndFormat> fieldAndFormats
-    ) {
+public class FieldFetcher {
+    public static FieldFetcher create(MapperService mapperService,
+                                      SearchLookup searchLookup,
+                                      Collection<FieldAndFormat> fieldAndFormats) {
         MappingLookup fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fieldContexts = new ArrayList<>();
 
@@ -74,16 +72,16 @@ public class FieldValueRetriever {
             }
         }
 
-        return new FieldValueRetriever(fieldContexts);
+        return new FieldFetcher(fieldContexts);
     }
 
     private final List<FieldContext> fieldContexts;
 
-    private FieldValueRetriever(List<FieldContext> fieldContexts) {
+    private FieldFetcher(List<FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
 
-    public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
+    public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts) {
             String field = context.fieldName;

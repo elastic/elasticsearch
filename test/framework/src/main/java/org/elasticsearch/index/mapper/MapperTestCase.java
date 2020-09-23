@@ -356,17 +356,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         List<UpdateCheck> updateChecks = new ArrayList<>();
         Map<String, ConflictCheck> conflictChecks = new HashMap<>();
 
+        /**
+         * Register a check that a parameter can be updated, using the minimal mapping as a base
+         * @param update a field builder applied on top of the minimal mapping
+         * @param check  a check that the updated parameter has been applied to the FieldMapper
+         */
         public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
                                         Consumer<FieldMapper> check) throws IOException {
             updateChecks.add(new UpdateCheck(update, check));
         }
 
+        /**
+         * Register a check that a parameter can be updated
+         * @param init      the initial mapping
+         * @param update    the updated mapping
+         * @param check     a check that the updated parameter has been applied to the FieldMapper
+         */
         public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
                                         CheckedConsumer<XContentBuilder, IOException> update,
                                         Consumer<FieldMapper> check) throws IOException {
             updateChecks.add(new UpdateCheck(init, update, check));
         }
 
+        /**
+         * Register a check that a parameter update will cause a conflict, using the minimal mapping as a base
+         * @param param     the parameter name, expected to appear in the error message
+         * @param update    a field builder applied on top of the minimal mapping
+         */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
             conflictChecks.put(param, new ConflictCheck(
                 fieldMapping(MapperTestCase.this::minimalMapping),
@@ -377,6 +393,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ));
         }
 
+        /**
+         * Register a check that a parameter update will cause a conflict
+         * @param param     the parameter name, expected to appear in the error message
+         * @param init      the initial mapping
+         * @param update    the updated mapping
+         */
         public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
             conflictChecks.put(param, new ConflictCheck(init, update));
         }

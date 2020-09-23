@@ -46,6 +46,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         b.field("type", "version");
     }
 
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("1.2.3");
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);

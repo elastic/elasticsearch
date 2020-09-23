@@ -29,13 +29,10 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
@@ -130,8 +127,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             return new NumberFieldMapper(name,
-                new NumberFieldType(buildFullName(context), type, indexed.getValue(), hasDocValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                new NumberFieldType(buildFullName(context), type, indexed.getValue(), stored.getValue(), hasDocValues.getValue(),
+                    meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -894,14 +891,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         private final NumberType type;
 
-        public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
+                               boolean hasDocValues, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.type = Objects.requireNonNull(type);
             this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, true, Collections.emptyMap());
+            this(name, type, true, false, true, Collections.emptyMap());
         }
 
         @Override
@@ -911,15 +909,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public NumericType numericType() {
             return type.numericType();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override

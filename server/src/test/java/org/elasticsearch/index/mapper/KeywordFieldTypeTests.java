@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -102,17 +103,21 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        KeywordFieldType ft = new KeywordFieldType("field");
-        ft.hasNorms = false;
-        assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
-
-        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        ft.hasNorms = true;
-        assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
-
-        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        ft.hasNorms = false;
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+        {
+            KeywordFieldType ft = new KeywordFieldType("field");
+            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+        }
+        {
+            FieldType fieldType = new FieldType();
+            fieldType.setOmitNorms(false);
+            KeywordFieldType ft = new KeywordFieldType("field", false, fieldType, randomBoolean(), null, null, null, 1.0f,
+                Collections.emptyMap());
+            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+        }
+        {
+            KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+        }
     }
 
     public void testRangeQuery() {

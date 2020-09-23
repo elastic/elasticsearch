@@ -31,11 +31,11 @@ public class LegacyReaderContext extends ReaderContext {
     private final ShardSearchRequest shardSearchRequest;
     private final ScrollContext scrollContext;
     private final Engine.Searcher searcher;
-    
+
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
-    public LegacyReaderContext(long id, IndexService indexService, IndexShard indexShard, Engine.SearcherSupplier reader,
+    public LegacyReaderContext(ShardSearchContextId id, IndexService indexService, IndexShard indexShard, Engine.SearcherSupplier reader,
                                ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
         super(id, indexService, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;

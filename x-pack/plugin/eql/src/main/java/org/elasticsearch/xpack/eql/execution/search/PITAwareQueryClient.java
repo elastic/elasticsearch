@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeResponse;
@@ -54,7 +54,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private void searchWithPIT(SearchRequest search, ActionListener<SearchResponse> listener) {
         // don't increase the keep alive
-        search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pitId, null));
+        search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
         // get the pid on each request
         super.search(search, wrap(r -> {
                 pitId = r.pointInTimeId();

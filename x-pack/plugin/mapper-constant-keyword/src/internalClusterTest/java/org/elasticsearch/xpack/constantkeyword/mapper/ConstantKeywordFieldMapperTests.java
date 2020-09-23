@@ -6,15 +6,19 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.plugins.Plugin;
@@ -26,7 +30,25 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
+
+    @Override
+    protected void writeField(XContentBuilder builder) {
+        //do nothing
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        assertNoFieldNamesField(fields);
+    }
 
     @Override
     protected Collection<Plugin> getPlugins() {

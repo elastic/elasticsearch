@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -201,15 +198,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         protected DateMathParser dateMathParser() {
             return dateMathParser;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override

@@ -46,8 +46,22 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("2016-03-11");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "date");
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override

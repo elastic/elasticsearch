@@ -172,7 +172,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     }
 
     public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
-        public GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+        private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
         }
 

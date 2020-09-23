@@ -125,8 +125,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(BuilderContext context) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), hasDocValues.getValue(),
-                meta.getValue(), scalingFactor.getValue());
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue());
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -137,13 +137,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         private final double scalingFactor;
 
-        public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                    Map<String, String> meta, double scalingFactor) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.scalingFactor = scalingFactor;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, true, Collections.emptyMap(), scalingFactor);
+            this(name, true, false, true, Collections.emptyMap(), scalingFactor);
         }
 
         public double getScalingFactor() {

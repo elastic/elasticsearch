@@ -837,12 +837,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static Map<String, SearchHits> parseInnerHits(XContentParser parser) throws IOException {
         Map<String, SearchHits> innerHits = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String name = parser.currentName();
-            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
             innerHits.put(name, SearchHits.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;
     }
@@ -857,13 +857,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     private static Explanation parseExplanation(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         XContentParser.Token token;
         Float value = null;
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -871,7 +871,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }

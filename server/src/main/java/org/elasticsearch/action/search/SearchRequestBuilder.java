@@ -29,6 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -543,13 +544,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Specifies the search context that Elasticsearch should use to perform the query
-     *
-     * @param searchContextId the base64 encoded string of the search context id
-     * @param keepAlive       the extended time to live for the search context
+     * If specified, Elasticsearch will execute this search request using reader contexts from that point in time.
      */
-    public SearchRequestBuilder setSearchContext(String searchContextId, TimeValue keepAlive) {
-        sourceBuilder().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, keepAlive));
+    public SearchRequestBuilder setPointInTime(PointInTimeBuilder pointInTimeBuilder) {
+        sourceBuilder().pointInTimeBuilder(pointInTimeBuilder);
         return this;
     }
 

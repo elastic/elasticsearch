@@ -1058,7 +1058,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("data stream could not be created, because backing index [" + backingIndex + "] already exists")
+            equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists")
         );
     }
 
@@ -1074,7 +1074,7 @@ public class DataStreamIT extends ESIntegTestCase {
         Exception e = expectThrows(ElasticsearchStatusException.class, () -> client().index(indexRequest).actionGet());
         assertThat(
             e.getMessage(),
-            equalTo("data stream could not be created, because backing index [" + backingIndex + "] already exists")
+            equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists")
         );
     }
 

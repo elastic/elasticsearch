@@ -165,7 +165,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     // Cannot assign the node because none of the existing nodes is appropriate:
-    //  - _node_name0 is too old (version 7.9.0)
+    //  - _node_name0 is too old (version 7.2.0)
     //  - _node_name1 is too old (version 7.9.1)
     //  - _node_name2 is too old (version 7.9.2)
     public void testGetAssignment_MlNodesAreTooOld() {

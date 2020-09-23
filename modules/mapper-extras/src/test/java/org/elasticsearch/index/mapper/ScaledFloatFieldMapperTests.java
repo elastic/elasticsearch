@@ -47,6 +47,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(123);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
     }
@@ -59,9 +64,18 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((ScaledFloatFieldMapper)m).coerce()));
+            m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((ScaledFloatFieldMapper)m).ignoreMalformed()));
+            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed()));
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {
@@ -69,13 +83,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 123)
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];

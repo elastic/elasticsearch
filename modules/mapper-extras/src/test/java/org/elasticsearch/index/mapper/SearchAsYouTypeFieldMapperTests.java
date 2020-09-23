@@ -102,6 +102,10 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
 
     }
 
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("new york city");
+    }
+
     @Override
     protected Set<String> unsupportedProperties() {
         return Set.of("doc_values");

@@ -65,9 +65,22 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((NumberFieldMapper)m).coerce()));
+            m -> assertFalse(((NumberFieldMapper) m).coerce()));
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((NumberFieldMapper)m).ignoreMalformed()));
+            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+    }
+
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(123);
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override

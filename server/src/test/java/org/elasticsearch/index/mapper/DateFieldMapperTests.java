@@ -46,6 +46,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("2016-03-11");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "date");
     }
@@ -62,9 +67,13 @@ public class DateFieldMapperTests extends MapperTestCase {
             m -> assertTrue(((DateFieldMapper)m).getIgnoreMalformed()));
     }
 
-    @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {
@@ -283,8 +292,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             .field("format", "yyyy/MM/dd")));
 
         assertThat(mapperService.fieldType("field"), notNullValue());
-        assertFalse(mapperService.fieldType("field")
-            .getTextSearchInfo().isStored());
+        assertFalse(mapperService.fieldType("field").isStored());
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis"))));

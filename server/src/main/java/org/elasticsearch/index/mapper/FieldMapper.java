@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -65,7 +64,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexed = true;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo = CopyTo.empty();
-        protected float boost = 1.0f;
         protected Map<String, String> meta = Collections.emptyMap();
         // TODO move to KeywordFieldMapper.Builder
         protected boolean eagerGlobalOrdinals;
@@ -126,11 +124,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
-        }
-
-        public T boost(float boost) {
-            this.boost = boost;
             return builder;
         }
 
@@ -282,7 +275,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
 
-    protected void createFieldNamesField(ParseContext context) {
+    protected final void createFieldNamesField(ParseContext context) {
+        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
@@ -452,10 +446,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-
-        if (includeDefaults || fieldType().boost() != 1.0f) {
-            builder.field("boost", fieldType().boost());
-        }
 
         if (includeDefaults || mappedFieldType.isSearchable() != indexedByDefault()) {
             builder.field("index", mappedFieldType.isSearchable());

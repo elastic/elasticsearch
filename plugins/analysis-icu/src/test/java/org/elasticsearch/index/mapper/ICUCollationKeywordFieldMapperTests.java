@@ -82,6 +82,11 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         b.field("type", FIELD_TYPE);
     }
 
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(1234);
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

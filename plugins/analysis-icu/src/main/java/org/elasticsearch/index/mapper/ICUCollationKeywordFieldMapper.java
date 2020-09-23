@@ -27,11 +27,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,14 +75,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
 
-        public CollationFieldType(String name, boolean isSearchable, boolean hasDocValues, Collator collator, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                                  Collator collator, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
         }
 
         public CollationFieldType(String name, Collator collator) {
-            this(name, true, true, collator, Collections.emptyMap());
+            this(name, true, false, true, collator, Collections.emptyMap());
         }
 
         @Override
@@ -95,15 +93,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         public Collator collator() {
             return collator;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override
@@ -440,7 +429,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public ICUCollationKeywordFieldMapper build(BuilderContext context) {
             final Collator collator = buildCollator();
-            CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed, hasDocValues, collator, meta);
+            CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues,
+                collator, meta);
             return new ICUCollationKeywordFieldMapper(name, fieldType, ft,
                 multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
                 alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, ignoreAbove, collator, nullValue);

@@ -73,27 +73,27 @@ file where descendant of [registry where true];
 
 //sequence by unique_pid [process where true] [file where true] fork;
 
-sequence by unique_pid [process where true] [file where true] fork=true;
+sequence by unique_pid [process where true] [file where true] fork==true;
 
 // no longer supported
-//sequence by unique_pid [process where true] [file where true] fork=1;
+//sequence by unique_pid [process where true] [file where true] fork==1;
 
 sequence
   [process where true] by unique_pid
-  [file where true] fork=true by unique_pid
+  [file where true] fork==true by unique_pid
   [process where true] by unique_ppid
 | head 4;
 
-sequence by unique_pid [process where true] [file where true] fork=false;
+sequence by unique_pid [process where true] [file where true] fork==false;
 
 // no longer supported
-// sequence by unique_pid [process where true] [file where true] fork=0 [network where true];
+// sequence by unique_pid [process where true] [file where true] fork==0 [network where true];
 sequence by unique_pid [process where true] [file where true] fork [network where true];
 
 
 // no longer supported
-// sequence by unique_pid [process where true] [file where true] fork=0;
-sequence by unique_pid [process where true] [file where true] fork=true;
+// sequence by unique_pid [process where true] [file where true] fork==0;
+sequence by unique_pid [process where true] [file where true] fork==true;
 
 
 sequence with maxspan=2.5m 
@@ -183,19 +183,19 @@ process where process_name in ("python.exe", "smss.exe")
 
 
 
-file where file_name == "csrss.exe" and opcode=0
+file where file_name == "csrss.exe" and opcode==0
   and descendant of [process where opcode in (1,3) and process_name="cmd.exe"]
 ;
 
-process where opcode=1 and process_name == "csrss.exe"
+process where opcode==1 and process_name == "csrss.exe"
   and descendant of [file where file_name == "csrss.exe" and opcode=0]
 ;
 
-process where opcode=1 and process_name == "smss.exe"
+process where opcode==1 and process_name == "smss.exe"
   and descendant of [
-  file where file_name == "csrss.exe" and opcode=0
+  file where file_name == "csrss.exe" and opcode==0
       and descendant of [
-      process where opcode in(1,3) and process_name="cmd.exe"
+      process where opcode in(1,3) and process_name=="cmd.exe"
       ]
   ]
 ;
@@ -238,52 +238,52 @@ sequence with maxspan=0.5s
 | tail 2;
 
 sequence
-  [file where opcode=0] by unique_pid
-  [file where opcode=0] by unique_pid
+  [file where opcode==0] by unique_pid
+  [file where opcode==0] by unique_pid
 | filter events[1].serial_event_id == 92;
 
 any where true
 | unique event_type_full;
 
-process where opcode=1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
+process where opcode==1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ];
 
 process where process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ];
 
-process where opcode=2 and process_name in ("services.exe", "smss.exe", "lsass.exe")
+process where opcode==2 and process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ];
 
-process where process_name="svchost.exe"
-  and child of [file where file_name="svchost.exe" and opcode=0];
+process where process_name=="svchost.exe"
+  and child of [file where file_name=="svchost.exe" and opcode==0];
 
-process where process_name="svchost.exe"
-  and not child of [file where file_name="svchost.exe" and opcode=0]
+process where process_name=="svchost.exe"
+  and not child of [file where file_name=="svchost.exe" and opcode==0]
 | head 3;
 
-process where process_name="lsass.exe"
+process where process_name=="lsass.exe"
   and child of [
-  process where process_name="python.exe"
-    and child of [process where process_name="cmd.exe"]
+  process where process_name=="python.exe"
+    and child of [process where process_name=="cmd.exe"]
   ]
 ;
 
 file where child of [
 process where child of [
-    process where child of [process where process_name="*wsmprovhost.exe"]
+    process where child of [process where process_name=="*wsmprovhost.exe"]
   ]
 ]
 | tail 1;
 
-file where process_name = "python.exe"
+file where process_name == "python.exe"
 | unique unique_pid;
 
-file where event of [process where process_name = "python.exe" ]
+file where event of [process where process_name == "python.exe" ]
 | unique unique_pid;
 
 
 
-process where event of [process where process_name = "python.exe" ];
+process where event of [process where process_name == "python.exe" ];
 
 sequence
   [process where serial_event_id<3] by unique_pid * 2
@@ -299,11 +299,11 @@ sequence
 
 
 process where "net.EXE" == original_file_name
-| filter process_name="net*.exe"
+| filter process_name=="net*.exe"
 ;
 
 process where process_name == original_file_name
-| filter process_name='net*.exe'
+| filter process_name=='net*.exe'
 ;
 
 process where original_file_name == process_name

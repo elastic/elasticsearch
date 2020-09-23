@@ -90,8 +90,9 @@ public class IndexMappingTemplateAsserter {
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet());
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
-        assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-notifications-000001", ".ml-notifications-000001", true, Collections.emptySet());
+        // AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
+//        assertLegacyTemplateMatchesIndexMappings(client,
+//            ".ml-notifications-000001", ".ml-notifications-000001", true, Collections.emptySet());
         assertLegacyTemplateMatchesIndexMappings(client,
             ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());
         // .ml-annotations-6 does not use a template

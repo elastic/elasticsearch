@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -288,13 +289,17 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public void testRegexInject() {
-        scriptEngine = new PainlessScriptEngine(
-            Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 1).build(),
-            scriptContexts()
-        );
-        assertEquals(
-            Boolean.TRUE,
-            exec("/abc123.*def/.matcher('abc123doremidef').matches()")
-        );
+        int regexLimitFactor = 1;
+        // This regex has backtracking due to .*
+        String script = "/abc123.*def/.matcher('abc123doremidef').matches()";
+        Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        assertEquals(Boolean.TRUE, exec(script));
+
+        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
+        regexLimitFactor = 1;
+        Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
     }
 }

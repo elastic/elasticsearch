@@ -19,6 +19,10 @@
 
 package org.elasticsearch.painless.api;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.painless.CompilerSettings;
+
 import java.util.regex.Pattern;
 
 /*
@@ -96,7 +100,9 @@ public class LimitedCharSequence implements CharSequence {
     public char charAt(int index) {
         counter.count++;
         if (counter.hitLimit()) {
-            throw new RuntimeException("considered too many characters, " + details(index));
+            throw new CircuitBreakingException("[scripting] Regular expression considered too many characters, " + details(index) +
+            ", this limit can be changed by changed by the [" + CompilerSettings.REGEX_LIMIT_FACTOR.getKey() + "] setting",
+                CircuitBreaker.Durability.TRANSIENT);
         }
         return wrapped.charAt(index);
     }
@@ -122,7 +128,7 @@ public class LimitedCharSequence implements CharSequence {
         }
 
         boolean hitLimit() {
-            return count >= charAtLimit;
+            return count > charAtLimit;
         }
     }
 }

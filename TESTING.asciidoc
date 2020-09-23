@@ -346,7 +346,7 @@ A specific test case can be run with the following syntax (fqn.test {params}):
 
 yamlRestTest's and javaRestTest's are easy to identify, since they are found in a
 respective source directory. However, there are some more specialized REST tests
-that use custom task names. These are usually found in "qa" projects are commonly
+that use custom task names. These are usually found in "qa" projects commonly
 use the "integTest" task.
 
 If in doubt about which command to use, simply run <gradle path>:check

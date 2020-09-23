@@ -184,13 +184,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         );
 
         createBuildBwcTask(bwcProject, checkoutDir, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);
-        TaskProvider<LoggedExec> resolveAllBwcDepsTaskProvider = createRunBwcGradleTask(
-            bwcProject,
-            "resolveAllBwcDependencies",
-            checkoutDir,
-            bwcVersion,
-            t -> t.args("resolveAllDependencies")
-        );
+        // TODO: this probably should not live here
+        createRunBwcGradleTask(bwcProject, "resolveAllBwcDependencies", checkoutDir, bwcVersion, t -> t.args("resolveAllDependencies"));
 
         for (Map.Entry<String, File> e : artifactFiles.entrySet()) {
             String projectName = e.getKey();

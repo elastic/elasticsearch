@@ -36,7 +36,7 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accou
     List<String> inputFields();
 
     /**
-     * @return The resulting output fields
+     * @return The resulting output fields. It is imperative that the order is consistent between calls.
      */
     List<String> outputFields();
 

@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -87,12 +88,14 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
      */
     @Override
     protected TermQueryBuilder createQueryBuilder(String fieldName, Object value) {
-        return new TermQueryBuilder(fieldName, value);
+        TermQueryBuilder result = new TermQueryBuilder(fieldName, value);
+        return result;
     }
 
     @Override
     protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+            .or(instanceOf(AutomatonQuery.class)));
         MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
@@ -100,13 +103,20 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
 
-            Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+            Term term = ((TermQuery) termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive())).getTerm();
             assertThat(termQuery.getTerm(), equalTo(term));
         } else if (mapper != null) {
-            assertEquals(query, mapper.termQuery(queryBuilder.value(), null));
+            assertEquals(query, termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive()));
         } else {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
+    }
+    
+    private Query termQuery(MappedFieldType mapper, Object value, boolean caseInsensitive) {
+        if (caseInsensitive) {
+            return mapper.termQueryCaseInsensitive(value, null);
+        }
+        return mapper.termQuery(value, null);
     }
 
     public void testTermArray() throws IOException {

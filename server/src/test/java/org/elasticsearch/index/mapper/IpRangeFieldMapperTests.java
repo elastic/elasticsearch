@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -86,11 +87,11 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP).build(context);
+        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true).build(context);
         Map<String, Object> range = org.elasticsearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
         assertEquals(List.of(org.elasticsearch.common.collect.Map.of("gte", "2001:db8::2:1")), fetchSourceValue(mapper, range));
         assertEquals(List.of("2001:db8::2:1/32"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1/32"));

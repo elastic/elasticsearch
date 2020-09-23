@@ -72,6 +72,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private HighlightBuilder highlightBuilder;
     private StoredFieldsContext storedFieldsContext;
     private List<FieldAndFormat> docValueFields;
+    private List<FieldAndFormat> fetchFields;
     private Set<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
@@ -94,6 +95,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         this.storedFieldsContext = clone.storedFieldsContext == null ? null :
             new StoredFieldsContext(clone.storedFieldsContext);
         this.docValueFields = clone.docValueFields == null ? null : new ArrayList<>(clone.docValueFields);
+        this.fetchFields = clone.fetchFields == null ? null : new ArrayList<>(clone.fetchFields);
         this.scriptFields = clone.scriptFields == null ? null : new HashSet<>(clone.scriptFields);
         this.fetchSourceContext = clone.fetchSourceContext == null ? null :
             new FetchSourceContext(clone.fetchSourceContext.fetchSource(), clone.fetchSourceContext.includes(),
@@ -142,6 +144,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             seqNoAndPrimaryTerm = in.readBoolean();
         }
+
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
+        }
     }
 
     @Override
@@ -171,6 +179,13 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         out.writeBoolean(version);
         if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeBoolean(seqNoAndPrimaryTerm);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -430,8 +445,36 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     /**
      * Gets the field-data fields.
      */
-    public List<FieldAndFormat> fieldDataFields() {
+    public List<FieldAndFormat> docValueFields() {
         return docValueFields;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public TopHitsAggregationBuilder fetchField(String field, String format) {
+        if (field == null) {
+            throw new IllegalArgumentException("[fields] must not be null: [" + name + "]");
+        }
+        if (fetchFields == null) {
+            fetchFields = new ArrayList<>();
+        }
+        fetchFields.add(new FieldAndFormat(field, format));
+        return this;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public TopHitsAggregationBuilder fetchField(String field) {
+        return fetchField(field, null);
+    }
+
+    /**
+     * Gets the fields to load and return as part of the search request.
+     */
+    public List<FieldAndFormat> fetchFields() {
+        return fetchFields;
     }
 
     /**
@@ -585,12 +628,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             );
         }
 
-        List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
-        if (scriptFields != null) {
-            for (ScriptField field : scriptFields) {
+        List<ScriptFieldsContext.ScriptField> scriptFields = new ArrayList<>();
+        if (this.scriptFields != null) {
+            for (ScriptField field : this.scriptFields) {
                 FieldScript.Factory factory = queryShardContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), queryShardContext.lookup());
-                fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                scriptFields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }
@@ -602,7 +645,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             optionalSort = SortBuilder.buildSort(sorts, queryShardContext);
         }
         return new TopHitsAggregatorFactory(name, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, optionalSort,
-            highlightBuilder, storedFieldsContext, docValueFields, fields, fetchSourceContext, queryShardContext, parent,
+            highlightBuilder, storedFieldsContext, docValueFields, fetchFields, scriptFields, fetchSourceContext, queryShardContext, parent,
             subfactoriesBuilder, metadata);
     }
 
@@ -620,18 +663,23 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (storedFieldsContext != null) {
             storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);
         }
+
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (FieldAndFormat dvField : docValueFields) {
-                builder.startObject()
-                    .field("field", dvField.field);
-                if (dvField.format != null) {
-                    builder.field("format", dvField.format);
-                }
-                builder.endObject();
+            for (FieldAndFormat docValueField : docValueFields) {
+                docValueField.toXContent(builder, params);
             }
             builder.endArray();
         }
+
+        if (fetchFields != null) {
+            builder.startArray(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName());
+            for (FieldAndFormat docValueField : fetchFields) {
+                docValueField.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
         if (scriptFields != null) {
             builder.startObject(SearchSourceBuilder.SCRIPT_FIELDS_FIELD.getPreferredName());
             for (ScriptField scriptField : scriptFields) {
@@ -751,6 +799,11 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                         FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
                         factory.docValueField(ff.field, ff.format);
                     }
+                } else if (SearchSourceBuilder.FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
+                        factory.fetchField(ff.field, ff.format);
+                    }
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
@@ -769,31 +822,30 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), explain, fetchSourceContext, docValueFields,
-            storedFieldsContext, from, highlightBuilder,
-            scriptFields, size, sorts, trackScores, version,
-            seqNoAndPrimaryTerm);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        TopHitsAggregationBuilder that = (TopHitsAggregationBuilder) o;
+        return from == that.from &&
+            size == that.size &&
+            explain == that.explain &&
+            version == that.version &&
+            seqNoAndPrimaryTerm == that.seqNoAndPrimaryTerm &&
+            trackScores == that.trackScores &&
+            Objects.equals(sorts, that.sorts) &&
+            Objects.equals(highlightBuilder, that.highlightBuilder) &&
+            Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
+            Objects.equals(docValueFields, that.docValueFields) &&
+            Objects.equals(fetchFields, that.fetchFields) &&
+            Objects.equals(scriptFields, that.scriptFields) &&
+            Objects.equals(fetchSourceContext, that.fetchSourceContext);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        TopHitsAggregationBuilder other = (TopHitsAggregationBuilder) obj;
-        return Objects.equals(explain, other.explain)
-            && Objects.equals(fetchSourceContext, other.fetchSourceContext)
-            && Objects.equals(docValueFields, other.docValueFields)
-            && Objects.equals(storedFieldsContext, other.storedFieldsContext)
-            && Objects.equals(from, other.from)
-            && Objects.equals(highlightBuilder, other.highlightBuilder)
-            && Objects.equals(scriptFields, other.scriptFields)
-            && Objects.equals(size, other.size)
-            && Objects.equals(sorts, other.sorts)
-            && Objects.equals(trackScores, other.trackScores)
-            && Objects.equals(version, other.version)
-            && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), from, size, explain, version, seqNoAndPrimaryTerm, trackScores, sorts, highlightBuilder,
+            storedFieldsContext, docValueFields, fetchFields, scriptFields, fetchSourceContext);
     }
 
     @Override

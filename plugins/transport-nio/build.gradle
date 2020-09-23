@@ -27,8 +27,6 @@ esplugin {
   hasClientJar = true
 }
 
-// integTest have been converted to internalClusterTest 
-integTest.enabled = false
 dependencies {
   api project(':libs:elasticsearch-nio')
 

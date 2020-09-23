@@ -110,6 +110,7 @@ public class DiskThresholdMonitor {
     private void checkFinished() {
         final boolean checkFinished = checkInProgress.compareAndSet(true, false);
         assert checkFinished;
+        logger.trace("checkFinished");
     }
 
     public void onNewInfo(ClusterInfo info) {
@@ -121,9 +122,12 @@ public class DiskThresholdMonitor {
 
         final ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
+            logger.trace("skipping monitor as no disk usage information is available");
             checkFinished();
             return;
         }
+
+        logger.trace("processing new cluster info");
 
         boolean reroute = false;
         String explanation = "";
@@ -291,6 +295,7 @@ public class DiskThresholdMonitor {
                 listener.onFailure(e);
             }));
         } else {
+            logger.trace("no reroute required");
             listener.onResponse(null);
         }
         final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
@@ -314,10 +319,12 @@ public class DiskThresholdMonitor {
                 listener.onResponse(null);
             }
         } else {
+            logger.trace("no auto-release required");
             listener.onResponse(null);
         }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
+        logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
         if (indicesToMarkReadOnly.isEmpty() == false) {
             updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
         } else {

@@ -21,6 +21,7 @@ package org.elasticsearch.grok;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +32,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.grok.GrokCaptureType.BOOLEAN;
+import static org.elasticsearch.grok.GrokCaptureType.DOUBLE;
+import static org.elasticsearch.grok.GrokCaptureType.FLOAT;
+import static org.elasticsearch.grok.GrokCaptureType.INTEGER;
+import static org.elasticsearch.grok.GrokCaptureType.LONG;
+import static org.elasticsearch.grok.GrokCaptureType.STRING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -38,13 +45,22 @@ import static org.hamcrest.Matchers.nullValue;
 
 
 public class GrokTests extends ESTestCase {
-    private static final Map<String, String> basePatterns = Grok.getBuiltinPatterns();
-
     public void testMatchWithoutCaptures() {
-        String line = "value";
-        Grok grok = new Grok(basePatterns, "value", logger::warn);
-        Map<String, Object> matches = grok.captures(line);
-        assertEquals(0, matches.size());
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "value", logger::warn);
+        assertThat(grok.captures("value"), equalTo(org.elasticsearch.common.collect.Map.of()));
+        assertThat(grok.captures("prefix_value"), equalTo(org.elasticsearch.common.collect.Map.of()));
+        assertThat(grok.captures("no_match"), nullValue());
+    }
+
+    public void testCaputuresBytes() {
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{NUMBER:n:int}", logger::warn);
+        byte[] utf8 = "10".getBytes(StandardCharsets.UTF_8);
+        assertThat(grok.captures(utf8, 0, utf8.length), equalTo(org.elasticsearch.common.collect.Map.of("n", 10)));
+        assertThat(grok.captures(utf8, 0, 1), equalTo(org.elasticsearch.common.collect.Map.of("n", 1)));
+        utf8 = "10 11 12".getBytes(StandardCharsets.UTF_8);
+        assertThat(grok.captures(utf8, 0, 2), equalTo(org.elasticsearch.common.collect.Map.of("n", 10)));
+        assertThat(grok.captures(utf8, 3, 2), equalTo(org.elasticsearch.common.collect.Map.of("n", 11)));
+        assertThat(grok.captures(utf8, 6, 2), equalTo(org.elasticsearch.common.collect.Map.of("n", 12)));
     }
 
     public void testNoMatchingPatternInDictionary() {
@@ -54,7 +70,20 @@ public class GrokTests extends ESTestCase {
 
     public void testSimpleSyslogLine() {
         String line = "Mar 16 00:01:25 evita postfix/smtpd[1713]: connect from camomile.cloud9.net[168.100.1.3]";
-        Grok grok = new Grok(basePatterns, "%{SYSLOGLINE}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{SYSLOGLINE}", logger::warn);
+        assertCaptureConfig(
+            grok,
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("facility", STRING),
+                org.elasticsearch.common.collect.Map.entry("logsource", STRING),
+                org.elasticsearch.common.collect.Map.entry("message", STRING),
+                org.elasticsearch.common.collect.Map.entry("pid", STRING),
+                org.elasticsearch.common.collect.Map.entry("priority", STRING),
+                org.elasticsearch.common.collect.Map.entry("program", STRING),
+                org.elasticsearch.common.collect.Map.entry("timestamp", STRING),
+                org.elasticsearch.common.collect.Map.entry("timestamp8601", STRING)
+            )
+        );
         Map<String, Object> matches = grok.captures(line);
         assertEquals("evita", matches.get("logsource"));
         assertEquals("Mar 16 00:01:25", matches.get("timestamp"));
@@ -66,7 +95,21 @@ public class GrokTests extends ESTestCase {
     public void testSyslog5424Line() {
         String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] " +
                 "Hello, syslog.";
-        Grok grok = new Grok(basePatterns, "%{SYSLOG5424LINE}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{SYSLOG5424LINE}", logger::warn);
+        assertCaptureConfig(
+            grok,
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("syslog5424_app", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_host", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_msg", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_msgid", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_pri", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_proc", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_sd", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_ts", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog5424_ver", STRING)
+            )
+        );
         Map<String, Object> matches = grok.captures(line);
         assertEquals("191", matches.get("syslog5424_pri"));
         assertEquals("1", matches.get("syslog5424_ver"));
@@ -81,13 +124,15 @@ public class GrokTests extends ESTestCase {
 
     public void testDatePattern() {
         String line = "fancy 12-12-12 12:12:12";
-        Grok grok = new Grok(basePatterns, "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of("timestamp", STRING));
         Map<String, Object> matches = grok.captures(line);
         assertEquals("12-12-12 12:12:12", matches.get("timestamp"));
     }
 
     public void testNilCoercedValues() {
-        Grok grok = new Grok(basePatterns, "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of("duration", FLOAT));
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals(28.4f, matches.get("duration"));
         matches = grok.captures("test N/A");
@@ -95,7 +140,8 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNilWithNoCoercion() {
-        Grok grok = new Grok(basePatterns, "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of("duration", STRING));
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals("28.4", matches.get("duration"));
         matches = grok.captures("test N/A");
@@ -103,9 +149,20 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testUnicodeSyslog() {
-        Grok grok = new Grok(basePatterns, "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} " +
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} " +
                 "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) " +
                 "%{GREEDYDATA:syslog_message}", logger::warn);
+        assertCaptureConfig(
+            grok,
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("syslog_hostname", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog_message", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog_pid", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog_pri", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog_program", STRING),
+                org.elasticsearch.common.collect.Map.entry("syslog_timestamp", STRING)
+            )
+        );
         Map<String, Object> matches = grok.captures("<22>Jan  4 07:50:46 mailmaster postfix/policy-spf[9454]: : " +
                 "SPF permerror (Junk encountered in record 'v=spf1 mx a:mail.domain.no ip4:192.168.0.4 �all'): Envelope-from: " +
                 "email@domain.no");
@@ -115,19 +172,22 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNamedFieldsWithWholeTextMatch() {
-        Grok grok = new Grok(basePatterns, "%{DATE_EU:stimestamp}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{DATE_EU:stimestamp}", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of("stimestamp", STRING));
         Map<String, Object> matches = grok.captures("11/01/01");
         assertThat(matches.get("stimestamp"), equalTo("11/01/01"));
     }
 
     public void testWithOniguramaNamedCaptures() {
-        Grok grok = new Grok(basePatterns, "(?<foo>\\w+)", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "(?<foo>\\w+)", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of("foo", STRING));
         Map<String, Object> matches = grok.captures("hello world");
         assertThat(matches.get("foo"), equalTo("hello"));
     }
 
     public void testISO8601() {
-        Grok grok = new Grok(basePatterns, "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of());
         List<String> timeMessages = Arrays.asList(
                 "2001-01-01T00:00:00",
                 "1974-03-02T04:09:09",
@@ -151,7 +211,8 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNotISO8601() {
-        Grok grok = new Grok(basePatterns, "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of());
         List<String> timeMessages = Arrays.asList(
                 "2001-13-01T00:00:00", // invalid month
                 "2001-00-01T00:00:00", // invalid month
@@ -191,6 +252,7 @@ public class GrokTests extends ESTestCase {
         String text = "wowza !!!Tal!!! - Tal";
         String pattern = "%{EXCITED_NAME} - %{NAME}";
         Grok g = new Grok(bank, pattern, false, logger::warn);
+        assertCaptureConfig(g, org.elasticsearch.common.collect.Map.of("EXCITED_NAME_0", STRING, "NAME_21", STRING, "NAME_22", STRING));
 
         assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(pattern));
         assertEquals(true, g.match(text));
@@ -264,7 +326,8 @@ public class GrokTests extends ESTestCase {
 
     public void testBooleanCaptures() {
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
-        Grok g = new Grok(basePatterns, pattern, logger::warn);
+        Grok g = new Grok(Grok.BUILTIN_PATTERNS, pattern, logger::warn);
+        assertCaptureConfig(g, org.elasticsearch.common.collect.Map.of("name", STRING, "status", BOOLEAN));
 
         String text = "active=true";
         Map<String, Object> expected = new HashMap<>();
@@ -282,6 +345,7 @@ public class GrokTests extends ESTestCase {
 
         String pattern = "%{NUMBER:bytes:float} %{NUMBER:id:long} %{NUMBER:rating:double}";
         Grok g = new Grok(bank, pattern, logger::warn);
+        assertCaptureConfig(g, org.elasticsearch.common.collect.Map.of("bytes", FLOAT, "id", LONG, "rating", DOUBLE));
 
         String text = "12009.34 20000000000 4820.092";
         Map<String, Object> expected = new HashMap<>();
@@ -300,6 +364,7 @@ public class GrokTests extends ESTestCase {
 
         String pattern = "%{NUMBER:bytes:float} %{NUMBER:status} %{NUMBER}";
         Grok g = new Grok(bank, pattern, logger::warn);
+        assertCaptureConfig(g, org.elasticsearch.common.collect.Map.of("bytes", FLOAT, "status", STRING));
 
         String text = "12009.34 200 9032";
         Map<String, Object> expected = new HashMap<>();
@@ -310,11 +375,39 @@ public class GrokTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
+    public void testGarbageTypeNameBecomesString() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))");
+        bank.put("NUMBER", "(?:%{BASE10NUM})");
+
+        String pattern = "%{NUMBER:f:not_a_valid_type}";
+        Grok g = new Grok(bank, pattern, logger::warn);
+        assertCaptureConfig(g, org.elasticsearch.common.collect.Map.of("f", STRING));
+        assertThat(g.captures("12009.34"), equalTo(org.elasticsearch.common.collect.Map.of("f", "12009.34")));
+    }
+
     public void testApacheLog() {
         String logLine = "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
                 "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"";
-        Grok grok = new Grok(basePatterns, "%{COMBINEDAPACHELOG}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{COMBINEDAPACHELOG}", logger::warn);
+        assertCaptureConfig(
+            grok,
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("agent", STRING),
+                org.elasticsearch.common.collect.Map.entry("auth", STRING),
+                org.elasticsearch.common.collect.Map.entry("bytes", STRING),
+                org.elasticsearch.common.collect.Map.entry("clientip", STRING),
+                org.elasticsearch.common.collect.Map.entry("httpversion", STRING),
+                org.elasticsearch.common.collect.Map.entry("ident", STRING),
+                org.elasticsearch.common.collect.Map.entry("rawrequest", STRING),
+                org.elasticsearch.common.collect.Map.entry("referrer", STRING),
+                org.elasticsearch.common.collect.Map.entry("request", STRING),
+                org.elasticsearch.common.collect.Map.entry("response", STRING),
+                org.elasticsearch.common.collect.Map.entry("timestamp", STRING),
+                org.elasticsearch.common.collect.Map.entry("verb", STRING)
+            )
+        );
         Map<String, Object> matches = grok.captures(logLine);
 
         assertEquals("31.184.238.164", matches.get("clientip"));
@@ -375,6 +468,22 @@ public class GrokTests extends ESTestCase {
                 "HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}";
 
         Grok grok = new Grok(bank, pattern, logger::warn);
+        assertCaptureConfig(
+            grok,
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("agent", STRING),
+                org.elasticsearch.common.collect.Map.entry("auth", STRING),
+                org.elasticsearch.common.collect.Map.entry("bytes", INTEGER),
+                org.elasticsearch.common.collect.Map.entry("clientip", STRING),
+                org.elasticsearch.common.collect.Map.entry("httpversion", STRING),
+                org.elasticsearch.common.collect.Map.entry("ident", STRING),
+                org.elasticsearch.common.collect.Map.entry("referrer", STRING),
+                org.elasticsearch.common.collect.Map.entry("request", STRING),
+                org.elasticsearch.common.collect.Map.entry("response", INTEGER),
+                org.elasticsearch.common.collect.Map.entry("timestamp", STRING),
+                org.elasticsearch.common.collect.Map.entry("verb", STRING)
+            )
+        );
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("clientip", "83.149.9.216");
@@ -406,6 +515,7 @@ public class GrokTests extends ESTestCase {
         Map<String, String> bank = new HashMap<>();
         bank.put("SINGLEDIGIT", "[0-9]");
         Grok grok = new Grok(bank, "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}", logger::warn);
+        assertCaptureConfig(grok, org.elasticsearch.common.collect.Map.of("num", STRING));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("num", "1");
@@ -432,7 +542,7 @@ public class GrokTests extends ESTestCase {
             });
             t.start();
         };
-        Grok grok = new Grok(basePatterns, grokPattern, MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, grokPattern, MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
             logger::warn);
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
@@ -473,24 +583,24 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testUnsupportedBracketsInFieldName() {
-        Grok grok = new Grok(basePatterns, "%{WORD:unsuppo(r)ted}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{WORD:unsuppo(r)ted}", logger::warn);
         Map<String, Object> matches = grok.captures("line");
         assertNull(matches);
     }
 
     public void testJavaClassPatternWithUnderscore() {
-        Grok grok = new Grok(basePatterns, "%{JAVACLASS}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{JAVACLASS}", logger::warn);
         assertThat(grok.match("Test_Class.class"), is(true));
     }
 
     public void testJavaFilePatternWithSpaces() {
-        Grok grok = new Grok(basePatterns, "%{JAVAFILE}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{JAVAFILE}", logger::warn);
         assertThat(grok.match("Test Class.java"), is(true));
     }
 
     public void testLogCallBack(){
         AtomicReference<String> message = new AtomicReference<>();
-        Grok grok = new Grok(basePatterns, ".*\\[.*%{SPACE}*\\].*", message::set);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, ".*\\[.*%{SPACE}*\\].*", message::set);
         grok.match("[foo]");
         //this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
@@ -498,8 +608,17 @@ public class GrokTests extends ESTestCase {
 
     private void assertGrokedField(String fieldName) {
         String line = "foo";
-        Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}", logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{WORD:" + fieldName + "}", logger::warn);
         Map<String, Object> matches = grok.captures(line);
         assertEquals(line, matches.get(fieldName));
+    }
+
+    private void assertCaptureConfig(Grok grok, Map<String, GrokCaptureType> nameToType) {
+        Map<String, GrokCaptureType> fromGrok = new TreeMap<>();
+        for (GrokCaptureConfig config : grok.captureConfig()) {
+            Object old = fromGrok.put(config.name(), config.type());
+            assertThat("duplicates not allowed", old, nullValue());
+        }
+        assertThat(fromGrok, equalTo(new TreeMap<>(nameToType)));
     }
 }

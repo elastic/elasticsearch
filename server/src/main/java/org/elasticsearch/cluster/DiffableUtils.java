@@ -147,8 +147,8 @@ public final class DiffableUtils {
      * Loads an object that represents difference between two ImmutableOpenMaps of Diffable objects using Diffable proto object
      */
     public static <K, T extends Diffable<T>> MapDiff<K, T, ImmutableOpenMap<K, T>> readImmutableOpenMapDiff(StreamInput in,
-            KeySerializer<K> keySerializer, Reader<T> reader, Reader<Diff<T>> diffReader) throws IOException {
-        return new ImmutableOpenMapDiff<>(in, keySerializer, new DiffableValueReader<>(reader, diffReader));
+            KeySerializer<K> keySerializer, DiffableValueReader<K, T> diffableValueReader) throws IOException {
+        return new ImmutableOpenMapDiff<>(in, keySerializer, diffableValueReader);
     }
 
     /**
@@ -393,20 +393,16 @@ public final class DiffableUtils {
         protected MapDiff(StreamInput in, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) throws IOException {
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
-            deletes = new ArrayList<>();
-            diffs = new HashMap<>();
-            upserts = new HashMap<>();
-            int deletesCount = in.readVInt();
-            for (int i = 0; i < deletesCount; i++) {
-                deletes.add(keySerializer.readKey(in));
-            }
+            deletes = in.readList(keySerializer::readKey);
             int diffsCount = in.readVInt();
+            diffs = diffsCount == 0 ? Collections.emptyMap() : new HashMap<>(diffsCount);
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
                 diffs.put(key, diff);
             }
             int upsertsCount = in.readVInt();
+            upserts = upsertsCount == 0 ? Collections.emptyMap() : new HashMap<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);
@@ -446,10 +442,7 @@ public final class DiffableUtils {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(deletes.size());
-            for (K delete : deletes) {
-                keySerializer.writeKey(delete, out);
-            }
+            out.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o));
             Version version = out.getVersion();
             // filter out custom states not supported by the other node
             int diffCount = 0;
@@ -715,7 +708,7 @@ public final class DiffableUtils {
 
         @Override
         public void write(Set<String> value, StreamOutput out) throws IOException {
-            out.writeStringArray(value.toArray(new String[value.size()]));
+            out.writeStringCollection(value);
         }
 
         @Override

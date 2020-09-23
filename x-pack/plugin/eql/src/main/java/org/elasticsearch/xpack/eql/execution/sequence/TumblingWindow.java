@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
+import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
 import java.util.List;
@@ -296,14 +297,21 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
-            matcher.clear();
+            close(listener);
             return;
         }
 
-        client.get(hits(completed), wrap(hits -> {
-            listener.onResponse(new SequencePayload(completed, hits, false, timeTook()));
+        // get results through search (to keep using PIT)
+        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
+            SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
+            close(listener);
+            return payload;
+        }));
+    }
+
+    private void close(ActionListener<Payload> listener) {
             matcher.clear();
-        }, listener::onFailure));
+        client.close(ActionListener.delegateFailure(listener, (l, r) -> {}));
     }
 
     private TimeValue timeTook() {

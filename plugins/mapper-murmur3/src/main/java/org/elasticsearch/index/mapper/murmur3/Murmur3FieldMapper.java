@@ -23,7 +23,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -42,10 +41,12 @@ import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class Murmur3FieldMapper extends FieldMapper {
 
@@ -68,7 +69,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
-            return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), meta),
+            return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), fieldType.stored(), meta),
                     multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -95,8 +96,8 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
-        public Murmur3FieldType(String name, Map<String, String> meta) {
-            super(name, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
+            super(name, false, isStored, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         @Override
@@ -105,14 +106,9 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override
@@ -151,7 +147,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

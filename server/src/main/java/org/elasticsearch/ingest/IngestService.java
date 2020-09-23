@@ -452,9 +452,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                    Iterable<DocWriteRequest<?>> actionRequests,
                                    BiConsumer<Integer, Exception> onFailure,
                                    BiConsumer<Thread, Exception> onCompletion,
-                                   IntConsumer onDropped) {
+                                   IntConsumer onDropped,
+                                   String executorName) {
 
-        threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+        threadPool.executor(executorName).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -473,6 +474,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 
@@ -495,6 +497,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 

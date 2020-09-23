@@ -30,7 +30,6 @@ public class DocLookup {
 
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-
     @Nullable
     private final String[] types;
 

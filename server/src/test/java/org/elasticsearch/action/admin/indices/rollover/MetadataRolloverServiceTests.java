@@ -554,7 +554,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         try {
             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
             DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", Version.CURRENT, DateFieldMapper.Resolution.MILLISECONDS, null, false)
+                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
                 .build(builderContext);
             MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
             when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");

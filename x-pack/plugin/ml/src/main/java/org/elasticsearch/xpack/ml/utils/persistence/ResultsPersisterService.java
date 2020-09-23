@@ -112,9 +112,9 @@ public class ResultsPersisterService {
                                        boolean requireAlias,
                                        Supplier<Boolean> shouldRetry,
                                        Consumer<String> msgHandler) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy).requireAlias(requireAlias);
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-            bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
         }
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler);
     }

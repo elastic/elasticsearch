@@ -35,7 +35,7 @@ class MutableSearchResponse {
     private final int totalShards;
     private final int skippedShards;
     private final Clusters clusters;
-    private final AtomicArray<ShardSearchFailure> shardFailures;
+    private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
     private boolean isPartial;
@@ -74,7 +74,7 @@ class MutableSearchResponse {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
         this.clusters = clusters;
-        this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
+        this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
@@ -110,8 +110,6 @@ class MutableSearchResponse {
             "notified through onListShards";
         assert response.getSkippedShards() == skippedShards : "received number of skipped shards differs from the one " +
             "notified through onListShards";
-        assert response.getFailedShards() == buildShardFailures().length : "number of tracked failures differs from failed shards";
-        // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
         this.isPartial = false;
@@ -136,11 +134,11 @@ class MutableSearchResponse {
     /**
      * Adds a shard failure concurrently (non-blocking).
      */
-    void addShardFailure(int shardIndex, ShardSearchFailure failure) {
+    void addQueryFailure(int shardIndex, ShardSearchFailure failure) {
         synchronized (this) {
             failIfFrozen();
         }
-        shardFailures.set(shardIndex, failure);
+        queryFailures.set(shardIndex, failure);
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
@@ -148,7 +146,7 @@ class MutableSearchResponse {
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), reducedAggs, null, null, false, false, reducePhase);
         long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
         return new SearchResponse(internal, null, totalShards, successfulShards, skippedShards,
-            tookInMillis, buildShardFailures(), clusters);
+            tookInMillis, buildQueryFailures(), clusters);
     }
 
     /**
@@ -202,13 +200,13 @@ class MutableSearchResponse {
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
-        if (shardFailures == null) {
+    private ShardSearchFailure[] buildQueryFailures() {
+        if (queryFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
-        for (int i = 0; i < shardFailures.length(); i++) {
-            ShardSearchFailure failure = shardFailures.get(i);
+        for (int i = 0; i < queryFailures.length(); i++) {
+            ShardSearchFailure failure = queryFailures.get(i);
             if (failure != null) {
                 failures.add(failure);
             }

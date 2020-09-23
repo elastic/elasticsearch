@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -94,6 +93,11 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", FIELD_TYPE);
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(1234);
     }
 
     public void testDefaults() throws Exception {
@@ -310,7 +314,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertEquals(0, fields.length);
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

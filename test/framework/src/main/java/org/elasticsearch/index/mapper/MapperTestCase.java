@@ -19,177 +19,148 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Mapper}s.
  */
-public abstract class MapperTestCase extends ESTestCase {
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+public abstract class MapperTestCase extends MapperServiceTestCase {
+    protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
-    protected Collection<? extends Plugin> getPlugins() {
-        return emptyList();
-    }
-
-    protected Settings getIndexSettings() {
-        return SETTINGS;
-    }
-
-    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
-            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            emptyMap(),
-            emptyMap()
-        );
-    }
-
-    protected final String randomIndexOptions() {
-        return randomFrom(new String[] { "docs", "freqs", "positions", "offsets" });
-    }
-
-    protected final DocumentMapper createDocumentMapper(XContentBuilder mappings) throws IOException {
-        return createMapperService(mappings).documentMapper();
-    }
-
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        return createMapperService(getIndexSettings(), mappings);
+    /**
+     * Writes the field and a sample value for it to the provided {@link XContentBuilder}.
+     * To be overridden in case the field should not be written at all in documents,
+     * like in the case of runtime fields.
+     */
+    protected void writeField(XContentBuilder builder) throws IOException {
+        builder.field("field");
+        writeFieldValue(builder);
     }
 
     /**
-     * Create a {@link MapperService} like we would for an index.
+     * Writes a sample value for the field to the provided {@link XContentBuilder}.
      */
-    protected final MapperService createMapperService(Settings settings, XContentBuilder mapping) throws IOException {
-        IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-            .numberOfReplicas(0)
-            .numberOfShards(1)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(meta, Settings.EMPTY);
-        MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
-        ).getMapperRegistry();
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, emptyMap(), emptyMap());
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
-        MapperService mapperService = new MapperService(
-            indexSettings,
-            createIndexAnalyzers(indexSettings),
-            xContentRegistry(),
-            similarityService,
-            mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
-            () -> true
-        );
-        merge(mapperService, mapping);
-        return mapperService;
+    protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
+
+    /**
+     * This test verifies that the exists query created is the appropriate one, and aligns with the data structures
+     * being created for a document with a value for the field. This can only be verified for the minimal mapping.
+     * Field types that allow configurable doc_values or norms should write their own tests that creates the different
+     * mappings combinations and invoke {@link #assertExistsQuery(MapperService)} to verify the behaviour.
+     */
+    public final void testExistsQueryMinimalMapping() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
-    protected final void withLuceneIndex(
-        MapperService mapperService,
-        CheckedConsumer<RandomIndexWriter, IOException> builder,
-        CheckedConsumer<IndexReader, IOException> test
-    ) throws IOException {
-        try (
-            Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, new IndexWriterConfig(mapperService.indexAnalyzer()))
-        ) {
-            builder.accept(iw);
-            try (IndexReader reader = iw.getReader()) {
-                test.accept(reader);
+    protected void assertExistsQuery(MapperService mapperService) throws IOException {
+        ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        Query query = fieldType.existsQuery(queryShardContext);
+        assertExistsQuery(fieldType, query, fields);
+    }
+
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        if (fieldType.hasDocValues()) {
+            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
+            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery)query;
+            assertEquals("field", fieldExistsQuery.getField());
+            assertDocValuesField(fields, "field");
+            assertNoFieldNamesField(fields);
+        } else if (fieldType.getTextSearchInfo().hasNorms()) {
+            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
+            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
+            assertEquals("field", normsFieldExistsQuery.getField());
+            assertHasNorms(fields, "field");
+            assertNoDocValuesField(fields, "field");
+            assertNoFieldNamesField(fields);
+        } else {
+            assertThat(query, instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) query;
+            assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
+            //we always perform a term query against _field_names, even when the field
+            // is not added to _field_names because it is not indexed nor stored
+            assertEquals("field", termQuery.getTerm().text());
+            assertNoDocValuesField(fields, "field");
+            if (fieldType.isSearchable() || fieldType.isStored()) {
+                assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
+            } else {
+                assertNoFieldNamesField(fields);
             }
         }
     }
 
-    protected final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        build.accept(builder);
-        builder.endObject();
-        return new SourceToParse("test", "_doc", "1", BytesReference.bytes(builder), XContentType.JSON);
+    protected static void assertNoFieldNamesField(ParseContext.Document fields) {
+        assertNull(fields.getField(FieldNamesFieldMapper.NAME));
     }
 
-    /**
-     * Merge a new mapping into the one in the provided {@link MapperService}.
-     */
-    protected final void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), MergeReason.MAPPING_UPDATE);
+    protected static void assertHasNorms(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            IndexableFieldType indexableFieldType = indexableField.fieldType();
+            if (indexableFieldType.indexOptions() != IndexOptions.NONE) {
+                assertFalse(indexableFieldType.omitNorms());
+                return;
+            }
+        }
+        fail("field [" + field + "] should be indexed but it isn't");
     }
 
-    protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
-        buildFields.accept(builder);
-        return builder.endObject().endObject().endObject();
+    protected static void assertDocValuesField(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
+                return;
+            }
+        }
+        fail("doc_values not present for field [" + field + "]");
     }
 
-    protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
-        return mapping(b -> {
-            b.startObject("field");
-            buildField.accept(b);
-            b.endObject();
-        });
+    protected static void assertNoDocValuesField(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
+        }
     }
 
-    QueryShardContext createQueryShardContext(MapperService mapperService) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
-        );
-        return queryShardContext;
-    }
-
-    protected abstract void minimalMapping(XContentBuilder b) throws IOException;
-
-    public final void testEmptyName() throws IOException {
+    public final void testEmptyName() {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
             b.startObject("");
             minimalMapping(b);
@@ -210,7 +181,23 @@ public abstract class MapperTestCase extends ESTestCase {
         assertParseMinimalWarnings();
     }
 
+    // TODO make this final once we remove FieldMapperTestCase2
+    public void testMinimalToMaximal() throws IOException {
+        XContentBuilder orig = JsonXContent.contentBuilder().startObject();
+        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        orig.endObject();
+        XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
+        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        parsedFromOrig.endObject();
+        assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
+        assertParseMaximalWarnings();
+    }
+
     protected void assertParseMinimalWarnings() {
+        // Most mappers don't emit any warnings
+    }
+
+    protected void assertParseMaximalWarnings() {
         // Most mappers don't emit any warnings
     }
 
@@ -257,19 +244,59 @@ public abstract class MapperTestCase extends ESTestCase {
         );
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+    public final void testDeprecatedBoost() throws IOException {
+        try {
+            createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("boost", 2.0);
+            }));
+            assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        }
+        catch (MapperParsingException e) {
+            assertThat(e.getMessage(), anyOf(
+                containsString("unknown parameter [boost]"),
+                containsString("[boost : 2.0]")));
+        }
+        assertParseMinimalWarnings();
+    }
+
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
         return fetchSourceValue(mapper, sourceValue, null);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
         String field = mapper.name();
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);
+    }
+
+    /**
+     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     */
+    protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
+        throws IOException {
+
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
+            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+        SetOnce<List<?>> result = new SetOnce<>();
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup, null);
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(lookup.source()));
+        });
+        return result.get();
     }
 }

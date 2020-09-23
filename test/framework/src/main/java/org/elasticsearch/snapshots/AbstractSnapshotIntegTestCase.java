@@ -277,6 +277,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    public static void failReadsAllDataNodes(String repository) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+            mockRepository.setFailReadsAfterUnblock(true);
+        }
+    }
+
     public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
@@ -307,11 +314,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        createRepository(repoName, type, randomRepositorySettings());
+    }
+
+    protected Settings.Builder randomRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
-            settings = settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+            settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
-        createRepository(repoName, type, settings);
+        return settings;
     }
 
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
@@ -426,6 +438,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
+    }
+
+    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(internalCluster().getMasterName(), statePredicate);
     }
 
     protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {

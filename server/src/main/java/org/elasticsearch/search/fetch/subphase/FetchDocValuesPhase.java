@@ -19,31 +19,18 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-
-import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 
 /**
  * Fetch sub phase which pulls data from doc values.
@@ -56,117 +43,70 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-
-        if (context.collapse() != null) {
-            // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldName();
-            if (context.docValuesContext() == null) {
-                context.docValuesContext(new FetchDocValuesContext(
-                        Collections.singletonList(new FieldAndFormat(name, null))));
-            } else if (context.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValuesContext().fields().add(new FieldAndFormat(name, null));
-            }
-        }
-
-        if (context.docValuesContext() == null) {
-            return;
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
+        FetchDocValuesContext dvContext = context.docValuesContext();
+        if (dvContext == null) {
+            return null;
         }
 
         if (context.docValuesContext().fields().stream()
                 .map(f -> f.format)
-                .filter(USE_DEFAULT_FORMAT::equals)
-                .findAny()
-                .isPresent()) {
+                .anyMatch(USE_DEFAULT_FORMAT::equals)) {
             DEPRECATION_LOGGER.deprecate("explicit_default_format",
                     "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
                     "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
         }
 
+        /*
+         * Its tempting to swap this to a `Map` but that'd break backwards
+         * compatibility because we support fetching the same field multiple
+         * times with different configuration. That isn't possible with a `Map`.
+         */
+        List<DocValueField> fields = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
-            String field = fieldAndFormat.field;
-            MappedFieldType fieldType = context.mapperService().fieldType(field);
-            if (fieldType != null) {
-                final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                final boolean isNanosecond;
-                if (indexFieldData instanceof IndexNumericFieldData) {
-                    isNanosecond = ((IndexNumericFieldData) indexFieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
-                } else {
-                    isNanosecond = false;
-                }
-                final DocValueFormat format;
-                String formatDesc = fieldAndFormat.format;
-                if (Objects.equals(formatDesc, USE_DEFAULT_FORMAT)) {
-                    // TODO: Remove in 8.x
-                    formatDesc = null;
-                }
-                if (isNanosecond) {
-                    format = withNanosecondResolution(fieldType.docValueFormat(formatDesc, null));
-                } else {
-                    format = fieldType.docValueFormat(formatDesc, null);
-                }
-                LeafReaderContext subReaderContext = null;
-                LeafFieldData data = null;
-                SortedBinaryDocValues binaryValues = null; // binary / string / ip fields
-                SortedNumericDocValues longValues = null; // int / date fields
-                SortedNumericDoubleValues doubleValues = null; // floating-point fields
-                for (SearchHit hit : hits) {
-                    // if the reader index has changed we need to get a new doc values reader instance
-                    if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
-                        int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
-                        subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-                        data = indexFieldData.load(subReaderContext);
-                        if (indexFieldData instanceof IndexNumericFieldData) {
-                            NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
-                            if (numericType.isFloatingPoint()) {
-                                doubleValues = ((LeafNumericFieldData) data).getDoubleValues();
-                            } else {
-                                // by default nanoseconds are cut to milliseconds within aggregations
-                                // however for doc value fields we need the original nanosecond longs
-                                if (isNanosecond) {
-                                    longValues = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
-                                } else {
-                                    longValues = ((LeafNumericFieldData) data).getLongValues();
-                                }
-                            }
-                        } else {
-                            data = indexFieldData.load(subReaderContext);
-                            binaryValues = data.getBytesValues();
-                        }
-                    }
-                    DocumentField hitField = hit.field(field);
-                    if (hitField == null) {
-                        hitField = new DocumentField(field, new ArrayList<>(2));
-                        // even if we request a doc values of a meta-field (e.g. _routing),
-                        // docValues fields will still be document fields, and put under "fields" section of a hit.
-                        hit.setDocumentField(field, hitField);
-                    }
-                    final List<Object> values = hitField.getValues();
+            MappedFieldType ft = context.mapperService().fieldType(fieldAndFormat.field);
+            if (ft == null) {
+                continue;
+            }
+            String format = USE_DEFAULT_FORMAT.equals(fieldAndFormat.format) ? null : fieldAndFormat.format;
+            ValueFetcher fetcher = new DocValueFetcher(
+                ft.docValueFormat(format, null),
+                context.searchLookup().doc().getForField(ft)
+            );
+            fields.add(new DocValueField(fieldAndFormat.field, fetcher));
+        }
 
-                    int subDocId = hit.docId() - subReaderContext.docBase;
-                    if (binaryValues != null) {
-                        if (binaryValues.advanceExact(subDocId)) {
-                            for (int i = 0, count = binaryValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(binaryValues.nextValue()));
-                            }
-                        }
-                    } else if (longValues != null) {
-                        if (longValues.advanceExact(subDocId)) {
-                            for (int i = 0, count = longValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(longValues.nextValue()));
-                            }
-                        }
-                    } else if (doubleValues != null) {
-                        if (doubleValues.advanceExact(subDocId)) {
-                            for (int i = 0, count = doubleValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(doubleValues.nextValue()));
-                            }
-                        }
-                    } else {
-                        throw new AssertionError("Unreachable code");
-                    }
+        return new FetchSubPhaseProcessor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
+                for (DocValueField f : fields) {
+                    f.fetcher.setNextReader(readerContext);
                 }
             }
+
+            @Override
+            public void process(HitContext hit) throws IOException {
+                for (DocValueField f : fields) {
+                    DocumentField hitField = hit.hit().field(f.field);
+                    if (hitField == null) {
+                        hitField = new DocumentField(f.field, new ArrayList<>(2));
+                        // even if we request a doc values of a meta-field (e.g. _routing),
+                        // docValues fields will still be document fields, and put under "fields" section of a hit.
+                        hit.hit().setDocumentField(f.field, hitField);
+                    }
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                }
+            }
+        };
+    }
+
+    private static class DocValueField {
+        private final String field;
+        private final ValueFetcher fetcher;
+
+        DocValueField(String field, ValueFetcher fetcher) {
+            this.field = field;
+            this.fetcher = fetcher;
         }
     }
 }

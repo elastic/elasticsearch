@@ -160,14 +160,16 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return org.elasticsearch.common.collect.List.of(
-            AnalyticsAggregatorFactory::registerPercentilesAggregator,
-            AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator
-        );
+            return org.elasticsearch.common.collect.List.of(
+                AnalyticsAggregatorFactory::registerPercentilesAggregator,
+                AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedMaxggregator
+            );
     }
 
     @Override

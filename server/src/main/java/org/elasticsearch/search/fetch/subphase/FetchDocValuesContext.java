@@ -51,7 +51,7 @@ public class FetchDocValuesContext {
         return new FetchDocValuesContext(fields);
     }
 
-    FetchDocValuesContext(List<FieldAndFormat> fields) {
+    public FetchDocValuesContext(List<FieldAndFormat> fields) {
         this.fields = fields;
     }
 

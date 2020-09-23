@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Shard snapshot metadata
@@ -50,7 +51,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         private final String name;
         private final ByteSizeValue partSize;
         private final long partBytes;
-        private final long numberOfParts;
+        private final int numberOfParts;
         private final StoreFileMetadata metadata;
 
         /**
@@ -69,17 +70,19 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 partBytes = partSize.getBytes();
             }
 
-            long totalLength = metadata.length();
-            long numberOfParts = totalLength / partBytes;
-            if (totalLength % partBytes > 0) {
-                numberOfParts++;
+            if (metadata.length() == 0) {
+                numberOfParts = 1;
+            } else {
+                long longNumberOfParts = 1L + (metadata.length() - 1L) / partBytes; // ceil(len/partBytes), but beware of long overflow
+                numberOfParts = (int)longNumberOfParts;
+                if (numberOfParts != longNumberOfParts) { // also beware of int overflow, although 2^32 parts is already ludicrous
+                    throw new IllegalArgumentException("part size [" + partSize + "] too small for file [" + metadata + "]");
+                }
             }
-            if (numberOfParts == 0) {
-                numberOfParts++;
-            }
-            this.numberOfParts = numberOfParts;
+
             this.partSize = partSize;
             this.partBytes = partBytes;
+            assert IntStream.range(0, numberOfParts).mapToLong(this::partBytes).sum() == metadata.length();
         }
 
         /**
@@ -97,7 +100,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param part part number
          * @return part name
          */
-        public String partName(long part) {
+        public String partName(int part) {
             if (numberOfParts > 1) {
                 return name + ".part" + part;
             } else {
@@ -151,6 +154,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @return the size (in bytes) of a given part
          */
         public long partBytes(int part) {
+            assert 0 <= part && part < numberOfParts : part + " vs " + numberOfParts;
             if (numberOfParts == 1) {
                 return length();
             }
@@ -159,7 +163,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 return partBytes;
             }
             // Last part size is deducted from the length and the number of parts
-            return length() - (partBytes * (numberOfParts-1));
+            final long lastPartBytes = length() - (this.partBytes * (numberOfParts - 1));
+            assert 0 < lastPartBytes && lastPartBytes <= partBytes : lastPartBytes + " vs " + partBytes;
+            return lastPartBytes;
         }
 
         /**
@@ -167,7 +173,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          *
          * @return number of parts
          */
-        public long numberOfParts() {
+        public int numberOfParts() {
             return numberOfParts;
         }
 

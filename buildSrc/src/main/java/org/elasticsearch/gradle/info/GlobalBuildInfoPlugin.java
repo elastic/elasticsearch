@@ -294,7 +294,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 final int[] glibcVersion;
                 try {
                     String[] parts = version.split(" ")[1].split("\\.");
-                    glibcVersion = new int[]{Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
+                    glibcVersion = new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]) };
                 } catch (Exception e) {
                     throw new IllegalStateException("Could not parse glibc version from " + version, e);
                 }

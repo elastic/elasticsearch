@@ -542,8 +542,8 @@
 ---
 "Verify data stream resolvability in EQL search API with sequences":
   - skip:
-      version: " - 7.9.2"
-      reason: "EQL data stream resolution with queries using sequences only properly works from 7.9.3"
+      version: " - 7.9.99"
+      reason: "EQL data stream resolution with queries using sequences only properly works from 7.10.0 (when point-in-time is introduced)"
       features: allowed_warnings
 
   - do:

@@ -116,11 +116,7 @@ public class MigrateAction implements LifecycleAction {
         if(indexOfTargetTier == -1) {
             throw new IllegalArgumentException("invalid data tier [" + targetTier + "]");
         }
-        String preferredTiers = COLD_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
-        if (Strings.hasText(preferredTiers) == false) {
-            return targetTier;
-        }
-        return preferredTiers;
+        return COLD_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
     }
 
     @Override

@@ -200,13 +200,13 @@ public class WildcardServiceProviderResolver {
 
     private static Map<String, WildcardServiceProvider> parse(XContentParser parser) throws IOException {
         final XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         XContentParserUtils.ensureFieldName(parser, parser.nextToken(), Fields.SERVICES.getPreferredName());
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         final Map<String, WildcardServiceProvider> services = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String name = parser.currentName();
             final XContentLocation location = parser.getTokenLocation();
             try {
@@ -215,9 +215,9 @@ public class WildcardServiceProviderResolver {
                 throw new ParsingException(location, "failed to parse wildcard service [{}]", e, name);
             }
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
 
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return services;
     }
 

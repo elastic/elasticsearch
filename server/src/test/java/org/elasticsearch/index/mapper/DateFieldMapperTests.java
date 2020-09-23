@@ -271,8 +271,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             .field("format", "yyyy/MM/dd")));
 
         assertThat(mapperService.fieldType("field"), notNullValue());
-        assertFalse(mapperService.fieldType("field")
-            .getTextSearchInfo().isStored());
+        assertFalse(mapperService.fieldType("field").isStored());
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis"))));

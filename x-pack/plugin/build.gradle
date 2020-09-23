@@ -10,8 +10,11 @@ dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  // let the yamlRestTest see the classpath of test
-  yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
+  if (false == isEclipse) {
+    // let the yamlRestTest see the classpath of test
+    // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
+    yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
+  }
 }
 
 configurations {

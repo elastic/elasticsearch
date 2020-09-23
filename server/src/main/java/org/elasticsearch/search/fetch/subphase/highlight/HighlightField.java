@@ -113,7 +113,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
     }
 
     public static HighlightField fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String fieldName = parser.currentName();
         Text[] fragments = null;
         XContentParser.Token token = parser.nextToken();

@@ -51,7 +51,7 @@ final class TransportSearchHelper {
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
                 if (includeContextUUID) {
-                    out.writeString(searchPhaseResult.getContextId().getReaderId());
+                    out.writeString(searchPhaseResult.getContextId().getSessionId());
                 }
                 out.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();

@@ -308,6 +308,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62690")
     public void testHealthOnMasterFailover() throws Exception {
         final String node = internalCluster().startDataOnlyNode();
         boolean withIndex = randomBoolean();

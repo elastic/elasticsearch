@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -576,20 +575,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        AtomicBoolean callListener = new AtomicBoolean(false);
-        saveStateListeners.getAndUpdate(currentListeners -> {
+        if (saveStateListeners.updateAndGet(currentListeners -> {
             // check the state again (optimistic locking), while we checked the last time, the indexing thread could have
             // saved the state and is finishing. As it first set the state and _than_ gets saveStateListeners, it's safe
             // to just check the indexer state again
             if (getState() != IndexerState.INDEXING) {
-                callListener.set(true);
                 return null;
             }
 
             if (currentListeners == null) {
                 // in case shouldStopAtCheckpoint has already the desired value _and_ we know its _persisted_, respond immediately
                 if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
-                    callListener.set(true);
                     return null;
                 }
 
@@ -598,14 +594,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             currentListeners.add(shouldStopAtCheckpointListener);
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
             return currentListeners;
-        });
-
-        if (callListener.get()) {
+        }) == null) {
             shouldStopAtCheckpointListener.onResponse(null);
-        }
-
-        // only if getAndUpdate added a listener go on
-        if (saveStateListeners != null) {
+        } else {
             // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
             runSearchImmediately();
         }

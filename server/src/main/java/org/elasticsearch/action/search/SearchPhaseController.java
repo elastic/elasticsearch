@@ -426,7 +426,7 @@ public final class SearchPhaseController {
         if (queryResults.isEmpty()) {
             throw new IllegalStateException(errorMsg);
         }
-        checkSameUnsignedLongSortFormat(queryResults);
+        validateMergeSortValueFormats(queryResults);
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
@@ -492,7 +492,7 @@ public final class SearchPhaseController {
      * don't work correctly. Throw an error if this kind of sorting is detected.
      * //TODO: instead of throwing error, find a way to sort long and unsigned_long together
      */
-    private static void checkSameUnsignedLongSortFormat(Collection<? extends SearchPhaseResult> queryResults) {
+    private static void validateMergeSortValueFormats(Collection<? extends SearchPhaseResult> queryResults) {
         boolean[] ulFormats = null;
         boolean firstResult = true;
         for (SearchPhaseResult entry : queryResults) {

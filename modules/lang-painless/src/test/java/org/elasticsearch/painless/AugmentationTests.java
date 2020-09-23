@@ -298,7 +298,7 @@ public class AugmentationTests extends ScriptTestCase {
 
         // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
         regexLimitFactor = 1;
-        Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();
+        settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();
         scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
         expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
     }

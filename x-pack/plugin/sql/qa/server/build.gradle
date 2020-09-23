@@ -12,7 +12,7 @@ dependencies {
   // JDBC testing dependencies
   api project(path: xpackModule('sql:jdbc'))
   // Common utilities from QL
-  api project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  api project(xpackModule('ql:test'))
 
   api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
@@ -67,7 +67,7 @@ subprojects {
       transitive = false
     }
     testImplementation project(":test:framework")
-    testRuntimeOnly project(path: xpackModule('ql'), configuration: 'testArtifacts')
+    testRuntimeOnly project(xpackModule('ql:test'))
 
     // JDBC testing dependencies
     testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"

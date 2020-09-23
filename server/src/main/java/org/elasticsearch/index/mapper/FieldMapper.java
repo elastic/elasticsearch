@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -282,7 +281,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
 
-    protected void createFieldNamesField(ParseContext context) {
+    protected final void createFieldNamesField(ParseContext context) {
+        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {

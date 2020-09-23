@@ -74,6 +74,20 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    @Override
     protected void assertParseMaximalWarnings() {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }

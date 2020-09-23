@@ -19,8 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -44,6 +53,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +62,104 @@ import static org.mockito.Mockito.when;
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
+
+    /**
+     * Writes the field and a sample value for it to the provided {@link XContentBuilder}.
+     * To be overridden in case the field should not be written at all in documents,
+     * like in the case of runtime fields.
+     */
+    protected void writeField(XContentBuilder builder) throws IOException {
+        builder.field("field");
+        writeFieldValue(builder);
+    }
+
+    /**
+     * Writes a sample value for the field to the provided {@link XContentBuilder}.
+     */
+    protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
+
+    /**
+     * This test verifies that the exists query created is the appropriate one, and aligns with the data structures
+     * being created for a document with a value for the field. This can only be verified for the minimal mapping.
+     * Field types that allow configurable doc_values or norms should write their own tests that creates the different
+     * mappings combinations and invoke {@link #assertExistsQuery(MapperService)} to verify the behaviour.
+     */
+    public final void testExistsQueryMinimalMapping() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    protected void assertExistsQuery(MapperService mapperService) throws IOException {
+        ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        Query query = fieldType.existsQuery(queryShardContext);
+        assertExistsQuery(fieldType, query, fields);
+    }
+
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        if (fieldType.hasDocValues()) {
+            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
+            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery)query;
+            assertEquals("field", fieldExistsQuery.getField());
+            assertDocValuesField(fields, "field");
+            assertNoFieldNamesField(fields);
+        } else if (fieldType.getTextSearchInfo().hasNorms()) {
+            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
+            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
+            assertEquals("field", normsFieldExistsQuery.getField());
+            assertHasNorms(fields, "field");
+            assertNoDocValuesField(fields, "field");
+            assertNoFieldNamesField(fields);
+        } else {
+            assertThat(query, instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) query;
+            assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
+            //we always perform a term query against _field_names, even when the field
+            // is not added to _field_names because it is not indexed nor stored
+            assertEquals("field", termQuery.getTerm().text());
+            assertNoDocValuesField(fields, "field");
+            if (fieldType.isSearchable() || fieldType.isStored()) {
+                assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
+            } else {
+                assertNoFieldNamesField(fields);
+            }
+        }
+    }
+
+    protected static void assertNoFieldNamesField(ParseContext.Document fields) {
+        assertNull(fields.getField(FieldNamesFieldMapper.NAME));
+    }
+
+    protected static void assertHasNorms(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            IndexableFieldType indexableFieldType = indexableField.fieldType();
+            if (indexableFieldType.indexOptions() != IndexOptions.NONE) {
+                assertFalse(indexableFieldType.omitNorms());
+                return;
+            }
+        }
+        fail("field [" + field + "] should be indexed but it isn't");
+    }
+
+    protected static void assertDocValuesField(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
+                return;
+            }
+        }
+        fail("doc_values not present for field [" + field + "]");
+    }
+
+    protected static void assertNoDocValuesField(ParseContext.Document doc, String field) {
+        IndexableField[] fields = doc.getFields(field);
+        for (IndexableField indexableField : fields) {
+            assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
+        }
+    }
 
     public final void testEmptyName() {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {

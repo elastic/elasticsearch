@@ -72,6 +72,11 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         b.field("type", "geo_shape");
     }
 
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("POINT (14.0 15.0)");
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
@@ -125,7 +130,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertFieldWarnings("tree");
     }
 
-
     /**
      * Test that accept_z_value parameter correctly parses
      */
@@ -164,7 +168,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertThat(ignoreMalformed.explicit(), equalTo(true));
         assertThat(ignoreMalformed.value(), equalTo(false));
     }
-
 
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];

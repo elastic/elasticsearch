@@ -46,8 +46,22 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("2016-03-11");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "date");
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {
@@ -220,13 +234,18 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
-    public void testBadNullValue() {
+    public void testBadNullValue() throws IOException {
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", ""))));
+            () -> createDocumentMapper(Version.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo"))));
 
         assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: cannot parse empty date"));
+            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: " +
+                "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"));
+
+        createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
+
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {
@@ -261,8 +280,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             .field("format", "yyyy/MM/dd")));
 
         assertThat(mapperService.fieldType("field"), notNullValue());
-        assertFalse(mapperService.fieldType("field")
-            .getTextSearchInfo().isStored());
+        assertFalse(mapperService.fieldType("field").isStored());
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis"))));
@@ -364,7 +382,8 @@ public class DateFieldMapperTests extends MapperTestCase {
             mapping.put("null_value", nullValue);
         }
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("field", resolution, null, false);
+        DateFieldMapper.Builder builder
+            = new DateFieldMapper.Builder("field", resolution, null, false, Version.CURRENT);
         builder.parse("field", null, mapping);
         return builder.build(context);
     }

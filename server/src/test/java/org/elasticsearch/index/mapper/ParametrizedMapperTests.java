@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,11 +44,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ParametrizedMapperTests extends ESSingleNodeTestCase {
+public class ParametrizedMapperTests extends MapperServiceTestCase {
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
         @Override
@@ -60,8 +59,8 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestPlugin.class);
+    protected Collection<Plugin> getPlugins() {
+        return List.of(new TestPlugin());
     }
 
     private static class StringWrapper {
@@ -110,7 +109,8 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 if (n > 50) {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
                 }
-            });
+            })
+            .setMergeValidator((o, n) -> n >= o);
         final Parameter<NamedAnalyzer> analyzer
             = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
         final Parameter<NamedAnalyzer> searchAnalyzer
@@ -333,8 +333,6 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
     public void testObjectSerialization() throws IOException {
 
-        IndexService indexService = createIndex("test");
-
         String mapping = "{\"_doc\":{" +
             "\"properties\":{" +
             "\"actual\":{\"type\":\"double\"}," +
@@ -343,11 +341,12 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             "\"anomaly_score\":{\"type\":\"double\"}," +
             "\"bucket_span\":{\"type\":\"long\"}," +
             "\"is_interim\":{\"type\":\"boolean\"}}}}}}";
-        indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, Strings.toString(indexService.mapperService().documentMapper()));
 
-        indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, Strings.toString(indexService.mapperService().documentMapper()));
+        MapperService mapperService = createMapperService(mapping);
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
+
+        mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
     }
 
     // test custom serializer
@@ -485,6 +484,21 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             TestMapper mapper = fromMapping(mapping);
             assertEquals("foo", mapper.restricted);
         }
+    }
+
+    public void testCustomMergeValidation() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "test_mapper");
+            b.field("required", "a");
+            b.field("int_value", 10);
+        }));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+            b.field("type", "test_mapper");
+            b.field("required", "a");
+            b.field("int_value", 5);    // custom merge validator says that int_value can only increase
+        })));
+        assertThat(e.getMessage(), containsString("int_value"));
     }
 
 }

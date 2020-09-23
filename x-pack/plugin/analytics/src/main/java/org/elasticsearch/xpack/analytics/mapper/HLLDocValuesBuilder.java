@@ -193,7 +193,7 @@ class HLLDocValuesBuilder {
         }
 
         @Override
-        public void skip(int bytes) {
+        protected void skip(int bytes) {
             dataInput.skipBytes(bytes);
         }
     }
@@ -240,7 +240,7 @@ class HLLDocValuesBuilder {
         }
 
         @Override
-        public void skip(int bytes) {
+        protected void skip(int bytes) {
             if (valuesInBuffer >= bytes) {
                 valuesInBuffer -= bytes;
             } else {
@@ -300,7 +300,7 @@ class HLLDocValuesBuilder {
         }
 
         @Override
-        public void skip(int bytes) {
+        protected void skip(int bytes) {
             if (valuesInBuffer >= bytes) {
                 valuesInBuffer -= bytes;
             } else {

@@ -146,30 +146,11 @@ public class HllBackedCardinalityAggregator extends NumericMetricsAggregator.Sin
             if (values.advanceExact(doc)) {
                 final HllValue value = values.hllValue();
                 for (int i = 0; i < m; i++) {
-                    final byte runLen = mergeRegister(value);
+                    final byte runLen = value.mergeRegisters(precisionDiff, registersToMerge);
                     counts.addRunLen(bucketOrd, i, runLen);
                 }
                 assert value.next() == false;
             }
-        }
-
-        private byte mergeRegister(HllValue value) {
-            for (int i = 0; i < registersToMerge; i++) {
-                value.next();
-                final byte runLen = value.value();
-                if (runLen != 0) {
-                    value.skip(registersToMerge - i - 1);
-                    if (i == 0) {
-                        // If the first element is set, then runLen is the current runLen plus the change in precision
-                        return (byte) (runLen + precisionDiff);
-                    } else {
-                        // If any other register is set, the runLen is computed from the register position
-                        return (byte) (precisionDiff - (int) (Math.log(i) / Math.log(2)));
-                    }
-                }
-            }
-            // No value for this register
-            return 0;
         }
     }
 }

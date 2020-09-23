@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -24,7 +22,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -35,8 +32,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -53,65 +50,52 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that assigns every document the same value.
  */
-public class ConstantKeywordFieldMapper extends FieldMapper {
+public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
+    private static ConstantKeywordFieldMapper toType(FieldMapper in) {
+        return (ConstantKeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
+    }
 
-        String value;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        // This is defined as updateable because it can be updated once, from [null] to any value,
+        // by a dynamic mapping update.  Once it has been set, however, the value cannot be changed.
+        private final Parameter<String> value = new Parameter<>("value", true, () -> null,
+            (n, c, o) -> {
+                if (o instanceof Number == false && o instanceof CharSequence == false) {
+                    throw new MapperParsingException("Property [value] on field [" + n +
+                        "] must be a number or a string, but got [" + o + "]");
+                }
+                return o.toString();
+            }, m -> toType(m).fieldType().value);
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
+            value.setShouldSerialize(() -> value.getValue() != null);
+            value.setMergeValidator((previous, current) -> previous == null || Objects.equals(previous, current));
         }
 
-        // TODO we should ban setting 'index' on constant keyword
-
-        public Builder setValue(String value) {
-            this.value = value;
-            return this;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(value, meta);
         }
 
         @Override
         public ConstantKeywordFieldMapper build(BuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                    name, fieldType, new ConstantKeywordFieldType(buildFullName(context), value, meta));
+                    name, new ConstantKeywordFieldType(buildFullName(context), value.getValue(), meta.getValue()));
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Object value = null;
-            if (node.containsKey("value")) {
-                value = node.remove("value");
-                if (value == null) {
-                    throw new MapperParsingException("Property [value] of field [" + name + "] can't be [null].");
-                }
-                if (value instanceof Number == false && value instanceof CharSequence == false) {
-                    throw new MapperParsingException("Property [value] of field [" + name +
-                            "] must be a number or a string, but got [" + value + "]");
-                }
-            }
-            ConstantKeywordFieldMapper.Builder builder = new ConstantKeywordFieldMapper.Builder(name);
-            if (value != null) {
-                builder.setValue(value.toString());
-            }
-            if (node.containsKey("meta")) {
-                builder.meta(TypeParsers.parseMeta(name, node.remove("meta")));
-            }
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class ConstantKeywordFieldType extends ConstantFieldType {
 
@@ -227,8 +211,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType) {
-        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -257,7 +241,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(simpleName(), fieldType, newFieldType);
+            Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() +
@@ -278,28 +262,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        ConstantKeywordFieldType newConstantKeywordFT = (ConstantKeywordFieldType) other.fieldType();
-        if (this.fieldType().value != null) {
-            if (newConstantKeywordFT.value == null) {
-                conflicts.add("mapper [" + name() + "] cannot unset [value]");
-            } else if (Objects.equals(fieldType().value, newConstantKeywordFT.value) == false) {
-                conflicts.add("mapper [" + name() + "] has different [value] from the value that is configured in mappings: ["
-                    + fieldType().value + "] vs. [" + newConstantKeywordFT.value + "]");
-            }
-        }
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
 
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (fieldType().value() != null) {
-            builder.field("value", fieldType().value());
-        }
-    }
 }

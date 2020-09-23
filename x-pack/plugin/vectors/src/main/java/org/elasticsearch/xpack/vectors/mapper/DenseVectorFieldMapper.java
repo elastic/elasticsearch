@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -105,7 +104,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, true, TextSearchInfo.NONE, meta);
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.dims = dims;
         }
 
@@ -122,11 +121,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override
@@ -190,7 +184,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                     context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
             }
-            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
 
             byteBuffer.putFloat(value);

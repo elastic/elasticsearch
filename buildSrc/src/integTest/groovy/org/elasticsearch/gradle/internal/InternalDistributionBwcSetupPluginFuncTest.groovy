@@ -60,6 +60,81 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
     }
 
+    def "bwc distribution archives can be resolved as bwc project artifact"() {
+        setup:
+        new File(testProjectDir.root, 'remote/build.gradle') << """
+        
+        configurations {
+            dists
+        }
+        
+        dependencies {
+            dists project(path: ":distribution:bwc:bugfix", configuration:"darwin-tar")
+        }
+        
+        tasks.register("resolveDistributionArchive") {
+            inputs.files(configurations.dists)
+            doLast {
+                configurations.dists.files.each {
+                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
+                }
+            }
+        }
+        """
+        when:
+        def result = gradleRunner(new File(testProjectDir.root, "remote"),
+                ":resolveDistributionArchive",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin")
+                .build()
+        then:
+        result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "assemble task triggered"
+        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        normalizedOutput(result.output)
+                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/darwin-tar/" +
+                        "build/distributions/elasticsearch-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
+    }
+
+    def "bwc exploded distribution folder can be resolved as bwc project artifact"() {
+        setup:
+        new File(testProjectDir.root, 'remote/build.gradle') << """
+        
+        configurations {
+            explodedDist
+        }
+        
+        dependencies {
+            explodedDist project(path: ":distribution:bwc:bugfix", configuration:"exploded-darwin-tar")
+        }
+        
+        tasks.register("resolveExplodedDistribution") {
+            inputs.files(configurations.explodedDist)
+            doLast {
+                configurations.explodedDist.files.each {
+                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
+                }
+            }
+        }
+        """
+        when:
+        def result = gradleRunner(new File(testProjectDir.root, "remote"),
+                ":resolveExplodedDistribution",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin")
+                .build()
+        then:
+        result.task(":resolveExplodedDistribution").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "assemble task triggered"
+        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        normalizedOutput(result.output)
+                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/build/install/elasticsearch-8.0.1-SNAPSHOT")
+    }
+
     File setupGitRemote() {
         URL fakeRemote = getClass().getResource("fake_git/remote")
         File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')

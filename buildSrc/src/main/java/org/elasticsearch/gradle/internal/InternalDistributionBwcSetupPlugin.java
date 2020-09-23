@@ -55,11 +55,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<String> remote = project.getProviders().systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
 
         BuildParams.getBwcVersions()
-            .forPreviousUnreleased(
-                (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, remote);
-                }
-            );
+                .forPreviousUnreleased(
+                        (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+                            configureProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, remote);
+                        }
+                );
     }
 
     private void configureProject(Project bwcProject, BwcVersions.UnreleasedVersionInfo unreleasedVersion, Provider<String> remote) {
@@ -68,7 +68,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Version bwcVersion = unreleasedVersion.version;
         File checkoutDir = new File(bwcProject.getBuildDir(), "bwc/checkout-" + bwcBranch);
         BwcSetupExtension bwcSetupExtension = bwcProject.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, bwcProject, checkoutDir, bwcVersion);
+                .create("bwcSetup", BwcSetupExtension.class, bwcProject, checkoutDir, bwcVersion);
 
         gitExtension.getBwcVersion().set(unreleasedVersion.version);
         gitExtension.getBwcBranch().set(bwcBranch);
@@ -79,32 +79,28 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         bwcProject.getTasks().named("assemble").configure(t -> t.setEnabled(false));
 
         TaskProvider<Task> buildBwcTaskProvider = bwcProject.getTasks().register("buildBwc");
-        List<ArchiveProject> archiveProjects = resolveArchiveProjectsList(bwcVersion);
+        List<ArchiveProject> archiveProjects = resolveArchiveProjects(checkoutDir, bwcVersion);
 
         for (ArchiveProject archiveProject : archiveProjects) {
-            String relativePath = archiveProject.getRelativeArtifactPath();
-            File projectArtifact = new File(checkoutDir, relativePath);
-            archiveProject.setArtifactFile(projectArtifact);
-
             createBuildBwcTask(
-                bwcSetupExtension,
-                bwcProject,
-                bwcVersion,
-                archiveProject.name,
-                archiveProject.getProjectPath(),
-                projectArtifact,
-                buildBwcTaskProvider
+                    bwcSetupExtension,
+                    bwcProject,
+                    bwcVersion,
+                    archiveProject.name,
+                    archiveProject.getProjectPath(),
+                    archiveProject.getDistArchiveFile(),
+                    buildBwcTaskProvider
             );
 
-            registerBwcArtifact(bwcProject, archiveProject);
+            registerBwcArtifacts(bwcProject, archiveProject);
         }
 
         // Create build tasks for the JDBC driver used for compatibility testing
         String jdbcProjectDir = "x-pack/plugin/sql/jdbc";
 
         File jdbcProjectArtifact = new File(
-            checkoutDir,
-            jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion + "-SNAPSHOT.jar"
+                checkoutDir,
+                jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion + "-SNAPSHOT.jar"
         );
 
         createBuildBwcTask(bwcSetupExtension, bwcProject, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);
@@ -113,17 +109,31 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         bwcProject.getTasks().named("assemble").configure(t -> t.setDependsOn(Collections.emptyList()));
     }
 
-    private void registerBwcArtifact(Project bwcProject, ArchiveProject archiveProject) {
+    private void registerBwcArtifacts(Project bwcProject, ArchiveProject archiveProject) {
         String projectName = archiveProject.name;
         String buildBwcTask = buildBwcTaskName(projectName);
-        String artifactFileName = archiveProject.getArtifactFile().getName();
+
+        registerDistributionArchiveArtifact(bwcProject, archiveProject, buildBwcTask);
+        if (archiveProject.getExplodedDistDirectory() != null) {
+            String explodedDistConfiguration = "exploded-" + projectName;
+            bwcProject.getConfigurations().create(explodedDistConfiguration);
+            bwcProject.getArtifacts().add(explodedDistConfiguration, archiveProject.getExplodedDistDirectory(), artifact -> {
+                artifact.setName("elasticsearch");
+                artifact.builtBy(buildBwcTask);
+                artifact.setType("directory");
+            });
+        }
+    }
+
+    private void registerDistributionArchiveArtifact(Project bwcProject, ArchiveProject archiveProject, String buildBwcTask) {
+        String artifactFileName = archiveProject.getDistArchiveFile().getName();
         String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
         int archIndex = artifactFileName.indexOf("x86_64");
 
-        bwcProject.getConfigurations().create(projectName);
-        bwcProject.getArtifacts().add(projectName, archiveProject.getArtifactFile(), artifact -> {
+        bwcProject.getConfigurations().create(archiveProject.name);
+        bwcProject.getArtifacts().add(archiveProject.name, archiveProject.getDistArchiveFile(), artifact -> {
             artifact.setName(artifactName);
             artifact.builtBy(buildBwcTask);
             artifact.setType(suffix);
@@ -137,7 +147,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         });
     }
 
-    private static List<ArchiveProject> resolveArchiveProjectsList(Version bwcVersion) {
+    private static List<ArchiveProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {
         List<String> projects = new ArrayList<>();
         projects.addAll(asList("deb", "rpm"));
         if (bwcVersion.onOrAfter("7.0.0")) {
@@ -168,24 +178,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else if (bwcVersion.onOrAfter("7.0.0") && name.contains("rpm")) {
                 classifier = "-x86_64";
             }
-            return new ArchiveProject(name, baseDir, bwcVersion, classifier, extension);
+            return new ArchiveProject(name, baseDir, bwcVersion, classifier, extension, checkoutDir);
         }).collect(Collectors.toList());
     }
 
     private String buildBwcTaskName(String projectName) {
         return "buildBwc"
-            + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
+                + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
                 .collect(Collectors.joining());
     }
 
     void createBuildBwcTask(
-        BwcSetupExtension bwcSetupExtension,
-        Project project,
-        Version bwcVersion,
-        String projectName,
-        String projectPath,
-        File projectArtifact,
-        TaskProvider<Task> bwcTaskProvider
+            BwcSetupExtension bwcSetupExtension,
+            Project project,
+            Version bwcVersion,
+            String projectName,
+            String projectPath,
+            File projectArtifact,
+            TaskProvider<Task> bwcTaskProvider
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
@@ -211,47 +221,48 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     /**
      * Represents an archive project (distribution/archives/*)
      * we build from a bwc Version in a cloned repository
-     * */
+     */
     private static class ArchiveProject {
         private final String name;
-        private final String baseDir;
-        private Version version;
-        private final String classifier;
-        private final String extension;
+        private String projectPath;
+        private File distArchiveFile;
+        private File explodedDistDir;
 
-        private File artifactFile;
-
-        ArchiveProject(String name, String baseDir, Version version, String classifier, String extension) {
+        ArchiveProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
-            this.baseDir = baseDir;
-            this.version = version;
-            this.classifier = classifier;
-            this.extension = extension;
-        }
-
-        public String getRelativeArtifactPath() {
-            return baseDir
-                + "/"
-                + name
-                + "/build/distributions/elasticsearch-"
-                + (name.startsWith("oss") ? "oss-" : "")
-                + version
-                + "-SNAPSHOT"
-                + classifier
-                + "."
-                + extension;
-        }
-
-        public void setArtifactFile(File artifactFile) {
-            this.artifactFile = artifactFile;
+            this.projectPath = baseDir + "/" + name;
+            this.distArchiveFile = new File(
+                    checkoutDir,
+                    baseDir
+                            + "/"
+                            + name
+                            + "/build/distributions/elasticsearch-"
+                            + (name.startsWith("oss") ? "oss-" : "")
+                            + version
+                            + "-SNAPSHOT"
+                            + classifier
+                            + "."
+                            + extension
+            );
+            if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
+                this.explodedDistDir = new File(checkoutDir,
+                        baseDir
+                                + "/"
+                                + name +
+                                "/build/install/elasticsearch-" + version.toString() + "-SNAPSHOT");
+            }
         }
 
         public String getProjectPath() {
-            return baseDir + "/" + name;
+            return projectPath;
         }
 
-        public File getArtifactFile() {
-            return artifactFile;
+        public File getDistArchiveFile() {
+            return distArchiveFile;
+        }
+
+        public File getExplodedDistDirectory() {
+            return explodedDistDir;
         }
     }
 }

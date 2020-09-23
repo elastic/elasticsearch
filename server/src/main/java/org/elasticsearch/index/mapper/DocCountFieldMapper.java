@@ -63,7 +63,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public static final DocCountFieldType INSTANCE = new DocCountFieldType();
 
         public DocCountFieldType() {
-            super(NAME, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
+            super(NAME, false, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
         }
 
         @Override

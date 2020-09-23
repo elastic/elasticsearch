@@ -10,14 +10,10 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +22,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -117,6 +112,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 buildFullName(context),
                 indexed.getValue(),
+                stored.getValue(),
                 hasDocValues.getValue(),
                 meta.getValue()
             );
@@ -128,26 +124,17 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
 
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
-        public UnsignedLongFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public UnsignedLongFieldType(String name, boolean indexed, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override
@@ -157,11 +144,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             if (longValue == null) {
                 return new MatchNoDocsQuery();
             }
-            Query query = LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
         }
 
         @Override
@@ -182,11 +165,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
             }
-            Query query = LongPoint.newSetQuery(name(), lvalues);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return LongPoint.newSetQuery(name(), lvalues);
         }
 
         @Override
@@ -213,9 +192,6 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
                 if (context.indexSortedOnField(name())) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                 }
-            }
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
             }
             return query;
         }

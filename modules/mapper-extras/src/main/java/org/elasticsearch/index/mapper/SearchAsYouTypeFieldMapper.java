@@ -36,7 +36,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -272,15 +271,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().hasNorms() == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
-        }
-
-        @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
@@ -498,15 +488,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().hasNorms() == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
         }
 
         @Override

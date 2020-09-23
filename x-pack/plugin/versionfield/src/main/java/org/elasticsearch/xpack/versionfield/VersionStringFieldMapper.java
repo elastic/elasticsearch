@@ -122,7 +122,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        public VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+        private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
             super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }

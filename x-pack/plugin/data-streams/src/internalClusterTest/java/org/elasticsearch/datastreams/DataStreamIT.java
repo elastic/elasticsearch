@@ -300,8 +300,10 @@ public class DataStreamIT extends ESIntegTestCase {
                 new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
                 // Non create ops directly against backing indices are allowed:
                 new DeleteRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1), "_id"),
-                new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
-                    .source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).id("_id").setIfSeqNo(1).setIfPrimaryTerm(1)
+                new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)).source(
+                    "{\"@timestamp\": \"2020-12-12\"}",
+                    XContentType.JSON
+                ).id("_id").setIfSeqNo(1).setIfPrimaryTerm(1)
             );
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(11));
@@ -345,7 +347,10 @@ public class DataStreamIT extends ESIntegTestCase {
             {
                 assertThat(bulkResponse.getItems()[5].getFailure(), nullValue());
                 assertThat(bulkResponse.getItems()[5].getResponse(), notNullValue());
-                assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)));
+                assertThat(
+                    bulkResponse.getItems()[5].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
             }
             {
                 assertThat(bulkResponse.getItems()[6].getFailure(), notNullValue());
@@ -366,18 +371,27 @@ public class DataStreamIT extends ESIntegTestCase {
             {
                 assertThat(bulkResponse.getItems()[8].getFailure(), nullValue());
                 assertThat(bulkResponse.getItems()[8].getResponse(), notNullValue());
-                assertThat(bulkResponse.getItems()[8].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)));
+                assertThat(
+                    bulkResponse.getItems()[8].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
             }
             {
                 assertThat(bulkResponse.getItems()[9].getFailure(), nullValue());
                 assertThat(bulkResponse.getItems()[9].getResponse(), notNullValue());
-                assertThat(bulkResponse.getItems()[9].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)));
+                assertThat(
+                    bulkResponse.getItems()[9].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
             }
             {
                 assertThat(bulkResponse.getItems()[10].getResponse(), nullValue());
                 assertThat(bulkResponse.getItems()[10].getFailure(), notNullValue());
                 assertThat(bulkResponse.getItems()[10].status(), equalTo(RestStatus.CONFLICT));
-                assertThat(bulkResponse.getItems()[10].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)));
+                assertThat(
+                    bulkResponse.getItems()[10].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
             }
         }
     }

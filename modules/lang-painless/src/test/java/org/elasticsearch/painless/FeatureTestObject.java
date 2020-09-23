@@ -106,6 +106,14 @@ public class FeatureTestObject {
         return this.x*fn.apply(arg)*injected;
     }
 
+    public int injectMultiTimesX(int inject1, int inject2, int inject3, short user) {
+        return this.x * (inject1 + inject2 + inject3) * user;
+    }
+
+    public int injectMultiWithLambda(int inject1, int inject2, int inject3, Function<Short, Integer> fn, short arg) {
+        return this.x*fn.apply(arg)*(inject1 + inject2 + inject3);
+    }
+
     public Double mixedAdd(int i, Byte b, char c, Float f) {
         return (double)(i + b + c + f);
     }

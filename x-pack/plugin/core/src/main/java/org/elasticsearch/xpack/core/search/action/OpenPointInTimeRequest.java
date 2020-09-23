@@ -94,7 +94,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
 
     @Override
     public boolean includeDataStreams() {
-        return true;
+        return false;
     }
 
     public TimeValue keepAlive() {

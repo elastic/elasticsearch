@@ -568,22 +568,10 @@
       bulk:
         refresh: true
         body:
-          - create:
-              _index: simple-data-stream1
-              _id:    1
-          - event:
-              - category: process
-            "@timestamp": 2020-02-03T12:34:56Z
-            user: SYSTEM
-          - create:
-              _index: simple-data-stream1
-              _id:    2
-          - event:
-              - category: file
-            "@timestamp": 2020-02-03T12:35:00Z
-            user: SYSTEM
-            - file:
-              - name: sample.exe
+          - '{"create":{"_index":"simple-data-stream1","_id": "1"}}'
+          - '{"@timestamp":"2020-02-03T12:34:56Z","event":{"category":"process"},"user":"SYSTEM"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "2"}}'
+          - '{"@timestamp":"2020-02-03T12:35:00Z","event":{"category":"file"},"user":"SYSTEM","file":{"name":"sample.exe"}}'
 
   - do:
       eql.search:

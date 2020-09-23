@@ -4,12 +4,12 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'versionfield'
+  name 'mapper-version'
   description 'A plugin for a field type to store sofware versions'
   classname 'org.elasticsearch.xpack.versionfield.VersionFieldPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-versionfield'
+archivesBaseName = 'x-pack-mapper-version'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

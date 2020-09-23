@@ -762,9 +762,6 @@ public class RestClient implements Closeable {
 
         RequestContext createContextForNextAttempt(Node node, AuthCache authCache) {
             this.httpRequest.reset();
-//            httpRequest.addHeader("Accept","application/json");
-            System.out.println(Arrays.toString(httpRequest.getAllHeaders()));
-
             return new RequestContext(this, node, authCache);
         }
     }

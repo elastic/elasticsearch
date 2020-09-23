@@ -71,7 +71,6 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newBuilder() throws IOException {
-        System.out.println(request.path()+" "+request.getHeaders().keySet().toString() +" "+request.getHeaders().values().toString());
         return newBuilder(request.getXContentType(), true);
     }
 

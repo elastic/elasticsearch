@@ -54,10 +54,10 @@ public final class GrokCaptureConfig {
         return type;
     }
 
-    Object extract(byte[] textAsBytes, Region region) {
+    Object extract(byte[] utf8Bytes, int offset, Region region) {
         for (int number : backRefs) {
             if (region.beg[number] >= 0) {
-                String matchValue = new String(textAsBytes, region.beg[number], region.end[number] - region.beg[number],
+                String matchValue = new String(utf8Bytes, offset + region.beg[number], region.end[number] - region.beg[number],
                     StandardCharsets.UTF_8);
                 return type.parse(matchValue);
             }

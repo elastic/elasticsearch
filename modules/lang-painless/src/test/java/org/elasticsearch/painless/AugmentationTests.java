@@ -289,7 +289,7 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public void testRegexInject() {
-        int regexLimitFactor = 1;
+        int regexLimitFactor = 2;
         // This regex has backtracking due to .*
         String script = "/abc123.*def/.matcher('abc123doremidef').matches()";
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), regexLimitFactor).build();

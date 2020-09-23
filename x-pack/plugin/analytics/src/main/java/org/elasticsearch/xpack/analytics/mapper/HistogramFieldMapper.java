@@ -15,7 +15,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
@@ -281,16 +280,6 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                throw new QueryShardException(context, "field  " + name() + " of type [" + CONTENT_TYPE + "] " +
-                    "has no doc values and cannot be searched");
-            }
-        }
-
-        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
                 "use dedicated aggregations instead: ["
@@ -374,27 +363,25 @@ public class HistogramFieldMapper extends FieldMapper {
                     + name() + "], expected same length from [" + VALUES_FIELD.getPreferredName() +"] and " +
                     "[" + COUNTS_FIELD.getPreferredName() +"] but got [" + values.size() + " != " + counts.size() +"]");
             }
-            if (fieldType().hasDocValues()) {
-                ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
-                for (int i = 0; i < values.size(); i++) {
-                    int count = counts.get(i);
-                    if (count < 0) {
-                        throw new MapperParsingException("error parsing field ["
-                            + name() + "], ["+ COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i));
-                    } else if (count > 0) {
-                        // we do not add elements with count == 0
-                        dataOutput.writeVInt(count);
-                        dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
-                    }
+            ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
+            for (int i = 0; i < values.size(); i++) {
+                int count = counts.get(i);
+                if (count < 0) {
+                    throw new MapperParsingException("error parsing field ["
+                        + name() + "], ["+ COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i));
+                } else if (count > 0) {
+                    // we do not add elements with count == 0
+                    dataOutput.writeVInt(count);
+                    dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
                 }
-                BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
-                Field field = new BinaryDocValuesField(name(), docValue);
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] doesn't not support indexing multiple values for the same field in the same document");
-                }
-                context.doc().addWithKey(fieldType().name(), field);
             }
+            BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
+            Field field = new BinaryDocValuesField(name(), docValue);
+            if (context.doc().getByKey(fieldType().name()) != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                    "] doesn't not support indexing multiple values for the same field in the same document");
+            }
+            context.doc().addWithKey(fieldType().name(), field);
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {

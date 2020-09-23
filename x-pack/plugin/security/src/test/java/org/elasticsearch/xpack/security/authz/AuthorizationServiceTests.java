@@ -101,6 +101,7 @@ import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -894,7 +895,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {
         });
         TransportShardBulkAction.performOnPrimary(request, indexShard, new UpdateHelper(mock(ScriptService.class)),
-            System::currentTimeMillis, mappingUpdater, waitForMappingUpdate, future, threadPool);
+            System::currentTimeMillis, mappingUpdater, waitForMappingUpdate, future, threadPool, Names.WRITE);
 
         TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result = future.get();
         BulkShardResponse response = result.finalResponseIfSuccessful;

@@ -71,6 +71,7 @@ public final class Grok {
     private final boolean namedCaptures;
     private final Regex compiledExpression;
     private final MatcherWatchdog matcherWatchdog;
+    private final List<GrokCaptureConfig> captureConfig;
 
     public Grok(Map<String, String> patternBank, String grokPattern, Consumer<String> logCallBack) {
         this(patternBank, grokPattern, true, MatcherWatchdog.noop(), logCallBack);
@@ -100,6 +101,12 @@ public final class Grok {
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
         this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE,
             message -> logCallBack.accept(message));
+
+        List<GrokCaptureConfig> captureConfig = new ArrayList<>();
+        for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
+            captureConfig.add(new GrokCaptureConfig(entry.next()));
+        }
+        this.captureConfig = List.copyOf(captureConfig);
     }
 
     /**
@@ -145,7 +152,7 @@ public final class Grok {
         }
     }
 
-    public String groupMatch(String name, Region region, String pattern) {
+    private String groupMatch(String name, Region region, String pattern) {
         int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
             name.getBytes(StandardCharsets.UTF_8).length, region);
         int begin = region.beg[number];
@@ -161,7 +168,7 @@ public final class Grok {
      *
      * @return named regex expression
      */
-    public String toRegex(String grokPattern) {
+    protected String toRegex(String grokPattern) {
         StringBuilder res = new StringBuilder();
         for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
             byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
@@ -228,19 +235,29 @@ public final class Grok {
     }
 
     /**
-     * Matches and returns any named captures within a compiled grok expression that matched
-     * within the provided text.
+     * Matches and returns any named captures.
      *
      * @param text the text to match and extract values from.
      * @return a map containing field names and their respective coerced values that matched.
      */
     public Map<String, Object> captures(String text) {
-        byte[] textAsBytes = text.getBytes(StandardCharsets.UTF_8);
-        Matcher matcher = compiledExpression.matcher(textAsBytes);
+        byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
+        return captures(utf8Bytes, 0, utf8Bytes.length);
+    }
+
+    /**
+     * Matches and returns any named captures.
+     * @param utf8Bytes array containing the text to match against encoded in utf-8
+     * @param offset offset {@code utf8Bytes} of the start of the text
+     * @param length length of the text to match
+     * @return a map containing field names and their respective coerced values that matched.
+     */
+    public Map<String, Object> captures(byte[] utf8Bytes, int offset, int length) {
+        Matcher matcher = compiledExpression.matcher(utf8Bytes, offset, offset + length);
         int result;
         try {
             matcherWatchdog.register(matcher);
-            result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
+            result = matcher.search(offset, length, Option.DEFAULT);
         } finally {
             matcherWatchdog.unregister(matcher);
         }
@@ -251,25 +268,25 @@ public final class Grok {
             // TODO: I think we should throw an error here?
             return null;
         } else if (compiledExpression.numberOfNames() > 0) {
-            Map<String, Object> fields = new HashMap<>();
+            Map<String, Object> fields = new HashMap<>(captureConfig.size());
             Region region = matcher.getEagerRegion();
-            for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
-                NameEntry e = entry.next();
-                String groupName = new String(e.name, e.nameP, e.nameEnd - e.nameP, StandardCharsets.UTF_8);
-                for (int number : e.getBackRefs()) {
-                    if (region.beg[number] >= 0) {
-                        String matchValue = new String(textAsBytes, region.beg[number], region.end[number] - region.beg[number],
-                            StandardCharsets.UTF_8);
-                        GrokMatchGroup match = new GrokMatchGroup(groupName, matchValue);
-                        fields.put(match.getName(), match.getValue());
-                        break;
-                    }
+            for (GrokCaptureConfig config: captureConfig) {
+                Object v = config.extract(utf8Bytes, offset, region);
+                if (v != null) {
+                    fields.put(config.name(), v);
                 }
             }
             return fields;
         } else {
             return Collections.emptyMap();
         }
+    }
+
+    /**
+     * The list of values that this {@linkplain Grok} can capture.
+     */
+    public List<GrokCaptureConfig> captureConfig() {
+        return captureConfig;
     }
 
     /**

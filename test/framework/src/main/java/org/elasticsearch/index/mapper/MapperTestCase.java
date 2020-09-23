@@ -30,6 +30,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -247,17 +248,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testDeprecatedBoost() throws IOException {
         try {
-            createMapperService(fieldMapping(b -> {
+            createMapperService(Version.V_7_10_0, fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("boost", 2.0);
             }));
-            assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+            assertWarnings("Parameter [boost] on field [field] is deprecated and has no effect");
         }
         catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(
-                containsString("unknown parameter [boost]"),
+                containsString("Unknown parameter [boost]"),
                 containsString("[boost : 2.0]")));
         }
+
+        MapperParsingException e
+            = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b-> {
+                minimalMapping(b);
+                b.field("boost", 2.0);
+        })));
+        assertThat(e.getMessage(), anyOf(
+            containsString("Unknown parameter [boost]"),
+            containsString("[boost : 2.0]")));
+
         assertParseMinimalWarnings();
     }
 

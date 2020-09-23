@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -89,7 +88,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             = Parameter.stringParam("format", false, m -> toType(m).format, Defaults.DATE_FORMATTER.pattern());
         private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
-        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final RangeType type;
@@ -119,7 +117,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(index, hasDocValues, store, coerce, format, locale, boost, meta);
+            return List.of(index, hasDocValues, store, coerce, format, locale, meta);
         }
 
         protected RangeFieldType setupFieldType(BuilderContext context) {
@@ -142,7 +140,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         @Override
         public RangeFieldMapper build(BuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            ft.setBoost(boost.getValue());
             return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
         }
     }
@@ -219,11 +216,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override

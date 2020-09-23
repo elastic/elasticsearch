@@ -41,7 +41,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
 
         // index should be red
         assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
@@ -51,7 +51,7 @@ public class DataTierIT extends ESIntegTestCase {
             logger.info("--> starting content node");
             startContentOnlyNode();
         } else {
-            logger.info("--> starting hot node");
+            logger.info("--> starting data node");
             startDataNode();
         }
 
@@ -65,7 +65,7 @@ public class DataTierIT extends ESIntegTestCase {
         ensureGreen();
 
         String setting = randomBoolean() ? DataTierAllocationDecider.INDEX_ROUTING_REQUIRE :
-            DataTierAllocationDecider.INDEX_ROUTING_INCLUDE;
+            DataTierAllocationDecider.INDEX_ROUTING_PREFER;
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
@@ -89,13 +89,13 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .putNull(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE))
+                .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER))
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(""));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(""));
         // Even the key shouldn't exist if it has been nulled out
-        assertFalse(idxSettings.keySet().toString(), idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
+        assertFalse(idxSettings.keySet().toString(), idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -103,7 +103,7 @@ public class DataTierIT extends ESIntegTestCase {
 
         client().admin().indices().prepareDelete(index).get();
 
-        // Now test it overriding the "require" setting, in which case the include should be skipped
+        // Now test it overriding the "require" setting, in which case the preference should be skipped
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
@@ -111,9 +111,9 @@ public class DataTierIT extends ESIntegTestCase {
             .get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(""));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(""));
         // The key should not be put in place since it was overridden
-        assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE));
+        assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
 
         // index should be yellow
@@ -134,7 +134,7 @@ public class DataTierIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm"))
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm"))
             .get();
 
         client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
@@ -150,7 +150,7 @@ public class DataTierIT extends ESIntegTestCase {
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index + "-shrunk")
             .get().getSettings().get(index + "-shrunk");
         // It should inherit the setting of its originator
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
 
         // Required or else the test cleanup fails because it can't delete the indices
         client().admin().indices().prepareUpdateSettings(index, index + "-shrunk")
@@ -172,7 +172,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE), equalTo(false));
+        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER), equalTo(false));
 
         // index should be yellow
         ensureYellow(index);
@@ -180,7 +180,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareDelete(index).get();
 
         t = new Template(Settings.builder()
-            .putNull(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)
+            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
             .build(), null, null);
         ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null);
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
@@ -189,7 +189,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE), equalTo(false));
+        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER), equalTo(false));
 
         ensureYellow(index);
     }

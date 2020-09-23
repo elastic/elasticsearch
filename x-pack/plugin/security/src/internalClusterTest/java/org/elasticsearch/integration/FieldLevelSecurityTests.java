@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -729,7 +730,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
-    static String openSearchContext(String userName, TimeValue keepAlive, String... indices) {
+    static String openPointInTime(String userName, TimeValue keepAlive, String... indices) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(
             indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
         final OpenPointInTimeResponse response = client()
@@ -738,7 +739,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         return response.getSearchContextId();
     }
 
-    public void testReaderId() throws Exception {
+    public void testPointInTimeId() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
             .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
@@ -752,14 +753,14 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh("test");
 
-        String readerId = openSearchContext("user1", TimeValue.timeValueMinutes(1), "test");
+        String pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
             for (int from = 0; from < numDocs; from++) {
                 response = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareSearch()
-                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1L))
+                    .setPointInTime(new PointInTimeBuilder(pitId))
                     .setSize(1)
                     .setFrom(from)
                     .setQuery(constantScoreQuery(termQuery("field1", "value1")))
@@ -771,7 +772,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }
         } finally {
-            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }
 

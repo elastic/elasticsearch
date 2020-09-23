@@ -264,18 +264,21 @@ public class WildcardFieldMapperTests extends ESTestCase {
             switch (randomInt(4)) {
             case 0:
                 pattern = getRandomWildcardPattern();
-                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+                boolean caseInsensitive = randomBoolean();
+                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_QSC);
                 break;
             case 1:
                 pattern = getRandomRegexPattern(values);
-                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0, 20000, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0,20000, null, MOCK_QSC);
+                int matchFlags = randomBoolean()? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags,20000, null, MOCK_QSC);
                 break;
             case 2:
                 pattern = randomABString(5);
-                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, MOCK_QSC);
+                boolean caseInsensitivePrefix = randomBoolean();
+                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_QSC);
                 break;
             case 3:
                 int edits = randomInt(2);

@@ -88,9 +88,14 @@ public final class KeywordScriptMappedFieldType extends AbstractScriptMappedFiel
     }
 
     @Override
-    public Query prefixQuery(String value, RewriteMethod method, org.elasticsearch.index.query.QueryShardContext context) {
+    public Query prefixQuery(
+        String value,
+        RewriteMethod method,
+        boolean caseInsensitive,
+        org.elasticsearch.index.query.QueryShardContext context
+    ) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value);
+        return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
 
     @Override
@@ -128,13 +133,39 @@ public final class KeywordScriptMappedFieldType extends AbstractScriptMappedFiel
         if (matchFlags != 0) {
             throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
         }
-        return new StringScriptFieldRegexpQuery(script, leafFactory(context), name(), value, syntaxFlags, maxDeterminizedStates);
+        return new StringScriptFieldRegexpQuery(
+            script,
+            leafFactory(context),
+            name(),
+            value,
+            syntaxFlags,
+            matchFlags,
+            maxDeterminizedStates
+        );
+    }
+
+    @Override
+    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
+        return new StringScriptFieldTermQuery(
+            script,
+            leafFactory(context),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value)),
+            true
+        );
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldTermQuery(script, leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)));
+        return new StringScriptFieldTermQuery(
+            script,
+            leafFactory(context),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value)),
+            false
+        );
     }
 
     @Override
@@ -145,8 +176,8 @@ public final class KeywordScriptMappedFieldType extends AbstractScriptMappedFiel
     }
 
     @Override
-    public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
+    public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
-        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value);
+        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
 }

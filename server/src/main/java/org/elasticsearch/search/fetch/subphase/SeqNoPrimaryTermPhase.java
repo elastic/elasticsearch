@@ -25,14 +25,13 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchLookup lookup) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.seqNoAndPrimaryTerm() == false) {
             return null;
         }

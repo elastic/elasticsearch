@@ -37,7 +37,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
-public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
+public class FieldFetcherTests extends ESSingleNodeTestCase {
 
     public void testLeafValues() throws IOException {
         MapperService mapperService = createMapperService();
@@ -51,7 +51,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         List<FieldAndFormat> fieldAndFormats = List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("object.field", null));
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, fieldAndFormats);
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -74,7 +74,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "float_range");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "float_range");
         assertThat(fields.size(), equalTo(1));
 
         DocumentField rangeField = fields.get("float_range");
@@ -89,7 +89,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .field("field", "value")
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "non-existent");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "non-existent");
         assertThat(fields.size(), equalTo(0));
     }
 
@@ -99,11 +99,11 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .field("field", "value")
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "_routing");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_routing");
         assertTrue(fields.isEmpty());
     }
 
-    public void testRetrieveAllFields() throws IOException {
+    public void testFetchAllFields() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
@@ -112,7 +112,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "*");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
         assertThat(fields.size(), equalTo(2));
     }
 
@@ -124,7 +124,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endArray()
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "field");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "field");
         DocumentField field = fields.get("field");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(2));
@@ -138,7 +138,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endArray()
             .endObject();
 
-        fields = retrieveFields(mapperService, source, "object.field");
+        fields = fetchFields(mapperService, source, "object.field");
         field = fields.get("object.field");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(4));
@@ -152,7 +152,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .array("geo_point", 27.1, 42.0)
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "geo_point");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "geo_point");
         assertThat(fields.size(), equalTo(1));
 
         DocumentField field = fields.get("geo_point");
@@ -167,7 +167,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endArray()
         .endObject();
 
-        fields = retrieveFields(mapperService, source, "geo_point");
+        fields = fetchFields(mapperService, source, "geo_point");
         assertThat(fields.size(), equalTo(1));
 
         field = fields.get("geo_point");
@@ -185,7 +185,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "*field");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*field");
         assertThat(fields.size(), equalTo(3));
 
         DocumentField field = fields.get("field");
@@ -211,7 +211,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .field("date_field", "1990-12-29T00:00:00.000Z")
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, List.of(
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(
             new FieldAndFormat("field", null),
             new FieldAndFormat("date_field", "yyyy/MM/dd")));
         assertThat(fields.size(), equalTo(2));
@@ -241,14 +241,14 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "value", "other_value", "really_really_long_value")
             .endObject();
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "field");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "field");
         DocumentField field = fields.get("field");
         assertThat(field.getValues().size(), equalTo(2));
 
         source = XContentFactory.jsonBuilder().startObject()
             .array("field", "really_really_long_value")
             .endObject();
-        fields = retrieveFields(mapperService, source, "field");
+        fields = fetchFields(mapperService, source, "field");
         assertFalse(fields.containsKey("field"));
     }
 
@@ -270,7 +270,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "alias_field");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "alias_field");
         assertThat(fields.size(), equalTo(1));
 
         DocumentField field = fields.get("alias_field");
@@ -278,7 +278,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValues(), hasItems("value"));
 
-        fields = retrieveFields(mapperService, source, "*field");
+        fields = fetchFields(mapperService, source, "*field");
         assertThat(fields.size(), equalTo(2));
         assertTrue(fields.containsKey("alias_field"));
         assertTrue(fields.containsKey("field"));
@@ -303,7 +303,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .field("field", 42)
             .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "field.keyword");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "field.keyword");
         assertThat(fields.size(), equalTo(1));
 
         DocumentField field = fields.get("field.keyword");
@@ -311,7 +311,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValues(), hasItems("42"));
 
-        fields = retrieveFields(mapperService, source, "field*");
+        fields = fetchFields(mapperService, source, "field*");
         assertThat(fields.size(), equalTo(2));
         assertTrue(fields.containsKey("field"));
         assertTrue(fields.containsKey("field.keyword"));
@@ -338,7 +338,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .array("other_field", 1, 2, 3)
             .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "field");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "field");
         assertThat(fields.size(), equalTo(1));
 
         DocumentField field = fields.get("field");
@@ -356,25 +356,25 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "object");
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "object");
         assertFalse(fields.containsKey("object"));
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
+    private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
 
         List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
-        return retrieveFields(mapperService, source, fields);
+        return fetchFields(mapperService, source, fields);
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
+    private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
 
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, null, fields);
-        return fetchFieldsLookup.retrieve(sourceLookup, Set.of());
+        FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, null, fields);
+        return fieldFetcher.fetch(sourceLookup, Set.of());
     }
 
     public MapperService createMapperService() throws IOException {

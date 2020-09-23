@@ -23,14 +23,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -88,7 +83,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     public static final class FakeStringFieldType extends StringFieldType {
 
-        public FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
+        private FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
             super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
@@ -96,15 +91,6 @@ public class FakeStringFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
     }
 

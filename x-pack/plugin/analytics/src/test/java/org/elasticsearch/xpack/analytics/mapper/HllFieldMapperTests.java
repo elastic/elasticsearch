@@ -35,6 +35,12 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
             RUNLENS[i] = i;
         }
     }
+    private static final int[] RUNLENS1024 = new int[1024];
+    static {
+        for (int i = 0; i < 1024; i++) {
+            RUNLENS1024[i] = i / 128;
+        }
+    }
     private static final String SKETCH = HllFieldMapper.SKETCH_FIELD.getPreferredName();
     private static final String FIELD = "pre_aggregated";
 
@@ -228,6 +234,11 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "hll");
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field(SKETCH, RUNLENS1024).endObject();
     }
 
     @Override

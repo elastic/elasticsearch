@@ -222,7 +222,7 @@ public class HllFieldMapper extends FieldMapper {
         private final boolean ignoreMalformed;
 
         public HllFieldType(String name, boolean hasDocValues, int precision, boolean ignoreMalformed, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.precision = precision;
             this.ignoreMalformed = ignoreMalformed;
         }

@@ -293,7 +293,8 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testAppendingToTheSameField() {
-        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", List.of("a", "b")));
+        Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, source);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id->id.appendFieldValue("field", "a"));
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
@@ -304,7 +305,8 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testRemovingFromTheSameField() {
-        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", List.of("a", "b")));
+        Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", "_type", null, null, null, source);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id -> id.removeField("field.0"));
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);

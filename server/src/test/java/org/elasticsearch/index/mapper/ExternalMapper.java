@@ -20,16 +20,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -112,9 +107,8 @@ public class ExternalMapper extends FieldMapper {
             this.generatedValue = generatedValue;
         }
 
-        @SuppressWarnings({"unchecked"})
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ExternalMapper.Builder builder = new ExternalMapper.Builder(name, generatedValue, mapperName);
             parseField(builder, name, node, parserContext);
             return builder;
@@ -123,22 +117,13 @@ public class ExternalMapper extends FieldMapper {
 
     static class ExternalFieldType extends TermBasedFieldType {
 
-        ExternalFieldType(String name, boolean indexed, boolean hasDocValues) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private ExternalFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return "faketype";
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
     }
 
@@ -156,7 +141,7 @@ public class ExternalMapper extends FieldMapper {
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper,
                           MultiFields multiFields, CopyTo copyTo, boolean indexed) {
-        super(simpleName, fieldType, new ExternalFieldType(contextName, indexed, false), multiFields, copyTo);
+        super(simpleName, fieldType, new ExternalFieldType(contextName, indexed, fieldType.stored(), false), multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;

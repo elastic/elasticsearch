@@ -786,7 +786,7 @@ used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field-processor[]
 
 tag::inference-metadata-feature-importance-feature-name[]
-The training feature name for which this importance was calculated.
+The feature for which this importance was calculated.
 end::inference-metadata-feature-importance-feature-name[]
 tag::inference-metadata-feature-importance-magnitude[]
 The average magnitude of this feature across all the training data.

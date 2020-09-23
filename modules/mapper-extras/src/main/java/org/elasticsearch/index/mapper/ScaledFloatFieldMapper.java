@@ -24,11 +24,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
@@ -125,8 +122,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(BuilderContext context) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), hasDocValues.getValue(),
-                meta.getValue(), scalingFactor.getValue());
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue());
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -137,13 +134,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         private final double scalingFactor;
 
-        public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                    Map<String, String> meta, double scalingFactor) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.scalingFactor = scalingFactor;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, true, Collections.emptyMap(), scalingFactor);
+            this(name, true, false, true, Collections.emptyMap(), scalingFactor);
         }
 
         public double getScalingFactor() {
@@ -153,15 +151,6 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override

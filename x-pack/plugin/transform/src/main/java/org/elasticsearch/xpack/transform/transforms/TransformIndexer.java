@@ -527,9 +527,41 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      *
      * If the indexer isn't running, persist state if required and call the listener immediately.
      */
-    final synchronized void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+    final void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         // this should be called from the generic threadpool
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+
+        try {
+            if (addSetStopAtCheckpointListener(shouldStopAtCheckpoint, shouldStopAtCheckpointListener) == false) {
+                shouldStopAtCheckpointListener.onResponse(null);
+            }
+        } catch (InterruptedException e) {
+            logger.error(
+                new ParameterizedMessage(
+                    "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                    getJobId(),
+                    PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
+                ),
+                e
+            );
+
+            // the transport wraps this with a REST status code
+            shouldStopAtCheckpointListener.onFailure(
+                new RuntimeException(
+                    "Timed out (" + PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC + "s) waiting for transform state to be stored.",
+                    e
+                )
+            );
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("[{}] failed to persist transform state.", getJobId()), e);
+            shouldStopAtCheckpointListener.onFailure(e);
+        }
+    }
+
+    private synchronized boolean addSetStopAtCheckpointListener(
+        boolean shouldStopAtCheckpoint,
+        ActionListener<Void> shouldStopAtCheckpointListener
+    ) throws InterruptedException {
         IndexerState state = getState();
 
         // in case the indexer isn't running, respond immediately
@@ -539,40 +571,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // because save state is async we need to block the call until state is persisted, so that the job can not
             // be triggered (ensured by synchronized)
             CountDownLatch latch = new CountDownLatch(1);
-            try {
-                doSaveState(IndexerState.STARTED, getPosition(), () -> {
-                    latch.countDown();
-                    shouldStopAtCheckpointListener.onResponse(null);
-                });
+            doSaveState(IndexerState.STARTED, getPosition(), () -> { latch.countDown(); });
 
-                latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                logger.error(
-                    new ParameterizedMessage(
-                        "[{}] Timed out ({}s) waiting for transform state to be stored.",
-                        getJobId(),
-                        PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
-                    ),
-                    e
-                );
-
-                // the transport wraps this with a REST status code
-                shouldStopAtCheckpointListener.onFailure(
-                    new RuntimeException(
-                        "Timed out (" + PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC + "s) waiting for transform state to be stored.",
-                        e
-                    )
-                );
-            } catch (Exception e) {
-                logger.error(new ParameterizedMessage("[{}] failed to persist transform state.", getJobId()), e);
-                shouldStopAtCheckpointListener.onFailure(e);
-            }
-            return;
+            latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS);
+            return false;
         }
 
         if (state != IndexerState.INDEXING) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
+            return false;
         }
 
         if (saveStateListeners.updateAndGet(currentListeners -> {
@@ -596,12 +602,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             newListeners.add(shouldStopAtCheckpointListener);
             return newListeners;
         }) == null) {
-            shouldStopAtCheckpointListener.onResponse(null);
-        } else {
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
-            runSearchImmediately();
+            return false;
         }
+
+        context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+        // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
+        runSearchImmediately();
+        return true;
     }
 
     void stopAndSaveState() {

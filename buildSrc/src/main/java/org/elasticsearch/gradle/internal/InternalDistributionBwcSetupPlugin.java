@@ -55,11 +55,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<String> remote = project.getProviders().systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
 
         BuildParams.getBwcVersions()
-                .forPreviousUnreleased(
-                        (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                            configureProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, remote);
-                        }
-                );
+            .forPreviousUnreleased(
+                (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+                    configureProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, remote);
+                }
+            );
     }
 
     private void configureProject(Project bwcProject, BwcVersions.UnreleasedVersionInfo unreleasedVersion, Provider<String> remote) {
@@ -68,7 +68,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Version bwcVersion = unreleasedVersion.version;
         File checkoutDir = new File(bwcProject.getBuildDir(), "bwc/checkout-" + bwcBranch);
         BwcSetupExtension bwcSetupExtension = bwcProject.getExtensions()
-                .create("bwcSetup", BwcSetupExtension.class, bwcProject, checkoutDir, bwcVersion);
+            .create("bwcSetup", BwcSetupExtension.class, bwcProject, checkoutDir, bwcVersion);
 
         gitExtension.getBwcVersion().set(unreleasedVersion.version);
         gitExtension.getBwcBranch().set(bwcBranch);
@@ -83,13 +83,13 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         for (ArchiveProject archiveProject : archiveProjects) {
             createBuildBwcTask(
-                    bwcSetupExtension,
-                    bwcProject,
-                    bwcVersion,
-                    archiveProject.name,
-                    archiveProject.getProjectPath(),
-                    archiveProject.getDistArchiveFile(),
-                    buildBwcTaskProvider
+                bwcSetupExtension,
+                bwcProject,
+                bwcVersion,
+                archiveProject.name,
+                archiveProject.getProjectPath(),
+                archiveProject.getDistArchiveFile(),
+                buildBwcTaskProvider
             );
 
             registerBwcArtifacts(bwcProject, archiveProject);
@@ -99,8 +99,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String jdbcProjectDir = "x-pack/plugin/sql/jdbc";
 
         File jdbcProjectArtifact = new File(
-                checkoutDir,
-                jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion + "-SNAPSHOT.jar"
+            checkoutDir,
+            jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion + "-SNAPSHOT.jar"
         );
 
         createBuildBwcTask(bwcSetupExtension, bwcProject, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);
@@ -184,18 +184,18 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private String buildBwcTaskName(String projectName) {
         return "buildBwc"
-                + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
+            + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
                 .collect(Collectors.joining());
     }
 
     void createBuildBwcTask(
-            BwcSetupExtension bwcSetupExtension,
-            Project project,
-            Version bwcVersion,
-            String projectName,
-            String projectPath,
-            File projectArtifact,
-            TaskProvider<Task> bwcTaskProvider
+        BwcSetupExtension bwcSetupExtension,
+        Project project,
+        Version bwcVersion,
+        String projectName,
+        String projectPath,
+        File projectArtifact,
+        TaskProvider<Task> bwcTaskProvider
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
@@ -232,24 +232,23 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.name = name;
             this.projectPath = baseDir + "/" + name;
             this.distArchiveFile = new File(
-                    checkoutDir,
-                    baseDir
-                            + "/"
-                            + name
-                            + "/build/distributions/elasticsearch-"
-                            + (name.startsWith("oss") ? "oss-" : "")
-                            + version
-                            + "-SNAPSHOT"
-                            + classifier
-                            + "."
-                            + extension
+                checkoutDir,
+                baseDir
+                    + "/"
+                    + name
+                    + "/build/distributions/elasticsearch-"
+                    + (name.startsWith("oss") ? "oss-" : "")
+                    + version
+                    + "-SNAPSHOT"
+                    + classifier
+                    + "."
+                    + extension
             );
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
-                this.explodedDistDir = new File(checkoutDir,
-                        baseDir
-                                + "/"
-                                + name +
-                                "/build/install/elasticsearch-" + version.toString() + "-SNAPSHOT");
+                this.explodedDistDir = new File(
+                    checkoutDir,
+                    baseDir + "/" + name + "/build/install/elasticsearch-" + version.toString() + "-SNAPSHOT"
+                );
             }
         }
 

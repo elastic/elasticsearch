@@ -200,8 +200,8 @@
 ---
 "Non append-only writes into a data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "set to 7.9.3 after backporting #62766"
       features: allowed_warnings
 
   - do:
@@ -232,12 +232,25 @@
               _index: logs-foobar
               _id: "1"
           - '@timestamp': '2020-12-12'
+          - index:
+              _index: logs-foobar
+              _id: "1"
+          - '@timestamp': '2020-12-12'
+          - delete:
+              _index: logs-foobar
+              _id: 10
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: "only write ops with an op_type of create are allowed in data streams" }
   - match: { items.1.create.result: created }
   - match: { items.1.create._index: .ds-logs-foobar-000001 }
+  - match: { items.2.index.status: 400 }
+  - match: { items.2.index.error.type: illegal_argument_exception }
+  - match: { items.2.index.error.reason: "only write ops with an op_type of create are allowed in data streams" }
+  - match: { items.3.delete.status: 400 }
+  - match: { items.3.delete.error.type: illegal_argument_exception }
+  - match: { items.3.delete.error.reason: "only write ops with an op_type of create are allowed in data streams" }
 
   - do:
       indices.delete_data_stream:

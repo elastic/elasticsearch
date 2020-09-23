@@ -148,7 +148,7 @@ public enum XContentType implements MediaType {
      * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
      * The provided media type can optionally has parameters.
      * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
-     * This method will return {@code null} if no match is found
+     * This method will throw IllegalArgumentException if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
         return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);

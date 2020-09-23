@@ -114,11 +114,13 @@ public class HttpInputTests extends ESTestCase {
         }
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
+        //todo pg I am not sure this is actually what will happen now. When a ES will not return a response with unrecognized_content_type
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
+        //TODO PG this test will fail now when it has `unrecognized_content_type` as we throw an exception. Is this ok? or should we catch a parse exception and somehow return httpinput.result?
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), hasEntry("key", "value"));
     }

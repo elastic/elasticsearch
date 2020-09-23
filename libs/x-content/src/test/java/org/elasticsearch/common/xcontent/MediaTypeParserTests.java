@@ -59,19 +59,16 @@ public class MediaTypeParserTests extends ESTestCase {
         assertThat(mediaTypeParser.parseMediaType(mediaType + "; compatible-with=123;\n charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
 
-        mediaType = " application / json ";
-        assertThat(mediaTypeParser.parseMediaType(mediaType),
-            is(nullValue()));
+       String  mediaTypeWithWhitespace = " application / json ";
+        expectThrows(IllegalArgumentException.class , () -> mediaTypeParser.parseMediaType(mediaTypeWithWhitespace));
     }
 
     public void testInvalidParameters() {
         String mediaType = "application/vnd.elasticsearch+json";
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; keyvalueNoEqualsSign"),
-            is(nullValue()));
+        expectThrows(IllegalArgumentException.class , () -> mediaTypeParser.parseMediaType(mediaType + "; keyvalueNoEqualsSign"));
 
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; key = value"),
-            is(nullValue()));
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; key=") ,
-            is(nullValue()));
+        expectThrows(IllegalArgumentException.class , () -> mediaTypeParser.parseMediaType(mediaType + "; key = value"));
+
+        expectThrows(IllegalArgumentException.class , () -> mediaTypeParser.parseMediaType(mediaType + "; key="));
     }
 }

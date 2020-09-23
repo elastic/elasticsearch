@@ -302,8 +302,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
         {
             NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
-            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(entity, null));
-            assertEquals("Unsupported Content-Type: " + entity.getContentType().getValue(), ise.getMessage());
+            IllegalArgumentException ise = expectThrows(IllegalArgumentException.class, () -> restHighLevelClient.parseEntity(entity, null));
+            assertEquals("unrecognized media type: " + entity.getContentType().getValue(), ise.getMessage());
         }
         {
             CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {

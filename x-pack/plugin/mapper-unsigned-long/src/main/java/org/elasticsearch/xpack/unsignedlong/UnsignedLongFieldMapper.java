@@ -104,7 +104,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
         }
 
         @Override

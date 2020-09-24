@@ -10,7 +10,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
-import java.util.List;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm;
@@ -37,13 +38,13 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             LongPoint.newSetQuery("my_unsigned_long", -9223372036854775808L, 0L, 9223372036854775807L),
-            ft.termsQuery(List.of("0", "9223372036854775808", "18446744073709551615"), null)
+            ft.termsQuery(Arrays.asList("0", "9223372036854775808", "18446744073709551615"), null)
         );
 
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of(-9223372036854775808L, -1L), null));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of("-0.5", "3.14", "18446744073709551616"), null));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList(-9223372036854775808L, -1L), null));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("-0.5", "3.14", "18446744073709551616"), null));
 
-        expectThrows(NumberFormatException.class, () -> ft.termsQuery(List.of("18incorrectnumber"), null));
+        expectThrows(NumberFormatException.class, () -> ft.termsQuery(Arrays.asList("18incorrectnumber"), null));
     }
 
     public void testRangeQuery() {

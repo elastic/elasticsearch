@@ -30,7 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
@@ -40,7 +40,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new UnsignedLongMapperPlugin());
+        return Collections.singletonList(new UnsignedLongMapperPlugin());
     }
 
     @Override
@@ -63,6 +63,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
                     XContentType.JSON
@@ -85,6 +86,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "2",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 9223372036854775807L).endObject()),
                     XContentType.JSON
@@ -103,6 +105,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ThrowingRunnable runnable = () -> mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "3",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 10.5).endObject()),
                     XContentType.JSON
@@ -119,6 +122,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
+                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
                 XContentType.JSON
@@ -137,6 +141,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
+                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
                 XContentType.JSON
@@ -155,6 +160,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
+                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
                 XContentType.JSON
@@ -180,7 +186,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Failed to parse mapping: unknown parameter [coerce] on mapper [field] of type [unsigned_long]")
+            containsString("Failed to parse mapping [_doc]: unknown parameter [coerce] on mapper [field] of type [unsigned_long]")
         );
     }
 
@@ -191,6 +197,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                     XContentType.JSON
@@ -207,6 +214,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                     XContentType.JSON
@@ -230,6 +238,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 new SourceToParse(
                     "test",
                     "_doc",
+                    "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue1).endObject()),
                     XContentType.JSON
                 )
@@ -242,6 +251,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 new SourceToParse(
                     "test",
                     "_doc",
+                    "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue2).endObject()),
                     XContentType.JSON
                 )
@@ -259,6 +269,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue1).endObject()),
                     XContentType.JSON
@@ -272,6 +283,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc2 = mapper.parse(
                 new SourceToParse(
                     "test",
+                    "_doc",
                     "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue2).endObject()),
                     XContentType.JSON
@@ -290,6 +302,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 new SourceToParse(
                     "test",
                     "_doc",
+                    "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", outOfRangeValue).endObject()),
                     XContentType.JSON
                 )
@@ -303,14 +316,14 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         UnsignedLongFieldMapper mapper = new UnsignedLongFieldMapper.Builder("field", settings).build(context);
-        assertEquals(List.of(0L), fetchSourceValue(mapper, 0L));
-        assertEquals(List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
-        assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
-        assertEquals(List.of(), fetchSourceValue(mapper, ""));
+        assertEquals(org.elasticsearch.common.collect.List.of(0L), fetchSourceValue(mapper, 0L));
+        assertEquals(org.elasticsearch.common.collect.List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
+        assertEquals(org.elasticsearch.common.collect.List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
+        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(mapper, ""));
 
         UnsignedLongFieldMapper nullValueMapper = new UnsignedLongFieldMapper.Builder("field", settings).nullValue("18446744073709551615")
             .build(context);
-        assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(org.elasticsearch.common.collect.List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

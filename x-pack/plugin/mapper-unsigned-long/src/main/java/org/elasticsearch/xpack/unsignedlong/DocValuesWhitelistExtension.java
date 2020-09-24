@@ -30,7 +30,7 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         List<Whitelist> whitelist = singletonList(WHITELIST);
-        Map<ScriptContext<?>, List<Whitelist>> contexts = Map.of(
+        Map<ScriptContext<?>, List<Whitelist>> contexts = org.elasticsearch.common.collect.Map.of(
             FieldScript.CONTEXT,
             whitelist,
             ScoreScript.CONTEXT,

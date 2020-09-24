@@ -61,10 +61,12 @@ public class UnsignedLongTests extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
-        prepareCreate("idx").setMapping("ul_field", "type=unsigned_long").setSettings(settings).get();
+        prepareCreate("idx").addMapping("_doc", "ul_field", "type=unsigned_long").setSettings(settings).get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
+            builders.add(
+                client().prepareIndex("idx", "_doc").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -269,10 +271,12 @@ public class UnsignedLongTests extends ESIntegTestCase {
 
     public void testSortDifferentFormatsShouldFail() throws IOException, InterruptedException {
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
-        prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
+        prepareCreate("idx2").addMapping("_doc", "ul_field", "type=long").setSettings(settings).get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
-            builders.add(client().prepareIndex("idx2").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
+            builders.add(
+                client().prepareIndex("idx2", "_doc").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();

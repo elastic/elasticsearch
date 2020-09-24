@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
@@ -1042,6 +1043,54 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getIndexResponse.getIndices(), arrayWithSize(1));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-foobar"));
         assertThat(getIndexResponse.getSettings().get("logs-foobar").get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
+    }
+
+    public void testCreatingDataStreamAndFirstBackingIndexExistsFails() throws Exception {
+        String dataStreamName = "logs-foobar";
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        createIndex(backingIndex);
+        putComposableIndexTemplate("id", List.of("logs-*"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        Exception e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet()
+        );
+        assertThat(e.getMessage(), equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists"));
+    }
+
+    public void testAutoCreatingDataStreamAndFirstBackingIndexExistsFails() throws Exception {
+        String dataStreamName = "logs-foobar";
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        createIndex(backingIndex);
+        putComposableIndexTemplate("id", List.of("logs-*"));
+
+        IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
+            .source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON);
+        Exception e = expectThrows(ElasticsearchStatusException.class, () -> client().index(indexRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists"));
+    }
+
+    public void testCreatingDataStreamAndBackingIndexExistsFails() throws Exception {
+        String dataStreamName = "logs-foobar";
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+
+        createIndex(backingIndex);
+        putComposableIndexTemplate("id", List.of("logs-*"));
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet()
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "data stream [logs-foobar] could create backing indices that conflict with 1 "
+                    + "existing index(s) or alias(s) including '.ds-logs-foobar-000002'"
+            )
+        );
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

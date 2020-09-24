@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: ["headers", "warnings"]
+      features: ["headers", "allowed_warnings"]
 
   - do:
       indices.create:

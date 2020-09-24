@@ -87,11 +87,12 @@
 ---
 "Find a task result record from the old cluster":
   - skip:
-      features: headers
+      features: headers,warnings
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
-        allow_system_index_access: true
         rest_total_hits_as_int: true
         index: .tasks
         body:

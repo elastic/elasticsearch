@@ -54,6 +54,8 @@
 
 ---
 "Multiple slices with wait_for_completion=false":
+  - skip:
+      features: warnings
   - do:
       index:
         index:   test
@@ -145,14 +147,17 @@
   - do:
       indices.refresh: {}
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
-        allow_system_index_access: true
         rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }
 
 ---
 "Multiple slices with rethrottle":
+  - skip:
+      features: warnings
   - do:
       index:
         index:   test
@@ -249,8 +254,9 @@
   - do:
       indices.refresh: {}
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
-        allow_system_index_access: true
         rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }

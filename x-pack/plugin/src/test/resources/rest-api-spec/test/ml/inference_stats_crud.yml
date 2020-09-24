@@ -3,13 +3,15 @@ setup:
       features:
         - headers
         - allowed_warnings
+        - warnings
   - do:
       allowed_warnings:
         - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
+      warnings:
+        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        allow_system_index_access: true
         id: trained_model_config-a-unused-regression-model1-0
         index: .ml-inference-000003
         body: >
@@ -24,10 +26,11 @@ setup:
           }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        allow_system_index_access: true
         id: trained_model_config-a-unused-regression-model-0
         index: .ml-inference-000003
         body: >
@@ -41,10 +44,11 @@ setup:
             "doc_type": "trained_model_config"
           }
   - do:
+      warnings:
+        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        allow_system_index_access: true
         id: trained_model_config-a-used-regression-model-0
         index: .ml-inference-000003
         body: >

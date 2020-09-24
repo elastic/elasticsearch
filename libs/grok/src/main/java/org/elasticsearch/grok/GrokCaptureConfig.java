@@ -63,7 +63,7 @@ public final class GrokCaptureConfig {
      * it extracts text, boxed if the "native" representation is primitive type.
      * Extracters returned from this method are stateless and can be reused.
      */
-    GrokCaptureExtracter objectExtracter(Consumer<Object> emit) {
+    public GrokCaptureExtracter objectExtracter(Consumer<Object> emit) {
         return nativeExtracter(new NativeExtracterMap<GrokCaptureExtracter>() {
             @Override
             public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
@@ -115,7 +115,7 @@ public final class GrokCaptureConfig {
      *            will be called but well behaved implementers are stateless.
      * @return whatever was returned by the handler.
      */
-    <T> T nativeExtracter(NativeExtracterMap<T> map) {
+    public <T> T nativeExtracter(NativeExtracterMap<T> map) {
         return type.nativeExtracter(backRefs, map);
     }
 

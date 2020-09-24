@@ -249,11 +249,13 @@ public final class Grok {
     }
 
     /**
-     * Matches and returns any named captures.
+     * Matches and collects any named captures.
      * @param utf8Bytes array containing the text to match against encoded in utf-8
      * @param offset offset {@code utf8Bytes} of the start of the text
      * @param length length of the text to match
-     * @return a map containing field names and their respective coerced values that matched.
+     * @param extracter collector for captures. {@link GrokCaptureConfig#nativeExtracter} can build these.
+     * @return true if there was a match, false otherwise
+     * @throws RuntimeException if there was a timeout
      */
     public boolean match(byte[] utf8Bytes, int offset, int length, GrokCaptureExtracter extracter) {
         Matcher matcher = compiledExpression.matcher(utf8Bytes, offset, offset + length);

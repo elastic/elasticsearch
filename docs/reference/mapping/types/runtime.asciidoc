@@ -35,7 +35,11 @@ they are implemented
 Because runtime fields aren't indexed, you can more quickly ingest raw data
 into the Elastic Stack and immediately access it. By dynamically evaluating
 runtime fields at search time, you can optimize disk space by choosing which
-fields to index.
+fields to index. You can also fix errors in indexed fields by overriding them
+with runtime fields, rather than reindexing all of your data. If you later
+decide that a runtime field is increasingly used for filtering or aggregation,
+you can remove the runtime field from the mapping and index the field to gain
+faster search speed.
 
 Runtime fields incur performance costs at search time, depending
 on the <<runtime-params-runtime-type,`runtime_type`>>. For example, let's say
@@ -51,11 +55,17 @@ index them.
 
 [[runtime-mapping-fields]]
 ==== Mapping a runtime field
-You map runtime fields by
-<<modules-scripting-using,defining a script>>. At search time, the script runs
-and generates values for each scripted field.
+When mapping a runtime field, indexing is disabled by default. You map runtime
+fields by <<modules-scripting-using,defining a painless script>>. At search
+time, the script runs and generates values for each scripted field. Runtime
+scripts have access to the entire context of a document, the original
+`_source`, and the mapped field plus its values (`doc_values`).
 
-NOTE: When mapping a runtime field, indexing is disabled by default.
+IMPORTANT: Updating a script while a query that relies on the script is running
+can return inconsistent results.
++
+Additionally, existing queries or visualizations that rely on runtime fields
+can break if scripts are updated.
 
 The script in the following request extracts the day of the week from the
 `timestamp` field, which is defined as a `date` data type.
@@ -130,7 +140,11 @@ want to explore the data structure without committing to a schema up front.
 
 You know that your log data contains specific fields that you want to extract.
 By using runtime fields, you can define scripts to calculate values at search
-time for the `clientip`, `request`, `status`, and `size` fields.
+time for these fields.
+
+You can start with a simple example by adding the `timestamp` and `message`
+fields to the `my-index` mapping. To remain flexible, use `wildcard` as the
+field type for `message`.
 
 [source,console]
 ----
@@ -142,47 +156,16 @@ PUT /my-index/_mappings
     "type": "date"
   },
   "message": {
-    "type": "keyword",
-    "index": false,
-    "doc_values": true
-  },
-  "clientip": {
-    "type": "runtime",
-    "runtime_type": "ip",
-    "script" : {
-      "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
-    }
-  },
-    "request": {
-    "type": "runtime",
-    "runtime_type": "keyword",
-    "script" : {
-      "source" : "String m = doc[\"message\"].value; int start = m.indexOf(\"\\\"\") + 1; int end = m.indexOf(\"\\\"\", start); emit(m.substring(start, end));"
-    }
-  },
-  "status": {
-    "type": "runtime",
-    "runtime_type": "long",
-    "script" : {
-      "source" : "String m = doc[\"message\"].value; int end = m.lastIndexOf(\" \"); int start = m.lastIndexOf(\" \", end - 1) + 1; emit(Long.parseLong(m.substring(start, end)));"
-    }
-  },
-  "size": {
-    "type": "runtime",
-    "runtime_type": "long",
-    "script" : {
-      "source" : "String m = doc[\"message\"].value; int start = m.lastIndexOf(\" \") + 1; emit(Long.parseLong(m.substring(start)));"
-    }
+    "type": "wildcard"
   }
  }
 }
 ----
 
-After mapping the fields you want to retrieve, you can index a few records from
+After mapping the fields you want to retrieve, index a few records from
 your log data into {es}. The following request uses the <<docs-bulk,bulk API>>
 to index raw log data into `my-index`. Instead of indexing all of your log
-data, you can use a small sample to experiment with the runtime fields defined
-in the mapping.
+data, you can use a small sample to experiment with runtime fields.
 
 [source,console]
 ----
@@ -211,8 +194,59 @@ POST /my-index/_bulk
 { "timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
 ----
 
-Using the `clientip` field, you can define a simple query to run a search for a
-specific IP address and return all related fields.
+At this point, you can view how {es} stores your raw data.
+
+[source,console]
+----
+GET /my-index
+----
+
+The mapping contains two fields: `timestamp` and `message`.
+
+[source,console-result]
+----
+{
+  "my-index" : {
+    "aliases" : { },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date",
+          "format" : "strict_date_optional_time||epoch_second"
+        },
+        "message" : {
+          "type" : "wildcard"
+        },
+        "timestamp" : {
+          "type" : "date"
+        }
+      }
+    },
+...
+----
+
+If you want to retrieve results that include `clientip`, you can add that field
+as a runtime field in the mapping. The runtime script operates on the `clientip`
+field at runtime to calculate values for that field.
+
+[source,console]
+----
+PUT /my-index/_mappings
+{
+  "properties": {
+    "clientip": {
+      "type": "runtime",
+      "runtime_type": "ip",
+      "script" : {
+      "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
+      }
+    }
+  }
+}
+----
+
+Using the `clientip` runtime field, you can define a simple query to run a
+search for a specific IP address and return all related fields.
 
 [source,console]
 ----
@@ -227,7 +261,9 @@ GET my-index/_search
 }
 ----
 
-The API returns the following result.
+The API returns the following result. Without building your data structure in
+advance, you can search and explore your data in meaningful ways to experiment
+and determine which fields to index.
 
 [source,console-result]
 ----
@@ -250,19 +286,13 @@ The API returns the following result.
       {
         "_index" : "my-index",
         "_type" : "_doc",
-        "_id" : "8GRivHQBddAsv33YHS9W",
+        "_id" : "m4d6wXQBQVoWbakQ_rGg",
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-06-21T15:00:01-05:00",
           "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
         },
         "fields" : {
-          "request" : [
-            "GET /english/index.html HTTP/1.0"
-          ],
-          "size" : [
-            0
-          ],
           "clientip" : [
             "211.11.9.0"
           ],
@@ -271,28 +301,19 @@ The API returns the following result.
           ],
           "timestamp" : [
             "2020-06-21T20:00:01.000Z"
-          ],
-          "status" : [
-            304
           ]
         }
       },
       {
         "_index" : "my-index",
         "_type" : "_doc",
-        "_id" : "8WRivHQBddAsv33YHS9W",
+        "_id" : "nId6wXQBQVoWbakQ_rGg",
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-06-21T15:00:01-05:00",
           "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
         },
         "fields" : {
-          "request" : [
-            "GET /english/index.html HTTP/1.0"
-          ],
-          "size" : [
-            0
-          ],
           "clientip" : [
             "211.11.9.0"
           ],
@@ -301,9 +322,6 @@ The API returns the following result.
           ],
           "timestamp" : [
             "2020-06-21T20:00:01.000Z"
-          ],
-          "status" : [
-            304
           ]
         }
       }
@@ -311,3 +329,36 @@ The API returns the following result.
   }
 }
 ----
+
+If you add the `day_of_week` field to the mapping using the request in
+<<runtime-mapping-fields,mapping a runtime field>>, you can re-run the previous
+search request and also retrieve the day of the week based on the `timestamp`
+field.
+
+The value for this field was never indexed, and is calculated dynamically at
+runtime. This flexibility allows you to modify the mapping without changing
+any field values.
+
+[source,console-result]
+----
+...
+          "clientip" : [
+            "211.11.9.0"
+          ],
+          "message" : [
+            """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+          ],
+          "day_of_week" : [
+            "Sunday" <1>
+          ],
+          "timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
+          "status" : [
+            304
+          ]
+...
+----
+
+<1> This value was calculated at search time using the runtime script defined
+in the mapping.

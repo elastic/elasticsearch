@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -128,6 +129,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
         } catch (Exception e) {
            onPhaseFailure(nextPhase, "phase failed", e);
         }
+    }
+
+    @Override
+    public void addReleasable(Releasable releasable) {
+        // Noop
     }
 
     @Override

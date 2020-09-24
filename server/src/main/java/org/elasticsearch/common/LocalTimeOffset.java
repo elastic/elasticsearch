@@ -22,6 +22,7 @@ package org.elasticsearch.common;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
@@ -572,7 +573,7 @@ public abstract class LocalTimeOffset {
             if (transition.getDateTimeBefore().getDayOfMonth() == transition.getDateTimeAfter().getDayOfMonth()) {
                 return false;
             }
-            if (transition.getDateTimeBefore().getMinute() == 0) {
+            if (transition.getDateTimeBefore().getLong(ChronoField.NANO_OF_DAY) == 0L) {
                 // If we change *at* midnight this is ok.
                 return false;
             }

@@ -31,6 +31,9 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 
 public class DatafeedNodeSelector {
 
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_INDICES =
+        new PersistentTasksCustomMetadata.Assignment(null, "datafeed is awaiting for indices to exist and made available");
+
     private static final Logger LOGGER = LogManager.getLogger(DatafeedNodeSelector.class);
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT =
@@ -59,7 +62,7 @@ public class DatafeedNodeSelector {
     public void checkDatafeedTaskCanBeCreated() {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             String msg = "Unable to start datafeed [" + datafeedId +"] explanation [" + AWAITING_UPGRADE.getExplanation() + "]";
-            LOGGER.debug(msg);
+            LOGGER.debug(() -> new ParameterizedMessage(msg));
             Exception detail = new IllegalStateException(msg);
             throw new ElasticsearchStatusException("Could not start datafeed [" + datafeedId +"] as indices are being upgraded",
                 RestStatus.TOO_MANY_REQUESTS, detail);
@@ -68,7 +71,7 @@ public class DatafeedNodeSelector {
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
             String msg = "No node found to start datafeed [" + datafeedId + "], " +
                     "allocation explanation [" + assignmentFailure.reason + "]";
-            LOGGER.debug(msg);
+            LOGGER.debug(() -> new ParameterizedMessage(msg));
             throw ExceptionsHelper.conflictStatusException(msg);
         }
     }
@@ -80,13 +83,20 @@ public class DatafeedNodeSelector {
 
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure == null) {
+            // If we allow no indices but the indices don't exist yet
+            // Simply wait for them to become available
+            if (indicesOptions.allowNoIndices() && (verifyIndicesExist() == false)) {
+                LOGGER.trace(() -> new ParameterizedMessage("[{}] is waiting for indices to become available", datafeedId));
+                return AWAITING_INDICES;
+            }
             String jobNode = jobTask.getExecutorNode();
             if (jobNode == null) {
                 return AWAITING_JOB_ASSIGNMENT;
             }
+            LOGGER.trace(() -> new ParameterizedMessage("[{}] is now assigned to [{}]", datafeedId, jobNode));
             return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
         }
-        LOGGER.debug(assignmentFailure.reason);
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] cannot be assigned due to [{}]", datafeedId, assignmentFailure.reason));
         assert assignmentFailure.reason.isEmpty() == false;
         return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.reason);
     }
@@ -119,6 +129,20 @@ public class DatafeedNodeSelector {
         return priorityFailureCollector.get();
     }
 
+    private boolean verifyIndicesExist() {
+        String[] index = datafeedIndices.stream()
+            // We cannot verify remote indices
+            .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
+            .toArray(String[]::new);
+        final String[] concreteIndices;
+        try {
+            concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
+        } catch (Exception e) {
+            return false;
+        }
+        return concreteIndices.length > 0;
+    }
+
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
         String[] index = datafeedIndices.stream()
@@ -130,7 +154,7 @@ public class DatafeedNodeSelector {
 
         try {
             concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
-            if (concreteIndices.length == 0) {
+            if (concreteIndices.length == 0 && indicesOptions.allowNoIndices() == false) {
                 return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
                     + Strings.arrayToCommaDelimitedString(index) + "] does not exist, is closed, or is still initializing.", true);
             }
@@ -138,7 +162,7 @@ public class DatafeedNodeSelector {
             String msg = new ParameterizedMessage("failed resolving indices given [{}] and indices_options [{}]",
                 Strings.arrayToCommaDelimitedString(index),
                 indicesOptions).getFormattedMessage();
-            LOGGER.debug("[" + datafeedId + "] " + msg, e);
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] {}", datafeedId, msg), e);
             return new AssignmentFailure(
                 "cannot start datafeed [" + datafeedId + "] because it " + msg + " with exception [" + e.getMessage() + "]",
                 true);

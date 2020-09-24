@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,10 +39,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector.AWAITING_INDICES;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDatafeedStats;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -88,6 +91,52 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(job.getId());
+    }
+
+    public void testLookbackOnlyAssignmentDelayDueToMissingIndices() throws Exception {
+        long now = System.currentTimeMillis();
+
+        Job.Builder job = createScheduledJob("lookback-job-with-no-indices");
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        List<String> t = new ArrayList<>(2);
+        t.add("data-*");
+        DatafeedConfig datafeedConfig = createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), t)
+            .setIndicesOptions(IndicesOptions.fromOptions(true, true, true, false, false))
+            .build();
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> {
+            assertThat(getDatafeedStats(datafeedConfig.getId()).getAssignmentExplanation(), equalTo(AWAITING_INDICES.getExplanation()));
+        }, 60, TimeUnit.SECONDS);
+
+        client().admin().indices().prepareCreate("the-data")
+            .setMapping("time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, "the-data", numDocs, twoWeeksAgo, oneWeekAgo);
+
+        // index all the data and THEN add an alias to make sure the datafeed only gets assigned when data exists in the index
+        client().admin().indices().prepareAliases().addAlias("the-data", "data-aliased").get();
+
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
 
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());

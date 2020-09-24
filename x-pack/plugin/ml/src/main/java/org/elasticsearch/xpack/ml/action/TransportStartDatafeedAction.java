@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -33,6 +34,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -70,6 +72,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.license.RemoteClusterLicenseChecker.isRemoteIndex;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -169,10 +173,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
-                new ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
+
+        ActionListener<PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
+                new ActionListener<PersistentTask<StartDatafeedAction.DatafeedParams>>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>
+                    public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams>
                                                    persistentTask) {
                         waitForDatafeedStarted(persistentTask.getId(), params, listener);
                     }
@@ -209,7 +214,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                                     RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
                                                     clusterService.getNodeName())));
                                         } else {
-                                            createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                                            createDataExtractor(job, datafeedConfigHolder.get(), params, state, waitForTaskListener);
                                         }
                                     },
                                     e -> listener.onFailure(
@@ -219,7 +224,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             )
                     );
                 } else {
-                    createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                    createDataExtractor(job, datafeedConfigHolder.get(), params, state, waitForTaskListener);
                 }
             };
 
@@ -257,9 +262,28 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
-    private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
-                                     ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>>
-                                             listener) {
+    private void createDataExtractor(Job job,
+                                     DatafeedConfig datafeed,
+                                     StartDatafeedAction.DatafeedParams params,
+                                     ClusterState clusterState,
+                                     ActionListener<PersistentTask<StartDatafeedAction.DatafeedParams>> listener) {
+        final String taskId = MlTasks.datafeedTaskId(params.getDatafeedId());
+        // If we are allowing no indices, verify we have some. If not, skip extractor validation as it wouldn't be possible
+        if (datafeed.getIndicesOptions().allowNoIndices()) {
+            try {
+                if (indexNameExpressionResolver.concreteIndexNames(
+                    clusterState,
+                    datafeed.getIndicesOptions(),
+                    datafeed.getIndices().stream().filter(i -> isRemoteIndex(i) == false).toArray(String[]::new)).length == 0) {
+                    persistentTasksService.sendStartRequest(taskId, MlTasks.DATAFEED_TASK_NAME, params, listener);
+                    return;
+                }
+            } catch (Exception ex) {
+                logger.warn(new ParameterizedMessage("[{}] failure to expand indices", datafeed.getId()), ex);
+                listener.onFailure(ex);
+                return;
+            }
+        }
         DataExtractorFactory.create(
             client,
             datafeed,
@@ -268,9 +292,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
             ActionListener.wrap(
-                unused ->
-                    persistentTasksService.sendStartRequest(
-                        MlTasks.datafeedTaskId(params.getDatafeedId()), MlTasks.DATAFEED_TASK_NAME, params, listener),
+                unused -> persistentTasksService.sendStartRequest(taskId, MlTasks.DATAFEED_TASK_NAME, params, listener),
                 listener::onFailure));
     }
 
@@ -288,8 +310,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>
-                                                   persistentTask) {
+                    public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                         if (predicate.exception != null) {
                             // We want to return to the caller without leaving an unassigned persistent task, to match
                             // what would have happened if the error had been detected in the "fast fail" validation
@@ -306,18 +327,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new ElasticsearchException("Starting datafeed ["
-                                + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
+                        listener.onFailure(new ElasticsearchException(
+                            "Starting datafeed [{}] timed out after [{}]",
+                            params.getDatafeedId(),
+                            timeout));
                     }
                 });
     }
 
-    private void cancelDatafeedStart(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+    private void cancelDatafeedStart(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
                                      Exception exception, ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
-                new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+                new ActionListener<PersistentTask<?>>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                    public void onResponse(PersistentTask<?> task) {
                         // We succeeded in cancelling the persistent task, but the
                         // problem that caused us to cancel it is the overall result
                         listener.onFailure(exception);
@@ -325,8 +348,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("[" + persistentTask.getParams().getDatafeedId() + "] Failed to cancel persistent task that could " +
-                                "not be assigned due to [" + exception.getMessage() + "]", e);
+                        logger.error(new ParameterizedMessage(
+                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                            persistentTask.getParams().getDatafeedId(),
+                            exception.getMessage()), e);
                         listener.onFailure(exception);
                     }
                 }
@@ -420,7 +445,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         @Override
         protected AllocatedPersistentTask createTask(
                 long id, String type, String action, TaskId parentTaskId,
-                PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+                PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
                 Map<String, String> headers) {
             return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams(), headers);
         }
@@ -491,20 +516,22 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class DatafeedPredicate implements Predicate<PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile String node = "";
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }
             PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null) {
                 // This means we are awaiting the datafeed's job to be assigned to a node
-                if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT)) {
+                // Or are waiting for the indices to become available
+                if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT)
+                    || assignment.equals(DatafeedNodeSelector.AWAITING_INDICES)) {
                     return true;
                 }
                 if (assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {

@@ -137,6 +137,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             is(arrayContaining(".ml-state-000001", ".ml-state-000005", ".ml-state-000007")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataWithStandardThrottle() throws Exception {
         testExpiredDeletion(-1.0f, 100);
     }

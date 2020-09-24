@@ -45,6 +45,7 @@ import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.SearchableSnapshotAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
@@ -160,6 +161,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(UnfollowAction.NAME, new UnfollowAction());
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null));
+        coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"));
         lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
 
         Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());

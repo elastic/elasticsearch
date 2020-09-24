@@ -260,17 +260,22 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        double[] whiskers = whiskers(state);
         builder.field("min", getMin());
         builder.field("max", getMax());
         builder.field("q1", getQ1());
         builder.field("q2", getQ2());
         builder.field("q3", getQ3());
+        builder.field("lower", whiskers[0]);
+        builder.field("upper", whiskers[1]);
         if (format != DocValueFormat.RAW) {
             builder.field("min_as_string", format.format(getMin()));
             builder.field("max_as_string", format.format(getMax()));
             builder.field("q1_as_string", format.format(getQ1()));
             builder.field("q2_as_string", format.format(getQ2()));
             builder.field("q3_as_string", format.format(getQ3()));
+            builder.field("lower_as_string", format.format(whiskers[0]));
+            builder.field("upper_as_string", format.format(whiskers[1]));
         }
         return builder;
     }

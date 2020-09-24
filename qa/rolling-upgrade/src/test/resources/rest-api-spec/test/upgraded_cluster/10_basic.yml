@@ -87,7 +87,9 @@
 ---
 "Find a task result record from the old cluster":
   - skip:
-      features: headers,warnings
+      features:
+        - headers
+        - warnings
 
   - do:
       warnings:

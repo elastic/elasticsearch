@@ -15,6 +15,7 @@ The following numeric types are supported:
 `float`::        A single-precision 32-bit IEEE 754 floating point number, restricted to finite values.
 `half_float`::   A half-precision 16-bit IEEE 754 floating point number, restricted to finite values.
 `scaled_float`:: A floating point number that is backed by a `long`, scaled by a fixed `double` scaling factor.
+`unsigned_long`:: An unsigned 64-bit integer with a minimum value of 0 and a maximum value of +2^64^-1+.
 
 Below is an example of configuring a mapping with numeric fields:
 
@@ -115,7 +116,7 @@ The following parameters are accepted by numeric types:
 <<coerce,`coerce`>>::
 
     Try to convert strings to numbers and truncate fractions for integers.
-    Accepts `true` (default) and `false`.
+    Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
 
 <<doc-values,`doc_values`>>::
 
@@ -164,3 +165,5 @@ The following parameters are accepted by numeric types:
     sorting) will behave as if the document had a value of +2.3+. High values
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
+
+include::unsigned_long.asciidoc[]

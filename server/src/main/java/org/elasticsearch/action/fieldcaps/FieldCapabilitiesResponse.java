@@ -169,10 +169,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     private static Map<String, FieldCapabilities> parseTypeToCapabilities(XContentParser parser, String name) throws IOException {
         Map<String, FieldCapabilities> typeToCapabilities = new HashMap<>();
 
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String type = parser.currentName();
             FieldCapabilities capabilities = FieldCapabilities.fromXContent(name, parser);
             typeToCapabilities.put(type, capabilities);

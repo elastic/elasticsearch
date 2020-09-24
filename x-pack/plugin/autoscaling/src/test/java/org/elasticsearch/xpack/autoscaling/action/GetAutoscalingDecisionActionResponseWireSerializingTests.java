@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
 
 import java.util.Collections;
@@ -18,6 +20,11 @@ import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAuto
 
 public class GetAutoscalingDecisionActionResponseWireSerializingTests extends AbstractWireSerializingTestCase<
     GetAutoscalingDecisionAction.Response> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return AutoscalingTestCase.getAutoscalingNamedWriteableRegistry();
+    }
 
     @Override
     protected Writeable.Reader<GetAutoscalingDecisionAction.Response> instanceReader() {

@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.BwcVersions;
+import org.elasticsearch.gradle.DistributionDependency;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.DistributionResolution;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -32,6 +33,9 @@ import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Dependency;
+
+import java.util.function.Function;
 
 import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
 
@@ -61,18 +65,20 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
 
     /**
      * Registers internal distribution resolutions.
-     *
+     * <p>
      * Elasticsearch distributions are resolved as project dependencies either representing
      * the current version pointing to a project either under `:distribution:archives` or :distribution:packages`.
-     *
+     * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
-     * */
+     */
     private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
 
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build
-                return projectDependency(project, distributionProjectPath(distribution), "default");
+                return new ProjectBasedDistributionDependency(
+                    config -> projectDependency(project, distributionProjectPath(distribution), config)
+                );
             }
             return null;
         }));
@@ -88,7 +94,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                             + "without a bundled JDK is not supported."
                     );
                 }
-                return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
+                return new ProjectBasedDistributionDependency(
+                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution))
+                );
             }
             return null;
         }));
@@ -158,5 +166,24 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
         }
         return projectName;
+    }
+
+    private class ProjectBasedDistributionDependency implements DistributionDependency {
+
+        private Function<String, Dependency> function;
+
+        ProjectBasedDistributionDependency(Function<String, Dependency> function) {
+            this.function = function;
+        }
+
+        @Override
+        public Object getDefaultNotation() {
+            return function.apply("default");
+        }
+
+        @Override
+        public Object getExtractedNotation() {
+            return function.apply("extracted");
+        }
     }
 }

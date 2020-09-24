@@ -61,10 +61,6 @@ tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'
 }
 
-processTestResources {
-  from project(":test:framework").file("src/main/resources/log4j2-test.properties")
-}
-
 subprojects { Project platformProject ->
   tasks.register('packagingTest') {
     dependsOn 'distroTest'

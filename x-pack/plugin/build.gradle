@@ -1,16 +1,20 @@
 import org.elasticsearch.gradle.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
-  testImplementation project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
+  testImplementation project(xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  if (false == isEclipse) {
+    // let the yamlRestTest see the classpath of test
+    // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
+    yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
+  }
 }
 
 configurations {
@@ -21,9 +25,11 @@ configurations {
 restResources {
   restApi {
     includeCore '*'
+    includeXpack '*'
   }
 }
 
+//The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
 artifacts {
   restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
   restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
@@ -32,6 +38,7 @@ artifacts {
 def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
+
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid
@@ -68,10 +75,11 @@ tasks.register("copyKeyCerts", Copy) {
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn("copyKeyCerts")
+sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
+processYamlRestTestResources.dependsOn("copyKeyCerts")
+processJavaRestTestResources.dependsOn("copyKeyCerts")
 
-integTest {
+yamlRestTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -91,7 +99,7 @@ integTest {
   dependsOn copyKeyCerts
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
@@ -117,9 +125,6 @@ testClusters.integTest {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
 }
 
 

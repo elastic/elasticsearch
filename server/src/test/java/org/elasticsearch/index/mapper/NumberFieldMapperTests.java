@@ -59,6 +59,20 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(123);
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    @Override
     public void doTestDefaults(String type) throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", type));
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -204,7 +218,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

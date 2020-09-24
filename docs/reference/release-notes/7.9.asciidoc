@@ -1,8 +1,6 @@
 [[release-notes-7.9.2]]
 == {es} version 7.9.2
 
-coming[7.9.2]
-
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
 [[deprecation-7.9.2]]

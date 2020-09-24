@@ -325,7 +325,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         } else {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
             for (String nodeId : nodes) {
-                if (nodeId.equals("_local")) {
+                if (Strings.isNullOrEmpty(nodeId)) {
+                    // don't silence the underlying issue, it is a bug, so lets fail if assertions are enabled
+                    assert Strings.isNullOrEmpty(nodeId) == false : "nodeId should not be null or empty";
+                    continue;
+                } else if (nodeId.equals("_local")) {
                     String localNodeId = getLocalNodeId();
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);

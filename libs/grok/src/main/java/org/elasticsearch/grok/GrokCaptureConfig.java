@@ -64,6 +64,7 @@ public final class GrokCaptureConfig {
      * Extracters returned from this method are stateless and can be reused.
      */
     public GrokCaptureExtracter objectExtracter(Consumer<Object> emit) {
+        // We could probably write this code a little more concisely but this makes it clear where we are boxing
         return nativeExtracter(new NativeExtracterMap<GrokCaptureExtracter>() {
             @Override
             public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {

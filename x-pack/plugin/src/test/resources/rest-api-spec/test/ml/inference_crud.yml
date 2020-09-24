@@ -877,7 +877,7 @@ setup:
       features: "warnings"
   - do:
       warnings:
-        - "[include_model_definition] parameter is deprecated! Use parameter [include] and supply the flag 'definition' instead."
+        - "[include_model_definition] parameter is deprecated! Use [include=definition] instead."
       ml.get_trained_models:
         model_id: "a-regression-model-1"
         include_model_definition: true

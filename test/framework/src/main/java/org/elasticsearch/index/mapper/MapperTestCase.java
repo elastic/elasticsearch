@@ -311,7 +311,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
+            lookup.source().setSegmentAndDocument(context, context.reader()::document, 0);
             valueFetcher.setNextReader(context);
             result.set(valueFetcher.fetchValues(lookup.source()));
         });

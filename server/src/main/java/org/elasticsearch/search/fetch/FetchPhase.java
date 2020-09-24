@@ -314,7 +314,7 @@ public class FetchPhase {
         int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
-            return new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
+            return new HitContext(hit, subReaderContext, subDocId, lookup.source(), fieldReader, sharedCache);
         } else {
             SearchHit hit;
             loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
@@ -327,7 +327,7 @@ public class FetchPhase {
                 hit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
+            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source(), fieldReader, sharedCache);
             if (fieldsVisitor.source() != null) {
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
             }
@@ -409,6 +409,7 @@ public class FetchPhase {
             subReaderContext,
             nestedDocId,
             new SourceLookup(),  // Use a clean, fresh SourceLookup for the nested context
+            storedFieldReader,
             sharedCache
         );
 

@@ -64,7 +64,7 @@ public class LeafSearchLookup {
 
     public void setDocument(int docId) {
         docMap.setDocument(docId);
-        sourceLookup.setSegmentAndDocument(ctx, docId);
+        sourceLookup.setSegmentAndDocument(ctx, ctx.reader()::document, docId);
         fieldsLookup.setDocument(docId);
     }
 }

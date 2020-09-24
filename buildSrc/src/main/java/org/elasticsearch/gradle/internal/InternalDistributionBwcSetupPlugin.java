@@ -96,7 +96,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         File jdbcProjectArtifact = new File(
             checkoutDir.get(),
-            jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion + "-SNAPSHOT.jar"
+            jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion.get() + "-SNAPSHOT.jar"
         );
 
         createBuildBwcTask(bwcSetupExtension, project, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);

@@ -66,9 +66,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     private RangeFieldType createDefaultFieldType() {
         if (type == RangeType.DATE) {
-            return new RangeFieldType("field", true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+            return new RangeFieldType("field", true, false, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         }
-        return new RangeFieldType("field", type, true, true, Collections.emptyMap());
+        return new RangeFieldType("field", type, true, false, true, Collections.emptyMap());
     }
 
     public void testRangeQuery() throws Exception {
@@ -217,7 +217,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType strict
-            = new RangeFieldType("field", true, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+            = new RangeFieldType("field", true, false, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
         ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
 
@@ -236,13 +236,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, true, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, true, formatter, Collections.emptyMap());
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType
-            = new DateFieldType("field", true, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
+            = new DateFieldType("field", true, false, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
@@ -259,7 +259,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally

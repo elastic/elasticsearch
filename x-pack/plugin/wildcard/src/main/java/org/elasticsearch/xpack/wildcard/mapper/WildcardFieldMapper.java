@@ -212,8 +212,8 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, true,
+        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
         }
@@ -841,18 +841,12 @@ public class WildcardFieldMapper extends FieldMapper {
             return KeywordFieldMapper.CONTENT_TYPE;
         }
 
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
-        }
-
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             String searchTerm = BytesRefs.toString(value);
             return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
-        
+
         private String escapeWildcardSyntax(String term) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < term.length();) {
@@ -867,12 +861,12 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             return result.toString();
         }
-        
+
         @Override
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
             String searchTerm = BytesRefs.toString(value);
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
-        }        
+        }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
@@ -887,7 +881,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             return new ConstantScoreQuery(bq.build());
         }
-        
+
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();

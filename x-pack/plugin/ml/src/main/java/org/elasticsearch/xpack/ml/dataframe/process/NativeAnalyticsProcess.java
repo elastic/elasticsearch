@@ -5,8 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
@@ -20,6 +27,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
+
+    private static final Logger logger = LogManager.getLogger(NativeAnalyticsProcess.class);
 
     private static final String NAME = "analytics";
 
@@ -55,10 +64,26 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
-    public void restoreState(BytesReference state) throws IOException {
-        Objects.requireNonNull(state);
+    public void restoreState(Client client, String stateDocIdPrefix) throws IOException {
+        Objects.requireNonNull(stateDocIdPrefix);
         try (OutputStream restoreStream = processRestoreStream()) {
-            StateToProcessWriterHelper.writeStateToStream(state, restoreStream);
+            int docNum = 0;
+            while (true) {
+                if (isProcessKilled()) {
+                    return;
+                }
+
+                // We fetch the documents one at a time because all together they can amount to too much memory
+                SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+                    .setSize(1)
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum)).get();
+                if (stateResponse.getHits().getHits().length == 0) {
+                    break;
+                }
+                SearchHit stateDoc = stateResponse.getHits().getAt(0);
+                logger.debug(() -> new ParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId()));
+                StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
+            }
         }
     }
 }

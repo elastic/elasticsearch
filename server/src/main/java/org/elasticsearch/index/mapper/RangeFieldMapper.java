@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -139,14 +136,15 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                 } else {
                     dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
                 }
-                return new RangeFieldType(buildFullName(context), index.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     dateTimeFormatter, meta.getValue());
-            }
+           }
             if (type == RangeType.DATE) {
-                return new RangeFieldType(buildFullName(context), index.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER, meta.getValue());
             }
-            return new RangeFieldType(buildFullName(context), type, index.getValue(), hasDocValues.getValue(), meta.getValue());
+            return new RangeFieldType(buildFullName(context), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+                meta.getValue());
         }
 
         @Override
@@ -162,8 +160,9 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
 
-        public RangeFieldType(String name, RangeType type, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public RangeFieldType(String name, RangeType type, boolean indexed, boolean stored,
+                              boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -172,11 +171,12 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, true, Collections.emptyMap());
+            this(name, type, true, false, true, Collections.emptyMap());
         }
 
-        public RangeFieldType(String name, boolean indexed, boolean hasDocValues, DateFormatter formatter, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public RangeFieldType(String name, boolean indexed, boolean stored,  boolean hasDocValues, DateFormatter formatter,
+                              Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -184,7 +184,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, true, formatter, Collections.emptyMap());
+            this(name, true, false, true, formatter, Collections.emptyMap());
         }
 
         public RangeType rangeType() { return rangeType; }
@@ -206,15 +206,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         protected DateMathParser dateMathParser() {
             return dateMathParser;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
         }
 
         @Override

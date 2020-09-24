@@ -1765,6 +1765,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         }
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62863")
     public void testPeerRecoveryTrimsLocalTranslog() throws Exception {
         internalCluster().startNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);

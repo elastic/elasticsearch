@@ -70,13 +70,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIsFieldWithinQueryDateMillis() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", true, true,
+        DateFieldType ft = new DateFieldType("my_date", true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
         isFieldWithinRangeTestCase(ft);
     }
 
     public void testIsFieldWithinQueryDateNanos() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", true, true,
+        DateFieldType ft = new DateFieldType("my_date", true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.NANOSECONDS, Collections.emptyMap());
         isFieldWithinRangeTestCase(ft);
     }
@@ -175,7 +175,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999));
         assertEquals(expected, ft.termQuery(date, context));
 
-        MappedFieldType unsearchable = new DateFieldType("field", false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+        MappedFieldType unsearchable = new DateFieldType("field", false, false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery(date, context));
@@ -210,7 +210,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected,
             ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
-        MappedFieldType unsearchable = new DateFieldType("field", false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+        MappedFieldType unsearchable = new DateFieldType("field", false, false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context));

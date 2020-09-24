@@ -48,7 +48,10 @@ public class Distribution {
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
-        this.hasJdk = filename.contains("no-jdk") == false;
+        // even if a bundled jdk exists in the distribution, it is not supported on some legacy platforms.
+        // the distribution here acts like the bundled jdk doesn't exist because many tests use this flag
+        // to determine whether to test certain aspects of the bundled jdk behavior
+        this.hasJdk = filename.contains("no-jdk") == false && Platforms.IS_BUNDLED_JDK_SUPPORTED;
         String version = filename.split("-", 3)[1];
         if (filename.contains("-SNAPSHOT")) {
             version += "-SNAPSHOT";

@@ -34,6 +34,17 @@ import java.util.Set;
 public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeaturesFieldMapper.Builder> {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field("foo", 10).field("bar", 20).endObject();
+    }
+
+    @Override
+    protected void assertExistsQuery(MapperService mapperService) {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
+        assertEquals("[rank_features] fields do not support [exists] queries", iae.getMessage());
+    }
+
+    @Override
     protected Set<String> unsupportedProperties() {
         return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
@@ -57,7 +68,7 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(b -> b.startObject("field").field("foo", 10).field("bar", 20).endObject()));
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.length);

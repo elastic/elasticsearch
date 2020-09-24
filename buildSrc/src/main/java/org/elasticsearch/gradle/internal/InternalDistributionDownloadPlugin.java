@@ -54,8 +54,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         if (!BuildParams.isInternal()) {
             throw new GradleException(
-                    "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
-                            + "Use 'elasticsearch.distribution-download' plugin instead."
+                "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
+                    + "Use 'elasticsearch.distribution-download' plugin instead."
             );
         }
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
@@ -77,7 +77,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
-                        config -> projectDependency(project, distributionProjectPath(distribution), config)
+                    config -> projectDependency(project, distributionProjectPath(distribution), config)
                 );
             }
             return null;
@@ -88,30 +88,26 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             if (unreleasedInfo != null) {
                 if (!distribution.getBundledJdk()) {
                     throw new GradleException(
-                            "Configuring a snapshot bwc distribution ('"
-                                    + distribution.getName()
-                                    + "') "
-                                    + "without a bundled JDK is not supported."
+                        "Configuring a snapshot bwc distribution ('"
+                            + distribution.getName()
+                            + "') "
+                            + "without a bundled JDK is not supported."
                     );
                 }
                 String distributionProjectName = distributionProjectName(distribution);
                 String projectConfig = getProjectConfig(distributionProjectName, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
-                        (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
+                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
                 );
             }
             return null;
         }));
     }
 
-    private String getProjectConfig(String distributionProjectName, BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo) {
-        return supportsExplodedBwc(unreleasedVersionInfo.gradleProjectPath.equals(":distribution"), unreleasedVersionInfo.version.before("7.10.0")) ?
-                distributionProjectName :
-                "exploded-" + distributionProjectName;
-    }
-
-    private boolean supportsExplodedBwc(boolean equals, boolean before) {
-        return equals || before;
+    private static String getProjectConfig(String distributionProjectName, BwcVersions.UnreleasedVersionInfo info) {
+        return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
+            ? distributionProjectName
+            : "exploded-" + distributionProjectName;
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
@@ -147,8 +143,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         String projectName = "";
 
         final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS || architecture == Architecture.X64
-                ? ""
-                : "-" + architecture.toString().toLowerCase();
+            ? ""
+            : "-" + architecture.toString().toLowerCase();
 
         if (distribution.getFlavor() == ElasticsearchDistribution.Flavor.OSS) {
             projectName += "oss-";
@@ -161,8 +157,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         switch (distribution.getType()) {
             case ARCHIVE:
                 projectName += platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
-                        ? "-zip"
-                        : "-tar");
+                    ? "-zip"
+                    : "-tar");
                 break;
 
             case DOCKER:

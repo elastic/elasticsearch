@@ -308,7 +308,7 @@ The REST tests are run automatically when executing the "./gradlew check" comman
 YAML REST tests use the following command (modules and plugins may also include YAML REST tests):
 
 ---------------------------------------------------------------------------
-./gradlew :rest-api-spec:yamlRestTest --info
+./gradlew :rest-api-spec:yamlRestTest 
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following command:
@@ -316,7 +316,7 @@ A specific test case can be run with the following command:
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
-  -Dtests.method="test {p0=cat.segments/10_basic/Help}" --info
+  -Dtests.method="test {p0=cat.segments/10_basic/Help}" 
 ---------------------------------------------------------------------------
 
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
@@ -334,14 +334,14 @@ Java REST tests can be run with the "javaRestTest" task.
 
 For example :
 ---------------------------------------------------------------------------
-./gradlew :modules:mapper-extras:javaRestTest --info
+./gradlew :modules:mapper-extras:javaRestTest 
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following syntax (fqn.test {params}):
 
 ---------------------------------------------------------------------------
 ./gradlew ':modules:mapper-extras:javaRestTest' \
-  --tests "org.elasticsearch.index.mapper.TokenCountFieldMapperIntegrationIT.testSearchByTokenCount {storeCountedFields=true loadCountedFields=false}" --info
+  --tests "org.elasticsearch.index.mapper.TokenCountFieldMapperIntegrationIT.testSearchByTokenCount {storeCountedFields=true loadCountedFields=false}" 
 ---------------------------------------------------------------------------
 
 yamlRestTest's and javaRestTest's are easy to identify, since they are found in a

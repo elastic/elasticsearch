@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
+
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class LeafFieldsLookup implements Map<Object, Object> {
 
@@ -151,6 +153,7 @@ public class LeafFieldsLookup implements Map<Object, Object> {
                     throw new ElasticsearchParseException("failed to load field [{}]", e, name);
                 }
             }
+            data.fields(singletonMap(data.fieldType().name(), values));
         }
         return data;
     }

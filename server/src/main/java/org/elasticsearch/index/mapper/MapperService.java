@@ -464,8 +464,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
-    public boolean isIdFieldDataEnabled() {
-        return idFieldDataEnabled.getAsBoolean();
+    public BooleanSupplier isIdFieldDataEnabled() {
+        return idFieldDataEnabled;
     }
 
     @Override

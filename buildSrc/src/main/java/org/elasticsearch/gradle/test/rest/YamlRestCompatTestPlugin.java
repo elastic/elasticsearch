@@ -23,7 +23,9 @@ import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.testclusters.TestDistribution;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -67,15 +69,21 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
 
-        // create the test cluster container
-        createTestCluster(project, yamlCompatTestSourceSet);
+        // create the test cluster container, and always use the default distribution
+        ElasticsearchCluster testCluster = createTestCluster(project, yamlCompatTestSourceSet);
+        testCluster.setTestDistribution(TestDistribution.DEFAULT);
+
+        // Get a reference to the checkout directory for ":distribution:bwc:minor:checkoutBwcBranch"
         //TODO: this is pretty fragile and we need to eventually want to test against multiple minor versions, however to do so we will
         // need to support to checking out the source branches per version provide a less fragile way to get a reference to the checkoutDir
+        int priorMajorVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
         final Path checkoutDir = project.findProject(":distribution:bwc:minor").getBuildDir().toPath()
-                            .resolve("bwc").resolve("checkout-" + (VersionProperties.getElasticsearchVersion().getMajor() - 1) + ".x");
+                            .resolve("bwc").resolve("checkout-" + priorMajorVersion + ".x");
 
+        // copy the api from the checked out source to the compatible sourceset
         TaskProvider<Copy> copyApis = project.getTasks().register(SOURCE_SET_NAME + "#copyApis", Copy.class, copy -> {
             copy.from(checkoutDir.resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_API_PATH));
+            //TODO: prefer to read from the compat rest resources
             //copy xpack api's
             if (project.getPath().startsWith(":x-pack")) {
                 copy.from(checkoutDir.resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_API_PATH));
@@ -84,6 +92,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             if (project.getPath().startsWith(":modules")
                 || project.getPath().startsWith(":plugins")
                 || project.getPath().startsWith(":x-pack:plugin:")) {
+                //TODO: cross check against hard coded list of where to find prior version.
                 copy.from(checkoutDir.resolve(project.getPath().replaceFirst(":", "").replace(":", File.separator))
                     .resolve("src/yamlRestTest/resources").resolve(RELATIVE_API_PATH));
             }
@@ -91,7 +100,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
               copy.dependsOn(":distribution:bwc:minor:checkoutBwcBranch");
         });
 
-        // copy the tests based on which project
+        // copy the tests from the checked out source to the compatible sourceset
         TaskProvider<Copy> copyTests = project.getTasks().register(SOURCE_SET_NAME + "#copyTests", Copy.class, copy -> {
             //copy core tests
             if (project.getPath().equalsIgnoreCase(":rest-api-spec")) {
@@ -123,8 +132,12 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             testTask.setClasspath(yamlTestSourceSet.getRuntimeClasspath()
                 //remove the "normal" api and tests
                 .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
+                // add any additional classes/resources from the compatible source set
+                // the api and tests are copied to the compatible source set
                 .plus(yamlCompatTestSourceSet.getRuntimeClasspath())
             );
+            // run compatibility tests after "normal" tests
+            testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyTests);
         });
 

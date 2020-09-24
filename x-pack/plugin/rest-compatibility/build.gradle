@@ -1,0 +1,10 @@
+rootProject.allprojects.findAll {
+  project -> project.getPath().matches("^:modules:.*|^:plugins:.*|^:x-pack:plugin:.*|:rest-api-compatibility|:x-pack:plugin")
+}.each { project ->
+
+  project.pluginManager.withPlugin("elasticsearch.yaml-rest-test") { plugin ->
+    project.pluginManager.apply("elasticsearch.yaml-rest-compat-test")
+  }
+
+}
+

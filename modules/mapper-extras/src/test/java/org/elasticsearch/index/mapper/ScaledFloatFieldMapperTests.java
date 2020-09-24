@@ -56,6 +56,25 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck(
+            "scaling_factor",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "scaled_float");
+                b.field("scaling_factor", 5.0);
+            }));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed()));
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

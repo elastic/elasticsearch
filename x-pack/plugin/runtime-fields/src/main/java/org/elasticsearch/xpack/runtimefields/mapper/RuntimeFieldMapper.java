@@ -60,6 +60,14 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
         this.scriptCompiler = scriptCompiler;
     }
 
+    String runtimeType() {
+        return runtimeType;
+    }
+
+    Script script() {
+        return script;
+    }
+
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new RuntimeFieldMapper.Builder(simpleName(), scriptCompiler).init(this);

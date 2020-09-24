@@ -104,8 +104,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             String statusMessage;
             if (Strings.hasText(availableDestinationTier)) {
                 statusMessage = String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] " +
-                        "tier (tier migration preference configuration is [{}])", index.getName(), getKey().getAction(),
-                    allocationPendingAllShards, availableDestinationTier, preferredTierConfiguration);
+                        "tier (tier migration preference configuration is [%s])", index.getName(), getKey().getAction(),
+                    allocationPendingAllShards, availableDestinationTier.get(), preferredTierConfiguration);
             } else {
                 statusMessage = String.format(Locale.ROOT, "index [%s] has a preference for tiers [%s], " +
                     "but no nodes for any of those tiers are available in the cluster", index.getName(), preferredTierConfiguration);

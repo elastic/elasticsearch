@@ -9,7 +9,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.MediaTypeParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -297,6 +296,15 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
+    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser.Builder<TextFormat>()
+        .withMediaTypeAndParams(PLAIN_TEXT.typeWithSubtype(), PLAIN_TEXT,
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+        .withMediaTypeAndParams(CSV.typeWithSubtype(), CSV,
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+        .withMediaTypeAndParams(TSV.typeWithSubtype(), TSV,
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+        .build();
+
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
@@ -315,6 +323,18 @@ enum TextFormat implements MediaType {
 
     boolean hasHeader(RestRequest request) {
         return true;
+    }
+
+    static TextFormat fromMediaTypeOrFormat(String accept) {
+        TextFormat textFormat = parser.fromFormat(accept);
+        if (textFormat != null) {
+            return textFormat;
+        }
+        textFormat = parser.fromMediaType(accept);
+        if (textFormat != null) {
+            return textFormat;
+        }
+        throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
 
     /**

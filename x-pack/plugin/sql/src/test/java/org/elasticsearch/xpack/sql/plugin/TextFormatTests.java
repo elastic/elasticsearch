@@ -25,9 +25,45 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
+import static org.hamcrest.CoreMatchers.is;
 
 public class TextFormatTests extends ESTestCase {
+
+    public void testPlainTextDetection() {
+        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/plain");
+        assertThat(text, is(PLAIN_TEXT));
+    }
+
+    public void testCsvDetection() {
+        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/csv");
+        assertThat(text, is(CSV));
+    }
+
+    public void testTsvDetection() {
+        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/tab-separated-values");
+        assertThat(text, is(TSV));
+    }
+
+    public void testParametersParsing() {
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/plain; charset=utf-8"), is(PLAIN_TEXT));
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/plain; header=present"), is(PLAIN_TEXT));
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/plain; charset=utf-8; header=present"), is(PLAIN_TEXT));
+
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/csv; charset=utf-8"), is(CSV));
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/csv; header=present"), is(CSV));
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/csv; charset=utf-8; header=present"), is(CSV));
+
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/tab-separated-values; charset=utf-8"), is(TSV));
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/tab-separated-values; header=present"), is(TSV));
+        assertThat(TextFormat.fromMediaTypeOrFormat("text/tab-separated-values; charset=utf-8; header=present"), is(TSV));
+    }
+
+    public void testInvalidFormat() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> TextFormat.fromMediaTypeOrFormat("text/garbage"));
+        assertEquals("invalid format [text/garbage]", e.getMessage());
+    }
 
     public void testCsvContentType() {
         assertEquals("text/csv; charset=utf-8; header=present", CSV.contentType(req()));

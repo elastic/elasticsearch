@@ -73,13 +73,12 @@ public class MediaTypeParser<T extends MediaType> {
                         //spaces are allowed between parameters, but not between '=' sign
                         String[] keyValueParam = split[i].trim().split("=");
                         if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
-                            throw new IllegalArgumentException("Spaces are not allowed between parameters. " + headerValue);
+                            return null;
                         }
                         String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT);
                         String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT);
                         if (isValidParameter(typeWithSubtype, parameterName, parameterValue) == false) {
-                            throw new IllegalArgumentException("unrecognized parameter "
-                                + parameterName + " " + parameterValue + " headerValue=" + headerValue);
+                            return null;
                         }
                         parameters.put(parameterName, parameterValue);
                     }
@@ -88,7 +87,7 @@ public class MediaTypeParser<T extends MediaType> {
             }
 
         }
-        throw new IllegalArgumentException("unrecognized media type: " + headerValue);
+        return null;
     }
 
     private boolean isValidParameter(String typeWithSubtype, String parameterName, String parameterValue) {

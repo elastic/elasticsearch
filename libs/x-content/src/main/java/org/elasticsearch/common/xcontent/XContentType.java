@@ -114,8 +114,13 @@ public enum XContentType implements MediaType {
             return CborXContent.cborXContent;
         }
     };
-
-     public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
+    /**
+     * A regexp to allow parsing media types. It covers two use cases.
+     * 1. Media type with a version - requires a custom vnd.elasticsearch subtype and a compatible-with parameter
+     * i.e. application/vnd.elasticsearch+json;compatible-with
+     * 2. Media type without a version - for users not using compatible API i.e. application/json
+     */
+     private static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
         .withMediaTypeAndParams("application/smile", SMILE, Collections.emptyMap())
         .withMediaTypeAndParams("application/cbor", CBOR, Collections.emptyMap())
         .withMediaTypeAndParams("application/json", JSON, Map.of("charset", Pattern.compile("UTF-8")))
@@ -148,7 +153,7 @@ public enum XContentType implements MediaType {
      * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
      * The provided media type can optionally has parameters.
      * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
-     * This method will throw IllegalArgumentException if no match is found
+     * This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
         return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);

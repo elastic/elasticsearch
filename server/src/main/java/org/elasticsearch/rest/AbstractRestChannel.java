@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -38,7 +36,6 @@ import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
 
-    private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
@@ -101,17 +98,10 @@ public abstract class AbstractRestChannel implements RestChannel {
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
         if (responseContentType == null) {
-            if (Strings.hasText(format)) {
-                responseContentType = XContentType.fromFormat(format);
-            } else if (Strings.hasText(acceptHeader) && acceptHeader.equals("*/*") == false
-                && acceptHeader.startsWith("text/plain")==false) { //TODO PG there are a lot of usages of text/plain as a response type.
-                // I feel it would fit into xcontenttype..
-                try {
-                    responseContentType = XContentType.fromMediaType(acceptHeader);
-                }catch (IllegalArgumentException e){
-                    //todo pg this is in a way controlling the flow by exceptions. to be discussed
-                    logger.debug("Unrecognized accept header",e);
-                }
+            //TODO PG shoudld format vs acceptHeader be always the same, do we allow overriding?
+            responseContentType = XContentType.fromFormat(format);
+            if (responseContentType == null) {
+                responseContentType = XContentType.fromMediaType(acceptHeader);
             }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter

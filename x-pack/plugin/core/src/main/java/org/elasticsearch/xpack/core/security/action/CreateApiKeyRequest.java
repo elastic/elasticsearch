@@ -15,7 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Request class used for the creation of an API key. The request requires a name to be provided
  * and optionally an expiration time and permission limitation can be provided.
  */
-public final class CreateApiKeyRequest extends ActionRequest {
+public final class CreateApiKeyRequest extends ActionRequest implements ToXContentObject {
     public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
     private String name;
@@ -124,5 +127,17 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+                .field("name", name)
+                .timeField("expiration", expiration)
+                .field("role_descriptors", roleDescriptors);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+            builder.field("refresh_policy", refreshPolicy.toString());
+        }
+        return builder.endObject();
     }
 }

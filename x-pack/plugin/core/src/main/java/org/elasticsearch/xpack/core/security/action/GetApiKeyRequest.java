@@ -13,6 +13,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,7 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for get API key
  */
-public final class GetApiKeyRequest extends ActionRequest {
+public final class GetApiKeyRequest extends ActionRequest implements ToXContentObject {
 
     private final String realmName;
     private final String userName;
@@ -194,5 +196,16 @@ public final class GetApiKeyRequest extends ActionRequest {
     @Override
     public int hashCode() {
         return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser);
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field("username", userName)
+                .field("realm_name", realmName)
+                .field("id", apiKeyId)
+                .field("name", apiKeyName)
+                .field("owned_by_authenticated_user", ownedByAuthenticatedUser)
+                .endObject();
     }
 }

@@ -13,6 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Logically this is similar to {@link CreateApiKeyRequest}, but is for cases when the user that has permission to call this action
  * is different to the user for whom the API key should be created
  */
-public final class GrantApiKeyRequest extends ActionRequest {
+public final class GrantApiKeyRequest extends ActionRequest implements ToXContentObject {
 
     public static final String PASSWORD_GRANT_TYPE = "password";
     public static final String ACCESS_TOKEN_GRANT_TYPE = "access_token";
@@ -32,7 +35,7 @@ public final class GrantApiKeyRequest extends ActionRequest {
     /**
      * Fields related to the end user authentication
      */
-    public static class Grant implements Writeable {
+    public static class Grant implements Writeable, ToXContentObject {
         private String type;
         private String username;
         private SecureString password;
@@ -85,6 +88,21 @@ public final class GrantApiKeyRequest extends ActionRequest {
 
         public void setAccessToken(SecureString accessToken) {
             this.accessToken = accessToken;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject()
+                    .field("type", type)
+                    .field("username", username);
+            if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
+                builder.field("password", password != null ? password.toString() : null);
+                builder.field("access_token", accessToken != null ? accessToken.toString() : null);
+            } else {
+                builder.field("password", password != null ? "<redacted>" : null);
+                builder.field("access_token", accessToken != null ? "<redacted>" : null);
+            }
+            return builder.endObject();
         }
     }
 
@@ -162,5 +180,13 @@ public final class GrantApiKeyRequest extends ActionRequest {
             return addValidationError("[" + fieldName + "] is not supported for grant_type [" + grant.type + "]", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field("grant", grant, params)
+                .field("api_key", apiKey, params)
+                .endObject();
     }
 }

@@ -15,6 +15,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
+public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest>, ToXContentObject {
 
     private String username;
     private String[] roles;
@@ -193,5 +196,25 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
             ", enabled=" + enabled +
             ", refreshPolicy=" + refreshPolicy +
             '}';
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+            .field("username", username)
+            .array("roles", roles())
+            .field("full_name", fullName())
+            .field("email", email())
+            .field("metadata", metadata())
+            .field("enabled", enabled());
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
+            builder.field("password_hash", passwordHash != null ? String.valueOf(passwordHash) : null);
+        } else {
+            builder.field("password_hash", passwordHash != null ? "<redacted>" : null);
+        }
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+            builder.field("refresh_policy", refreshPolicy.toString());
+        }
+        return builder.endObject();
     }
 }

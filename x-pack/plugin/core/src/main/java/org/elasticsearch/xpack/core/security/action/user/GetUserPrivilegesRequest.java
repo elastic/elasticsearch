@@ -9,13 +9,15 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * A request for checking a user's privileges
  */
-public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest {
+public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest, ToXContentObject {
 
     private String username;
 
@@ -58,6 +60,13 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field("username", username)
+                .endObject();
     }
 
 }

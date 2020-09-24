@@ -127,7 +127,11 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         builder.startObject().startArray(X509_CERTIFICATE_CHAIN_FIELD.getPreferredName());
         try {
             for (X509Certificate cert : certificateChain) {
-                 builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+                if (builder.humanReadable()) {
+                    builder.value(cert.toString());
+                } else {
+                    builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+                }
              }
          } catch (CertificateEncodingException e) {
              throw new IOException(e);

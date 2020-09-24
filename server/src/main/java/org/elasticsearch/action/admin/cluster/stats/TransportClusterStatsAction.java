@@ -65,8 +65,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Inject
     public TransportClusterStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
+        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, ClusterStatsRequest::new,
+                ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }

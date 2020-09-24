@@ -164,6 +164,39 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
     }
 
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
+
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
+        checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms", b -> b.field("norms", true));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "keyword");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "keyword");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
+
+        checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);

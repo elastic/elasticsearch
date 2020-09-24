@@ -47,6 +47,12 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         b.field("type", "binary");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+    }
+
     public void testExistsQueryDocValuesEnabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

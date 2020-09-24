@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
@@ -71,15 +72,15 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(false, null);
         }
         String preferredTierConfiguration = INDEX_ROUTING_PREFER_SETTING.get(idxMeta.getSettings());
-        String availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(preferredTierConfiguration,
-            clusterState.getNodes()).orElse("");
+        Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(preferredTierConfiguration,
+            clusterState.getNodes());
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             if (Strings.isEmpty(preferredTierConfiguration)) {
                 logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
                     getKey().getAction(), index.getName());
             } else {
-                if (Strings.hasText(availableDestinationTier)) {
+                if (availableDestinationTier.isPresent()) {
                     logger.debug("[{}] migration of index [{}] to the [{}] tier preference cannot progress, as not all shards are active",
                         getKey().getAction(), index.getName(), preferredTierConfiguration);
                 } else {
@@ -101,19 +102,18 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         int allocationPendingAllShards = getPendingAllocations(index, ALLOCATION_DECIDERS, clusterState);
 
         if (allocationPendingAllShards > 0) {
-            String statusMessage;
-            if (Strings.hasText(availableDestinationTier)) {
-                statusMessage = String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] " +
-                        "tier (tier migration preference configuration is [%s])", index.getName(), getKey().getAction(),
-                    allocationPendingAllShards, availableDestinationTier.get(), preferredTierConfiguration);
-            } else {
-                statusMessage = String.format(Locale.ROOT, "index [%s] has a preference for tiers [%s], " +
-                    "but no nodes for any of those tiers are available in the cluster", index.getName(), preferredTierConfiguration);
-            }
+            String statusMessage = availableDestinationTier.map(
+                s -> String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier " +
+                        "migration preference configuration is [%s])", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
+                    preferredTierConfiguration)
+            ).orElseGet(
+                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers [%s], but no nodes for any of those tiers are " +
+                    "available in the cluster", index.getName(), preferredTierConfiguration));
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));
         } else {
-            logger.debug("[{}] migration of index [{}] to tier [{}] (preference [{}]) complete", getKey().getAction(), index, availableDestinationTier, preferredTierConfiguration);
+            logger.debug("[{}] migration of index [{}] to tier [{}] (preference [{}]) complete",
+                getKey().getAction(), index, availableDestinationTier, preferredTierConfiguration);
             return new Result(true, null);
         }
     }

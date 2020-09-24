@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
@@ -48,8 +47,22 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(123);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {
@@ -57,13 +70,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 123)
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];

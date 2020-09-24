@@ -10,4 +10,11 @@ interface StringPattern {
      * Returns the pattern in (Java) regex format.
      */
     String asJavaRegex();
+
+    /**
+     * Hint method on whether this pattern matches everything or not.
+     */
+    default boolean matchesAll() {
+        return false;
+    }
 }

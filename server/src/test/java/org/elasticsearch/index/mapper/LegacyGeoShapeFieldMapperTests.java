@@ -35,7 +35,6 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
@@ -59,6 +58,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyGeoShapeFieldMapper.Builder> {
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("POINT (14.0 15.0)");
+    }
 
     @Override
     protected LegacyGeoShapeFieldMapper.Builder newBuilder() {
@@ -182,7 +186,6 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         assertThat(coerce, equalTo(false));
         assertFieldWarnings("tree", "strategy");
     }
-
 
     /**
      * Test that accept_z_value parameter correctly parses
@@ -460,7 +463,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
             .field("tree", "quadtree")
             .field("strategy", "term").field("precision", "1km")
             .field("tree_levels", 26).field("distance_error_pct", 26)
-            .field("orientation", "cw")))); 
+            .field("orientation", "cw"))));
         assertThat(e.getMessage(), containsString("mapper [field] has different [strategy]"));
         assertThat(e.getMessage(), containsString("mapper [field] has different [tree]"));
         assertThat(e.getMessage(), containsString("mapper [field] has different [tree_levels]"));
@@ -542,15 +545,6 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
     }
 
     public void testPointsOnlyDefaultsWithTermStrategy() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .field("precision", "10m")
-            .field("strategy", "term")
-            .endObject().endObject()
-            .endObject().endObject());
-
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "10m").field("strategy", "term"))
         );
@@ -568,7 +562,6 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         assertThat(Strings.toString(geoShapeFieldMapper), not(containsString("points_only")));
         assertFieldWarnings("tree", "precision", "strategy");
     }
-
 
     public void testPointsOnlyFalseWithTermStrategy() throws Exception {
         Exception e = expectThrows(

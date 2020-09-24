@@ -81,8 +81,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
 
         private final String joinField;
 
-        MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private MetaJoinFieldType(String joinField) {
+            super(NAME, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.joinField = joinField;
         }
 

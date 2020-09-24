@@ -53,8 +53,6 @@ import java.util.stream.Collectors;
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
-    public static final Version DATA_STREAMS_IN_SNAPSHOT = Version.V_7_9_0;
-
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
@@ -312,11 +310,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
-        if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-            dataStreams = in.readStringList();
-        } else {
-            dataStreams = Collections.emptyList();
-        }
+        dataStreams = in.readStringList();
     }
 
     /**
@@ -730,9 +724,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
-        if(out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)){
-            out.writeStringCollection(dataStreams);
-        }
+        out.writeStringCollection(dataStreams);
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {
@@ -769,7 +761,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     @Override
     public int hashCode() {
-
         return Objects.hash(snapshotId, state, reason, indices, dataStreams, startTime, endTime,
                 totalShards, successfulShards, includeGlobalState, version, shardFailures, userMetadata);
     }

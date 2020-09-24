@@ -34,6 +34,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -594,14 +595,16 @@ public final class SearchPhaseController {
     }
 
     /**
-     * Returns a new {@link QueryPhaseResultConsumer} instance. This might return an instance that reduces search responses incrementally.
+     * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
      */
     QueryPhaseResultConsumer newSearchPhaseResults(Executor executor,
+                                                   CircuitBreaker circuitBreaker,
                                                    SearchProgressListener listener,
                                                    SearchRequest request,
                                                    int numShards,
                                                    Consumer<Exception> onPartialMergeFailure) {
-        return new QueryPhaseResultConsumer(request, executor, this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
+        return new QueryPhaseResultConsumer(request, executor, circuitBreaker,
+            this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
     }
 
     static final class TopDocsStats {

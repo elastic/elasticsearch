@@ -10,8 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,9 +22,9 @@ import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -73,21 +71,30 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
-        String destinationTier = INDEX_ROUTING_PREFER_SETTING.get(idxMeta.getSettings());
+        String preferredTierConfiguration = INDEX_ROUTING_PREFER_SETTING.get(idxMeta.getSettings());
+        Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(preferredTierConfiguration,
+            clusterState.getNodes());
+
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            if (Strings.isEmpty(destinationTier)) {
+            if (Strings.isEmpty(preferredTierConfiguration)) {
                 logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
                     getKey().getAction(), index.getName());
             } else {
-                logger.debug("[{}] migration of index [{}] to the [{}] tier cannot progress, as not all shards are active",
-                    getKey().getAction(), index.getName(), destinationTier);
+                if (availableDestinationTier.isPresent()) {
+                    logger.debug("[{}] migration of index [{}] to the [{}] tier preference cannot progress, as not all shards are active",
+                        getKey().getAction(), index.getName(), preferredTierConfiguration);
+                } else {
+                    logger.debug("[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the " +
+                            "configured preferred tiers [{}] and not all shards are active", getKey().getAction(), index.getName(),
+                        preferredTierConfiguration);
+                }
             }
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
         }
 
-        if (Strings.isEmpty(destinationTier)) {
-            logger.debug("index [{}] has no data tier routing setting configured and all its shards are active. considering the [{}] " +
-                "step condition met and continuing to the next step", index.getName(), getKey().getName());
+        if (Strings.isEmpty(preferredTierConfiguration)) {
+            logger.debug("index [{}] has no data tier routing preference setting configured and all its shards are active. considering " +
+                "the [{}] step condition met and continuing to the next step", index.getName(), getKey().getName());
             // the user removed the tier routing setting and all the shards are active so we'll cary on
             return new Result(true, null);
         }
@@ -95,22 +102,18 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         int allocationPendingAllShards = getPendingAllocations(index, ALLOCATION_DECIDERS, clusterState);
 
         if (allocationPendingAllShards > 0) {
-            boolean targetTierNodeFound = false;
-            for (DiscoveryNode node : clusterState.nodes()) {
-                for (DiscoveryNodeRole role : node.getRoles()) {
-                    if (role.roleName().equals(DATA_ROLE.roleName()) || role.roleName().equals(destinationTier)) {
-                        targetTierNodeFound = true;
-                        break;
-                    }
-                }
-            }
-            String statusMessage = String.format(Locale.ROOT, "%s lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] " +
-                    "tier" + (targetTierNodeFound ? "" : " but there are currently no [%s] nodes in the cluster"),
-                index, getKey().getAction(), allocationPendingAllShards, destinationTier, destinationTier);
+            String statusMessage = availableDestinationTier.map(
+                s -> String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier " +
+                        "migration preference configuration is [%s])", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
+                    preferredTierConfiguration)
+            ).orElseGet(
+                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers [%s], but no nodes for any of those tiers are " +
+                    "available in the cluster", index.getName(), preferredTierConfiguration));
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));
         } else {
-            logger.debug("[{}] migration of index [{}] to tier [{}] complete", getKey().getAction(), index, destinationTier);
+            logger.debug("[{}] migration of index [{}] to tier [{}] (preference [{}]) complete",
+                getKey().getAction(), index, availableDestinationTier, preferredTierConfiguration);
             return new Result(true, null);
         }
     }

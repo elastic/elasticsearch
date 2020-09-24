@@ -319,10 +319,10 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
-                long numOfHugAllocations = getHugeAllocationCount();
+                long numOfHugeAllocations = getHugeAllocationCount();
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
-                    assertThat(getHugeAllocationCount(), equalTo(numOfHugAllocations));
+                    assertThat(getHugeAllocationCount(), equalTo(numOfHugeAllocations));
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
                     byte[] bytes = new byte[response.content().readableBytes()];
                     response.content().readBytes(bytes);
@@ -337,13 +337,11 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     private long getHugeAllocationCount() {
         long numOfHugAllocations = 0;
         ByteBufAllocator allocator = NettyAllocator.getAllocator();
-        if (allocator instanceof NettyAllocator.NoDirectBuffers) {
-            ByteBufAllocator delegate = ((NettyAllocator.NoDirectBuffers) allocator).getDelegate();
-            if (delegate instanceof PooledByteBufAllocator) {
-                PooledByteBufAllocatorMetric metric = ((PooledByteBufAllocator) delegate).metric();
-                numOfHugAllocations = metric.heapArenas().stream().mapToLong(PoolArenaMetric::numHugeAllocations).sum();
-            }
-
+        assert allocator instanceof NettyAllocator.NoDirectBuffers;
+        ByteBufAllocator delegate = ((NettyAllocator.NoDirectBuffers) allocator).getDelegate();
+        if (delegate instanceof PooledByteBufAllocator) {
+            PooledByteBufAllocatorMetric metric = ((PooledByteBufAllocator) delegate).metric();
+            numOfHugAllocations = metric.heapArenas().stream().mapToLong(PoolArenaMetric::numHugeAllocations).sum();
         }
         return numOfHugAllocations;
     }

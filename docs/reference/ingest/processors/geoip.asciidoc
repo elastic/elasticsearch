@@ -40,8 +40,9 @@ and `location`. The fields actually added depend on what has been found and whic
 `country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties
 were configured in `properties`.
 * If the GeoLite2 ASN database is used, then the following fields may be added under the `target_field`: `ip`,
-`asn`, and `organization_name`. The fields actually added depend on what has been found and which properties were configured
+`asn`, `organization_name` and `network`. The fields actually added depend on what has been found and which properties were configured
 in `properties`.
+
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 

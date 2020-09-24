@@ -38,11 +38,6 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        // handled in post parse
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
     }
@@ -50,10 +45,6 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {
     }
 
     @Override

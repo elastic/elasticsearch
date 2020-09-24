@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -48,6 +46,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -1033,7 +1032,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         assertEquals(true, response.get("succeeded"));
 
-        assertEquals(0, getNumberOfSearchContexts("test"));
+        assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
@@ -1080,37 +1079,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
-        }
-    }
-
-    public static int getNumberOfSearchContexts(String index) throws IOException {
-        return getOpenContexts(searchStats(), index);
-    }
-
-    public static void assertNoSearchContexts() throws IOException {
-        Map<String, Object> stats = searchStats();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
-        for (String index : indicesStats.keySet()) {
-            if (index.startsWith(".") == false) { // We are not interested in internal indices
-                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static int getOpenContexts(Map<String, Object> stats, String index) {
-        stats = (Map<String, Object>) stats.get("indices");
-        stats = (Map<String, Object>) stats.get(index);
-        stats = (Map<String, Object>) stats.get("total");
-        stats = (Map<String, Object>) stats.get("search");
-        return (Integer) stats.get("open_contexts");
-    }
-
-    private static Map<String, Object> searchStats() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_stats/search"));
-        try (InputStream content = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
     }
 }

@@ -58,6 +58,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
     private volatile boolean enabled;
+    private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
     private volatile TimeValue slowPathLoggingThreshold;
     private final NodeEnvironment nodeEnv;
@@ -117,6 +118,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Set<Path> unhealthyPaths = this.unhealthyPaths;
         if (enabled == false) {
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
+        } else if (brokenLock) {
+            statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
         } else {
@@ -150,7 +153,16 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            for (Path path : nodeEnv.nodeDataPaths()) {
+            Path[] paths = null;
+            try {
+                paths = nodeEnv.nodeDataPaths();
+            } catch (IllegalStateException e) {
+                logger.error("health check failed", e);
+                brokenLock = true;
+                return;
+            }
+
+            for (Path path : paths) {
                 long executionStartTime = currentTimeMillisSupplier.getAsLong();
                 try {
                     if (Files.exists(path)) {
@@ -176,6 +188,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 }
             }
             unhealthyPaths = currentUnhealthyPaths;
+            brokenLock = false;
         }
     }
 }

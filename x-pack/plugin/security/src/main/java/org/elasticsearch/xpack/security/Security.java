@@ -542,32 +542,40 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-            realms.asList().stream().forEach((realm) -> {
-                Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
-                realmFailureHeaders.entrySet().stream().forEach((e) -> {
-                    String key = e.getKey();
-                    e.getValue().stream()
-                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
-                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+            Supplier<Map<String, List<String>>> headersSupplier = () -> {
+                final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
+                realms.asList().stream().forEach((realm) -> {
+                    Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
+                    realmFailureHeaders.entrySet().stream().forEach((e) -> {
+                        String key = e.getKey();
+                        e.getValue().stream()
+                                .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v)
+                                    == false)
+                                .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                    });
                 });
-            });
 
-            if (TokenService.isTokenServiceEnabled(settings)) {
-                String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                        .contains(bearerScheme) == false) {
-                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                if (TokenService.isTokenServiceEnabled(settings)) {
+                    String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+                    if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                            .contains(bearerScheme) == false) {
+                        defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                    }
                 }
-            }
-            if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
-                final String apiKeyScheme = "ApiKey";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                    .contains(apiKeyScheme) == false) {
-                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
+                if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
+                    final String apiKeyScheme = "ApiKey";
+                    if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                        .contains(apiKeyScheme) == false) {
+                        defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
+                    }
                 }
-            }
-            failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
+                return defaultFailureResponseHeaders;
+            };
+            DefaultAuthenticationFailureHandler finalDefaultFailureHandler = new DefaultAuthenticationFailureHandler(headersSupplier.get());
+            failureHandler = finalDefaultFailureHandler;
+            getLicenseState().addListener(() -> {
+                finalDefaultFailureHandler.setHeaders(headersSupplier.get());
+            });
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }

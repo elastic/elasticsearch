@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -78,7 +79,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             SearchResponse resp = localClient.prepareSearch()
                 .setPreference(null)
                 .setQuery(new MatchAllQueryBuilder())
-                .setSearchContext(pitId, TimeValue.timeValueMinutes(2))
+                .setPointInTime(new PointInTimeBuilder(pitId))
                 .setSize(1000)
                 .get();
             assertNoFailures(resp);

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -22,9 +21,9 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
     public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  Settings settings, XPackLicenseState licenseState) {
+                                  XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.EQL.name(), transportService, actionFilters);
-        this.enabled = EqlPlugin.isEnabled(settings);
+        this.enabled = EqlPlugin.isEnabled();
         this.licenseState = licenseState;
     }
 

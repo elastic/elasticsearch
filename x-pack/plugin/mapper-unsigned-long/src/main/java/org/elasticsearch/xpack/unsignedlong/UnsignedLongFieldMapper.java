@@ -371,6 +371,10 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    boolean ignoreMalformed() {
+        return ignoreMalformed.value();
+    }
+
     @Override
     public UnsignedLongFieldType fieldType() {
         return (UnsignedLongFieldType) super.fieldType();

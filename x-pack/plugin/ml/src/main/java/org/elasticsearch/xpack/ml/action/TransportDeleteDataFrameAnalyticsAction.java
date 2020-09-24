@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -57,8 +58,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -242,17 +241,46 @@ public class TransportDeleteDataFrameAnalyticsAction
                              DataFrameAnalyticsConfig config,
                              TimeValue timeout,
                              ActionListener<BulkByScrollResponse> listener) {
-        List<String> ids = new ArrayList<>();
-        ids.add(StoredProgress.documentId(config.getId()));
-        if (config.getAnalysis().persistsState()) {
-            ids.add(config.getAnalysis().getStateDocId(config.getId()));
+        ActionListener<Boolean> deleteModelStateListener = ActionListener.wrap(
+            r -> executeDeleteByQuery(
+                    parentTaskClient,
+                    AnomalyDetectorsIndex.jobStateIndexPattern(),
+                    QueryBuilders.idsQuery().addIds(StoredProgress.documentId(config.getId())),
+                    timeout,
+                    listener
+                )
+            , listener::onFailure
+        );
+
+        deleteModelState(parentTaskClient, config, timeout, 1, deleteModelStateListener);
+    }
+
+    private void deleteModelState(ParentTaskAssigningClient parentTaskClient,
+                                  DataFrameAnalyticsConfig config,
+                                  TimeValue timeout,
+                                  int docNum,
+                                  ActionListener<Boolean> listener) {
+        if (config.getAnalysis().persistsState() == false) {
+            listener.onResponse(true);
+            return;
         }
+
+        IdsQueryBuilder query = QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + docNum);
         executeDeleteByQuery(
             parentTaskClient,
             AnomalyDetectorsIndex.jobStateIndexPattern(),
-            QueryBuilders.idsQuery().addIds(ids.toArray(String[]::new)),
+            query,
             timeout,
-            listener
+            ActionListener.wrap(
+                response -> {
+                    if (response.getDeleted() > 0) {
+                        deleteModelState(parentTaskClient, config, timeout, docNum + 1, listener);
+                        return;
+                    }
+                    listener.onResponse(true);
+                },
+                listener::onFailure
+            )
         );
     }
 

@@ -34,8 +34,6 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -55,9 +53,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.plugins.Plugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,16 +76,54 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<SearchAsYouTypeFieldMapper.Builder> {
 
-    @Before
-    public void addModifiers() {
-        addModifier("max_shingle_size", false, (a, b) -> {
-            a.maxShingleSize(3);
-            b.maxShingleSize(2);
-        });
-        addModifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
-        });
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("max_shingle_size", b -> b.field("max_shingle_size", 4));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "keyword"));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
+        checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
+
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms",
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            }));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "search_as_you_type");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "search_as_you_type");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
+
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+                b.field("search_quote_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+
+    }
+
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("new york city");
     }
 
     @Override
@@ -171,7 +205,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             fieldMapping(
                 b -> b.field("type", "search_as_you_type").field("analyzer", analyzerName).field("max_shingle_size", maxShingleSize)
             )
-        ); 
+        );
 
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
         assertRootFieldMapper(rootMapper, maxShingleSize, analyzerName);

@@ -89,13 +89,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     @Override
     protected TermQueryBuilder createQueryBuilder(String fieldName, Object value) {
         TermQueryBuilder result = new TermQueryBuilder(fieldName, value);
-        //TODO code below is commented out while we do the Version dance for PR 61596. Steps are
-        // 1) Commit PR 61596 with this code commented out in master
-        // 2) Backport PR 61596 to 7.x, uncommented
-        // 3) New PR on master to uncomment this code now that 7.x has support for case insensitive flag.
-//        if (randomBoolean()) {
-//            result.caseInsensitive(true);
-//        }
         return result;
     }
 
@@ -142,12 +135,8 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "  \"term\" : {\n" +
                 "    \"exact_value\" : {\n" +
                 "      \"value\" : \"Quick Foxes!\",\n" +
+                "      \"case_insensitive\" : true,\n" +
                 "      \"boost\" : 1.0\n" +
-                //TODO code below is commented out while we do the Version dance for PR 61596. Steps are
-                // 1) Commit PR 61596 with this code commented out in master
-                // 2) Backport PR 61596 to 7.x, uncommented
-                // 3) New PR on master to uncomment this code now that 7.x has support for case insensitive flag.                
-//                "      \"case_insensitive\" : true\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";

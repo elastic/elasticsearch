@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -123,4 +124,9 @@ interface SearchPhaseContext extends Executor {
      * a response is returned to the user indicating that all shards have failed.
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+
+    /**
+     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
+     */
+    void addReleasable(Releasable releasable);
 }

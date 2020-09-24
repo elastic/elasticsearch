@@ -75,9 +75,6 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
     private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(new Modifier("analyzer", false, (a, b) -> {
         a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
         a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-    }), new Modifier("boost", true, (a, b) -> {
-        a.boost(1.1f);
-        b.boost(1.2f);
     }), new Modifier("doc_values", false, (a, b) -> {
         a.docValues(true);
         b.docValues(false);

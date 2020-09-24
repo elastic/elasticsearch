@@ -42,7 +42,7 @@ import java.util.Map;
 public abstract class ConstantFieldType extends MappedFieldType {
 
     public ConstantFieldType(String name, Map<String, String> meta) {
-        super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
     }
 
     @Override
@@ -86,7 +86,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
             return new MatchNoDocsQuery();
         }
     }
-    
+
     @Override
     public final Query termsQuery(List<?> values, QueryShardContext context) {
         for (Object value : values) {
@@ -97,12 +97,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
             }
         }
         return new MatchNoDocsQuery();
-    }    
+    }
 
     @Override
     public final Query prefixQuery(String prefix,
                              @Nullable MultiTermQuery.RewriteMethod method,
-                             boolean caseInsensitive, 
+                             boolean caseInsensitive,
                              QueryShardContext context) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
@@ -115,7 +115,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
-                               boolean caseInsensitive, 
+                               boolean caseInsensitive,
                                QueryShardContext context) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
@@ -123,5 +123,4 @@ public abstract class ConstantFieldType extends MappedFieldType {
             return new MatchNoDocsQuery();
         }
     }
-
 }

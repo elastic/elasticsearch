@@ -21,7 +21,6 @@ package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -367,7 +366,7 @@ public class PackageTests extends PackagingTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
-            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
+            journald.clear();
             runElasticsearchStartCommand(null, true, false);
             final Result logs = journald.getLogs();
 

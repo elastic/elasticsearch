@@ -130,6 +130,7 @@ public abstract class PackagingTestCase extends Assert {
 
     // a shell to run system commands with
     protected static Shell sh;
+    protected static Packages.JournaldWrapper journald;
 
     @Rule
     public final TestName testNameRule = new TestName();
@@ -152,6 +153,7 @@ public abstract class PackagingTestCase extends Assert {
             sh = new Docker.DockerShell();
         } else {
             sh = new Shell();
+            journald = new Packages.JournaldWrapper(sh);
         }
     }
 
@@ -168,6 +170,9 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh.reset();
+        if (distribution().isPackage()) {
+            journald.clear();
+        }
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
@@ -352,11 +357,11 @@ public abstract class PackagingTestCase extends Assert {
         awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
     }
 
-    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
-        assertElasticsearchFailure(result, Collections.singletonList(expectedMessage), journaldWrapper);
+    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {
+        assertElasticsearchFailure(result, Collections.singletonList(expectedMessage));
     }
 
-    public void assertElasticsearchFailure(Shell.Result result, List<String> expectedMessages, Packages.JournaldWrapper journaldWrapper) {
+    public void assertElasticsearchFailure(Shell.Result result, List<String> expectedMessages) {
         @SuppressWarnings("unchecked")
         Matcher<String>[] stringMatchers = expectedMessages.stream().map(CoreMatchers::containsString).toArray(Matcher[]::new);
         if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
@@ -372,7 +377,7 @@ public abstract class PackagingTestCase extends Assert {
 
             // For systemd, retrieve the error from journalctl
             assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
-            Shell.Result error = journaldWrapper.getLogs();
+            Shell.Result error = journald.getLogs();
             assertThat(error.stdout, anyOf(stringMatchers));
 
         } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {

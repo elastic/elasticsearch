@@ -58,8 +58,8 @@ public class EcsJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
         map.put("data_stream.type", inQuotes("logs"));
-        map.put("data_stream.datatype", inQuotes("deprecation"));
-        map.put("data_stream.namespace", inQuotes("elasticsearch"));
+        map.put("data_stream.dataset", inQuotes("deprecation.elasticsearch"));
+        map.put("data_stream.namespace", inQuotes("default"));
         map.put("ecs.version", inQuotes(ECS_VERSION));
 
         for (String key : esMessageFields) {

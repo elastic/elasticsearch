@@ -38,6 +38,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
     public static final GetTransformStatsAction INSTANCE = new GetTransformStatsAction();
     public static final String NAME = "cluster:monitor/transform/stats/get";
+
     public GetTransformStatsAction() {
         super(NAME, GetTransformStatsAction.Response::new);
     }
@@ -120,8 +121,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
             if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
-                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
-                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+                exception = addValidationError(
+                    "Param [" + PageParams.SIZE.getPreferredName() + "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]",
+                    exception
+                );
             }
             return exception;
         }
@@ -140,9 +143,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id)
-                && Objects.equals(pageParams, other.pageParams)
-                && allowNoMatch == other.allowNoMatch;
+            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams) && allowNoMatch == other.allowNoMatch;
         }
     }
 
@@ -153,10 +154,12 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS));
         }
 
-        public Response(List<TransformStats> transformStateAndStats,
-                        long count,
-                        List<TaskOperationFailure> taskFailures,
-                        List<? extends ElasticsearchException> nodeFailures) {
+        public Response(
+            List<TransformStats> transformStateAndStats,
+            long count,
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures
+        ) {
             this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS), taskFailures, nodeFailures);
         }
 
@@ -164,9 +167,11 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this(transformsStats, Collections.emptyList(), Collections.emptyList());
         }
 
-        private Response(QueryPage<TransformStats> transformsStats,
-                         List<TaskOperationFailure> taskFailures,
-                         List<? extends ElasticsearchException> nodeFailures) {
+        private Response(
+            QueryPage<TransformStats> transformsStats,
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures
+        ) {
             super(taskFailures, nodeFailures);
             this.transformsStats = ExceptionsHelper.requireNonNull(transformsStats, "transformsStats");
         }
@@ -183,6 +188,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         public List<TransformStats> getTransformsStats() {
             return transformsStats.results();
+        }
+
+        public long getCount() {
+            return transformsStats.count();
         }
 
         @Override

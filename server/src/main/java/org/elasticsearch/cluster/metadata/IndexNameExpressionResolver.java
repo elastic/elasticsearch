@@ -70,7 +70,6 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
-    public static final String ORIGINAL_INDICES_HEADER_KEY = "_original_indices";
     public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
@@ -316,7 +315,7 @@ public class IndexNameExpressionResolver {
     }
 
     private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
-        if (context.isSystemIndexAccessAllowed() == false && shouldEmitDeprecationWarning(originalPatterns)) {
+        if (context.isSystemIndexAccessAllowed() == false) {
             final List<String> resolvedSystemIndices = concreteIndices.stream()
                 .map(metadata::index)
                 .filter(IndexMetadata::isSystem)
@@ -715,25 +714,6 @@ public class IndexNameExpressionResolver {
 
     private boolean isSystemIndexAccessAllowed() {
         return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY), true);
-    }
-
-    private boolean shouldEmitDeprecationWarning(String[] patterns) {
-        String[] checkPatterns = patterns;
-
-        String originalPatterns = threadContext.getHeader(ORIGINAL_INDICES_HEADER_KEY);
-        if (originalPatterns != null) {
-            checkPatterns = originalPatterns.split(",");
-        }
-
-        if (checkPatterns == null) {
-            return false;
-        } else if (1 != checkPatterns.length) {
-            return isSystemIndexAccessAllowed() == false;
-        } else {
-            final String pattern = checkPatterns[0];
-            final boolean isAllPattern = pattern == null || Metadata.ALL.equals(pattern) || Regex.isMatchAllPattern(pattern);
-            return (isSystemIndexAccessAllowed() || isAllPattern) == false;
-        }
     }
 
     public static class Context {

@@ -1867,10 +1867,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR == DEPRECATED);
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
-        SearchRequest request = new SearchRequest(randomFrom("*"));
+        SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
+        assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff, .watches], but in a future major version, " +
+            "direct access to system indices will be prevented by default");
+
     }
 
     public void testSingleSystemIndexResolutionDeprecated() {

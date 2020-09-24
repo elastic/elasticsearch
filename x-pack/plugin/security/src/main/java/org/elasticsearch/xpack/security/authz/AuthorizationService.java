@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -88,7 +87,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ORIGINAL_INDICES_HEADER_KEY;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
@@ -129,7 +127,7 @@ public class AuthorizationService {
                                 IndexNameExpressionResolver resolver) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, threadPool.getThreadContext());
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
@@ -283,7 +281,6 @@ public class AuthorizationService {
                     }
                 }));
             });
-            storeOriginalIndicesHeader(requestInfo);
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
                 metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
                     handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine, authorizedIndicesSupplier,
@@ -293,17 +290,6 @@ public class AuthorizationService {
             logger.warn("denying access as action [{}] is not an index or cluster action", action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(denialException(authentication, action, null));
-        }
-    }
-
-    private void storeOriginalIndicesHeader(RequestInfo requestInfo) {
-        // We only care about the indices specified in the first layer of the request, as that's what the user actually asked for.
-        if (requestInfo.getRequest() instanceof IndicesRequest && threadContext.getHeader(ORIGINAL_INDICES_HEADER_KEY) == null) {
-            IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            threadContext.putHeader(ORIGINAL_INDICES_HEADER_KEY,
-                indicesRequest.indices() == null || indicesRequest.indices().length == 0
-                    ? Metadata.ALL
-                    : String.join(",", indicesRequest.indices()));
         }
     }
 

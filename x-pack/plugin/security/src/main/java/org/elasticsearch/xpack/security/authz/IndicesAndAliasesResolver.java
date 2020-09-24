@@ -25,7 +25,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -57,14 +56,11 @@ class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
-    private final ThreadContext threadContext;
 
-    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver,
-                              ThreadContext threadContext) {
+    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-        this.threadContext = threadContext;
     }
 
     /**

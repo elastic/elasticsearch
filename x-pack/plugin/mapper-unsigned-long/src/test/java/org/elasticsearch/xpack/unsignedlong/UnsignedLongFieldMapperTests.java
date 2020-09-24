@@ -241,7 +241,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ThrowingRunnable runnable = () -> mapper.parse(
                 new SourceToParse(
                     "test",
-                    "_doc",
+                    "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue1).endObject()),
                     XContentType.JSON
                 )
@@ -253,7 +253,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             runnable = () -> mapper.parse(
                 new SourceToParse(
                     "test",
-                    "_doc",
+                    "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue2).endObject()),
                     XContentType.JSON
                 )
@@ -301,7 +301,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ThrowingRunnable runnable = () -> mapper.parse(
                 new SourceToParse(
                     "test",
-                    "_doc",
+                    "1",
                     BytesReference.bytes(jsonBuilder().startObject().field("field", outOfRangeValue).endObject()),
                     XContentType.JSON
                 )

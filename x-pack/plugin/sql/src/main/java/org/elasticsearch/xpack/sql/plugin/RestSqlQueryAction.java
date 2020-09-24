@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 public class RestSqlQueryAction extends BaseRestHandler {
 
     private final SqlMediaTypeParser sqlMediaTypeParser = new SqlMediaTypeParser();
-    MediaType textFormat;
+    MediaType responseMediaType;
 
     @Override
     public List<Route> routes() {
@@ -66,10 +66,8 @@ public class RestSqlQueryAction extends BaseRestHandler {
                     XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
                     response.toXContent(builder, request);
                     restResponse = new BytesRestResponse(RestStatus.OK, builder);
-                }
-                // TextFormat
-                else {
-                    TextFormat type = (TextFormat)textFormat;
+                } else {// TextFormat
+                    TextFormat type = (TextFormat)responseMediaType;
                     final String data = type.format(request, response);
 
                     restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request),
@@ -91,7 +89,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return textFormat == TextFormat.CSV ? Collections.singleton(URL_PARAM_DELIMITER) : Collections.emptySet();
+        return responseMediaType == TextFormat.CSV ? Collections.singleton(URL_PARAM_DELIMITER) : Collections.emptySet();
     }
 
     @Override

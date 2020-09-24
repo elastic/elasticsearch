@@ -297,16 +297,6 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    private static final MediaTypeParser<? extends MediaType> parser = new MediaTypeParser.Builder<>()
-        .copyFromMediaTypeParser(XContentType.mediaTypeParser)
-        .withMediaTypeAndParams(TextFormat.PLAIN_TEXT.typeWithSubtype(), TextFormat.PLAIN_TEXT,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
-        .withMediaTypeAndParams(TextFormat.CSV.typeWithSubtype(), TextFormat.CSV,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
-        .withMediaTypeAndParams(TextFormat.TSV.typeWithSubtype(), TextFormat.TSV,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
-        .build();
-
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
@@ -325,18 +315,6 @@ enum TextFormat implements MediaType {
 
     boolean hasHeader(RestRequest request) {
         return true;
-    }
-
-    static MediaType fromMediaTypeOrFormat(String accept) {
-        MediaType textFormat = parser.fromFormat(accept);
-        if (textFormat != null) {
-            return textFormat;
-        }
-        textFormat = parser.fromMediaType(accept);
-        if (textFormat != null) {
-            return textFormat;
-        }
-        throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
 
     /**

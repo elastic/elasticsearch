@@ -112,7 +112,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         DataTierMigrationRoutedStep step = createRandomInstance();
         Result expectedResult = new Result(false, new AllocationInfo(0, 1, true,
             "[" + index.getName() + "] lifecycle action [" + step.getKey().getAction() + "] waiting for " +
-                "[1] shards to be moved to the [data_warm] tier")
+                "[1] shards to be moved to the [data_warm] tier (tier migration preference configuration is [data_warm])")
         );
 
         Result actualResult = step.isConditionMet(index, clusterState);

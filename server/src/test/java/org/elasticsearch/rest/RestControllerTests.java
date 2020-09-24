@@ -321,6 +321,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchFailsWithPlainText() {
+        //todo pg now the exception is thrown earlier when request is created in AbstractHttpServerTransport. possibly move these tests there?
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")

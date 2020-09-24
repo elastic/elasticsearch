@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.rest.RestRequest.Method;

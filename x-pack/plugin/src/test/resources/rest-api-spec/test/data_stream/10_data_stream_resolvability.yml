@@ -476,7 +476,7 @@
   - is_true: acknowledged
 
 ---
-"Verify data stream resolvability in EQL search API":
+"Verify data stream resolvability in EQL search API with no sequences":
   - skip:
       version: " - 7.9.1"
       reason: "EQL data stream resolution only properly works from 7.9.2"
@@ -538,3 +538,190 @@
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged
+
+---
+"Verify data stream resolvability in EQL search API with sequences":
+  - skip:
+      version: " - 7.9.99"
+      reason: "EQL data stream resolution with queries using sequences only properly works from 7.10.0 (when point-in-time is introduced)"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"create":{"_index":"simple-data-stream1","_id": "1"}}'
+          - '{"@timestamp":"2020-02-03T12:34:56Z","event":{"category":"process"},"user":"SYSTEM"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "2"}}'
+          - '{"@timestamp":"2020-02-03T12:35:00Z","event":{"category":"file"},"user":"SYSTEM","file":{"name":"sample.exe"}}'
+
+  - do:
+      eql.search:
+        index: simple-data-stream1
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [file where file.name == "sample.exe"]'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+
+  - do:
+      eql.search:
+        index: simple-data-s*
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [file where file.name == "sample.exe"]'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in PIT searches":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Point-In-Time was introduced in 7.10.0"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"create":{"_index":"simple-data-stream1","_id": "1"}}'
+          - '{"id": 1, "foo": "bar", "age": 18, "@timestamp":"2020-02-03T12:34:56Z"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "5"}}'
+          - '{"id": 5, "foo": "bar", "age": 18, "@timestamp":"2020-02-04T12:34:56Z"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "123"}}'
+          - '{"id": 123, "foo": "bar", "age": 22, "@timestamp":"2020-02-05T12:34:56Z"}'
+
+  - do:
+      open_point_in_time:
+        index: simple-data-s*
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc }]
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._id: "123" }
+  - match: {hits.hits.0.sort: [22, 123] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [ { age: desc }, { id: desc } ]
+          search_after: [22, 123]
+          pit:
+            id: "$point_in_time_id"
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._id: "5" }
+  - match: {hits.hits.0.sort: [18, 5] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc } ]
+          search_after: [18, 5]
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._id: "1" }
+  - match: {hits.hits.0.sort: [18, 1] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc } ]
+          search_after: [18, 1]
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 0 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"

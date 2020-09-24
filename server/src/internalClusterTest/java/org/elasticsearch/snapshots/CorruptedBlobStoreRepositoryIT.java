@@ -24,10 +24,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -149,29 +147,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.move(repo.resolve("index-" + beforeMoveGen), repo.resolve("index-" + (beforeMoveGen + 1)));
 
         logger.info("--> set next generation as pending in the cluster state");
-        final PlainActionFuture<Void> csUpdateFuture = PlainActionFuture.newFuture();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).submitStateUpdateTask("set pending generation",
-            new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
-                        .putCustom(RepositoriesMetadata.TYPE,
-                            currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
-                                repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)).build()).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    csUpdateFuture.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    csUpdateFuture.onResponse(null);
-                }
-            }
-        );
-        csUpdateFuture.get();
+        updateClusterState(currentState -> ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
+                .putCustom(RepositoriesMetadata.TYPE,
+                        currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
+                                repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)).build()).build());
 
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();

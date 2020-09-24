@@ -516,8 +516,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        public AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
-            NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+        private AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
+                                       NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
             super(name, fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer, meta);
         }
 

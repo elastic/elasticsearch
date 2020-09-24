@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -42,6 +43,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAggregationsTests extends ESTestCase {
 
@@ -105,18 +107,29 @@ public class InternalAggregationsTests extends ESTestCase {
         writeToAndReadFrom(aggregations, Version.CURRENT, 0);
     }
 
+    public void testSerializedSize() throws Exception {
+        InternalAggregations aggregations = createTestInstance();
+        assertThat(aggregations.getSerializedSize(),
+            equalTo((long) serialize(aggregations, Version.CURRENT).length));
+    }
+
     private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {
+        BytesRef serializedAggs = serialize(aggregations, version);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(serializedAggs.bytes), registry)) {
+            in.setVersion(version);
+            InternalAggregations deserialized = InternalAggregations.readFrom(in);
+            assertEquals(aggregations.aggregations, deserialized.aggregations);
+            if (iteration < 2) {
+                writeToAndReadFrom(deserialized, version, iteration + 1);
+            }
+        }
+    }
+
+    private BytesRef serialize(InternalAggregations aggs, Version version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
-            aggregations.writeTo(out);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
-                in.setVersion(version);
-                InternalAggregations deserialized = InternalAggregations.readFrom(in);
-                assertEquals(aggregations.aggregations, deserialized.aggregations);
-                if (iteration < 2) {
-                    writeToAndReadFrom(deserialized, version, iteration + 1);
-                }
-            }
+            aggs.writeTo(out);
+            return out.bytes().toBytesRef();
         }
     }
 }

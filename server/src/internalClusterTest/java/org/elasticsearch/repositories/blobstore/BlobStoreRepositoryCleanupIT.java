@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.is;
@@ -49,11 +48,8 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         ensureStableCluster(nodeCount - 1);
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
-        assertBusy(() -> {
-            RepositoryCleanupInProgress cleanupInProgress =
-                client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
-            assertFalse(cleanupInProgress.hasCleanupInProgress());
-        }, 30, TimeUnit.SECONDS);
+        awaitClusterState(state ->
+                state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false);
     }
 
     public void testRepeatCleanupsDontRemove() throws Exception {
@@ -71,11 +67,8 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         unblockNode("test-repo", masterNode);
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
-        assertBusy(() -> {
-            RepositoryCleanupInProgress cleanupInProgress =
-                client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
-            assertFalse(cleanupInProgress.hasCleanupInProgress());
-        }, 30, TimeUnit.SECONDS);
+        awaitClusterState(state ->
+                state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false);
     }
 
     private String startBlockedCleanup(String repoName) throws Exception {

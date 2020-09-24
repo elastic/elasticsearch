@@ -288,66 +288,103 @@ public class AugmentationTests extends ScriptTestCase {
         assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
     }
 
-    public void testRegexMatcherInject() {
-        // This regex has backtracking due to .*
-        String script = "/abc123.*def/.matcher('abc123doremidef').matches()";
-        setRegexLimitFactor(2);
-        assertEquals(Boolean.TRUE, exec(script));
+    // This regex has backtracking due to .*?
+    private final String pattern = "/abc.*?def/";
+    private final String charSequence = "('abcdodef')";
+    private final String splitCharSequence = "'0-abc-1-def-X-abc-2-def-Y-abc-3-def-Z-abc'";
+    private final String regexCircuitMessage = "[scripting] Regular expression considered too many characters";
 
-        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
-        setRegexLimitFactor(1);
-        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+    public void testRegexInject_Matcher() {
+        String[] scripts = new String[]{pattern + ".matcher" + charSequence + ".matches()",
+                                        "Matcher m = " + pattern + ".matcher" + charSequence + "; m.matches()"};
+        for (String script : scripts) {
+            setRegexLimitFactor(2);
+            assertEquals(Boolean.TRUE, exec(script));
+
+            // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
+            setRegexLimitFactor(1);
+            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+        }
     }
 
-    public void testDefRegexMatcherInject() {
-        // This regex has backtracking due to .*
-        String script = "def pattern = /abc123.*def/;" +
-                "pattern.matcher('abc123doremidef').matches()";
-        setRegexLimitFactor(2);
-        assertEquals(Boolean.TRUE, exec(script));
+    public void testRegexInject_Def_Matcher() {
+        String[] scripts = new String[]{"def p = " + pattern + "; p.matcher" + charSequence + ".matches()",
+                                        "def p = " + pattern + "; def m = p.matcher" + charSequence + "; m.matches()"};
+        for (String script : scripts) {
+            setRegexLimitFactor(2);
+            assertEquals(Boolean.TRUE, exec(script));
 
-        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
-        setRegexLimitFactor(1);
-        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+            setRegexLimitFactor(1);
+            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+        }
     }
 
-    public void testMethodRefRegexMatcherInject() {
+    public void testMethodRegexInject_Ref_Matcher() {
         // This regex has backtracking due to .*
-        String script = "boolean isMatch(Function func) {func.apply('abc123doremidef').matches();} " +
-                "Pattern pattern = /abc123.*def/;" +
+        String script = "boolean isMatch(Function func) {func.apply" + charSequence +".matches();} " +
+                "Pattern pattern = " + pattern + ";" +
                 "isMatch(pattern::matcher)";
         setRegexLimitFactor(2);
         assertEquals(Boolean.TRUE, exec(script));
 
-        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
         setRegexLimitFactor(1);
-        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        assertTrue(cbe.getMessage().contains(regexCircuitMessage));
     }
 
-    public void testDefMethodRefRegexMatcherInject() {
+    public void testRegexInject_DefMethodRef_Matcher() {
         // This regex has backtracking due to .*
-        String script = "boolean isMatch(Function func) {func.apply('abc123doremidef').matches();} " +
-                "def pattern = /abc123.*def/;" +
+        String script = "boolean isMatch(Function func) {func.apply" + charSequence +".matches();} " +
+                "def pattern = " + pattern + ";" +
                 "isMatch(pattern::matcher)";
         setRegexLimitFactor(2);
         assertEquals(Boolean.TRUE, exec(script));
 
-        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
         setRegexLimitFactor(1);
-        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        assertTrue(cbe.getMessage().contains(regexCircuitMessage));
     }
 
-    // We need these tests for every code path: directly calling, using def and using method references
-    // TODO(stu): write tests for Patter.split(Charsequence)
-    // TODO(stu): write tests for Patter.split(Charsequence, int)
-    // TODO(stu): write tests for Patter.splitAsStream(Charsequence)
-    // TODO(stu): write tests for Patter.matcher(Charsequence)
+    public void testRegexInject_SplitLimit() {
+        String[] scripts = new String[]{pattern + ".split(" + splitCharSequence + ", 2)",
+                                        "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ", 2)"};
+        for (String script : scripts) {
+            setRegexLimitFactor(2);
+            assertArrayEquals(new String[]{"0-", "-X-abc-2-def-Y-abc-3-def-Z-abc"}, (String[])exec(script));
 
-//    public void testInjectRegexSplitWithLimit() {
-//        String script = "/abc123.*def/.split('abcdoremidefhij abc123fasolatidefo', 100)";
-//        setRegexLimitFactor(2);
-//        assertEquals(new String[]{"", ""}, exec(script));
-//    }
+            setRegexLimitFactor(1);
+            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+        }
+    }
+
+    public void testRegexInject_Split() {
+        String[] scripts = new String[]{pattern + ".split(" + splitCharSequence + ")",
+                                        "Pattern p = " + pattern + "; p.split(" + splitCharSequence + ")"};
+        for (String script : scripts) {
+            setRegexLimitFactor(2);
+            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[])exec(script));
+
+            setRegexLimitFactor(1);
+            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+        }
+    }
+
+    public void testRegexInject_SplitAsStream() {
+        String[] scripts = new String[]{pattern + ".splitAsStream(" + splitCharSequence + ").toArray(String[]::new)",
+            "Pattern p = " + pattern + "; p.splitAsStream(" + splitCharSequence + ").toArray(String[]::new)"};
+        for (String script : scripts) {
+            setRegexLimitFactor(2);
+            assertArrayEquals(new String[]{"0-", "-X-", "-Y-", "-Z-abc"}, (String[]) exec(script));
+
+            setRegexLimitFactor(1);
+            CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+        }
+    }
 
     private void setRegexLimitFactor(int factor) {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();

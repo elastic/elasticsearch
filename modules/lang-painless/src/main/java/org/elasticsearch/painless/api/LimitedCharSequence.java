@@ -54,7 +54,7 @@ public class LimitedCharSequence implements CharSequence {
 
     // subSequence constructor
     private LimitedCharSequence(LimitedCharSequence superSequence, int start, int end) {
-        this.wrapped = superSequence.subSequence(start, end);
+        this.wrapped = superSequence.wrapped.subSequence(start, end);
         this.counter = superSequence.counter;
 
         this.isSubSequence = true;

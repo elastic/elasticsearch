@@ -299,6 +299,44 @@ public class AugmentationTests extends ScriptTestCase {
         expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
     }
 
+    public void testDefRegexMatcherInject() {
+        // This regex has backtracking due to .*
+        String script = "def pattern = /abc123.*def/;" +
+                "pattern.matcher('abc123doremidef').matches()";
+        setRegexLimitFactor(2);
+        assertEquals(Boolean.TRUE, exec(script));
+
+        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
+        setRegexLimitFactor(1);
+        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+    }
+
+    public void testMethodRefRegexMatcherInject() {
+        // This regex has backtracking due to .*
+        String script = "boolean isMatch(Function func) {func.apply('abc123doremidef').matches();} " +
+                "Pattern pattern = /abc123.*def/;" +
+                "isMatch(pattern::matcher)";
+        setRegexLimitFactor(2);
+        assertEquals(Boolean.TRUE, exec(script));
+
+        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
+        setRegexLimitFactor(1);
+        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+    }
+
+    public void testDefMethodRefRegexMatcherInject() {
+        // This regex has backtracking due to .*
+        String script = "boolean isMatch(Function func) {func.apply('abc123doremidef').matches();} " +
+                "def pattern = /abc123.*def/;" +
+                "isMatch(pattern::matcher)";
+        setRegexLimitFactor(2);
+        assertEquals(Boolean.TRUE, exec(script));
+
+        // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
+        setRegexLimitFactor(1);
+        expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+    }
+
     // We need these tests for every code path: directly calling, using def and using method references
     // TODO(stu): write tests for Patter.split(Charsequence)
     // TODO(stu): write tests for Patter.split(Charsequence, int)

@@ -426,6 +426,7 @@ public final class SearchPhaseController {
         if (queryResults.isEmpty()) {
             throw new IllegalStateException(errorMsg);
         }
+        validateMergeSortValueFormats(queryResults);
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
@@ -483,6 +484,36 @@ public final class SearchPhaseController {
                                                    List<InternalAggregations> toReduce) {
         return toReduce.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce,
             performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
+    }
+
+    /**
+     * Checks that query results from all shards have consistent unsigned_long format.
+     * Sort queries on a field that has long type in one index, and unsigned_long in another index
+     * don't work correctly. Throw an error if this kind of sorting is detected.
+     * //TODO: instead of throwing error, find a way to sort long and unsigned_long together
+     */
+    private static void validateMergeSortValueFormats(Collection<? extends SearchPhaseResult> queryResults) {
+        boolean[] ulFormats = null;
+        boolean firstResult = true;
+        for (SearchPhaseResult entry : queryResults) {
+            DocValueFormat[] formats = entry.queryResult().sortValueFormats();
+            if (formats == null) return;
+            if (firstResult) {
+                firstResult = false;
+                ulFormats = new boolean[formats.length];
+                for (int i = 0; i < formats.length; i++) {
+                    ulFormats[i] = formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED ? true : false;
+                }
+            } else {
+                for (int i = 0; i < formats.length; i++) {
+                    // if the format is unsigned_long in one shard, and something different in another shard
+                    if (ulFormats[i] ^ (formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
+                        throw new IllegalArgumentException("Can't do sort across indices, as a field has [unsigned_long] type " +
+                            "in one index, and different type in another index!");
+                    }
+                }
+            }
+        }
     }
 
     /*

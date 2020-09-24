@@ -193,6 +193,7 @@ public class AppendProcessorTests extends ESTestCase {
         assertThat(list, equalTo(List.of(originalValue, newValue)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62839")
     public void testAppendingToListWithDuplicatesDisallowed() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int size = randomIntBetween(0, 10);

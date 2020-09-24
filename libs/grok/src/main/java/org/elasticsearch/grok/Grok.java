@@ -34,7 +34,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -238,21 +237,27 @@ public final class Grok {
      * Matches and returns any named captures.
      *
      * @param text the text to match and extract values from.
-     * @return a map containing field names and their respective coerced values that matched.
+     * @return a map containing field names and their respective coerced values that matched or null if the pattern didn't match
      */
     public Map<String, Object> captures(String text) {
         byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
-        return captures(utf8Bytes, 0, utf8Bytes.length);
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(captureConfig);
+        if (match(utf8Bytes, 0, utf8Bytes.length, extracter)) {
+            return extracter.result();
+        }
+        return null;
     }
 
     /**
-     * Matches and returns any named captures.
+     * Matches and collects any named captures.
      * @param utf8Bytes array containing the text to match against encoded in utf-8
      * @param offset offset {@code utf8Bytes} of the start of the text
      * @param length length of the text to match
-     * @return a map containing field names and their respective coerced values that matched.
+     * @param extracter collector for captures. {@link GrokCaptureConfig#nativeExtracter} can build these.
+     * @return true if there was a match, false otherwise
+     * @throws RuntimeException if there was a timeout
      */
-    public Map<String, Object> captures(byte[] utf8Bytes, int offset, int length) {
+    public boolean match(byte[] utf8Bytes, int offset, int length, GrokCaptureExtracter extracter) {
         Matcher matcher = compiledExpression.matcher(utf8Bytes, offset, offset + length);
         int result;
         try {
@@ -264,22 +269,12 @@ public final class Grok {
         if (result == Matcher.INTERRUPTED) {
             throw new RuntimeException("grok pattern matching was interrupted after [" +
                 matcherWatchdog.maxExecutionTimeInMillis() + "] ms");
-        } else if (result == Matcher.FAILED) {
-            // TODO: I think we should throw an error here?
-            return null;
-        } else if (compiledExpression.numberOfNames() > 0) {
-            Map<String, Object> fields = new HashMap<>(captureConfig.size());
-            Region region = matcher.getEagerRegion();
-            for (GrokCaptureConfig config: captureConfig) {
-                Object v = config.extract(utf8Bytes, offset, region);
-                if (v != null) {
-                    fields.put(config.name(), v);
-                }
-            }
-            return fields;
-        } else {
-            return Collections.emptyMap();
         }
+        if (result == Matcher.FAILED) {
+            return false;
+        }
+        extracter.extract(utf8Bytes, offset, matcher.getEagerRegion());
+        return true;
     }
 
     /**

@@ -1570,7 +1570,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         metadataCreateIndexService,
                         actionFilters, indexNameExpressionResolver
                     ));
-                final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
+                final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(BulkAction.INSTANCE,
@@ -1614,7 +1614,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(client, threadPool, transportService, searchService,
+                    new TransportSearchAction(client, threadPool, new NoneCircuitBreakerService(), transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,

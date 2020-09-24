@@ -80,7 +80,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
                     getKey().getAction(), index.getName());
             } else {
                 if (Strings.hasText(availableDestinationTier)) {
-                    logger.debug("[{}] migration of index [{}] to the [{}] tier cannot progress, as not all shards are active",
+                    logger.debug("[{}] migration of index [{}] to the [{}] tier preference cannot progress, as not all shards are active",
                         getKey().getAction(), index.getName(), preferredTierConfiguration);
                 } else {
                     logger.debug("[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the " +

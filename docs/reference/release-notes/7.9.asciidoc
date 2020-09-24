@@ -1,3 +1,101 @@
+[[release-notes-7.9.2]]
+== {es} version 7.9.2
+
+coming[7.9.2]
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[deprecation-7.9.2]]
+[float]
+=== Deprecations
+
+Infra/Plugins::
+* Deprecate xpack.eql.enabled setting and make it a no-op {es-pull}61375[#61375] (issue: {es-issue}54745[#54745])
+
+[[enhancement-7.9.2]]
+[float]
+=== Enhancements
+
+Mapping::
+* Improve error messages on bad [format] and [null_value] params for date mapper {es-pull}61932[#61932] (issue: {es-issue}61712[#61712])
+
+[[bug-7.9.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Cardinality request breaker leak {es-pull}62685[#62685] (issue: {es-issue}62439[#62439])
+* Fix bug with terms' min_doc_count {es-pull}62130[#62130] (issue: {es-issue}62084[#62084])
+
+Analysis::
+* Fix standard filter BWC check to allow for cacheing bug {es-pull}62649[#62649] (issues: {es-issue}33310[#33310], {es-issue}51092[#51092], {es-issue}62644[#62644])
+
+Authentication::
+* Ensure domain_name setting for AD realm is present {es-pull}61859[#61859]
+* Update authc failure headers on license change {es-pull}61734[#61734] (issue: {es-issue}56318[#56318])
+
+Authorization::
+* Ensure authz operation overrides transient authz headers {es-pull}61621[#61621]
+
+CCR::
+* CCR should retry on CircuitBreakingException {es-pull}62013[#62013] (issue: {es-issue}55633[#55633])
+
+EQL::
+* Create the search request with a list of indices {es-pull}62005[#62005] (issue: {es-issue}60793[#60793])
+
+Engine::
+* Allow enabling soft-deletes on restore from snapshot {es-pull}62018[#62018] (issue: {es-issue}61969[#61969])
+
+Features/Data streams::
+* Always validate that only a create op is allowed in bulk api for data streams {es-pull}62766[#62766] (issue: {es-issue}62762[#62762])
+* Fix NPE when deleting multiple backing indices on a data stream {es-pull}62274[#62274] (issue: {es-issue}62272[#62272])
+* Fix data stream wildcard resolution bug in eql search api. {es-pull}61904[#61904] (issue: {es-issue}60828[#60828])
+* Prohibit the usage of create index api in namespaces managed by data stream templates {es-pull}62527[#62527]
+
+Features/ILM+SLM::
+* Fix condition in ILM step that cannot be met {es-pull}62377[#62377]
+
+Features/Ingest::
+* Add Missing NamedWritable Registration for ExecuteEnrichPolicyStatus {es-pull}62364[#62364]
+
+Features/Java High Level REST Client::
+* Drop assertion that rest client response warnings conform to RFC 7234 {es-pull}61365[#61365] (issues: {es-issue}60889[#60889], {es-issue}61259[#61259])
+
+Infra/Packaging::
+* Check glibc version {es-pull}62728[#62728] (issue: {es-issue}62709[#62709])
+
+Machine Learning::
+* Add null checks for C++ log handler {es-pull}62238[#62238]
+* Persist progress when setting data frame analytics task to failed {es-pull}61782[#61782]
+* Fix reporting of peak memory usage in memory stats for data frame analytics {ml-pull}1468[#1468]
+* Fix reporting of peak memory usage in model size stats for anomaly detection {ml-pull}1484[#1484]
+
+Mapping::
+* Allow empty null values for date and IP field mappers {es-pull}62487[#62487] (issues: {es-issue}57666[#57666], {es-issue}62363[#62363])
+* Take resolution into account when parsing date null value {es-pull}61994[#61994]
+
+Network::
+* Log alloc description after netty processors set {es-pull}62741[#62741]
+
+SQL::
+* Do not resolve self-referencing aliases {es-pull}62382[#62382] (issue: {es-issue}62296[#62296])
+
+Search::
+* Fix disabling `allow_leading_wildcard` {es-pull}62300[#62300] (issues: {es-issue}60959[#60959], {es-issue}62267[#62267])
+* Search memory leak {es-pull}61788[#61788]
+
+Transform::
+* Disable optimizations when using scripts in group_by {es-pull}60724[#60724] (issue: {es-issue}57332[#57332])
+
+
+
+[[upgrade-7.9.2]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 15 {es-pull}62580[#62580]
+
 [[release-notes-7.9.1]]
 == {es} version 7.9.1
 

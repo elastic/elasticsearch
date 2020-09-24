@@ -6,7 +6,11 @@
 
 This section summarizes the changes in each release.
 
+<<<<<<< HEAD
 * <<release-notes-7.10.0>>
+=======
+* <<release-notes-7.9.2>>
+>>>>>>> 5fd4513bada... Release notes for 7.9.2 (#62664)
 * <<release-notes-7.9.1>>
 * <<release-notes-7.9.0>>
 * <<release-notes-7.8.1>>

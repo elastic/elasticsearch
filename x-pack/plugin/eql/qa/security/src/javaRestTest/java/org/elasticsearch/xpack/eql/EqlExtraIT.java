@@ -6,8 +6,11 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.test.eql.stats.EqlUsageRestTestCase;
+import org.elasticsearch.test.eql.EqlExtraSpecTestCase;
 
-public class EqlStatsIT extends EqlUsageRestTestCase {
+public class EqlExtraIT extends EqlExtraSpecTestCase {
 
+    public EqlExtraIT(String query, String name, long[] eventIds, boolean caseSensitive) {
+        super(query, name, eventIds, caseSensitive);
+    }
 }

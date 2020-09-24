@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -24,7 +23,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,11 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncEqlSecurityIT extends ESRestTestCase {
-
-    @BeforeClass
-    public static void checkForSnapshot() {
-        assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
-    }
 
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.

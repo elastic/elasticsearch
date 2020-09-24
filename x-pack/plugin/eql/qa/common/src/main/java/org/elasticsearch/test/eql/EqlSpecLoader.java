@@ -20,6 +20,9 @@ import java.util.Set;
 public class EqlSpecLoader {
     public static List<EqlSpec> load(String path, boolean supported, Set<String> uniqueTestNames) throws Exception {
         try (InputStream is = EqlSpecLoader.class.getResourceAsStream(path)) {
+            if (is == null) {
+                throw new IllegalAccessException("Cannot find classpath resource " + path);
+            }
             return readFromStream(is, supported, uniqueTestNames);
         }
     }

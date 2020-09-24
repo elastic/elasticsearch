@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.test.eql.stats.EqlUsageRestTestCase;
+import org.elasticsearch.test.eql.EqlRestTestCase;
 
-public class EqlStatsIT extends EqlUsageRestTestCase {
-
+public class EqlRestIT extends EqlRestTestCase {
 }

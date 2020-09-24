@@ -6,12 +6,16 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.test.eql.CommonEqlActionTestCase;
+import org.elasticsearch.test.eql.EqlSpecTestCase;
 
-public class EqlActionIT extends CommonEqlActionTestCase {
+public class EqlSpecIT extends EqlSpecTestCase {
 
-    public EqlActionIT(String query, String name, long[] eventIds, boolean caseSensitive) {
+    public EqlSpecIT(String query, String name, long[] eventIds, boolean caseSensitive) {
         super(query, name, eventIds, caseSensitive);
     }
 
+    @Override
+    protected String sequenceField() {
+        return "serial_event_id";
+    }
 }

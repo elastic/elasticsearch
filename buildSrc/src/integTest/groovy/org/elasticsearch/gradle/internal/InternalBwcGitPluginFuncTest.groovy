@@ -28,7 +28,7 @@ class InternalBwcGitPluginFuncTest extends AbstractGradleFuncTest {
         setupLocalGitRepo()
     }
 
-    def "current current repository can be cloned"() {
+    def "current repository can be cloned"() {
         given:
         internalBuild();
         buildFile << """
@@ -36,13 +36,13 @@ class InternalBwcGitPluginFuncTest extends AbstractGradleFuncTest {
             apply plugin: org.elasticsearch.gradle.internal.InternalBwcGitPlugin  
             
             bwcGitConfig {
-                 bwcVersion.set(Version.fromString("7.10.0"))
-                 bwcBranch.set("7.x")
-                 checkoutDir = file("build/checkout")
+                 bwcVersion = project.provider { Version.fromString("7.10.0") }
+                 bwcBranch = project.provider { "7.x" }
+                 checkoutDir = project.provider{file("build/checkout")}
             }
         """
         when:
-        def result = gradleRunner("createClone").build()
+        def result = gradleRunner("createClone", '--stacktrace').build()
         then:
         result.task(":createClone").outcome == TaskOutcome.SUCCESS
         file("build/checkout/build.gradle").exists()

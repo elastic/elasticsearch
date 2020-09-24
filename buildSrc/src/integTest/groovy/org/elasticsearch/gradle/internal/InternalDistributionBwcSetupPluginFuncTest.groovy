@@ -98,22 +98,22 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
                         "build/distributions/elasticsearch-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
 
-    def "bwc exploded distribution folder can be resolved as bwc project artifact"() {
+    def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
         setup:
         new File(testProjectDir.root, 'remote/build.gradle') << """
         
         configurations {
-            explodedDist
+            expandedDist
         }
         
         dependencies {
-            explodedDist project(path: ":distribution:bwc:bugfix", configuration:"exploded-darwin-tar")
+            expandedDist project(path: ":distribution:bwc:bugfix", configuration:"expanded-darwin-tar")
         }
         
-        tasks.register("resolveExplodedDistribution") {
-            inputs.files(configurations.explodedDist)
+        tasks.register("resolveExpandedDistribution") {
+            inputs.files(configurations.expandedDist)
             doLast {
-                configurations.explodedDist.files.each {
+                configurations.expandedDist.files.each {
                     println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
                 }
             }
@@ -121,12 +121,12 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         """
         when:
         def result = gradleRunner(new File(testProjectDir.root, "remote"),
-                ":resolveExplodedDistribution",
+                ":resolveExpandedDistribution",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin")
                 .build()
         then:
-        result.task(":resolveExplodedDistribution").outcome == TaskOutcome.SUCCESS
+        result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
         result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"

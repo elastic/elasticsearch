@@ -21,12 +21,13 @@ package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.Version;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.logging.LogLevel;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -41,40 +42,33 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
 
 /**
- * By registering bwc tasks via this extension we can support declaring custom bwc tasks from teh build script
+ * By registering bwc tasks via this extension we can support declaring custom bwc tasks from the build script
  * without relying on groovy closures and sharing common logic for tasks created by the BwcSetup plugin already.
  * */
 public class BwcSetupExtension {
 
     private final Project project;
-    private final File checkoutDir;
-    private final Version bwcVersion;
 
-    public BwcSetupExtension(Project project, File checkoutDir, Version bwcVersion) {
+    private Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+    private Provider<File> checkoutDir;
+
+    public BwcSetupExtension(Project project) {
         this.project = project;
-        this.checkoutDir = checkoutDir;
-        this.bwcVersion = bwcVersion;
     }
 
     TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
-        return createRunBwcGradleTask(project, name, checkoutDir, bwcVersion, configuration);
+        return createRunBwcGradleTask(project, name, configuration);
     }
 
-    private TaskProvider<LoggedExec> createRunBwcGradleTask(
-        Project project,
-        String name,
-        File checkoutDir,
-        Version bwcVersion,
-        Action<LoggedExec> configAction
-    ) {
+    private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             // TODO revisit
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.setSpoolOutput(true);
-            loggedExec.setWorkingDir(checkoutDir);
+            loggedExec.setWorkingDir(getCheckoutDir().get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String javaVersionsString = readFromFile(new File(checkoutDir, ".ci/java-versions.properties"));
+                String javaVersionsString = readFromFile(new File(getCheckoutDir().get(), ".ci/java-versions.properties"));
                 loggedExec.environment(
                     "JAVA_HOME",
                     getJavaHome(
@@ -103,9 +97,9 @@ public class BwcSetupExtension {
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 loggedExec.executable("cmd");
-                loggedExec.args("/C", "call", new File(checkoutDir, "gradlew").toString());
+                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
             } else {
-                loggedExec.executable(new File(checkoutDir, "gradlew").toString());
+                loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
             }
             if (project.getGradle().getStartParameter().isOffline()) {
                 loggedExec.args("--offline");
@@ -133,8 +127,8 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
-            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, bwcVersion));
-            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, bwcVersion));
+            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
+            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
             configAction.execute(loggedExec);
         });
     }
@@ -165,6 +159,15 @@ public class BwcSetupExtension {
         }
     }
 
+    public Provider<BwcVersions.UnreleasedVersionInfo> getUnreleasedVersionInfo() {
+        return unreleasedVersionInfo;
+    }
+
+    public void setUnreleasedVersionInfo(Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo) {
+        this.unreleasedVersionInfo = unreleasedVersionInfo;
+        this.checkoutDir = this.unreleasedVersionInfo.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch));
+    }
+
     private static String readFromFile(File file) {
         try {
             return FileUtils.readFileToString(file).trim();
@@ -173,4 +176,7 @@ public class BwcSetupExtension {
         }
     }
 
+    public Provider<File> getCheckoutDir() {
+        return checkoutDir;
+    }
 }

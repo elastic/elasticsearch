@@ -20,45 +20,37 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
-import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 
 import java.io.File;
 
 public class BwcGitExtension {
 
-    private Property<Version> bwcVersion;
-    private Property<String> bwcBranch;
-    private RegularFileProperty checkoutDir;
+    private Provider<Version> bwcVersion;
+    private Provider<String> bwcBranch;
+    private Provider<File> checkoutDir;
 
-    BwcGitExtension(ObjectFactory objectFactory) {
-        bwcVersion = objectFactory.property(Version.class);
-        bwcBranch = objectFactory.property(String.class);
-        checkoutDir = objectFactory.fileProperty();
-    }
-
-    public Property<Version> getBwcVersion() {
+    public Provider<Version> getBwcVersion() {
         return bwcVersion;
     }
 
-    public void setBwcVersion(Property<Version> bwcVersion) {
+    public void setBwcVersion(Provider<Version> bwcVersion) {
         this.bwcVersion = bwcVersion;
     }
 
-    public Property<String> getBwcBranch() {
+    public Provider<String> getBwcBranch() {
         return bwcBranch;
     }
 
-    public void setBwcBranch(Property<String> bwcBranch) {
+    public void setBwcBranch(Provider<String> bwcBranch) {
         this.bwcBranch = bwcBranch;
     }
 
-    public RegularFileProperty getCheckoutDir() {
+    public Provider<File> getCheckoutDir() {
         return checkoutDir;
     }
 
-    public void setCheckoutDir(File checkoutDir) {
-        this.checkoutDir.set(checkoutDir);
+    public void setCheckoutDir(Provider<File> checkoutDir) {
+        this.checkoutDir = checkoutDir;
     }
 }

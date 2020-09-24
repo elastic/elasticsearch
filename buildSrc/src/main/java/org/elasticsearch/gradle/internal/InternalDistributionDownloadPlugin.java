@@ -107,7 +107,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     private static String getProjectConfig(String distributionProjectName, BwcVersions.UnreleasedVersionInfo info) {
         return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
             ? distributionProjectName
-            : "exploded-" + distributionProjectName;
+            : "expanded-" + distributionProjectName;
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {

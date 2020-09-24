@@ -72,7 +72,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:linux-tar:buildExploded").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
@@ -134,7 +134,6 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 "without a bundled JDK is not supported.")
     }
 
-
     private void bwcMinorProjectSetup() {
         settingsFile << """
         include ':distribution:bwc:minor'
@@ -155,14 +154,14 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 it.add("linux-tar", buildBwcTask)
             }
             
-            // exploded dist
-            configurations.create("exploded-linux-tar")
+            // expanded distro
+            configurations.create("expanded-linux-tar")
             def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
                 from('bwc-marker.txt')
                 into('build/install/elastic-distro')
             }
             artifacts {
-                it.add("exploded-linux-tar", file('build/install')) {
+                it.add("expanded-linux-tar", file('build/install')) {
                     builtBy expandedTask
                     type = 'directory'
                 }
@@ -186,7 +185,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 archiveExtension = "tar.gz"
                 compression = Compression.GZIP
             }
-            def buildExploded = tasks.register("buildExploded", Copy) {
+            def buildExpanded = tasks.register("buildExpanded", Copy) {
                 from('current-marker.txt')
                 into("build/local")
             }
@@ -199,12 +198,11 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             }
             artifacts {
                 it.add("default", buildTar)
-                it.add("extracted", buildExploded)
+                it.add("extracted", buildExpanded)
             }
         """
         buildFile << """
         """
-
     }
 
     boolean assertExtractedDistroIsCreated(String relativeDistroPath, String markerFileName) {

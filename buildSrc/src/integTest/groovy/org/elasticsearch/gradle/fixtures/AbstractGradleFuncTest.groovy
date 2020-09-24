@@ -44,7 +44,6 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(String... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
-
     }
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
@@ -91,7 +90,6 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-
     File internalBuild(File buildScript = buildFile) {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
@@ -118,5 +116,4 @@ abstract class AbstractGradleFuncTest extends Specification {
         "git add .".execute(Collections.emptyList(), testProjectDir.root).waitFor()
         'git commit -m "Initial"'.execute(Collections.emptyList(), testProjectDir.root).waitFor()
     }
-
 }

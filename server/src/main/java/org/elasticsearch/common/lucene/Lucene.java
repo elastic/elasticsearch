@@ -95,6 +95,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -369,6 +370,8 @@ public class Lucene {
                 cFields[j] = in.readBoolean();
             } else if (type == 9) {
                 cFields[j] = in.readBytesRef();
+            } else if (type == 10) {
+                cFields[j] = new BigInteger(in.readString());
             } else {
                 throw new IOException("Can't match type [" + type + "]");
             }
@@ -398,6 +401,8 @@ public class Lucene {
             return in.readBoolean();
         } else if (type == 9) {
             return in.readBytesRef();
+        }else if (type == 10) {
+            return new BigInteger(in.readString());
         } else {
             throw new IOException("Can't match type [" + type + "]");
         }
@@ -517,6 +522,10 @@ public class Lucene {
             } else if (type == BytesRef.class) {
                 out.writeByte((byte) 9);
                 out.writeBytesRef((BytesRef) field);
+            } else if (type == BigInteger.class) {
+                //TODO: improve serialization of BigInteger
+                out.writeByte((byte) 10);
+                out.writeString(field.toString());
             } else {
                 throw new IOException("Can't handle sort field value of type [" + type + "]");
             }

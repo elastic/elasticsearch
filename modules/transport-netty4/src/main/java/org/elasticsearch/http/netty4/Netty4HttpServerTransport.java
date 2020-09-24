@@ -285,6 +285,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final Netty4HttpServerTransport transport;
         private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
+        private final Netty4HttpResponseCreator responseCreator;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
@@ -292,6 +293,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             this.handlingSettings = handlingSettings;
             this.requestCreator =  new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.responseCreator = new Netty4HttpResponseCreator();
         }
 
         @Override
@@ -314,6 +316,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", requestCreator);
+            ch.pipeline().addLast("response_creator", responseCreator);
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);

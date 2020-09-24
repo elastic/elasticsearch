@@ -74,6 +74,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
                 final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
                     "access to system indices will be prevented by default";
+                v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
             }));
             assertBusy(() -> {

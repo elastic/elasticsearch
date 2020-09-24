@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 restResources {
   restApi {
     includeCore 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query'
-    includeXpack 'eql', 'indices', 'data_stream', 'migration', 'async_search', 'searchable_snapshots', 'rollup', 'graph', 'ilm'
+    includeXpack 'eql', 'indices', 'data_stream', 'migration', 'async_search', 'searchable_snapshots', 'rollup', 'graph', 'ilm', 'open_point_in_time', 'close_point_in_time'
   }
   restTests {
     includeXpack 'data_stream'

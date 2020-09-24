@@ -1272,38 +1272,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true).execute();
     }
 
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName) {
-        return startFullSnapshot(repoName, snapshotName, false);
-    }
-
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
-        logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
-        return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
-                .setPartial(partial).execute();
-    }
-
-    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
-    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
-    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
-
-    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
-
-    private void createIndexWithContent(String indexName) {
-        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
-    }
-
     private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
         createIndexWithContent(indexName, indexSettingsNoReplicas(1)
                 .put("index.routing.allocation.include._name", nodeInclude)
                 .put("index.routing.allocation.exclude._name", nodeExclude).build());
-    }
-
-    private void createIndexWithContent(String indexName, Settings indexSettings) {
-        logger.info("--> creating index [{}]", indexName);
-        createIndex(indexName, indexSettings);
-        ensureGreen(indexName);
-        index(indexName, "_doc", "some_id", "foo", "bar");
     }
 
     private static boolean snapshotHasCompletedShard(String snapshot, SnapshotsInProgress snapshotsInProgress) {
@@ -1357,14 +1329,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnIndexFile(blockedRepoName);
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(blockedRepoName, snapshotName);
         waitForBlock(internalCluster().getMasterName(), blockedRepoName, TimeValue.timeValueSeconds(30L));
-        return fut;
-    }
-
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
-            throws InterruptedException {
-        blockDataNode(repoName, dataNode);
-        final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
         return fut;
     }
 }

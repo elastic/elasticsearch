@@ -62,12 +62,6 @@ Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
-+
---
-Defaults to `false`.
---
-
 `explain`::
   (Optional, boolean) If `true`, the response includes additional details about
   score computation as part of a hit. Defaults to `false`.

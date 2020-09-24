@@ -54,10 +54,6 @@
         "type":"boolean",
         "description":"Whether to return all default setting for each of the indices.",
         "default":false
-      },
-      "allow_system_index_access": {
-        "type":"boolean",
-        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

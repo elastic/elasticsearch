@@ -150,10 +150,6 @@
         "type":"boolean",
         "description":"If set to false stats will also collected from closed indices if explicitly specified or if expand_wildcards expands to closed indices",
         "default":true
-      },
-      "allow_system_index_access": {
-        "type":"boolean",
-        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

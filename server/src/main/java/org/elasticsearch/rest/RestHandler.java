@@ -33,9 +33,6 @@ import java.util.List;
 @FunctionalInterface
 public interface RestHandler {
 
-    Version ALLOW_SYSTEM_INDEX_ADDED_VERSION = Version.V_8_0_0;
-    String ALLOW_SYSTEM_INDEX_ACCESS_REST_PARAMETER = "allow_system_index_access";
-
     /**
      * Handles a rest request.
      * @param request The request to handle

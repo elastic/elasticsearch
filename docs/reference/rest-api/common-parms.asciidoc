@@ -228,13 +228,6 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
-tag::allow-system-index-access[]
-`allow_system_index_access`::
-(Optional, boolean) If `true`, allows this request to access system indices
-directly. This option should be used with caution, as system indices are not
-intended to be accessed directly.
-end::allow-system-index-access[]
-
 tag::exponential-avg-checkpoint-duration-ms[]
 Exponential moving average of the duration of the checkpoint, in milliseconds.
 end::exponential-avg-checkpoint-duration-ms[]

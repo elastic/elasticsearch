@@ -49,10 +49,6 @@
       "local":{
         "type":"boolean",
         "description":"Return local information, do not retrieve the state from master node (default: false)"
-      },
-      "allow_system_index_access": {
-        "type":"boolean",
-        "description":"Indicates whether this request should be allowed to access system indices"
       }
     }
   }

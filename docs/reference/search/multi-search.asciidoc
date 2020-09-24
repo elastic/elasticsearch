@@ -78,12 +78,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
-+
---
-Defaults to `false`.
---
-
 `ignore_throttled`::
 (Optional, boolean)
 If `true`, concrete, expanded or aliased indices are ignored when frozen.
@@ -188,12 +182,6 @@ missing or closed index.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-system-index-access]
-+
---
-Defaults to `false`.
---
 
 `ignore_unavailable`:::
 (Optional, boolean) If `true`, documents from missing or closed indices are not

@@ -112,10 +112,6 @@
       "all_shards":{
         "type":"boolean",
         "description":"Execute validation on all shards instead of one random shard per index"
-      },
-      "allow_system_index_access": {
-        "type":"boolean",
-        "description":"Indicates whether this request should be allowed to access system indices"
       }
     },
     "body":{

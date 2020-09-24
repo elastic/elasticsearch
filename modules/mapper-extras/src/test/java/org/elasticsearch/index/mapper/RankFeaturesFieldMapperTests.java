@@ -61,6 +61,11 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
     }
 
     @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // no parameters to configure
+    }
+
+    @Override
     protected boolean supportsMeta() {
         return false;
     }

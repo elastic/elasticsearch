@@ -51,6 +51,12 @@ public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFie
         b.field("type", "histogram");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((HistogramFieldMapper)m).ignoreMalformed()));
+    }
+
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(

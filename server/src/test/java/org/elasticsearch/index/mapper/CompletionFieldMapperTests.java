@@ -87,6 +87,31 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
+        checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
+        checker.registerConflictCheck("preserve_position_increments", b -> b.field("preserve_position_increments", false));
+        checker.registerConflictCheck("contexts", b -> {
+            b.startArray("contexts");
+            {
+                b.startObject();
+                b.field("name", "place_type");
+                b.field("type", "category");
+                b.field("path", "cat");
+                b.endObject();
+            }
+            b.endArray();
+        });
+
+        checker.registerUpdateCheck(b -> b.field("search_analyzer", "standard"),
+            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+                CompletionFieldMapper cfm = (CompletionFieldMapper) m;
+                assertEquals(30, cfm.getMaxInputLength());
+            });
+    }
+
+    @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),

@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,12 +53,9 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase2<RankFeatur
         return Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
-    @Before
-    public void setup() {
-        addModifier("positive_score_impact", false, (a, b) -> {
-            a.positiveScoreImpact(true);
-            b.positiveScoreImpact(false);
-        });
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
 
     @Override

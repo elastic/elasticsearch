@@ -55,6 +55,18 @@ public class DateFieldMapperTests extends MapperTestCase {
         b.field("type", "date");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
+        checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((DateFieldMapper)m).getIgnoreMalformed()));
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

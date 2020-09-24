@@ -60,6 +60,11 @@ public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMa
         b.field("type", "murmur3");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // no parameters to configure
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.field("field", "value")));

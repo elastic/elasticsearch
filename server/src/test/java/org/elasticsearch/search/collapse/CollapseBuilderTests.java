@@ -154,13 +154,15 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             assertEquals(collapseContext.getFieldType(), numberFieldType);
 
             numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false, Collections.emptyMap());
+                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false,
+                    false, Collections.emptyMap());
             when(shardContext.fieldMapper("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
             numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true, Collections.emptyMap());
+                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false,
+                    true, Collections.emptyMap());
             when(shardContext.fieldMapper("field")).thenReturn(numberFieldType);
             builder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
@@ -197,7 +199,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return null;

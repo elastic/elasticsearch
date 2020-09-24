@@ -47,12 +47,12 @@ public final class GetPrivilegesResponse {
     }
 
     public static GetPrivilegesResponse fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         List<ApplicationPrivilege> privileges = new ArrayList<>();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != null) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     privileges.add(ApplicationPrivilege.PARSER.parse(parser, null));
                 }

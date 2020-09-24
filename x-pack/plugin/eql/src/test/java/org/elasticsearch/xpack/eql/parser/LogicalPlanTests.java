@@ -53,23 +53,23 @@ public class LogicalPlanTests extends ESTestCase {
     }
 
     public void testAnyQuery() {
-        LogicalPlan fullQuery = parser.createStatement("any where process_name == 'net.exe'");
-        Expression fullExpression = expr("process_name == 'net.exe'");
+        LogicalPlan fullQuery = parser.createStatement("any where process_name == \"net.exe\"");
+        Expression fullExpression = expr("process_name == \"net.exe\"");
 
         assertEquals(wrapFilter(fullExpression), fullQuery);
     }
 
     public void testEventQuery() {
-        LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'");
-        Expression fullExpression = expr("event.category == 'process' and process_name == 'net.exe'");
+        LogicalPlan fullQuery = parser.createStatement("process where process_name == \"net.exe\"");
+        Expression fullExpression = expr("event.category == \"process\" and process_name == \"net.exe\"");
 
         assertEquals(wrapFilter(fullExpression), fullQuery);
     }
 
     public void testParameterizedEventQuery() {
         ParserParams params = new ParserParams(UTC).fieldEventCategory("myCustomEvent");
-        LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
-        Expression fullExpression = expr("myCustomEvent == 'process' and process_name == 'net.exe'");
+        LogicalPlan fullQuery = parser.createStatement("process where process_name == \"net.exe\"", params);
+        Expression fullExpression = expr("myCustomEvent == \"process\" and process_name == \"net.exe\"");
 
         assertEquals(wrapFilter(fullExpression), fullQuery);
     }

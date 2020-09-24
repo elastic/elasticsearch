@@ -115,26 +115,30 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         return node == null ? null : node.getText();
     }
 
-    public static String unquoteString(String text) {
+    public static String unquoteString(Source source) {
         // remove leading and trailing ' for strings and also eliminate escaped single quotes
+        String text = source.text();
         if (text == null) {
             return null;
         }
 
         // unescaped strings can be interpreted directly
         if (text.startsWith("?")) {
+            checkForSingleQuotedString(source, text, 1);
             return text.substring(2, text.length() - 1);
         }
+
+        checkForSingleQuotedString(source, text, 0);
 
         text = text.substring(1, text.length() - 1);
         StringBuffer resultString = new StringBuffer();
         Matcher regexMatcher = slashPattern.matcher(text);
 
         while (regexMatcher.find()) {
-            String source = regexMatcher.group();
+            String group = regexMatcher.group();
             String replacement;
 
-            switch (source) {
+            switch (group) {
                 case "\\t":
                     replacement = "\t";
                     break;
@@ -162,7 +166,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                     break;
                 default:
                     // unknown escape sequence, pass through as-is
-                    replacement = source;
+                    replacement = group;
             }
 
             regexMatcher.appendReplacement(resultString, replacement);
@@ -171,6 +175,13 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         regexMatcher.appendTail(resultString);
 
         return resultString.toString();
+    }
+
+    private static void checkForSingleQuotedString(Source source, String text, int i) {
+        if (text.charAt(i) == '\'') {
+            throw new ParsingException(source,
+                    "Use double quotes [\"] to define string literals, not single quotes [']");
+        }
     }
 
     @Override

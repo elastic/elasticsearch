@@ -19,7 +19,6 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -1097,9 +1096,6 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_7_6_0)) {
-                throw new IllegalArgumentException("Offset rounding not supported before 7.6.0");
-            }
             delegate.writeTo(out);
             out.writeZLong(offset);
         }

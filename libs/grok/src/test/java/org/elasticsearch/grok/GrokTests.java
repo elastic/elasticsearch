@@ -19,6 +19,7 @@
 
 package org.elasticsearch.grok;
 
+import org.elasticsearch.grok.GrokCaptureConfig.NativeExtracterMap;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -31,6 +32,11 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.grok.GrokCaptureType.BOOLEAN;
 import static org.elasticsearch.grok.GrokCaptureType.DOUBLE;
@@ -55,12 +61,20 @@ public class GrokTests extends ESTestCase {
     public void testCaputuresBytes() {
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{NUMBER:n:int}", logger::warn);
         byte[] utf8 = "10".getBytes(StandardCharsets.UTF_8);
-        assertThat(grok.captures(utf8, 0, utf8.length), equalTo(Map.of("n", 10)));
-        assertThat(grok.captures(utf8, 0, 1), equalTo(Map.of("n", 1)));
+        assertThat(captureBytes(grok, utf8, 0, utf8.length), equalTo(Map.of("n", 10)));
+        assertThat(captureBytes(grok, utf8, 0, 1), equalTo(Map.of("n", 1)));
         utf8 = "10 11 12".getBytes(StandardCharsets.UTF_8);
-        assertThat(grok.captures(utf8, 0, 2), equalTo(Map.of("n", 10)));
-        assertThat(grok.captures(utf8, 3, 2), equalTo(Map.of("n", 11)));
-        assertThat(grok.captures(utf8, 6, 2), equalTo(Map.of("n", 12)));
+        assertThat(captureBytes(grok, utf8, 0, 2), equalTo(Map.of("n", 10)));
+        assertThat(captureBytes(grok, utf8, 3, 2), equalTo(Map.of("n", 11)));
+        assertThat(captureBytes(grok, utf8, 6, 2), equalTo(Map.of("n", 12)));
+    }
+
+    private Map<String, Object> captureBytes(Grok grok, byte[] utf8, int offset, int length) {
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
+        if (grok.match(utf8, offset, length, extracter)) {
+            return extracter.result();
+        }
+        return null;
     }
 
     public void testNoMatchingPatternInDictionary() {
@@ -90,6 +104,16 @@ public class GrokTests extends ESTestCase {
         assertEquals("connect from camomile.cloud9.net[168.100.1.3]", matches.get("message"));
         assertEquals("postfix/smtpd", matches.get("program"));
         assertEquals("1713", matches.get("pid"));
+
+        String[] logsource = new String[1];
+        GrokCaptureExtracter logsourceExtracter = namedConfig(grok, "logsource").nativeExtracter(new ThrowingNativeExtracterMap() {
+            @Override
+            public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
+                return buildExtracter.apply(str -> logsource[0] = str);
+            }
+        });
+        assertThat(specificCapture(grok, line, logsourceExtracter), is(true));
+        assertThat(logsource[0], equalTo("evita"));
     }
 
     public void testSyslog5424Line() {
@@ -336,6 +360,16 @@ public class GrokTests extends ESTestCase {
         Map<String, Object> actual = g.captures(text);
 
         assertEquals(expected, actual);
+
+        boolean[] status = new boolean[1];
+        GrokCaptureExtracter statusExtracter = namedConfig(g, "status").nativeExtracter(new ThrowingNativeExtracterMap() {
+            @Override
+            public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
+                return buildExtracter.apply(b -> status[0] = b);
+            }
+        });
+        assertThat(specificCapture(g, text, statusExtracter), is(true));
+        assertThat(status[0], equalTo(true));
     }
 
     public void testNumericCaptures() {
@@ -355,6 +389,35 @@ public class GrokTests extends ESTestCase {
         Map<String, Object> actual = g.captures(text);
 
         assertEquals(expected, actual);
+
+        float[] bytes = new float[1];
+        GrokCaptureExtracter bytesExtracter = namedConfig(g, "bytes").nativeExtracter(new ThrowingNativeExtracterMap() {
+            @Override
+            public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
+                return buildExtracter.apply(f -> bytes[0] = f);
+            }
+        });
+        assertThat(specificCapture(g, text, bytesExtracter), is(true));
+        assertThat(bytes[0], equalTo(12009.34f));
+
+        long[] id = new long[1];
+        GrokCaptureExtracter idExtracter = namedConfig(g, "id").nativeExtracter(new ThrowingNativeExtracterMap() {
+            @Override
+            public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
+                return buildExtracter.apply(l -> id[0] = l);
+            }
+        });
+        assertThat(specificCapture(g, text, idExtracter), is(true));
+        assertThat(id[0], equalTo(20000000000L));
+
+        double[] rating = new double[1];
+        GrokCaptureExtracter ratingExtracter = namedConfig(g, "rating").nativeExtracter(new ThrowingNativeExtracterMap() {
+            public GrokCaptureExtracter forDouble(java.util.function.Function<DoubleConsumer,GrokCaptureExtracter> buildExtracter) {
+                return buildExtracter.apply(d -> rating[0] = d);
+            }
+        });
+        assertThat(specificCapture(g, text, ratingExtracter), is(true));
+        assertThat(rating[0], equalTo(4820.092));
     }
 
     public void testNumericCapturesCoercion() {
@@ -620,5 +683,46 @@ public class GrokTests extends ESTestCase {
             assertThat("duplicates not allowed", old, nullValue());
         }
         assertThat(fromGrok, equalTo(new TreeMap<>(nameToType)));
+    }
+
+    private GrokCaptureConfig namedConfig(Grok grok, String name) {
+        return grok.captureConfig().stream().filter(i -> i.name().equals(name)).findFirst().get();
+    }
+
+    private boolean specificCapture(Grok grok, String str, GrokCaptureExtracter extracter) {
+        byte[] utf8 = str.getBytes(StandardCharsets.UTF_8);
+        return grok.match(utf8, 0, utf8.length, extracter);
+    }
+
+    private abstract class ThrowingNativeExtracterMap implements NativeExtracterMap<GrokCaptureExtracter> {
+        @Override
+        public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
+            throw new IllegalArgumentException();
+        }
+
+        @Override
+        public GrokCaptureExtracter forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter) {
+            throw new IllegalArgumentException();
+        }
+
+        @Override
+        public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
+            throw new IllegalArgumentException();
+        }
+
+        @Override
+        public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
+            throw new IllegalArgumentException();
+        }
+
+        @Override
+        public GrokCaptureExtracter forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
+            throw new IllegalArgumentException();
+        }
+
+        @Override
+        public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
+            throw new IllegalArgumentException();
+        }
     }
 }

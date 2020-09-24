@@ -112,6 +112,14 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put("indices.breaker.request.type", "memory")
+            .build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(TestPlugin.class);
     }

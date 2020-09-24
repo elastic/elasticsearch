@@ -3,8 +3,6 @@ setup:
       features: headers
 ---
 "Test CRUD on two jobs in shared index":
-  - skip:
-      features: warnings
 
   - do:
       ml.put_job:
@@ -103,8 +101,6 @@ setup:
   - is_true: ''
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.ml-state-write], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists_alias:
@@ -648,8 +644,6 @@ setup:
 
 ---
 "Test force close does not create state":
-  - skip:
-      features: warnings
 
   - do:
       headers:
@@ -702,8 +696,6 @@ setup:
   - is_true: ''
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.ml-state-write], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists_alias:

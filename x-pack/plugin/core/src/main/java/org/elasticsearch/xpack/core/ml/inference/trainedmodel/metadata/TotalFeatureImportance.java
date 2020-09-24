@@ -20,8 +20,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class TotalFeatureImportance implements ToXContentObject, Writeable {
 
@@ -81,16 +84,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(FEATURE_NAME.getPreferredName(), featureName);
-        if (importance != null) {
-            builder.field(IMPORTANCE.getPreferredName(), importance);
-        }
-        if (classImportances.isEmpty() == false) {
-            builder.field(CLASSES.getPreferredName(), classImportances);
-        }
-        builder.endObject();
-        return builder;
+        return builder.map(asMap());
     }
 
     @Override
@@ -101,6 +95,18 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         return Objects.equals(that.importance, importance)
             && Objects.equals(featureName, that.featureName)
             && Objects.equals(classImportances, that.classImportances);
+    }
+
+    public Map<String, Object> asMap() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(FEATURE_NAME.getPreferredName(), featureName);
+        if (importance != null) {
+            map.put(IMPORTANCE.getPreferredName(), importance.asMap());
+        }
+        if (classImportances.isEmpty() == false) {
+            map.put(CLASSES.getPreferredName(), classImportances.stream().map(ClassImportance::asMap).collect(Collectors.toList()));
+        }
+        return map;
     }
 
     @Override
@@ -165,12 +171,15 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MEAN_MAGNITUDE.getPreferredName(), meanMagnitude);
-            builder.field(MIN.getPreferredName(), min);
-            builder.field(MAX.getPreferredName(), max);
-            builder.endObject();
-            return builder;
+            return builder.map(asMap());
+        }
+
+        private Map<String, Object> asMap() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(MEAN_MAGNITUDE.getPreferredName(), meanMagnitude);
+            map.put(MIN.getPreferredName(), min);
+            map.put(MAX.getPreferredName(), max);
+            return map;
         }
     }
 
@@ -229,11 +238,14 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(IMPORTANCE.getPreferredName(), importance);
-            builder.endObject();
-            return builder;
+            return builder.map(asMap());
+        }
+
+        private Map<String, Object> asMap() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(CLASS_NAME.getPreferredName(), className);
+            map.put(IMPORTANCE.getPreferredName(), importance.asMap());
+            return map;
         }
 
         @Override

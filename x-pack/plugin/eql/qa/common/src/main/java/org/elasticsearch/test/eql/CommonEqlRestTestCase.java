@@ -6,7 +6,6 @@
 package org.elasticsearch.test.eql;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -14,13 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.BeforeClass;
+import org.junit.After;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -29,7 +29,12 @@ import static org.hamcrest.Matchers.not;
 public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
     private static final String defaultValidationIndexName = "eql_search_validation_test";
-    private static final String validQuery = "process where user = 'SYSTEM'";
+    private static final String validQuery = "process where user = \\\"SYSTEM\\\"";
+
+    @After
+    public void checkSearchContent() throws Exception {
+        assertNoSearchContexts(client());
+    }
 
     private static final String[][] testBadRequests = {
             {null, "request body or source parameter is required"},
@@ -37,20 +42,14 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             {"{\"query\": \"\"}", "query is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty"},
-            {"{\"query\": \"" + validQuery + "\", \"size\": 0}", "size must be greater than 0"},
-            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than 0"},
+            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than or equal to 0"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
     };
 
-    @BeforeClass
-    public static void checkForSnapshot() {
-        assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
-    }
-
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, Settings.EMPTY);
-        
+
         final String contentType = "application/json";
         for (String[] test : testBadRequests) {
             final String endpoint = "/" + defaultValidationIndexName + "/_eql/search";
@@ -64,7 +63,7 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
             assertThat(response.getStatusLine().getStatusCode(), is(400));
         }
-        
+
         deleteIndex(defaultValidationIndexName);
     }
 

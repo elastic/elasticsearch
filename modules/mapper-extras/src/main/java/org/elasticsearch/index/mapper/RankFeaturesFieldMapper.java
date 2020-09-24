@@ -78,7 +78,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -162,7 +162,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }

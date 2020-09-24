@@ -228,14 +228,28 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    public void testStandardFilterBWC() {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-        final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+    public void testStandardFilterBWC() throws IOException {
+        // standard tokenfilter should have been removed entirely in the 7x line.  However, a
+        // cacheing bug meant that it was still possible to create indexes using a standard
+        // filter until 7.6
+        {
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, Version.CURRENT);
+            final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
-        assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
+            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
+        }
+        {
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2);
+            final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+                .put("index.analysis.analyzer.my_standard.filter", "standard")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                .build();
+            getIndexAnalyzers(settings);
+            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
+        }
     }
 
     /**

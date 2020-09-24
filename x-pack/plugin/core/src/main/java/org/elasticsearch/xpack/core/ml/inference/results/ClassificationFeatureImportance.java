@@ -164,11 +164,7 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CLASS_NAME, className);
-            builder.field(IMPORTANCE, importance);
-            builder.endObject();
-            return builder;
+            return builder.map(toMap());
         }
 
         @Override

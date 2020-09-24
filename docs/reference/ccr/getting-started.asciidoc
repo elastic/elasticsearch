@@ -1,90 +1,97 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-=== Set up {ccr}
+=== Tutorial: Set up {ccr}
+++++
+<titleabbrev>Set up {ccr}</titleabbrev>
+++++
+
+////
+[source,console]
+----
+PUT /server-metrics
+{
+  "settings" : {
+    "index" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 0
+    }
+  },
+  "mappings" : {
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+////
+
+Use this guide to set up {ccr} (CCR) between clusters in two
+datacenters. Replicating your data across datacenters provides several benefits:
+
+* Brings data closer to your users or application server to reduce latency and
+response time
+* Provides your mission-critical applications with the tolerance to withstand datacenter or region outages
+
+In this guide, you'll learn how to:
+
+* Configure a <<modules-remote-clusters,remote cluster>> with a leader index
+* Create a follower index on a local cluster
+* Create an auto-follow pattern to automatically follow time series indices
+that are periodically created in a remote cluster
+
 You can manually create follower indices to replicate specific indices on a
-remote cluster, or configure auto-follow patterns to automatically create
-follower indices for new time series.
+remote cluster, or configure auto-follow patterns to replicate rolling time series indices.
 
-After the follower index is created, the
-<<ccr-remote-recovery, remote recovery>> process copies all of the Lucene
-segment files from the remote cluster to the local cluster.
-
-To set up {ccr}:
-
-. <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote cluster>>
-. <<ccr-getting-started-leader-index,Identify the index (or time series indices) you want to replicate on the remote cluster>>
-. <<ccr-enable-soft-deletes,Enable soft deletes on the leader index>>
-. Manually create a follower index or create an auto-follow pattern:
-  * To replicate the leader index, <<ccr-getting-started-follower-index,manually create a follower index>>
-  * To automatically follow time series indices, <<ccr-getting-started-auto-follow,create an auto-follow pattern>>
+video::https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/blt994089f5e841ad69/5f6265de6f40ab4648b5cf9b/ccr-setup-video-edited.mp4[width=700, height=500, options="autoplay,loop"]
 
 [[ccr-getting-started-prerequisites]]
 ==== Prerequisites
-If the Elastic {security-features} are enabled in your local and remote
-clusters, you need a user with appropriate authority to complete the steps
-in this tutorial.
+To complete this tutorial, you need:
 
-By default, you can complete the following steps as the built-in
-`elastic` user. However, you must <<get-started-built-in-users,set a password>>
-for this user before proceeding.
-
-WARNING: If you are performing these steps in a production environment, do
-not use the `elastic` user.
-
-Alternatively, you can assign the appropriate privileges to a user ID of your
-choice. On the remote cluster that contains the leader index, a user must have
-the `read_ccr` cluster privilege and `monitor` and `read` privileges on the
-leader index.
-
-[source,yml]
---------------------------------------------------
-ccr_user:
-  cluster:
-    - read_ccr
-  indices:
-    - names: [ 'leader-index' ]
-      privileges:
-        - monitor
-        - read
---------------------------------------------------
-
-On the local cluster that contains the follower index, the same user will need
-the `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
-`manage_follow_index` privileges on the follower index.
-
-[source,yml]
---------------------------------------------------
-ccr_user:
-  cluster:
-    - manage_ccr
-  indices:
-    - names: [ 'follower-index' ]
-      privileges:
-        - monitor
-        - read
-        - write
-        - manage_follow_index
---------------------------------------------------
-
-If you are managing
-<<ccr-getting-started-remote-cluster,connecting to the remote cluster>> using
-the cluster update settings API, you will also need a user with the `all`
-cluster privilege.
+* A license on both clusters that includes {ccr}. {kibana-ref}/managing-licenses.html[Activate a free 30-day trial].
+* The `read_ccr` cluster privilege and `monitor` and `read` privileges
+for the leader index on the remote cluster. <<stack-management-ccr-remote,Configure remote cluster privileges>>.
+* The `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
+`manage_follow_index` privileges to configure remote clusters and follower
+indices on the local cluster. <<stack-management-ccr-local,Configure local cluster privileges>>.
+* An index on the remote cluster that contains the data you want to replicate.
+This tutorial uses the sample eCommerce orders data set.
+{kibana-ref}/get-started.html#gs-get-data-into-kibana[Load sample data].
 
 [[ccr-getting-started-remote-cluster]]
 ==== Connect to a remote cluster
-Connect your local cluster to a
-<<modules-remote-clusters,remote cluster>> to begin using cross-cluster
-replication.
+To replicate an index on a remote cluster (Cluster A) to a local cluster (Cluster B), you configure Cluster A as a remote on Cluster B.
 
-To configure a {kibana-ref}/working-remote-clusters.html[remote cluster],
-access {kib} and go to
-*Management > Stack Management*. In the side navigation, select
-*Remote Clusters*.
+image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and ClusterB contains the follower index]
 
-Add a remote cluster by specifying the IP address or host name, followed by the
-transport port of the remote cluster.
+To configure a remote cluster from Stack Management in {kib}:
+
+. Select *Remote Clusters* from the side navigation.
+. Specify the IP address or host name of the remote cluster (ClusterB),
+followed by the transport port of the remote cluster (defaults to `9300`). For
+example, `192.168.1.1:9300`.
 
 [role="screenshot"]
 image::images/ccr-add-remote-cluster.png["The Add remote clusters page in {kib}"]
@@ -153,96 +160,39 @@ remote cluster.
     connected to.
 ====
 
-[[ccr-getting-started-leader-index]]
-==== Create a leader index
-To create a leader index, access {kib} on your _remote_ cluster and go to
-*Management > Dev Tools*.
-
-Copy the following example into the Console to create a leader index named
-`server-metrics` in your remote cluster:
-
-[%collapsible]
-.Leader index example
-====
-[source,console]
---------------------------------------------------
-PUT /server-metrics
-{
-  "settings" : {
-    "index" : {
-      "number_of_shards" : 1,
-      "number_of_replicas" : 0
-    }
-  },
-  "mappings" : {
-    "properties" : {
-      "@timestamp" : {
-        "type" : "date"
-      },
-      "accept" : {
-        "type" : "long"
-      },
-      "deny" : {
-        "type" : "long"
-      },
-      "host" : {
-        "type" : "keyword"
-      },
-      "response" : {
-        "type" : "float"
-      },
-      "service" : {
-        "type" : "keyword"
-      },
-      "total" : {
-        "type" : "long"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-====
-
 [[ccr-enable-soft-deletes]]
 ==== Enable soft deletes on leader indices
-<<ccr-leader-requirements,Soft deletes>> must be enabled for indices that you want to
-use as leader indices. Soft deletes are enabled by default on new indices
-created on or after {es} 7.0.0, so
-*no further action is required if your cluster is running {es} 7.0.0 or later*.
-
-include::{es-ref-dir}/ccr/index.asciidoc[tag=ccr-existing-indices-tag]
-
-To enable soft deletes on indices created on versions of
-{es} between 6.5.0 and 7.0.0, set <<ccr-index-soft-deletes,`index.soft_deletes.enabled`>> to `true`.
+To follow an index, it must have been created with
+<<ccr-leader-requirements,soft deletes>> enabled. If the index doesn’t have
+soft deletes enabled, you must reindex it and use the new index as the leader
+index. Soft deletes are enabled by default on new indices
+created with {es} 7.0.0 and later.
 
 [[ccr-getting-started-follower-index]]
-==== Create a follower index
-When you create a {kibana-ref}/managing-cross-cluster-replication.html#_create_specific_follower_indices[follower index], you
-must reference the
-<<ccr-getting-started-remote-cluster,remote cluster>> and the
-<<ccr-getting-started-leader-index,leader index>> that you created in the remote
-cluster.
+==== Create a follower index to replicate a specific index
+When you create a follower index, you reference the remote cluster and the
+leader index in your remote cluster.
 
-To create a follower index, access {kib} and go to
-*Management > Stack Management*. In the side navigation, select
-*Cross-Cluster Replication* and choose the *Follower Indices* tab.
+To create a follower index from Stack Management in {kib}:
 
-. Choose the remote cluster containing the index you want to replicate, which
-is `leader` if you are following the tutorial.
-. Enter the name of the leader index, which is `server-metrics` if you are
-following the tutorial.
+. Select *Cross-Cluster Replication* in the side navigation and choose the
+*Follower Indices* tab.
+. Choose the cluster (ClusterA) containing the leader index you want to
+replicate.
+. Enter the name of the leader index, which is
+`kibana_sample_data_ecommerce` if you are following the tutorial.
+. Enter a name for your follower index, such as `follower-kibana-sample-data`.
 
 image::images/ccr-add-follower-index.png["Adding a follower index named server-metrics in {kib}"]
 
-The follower index is initialized using the
+{es} initializes the follower using the
 <<ccr-remote-recovery, remote recovery>>
 process, which transfers the existing Lucene segment files from the leader
 index to the follower index. The index status changes to *Paused*. When the
 remote recovery process is complete, the index following begins and the status
 changes to *Active*.
 
-When you index documents into your leader index, the documents are replicated
+When you index documents into your leader index, {es} replicates the documents
 in the follower index.
 
 [role="screenshot"]
@@ -252,9 +202,8 @@ image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib
 .API example
 ====
 Use the <<ccr-put-follow,create follower API>> to create follower indices.
-When you create a follower index, you must reference the
-<<ccr-getting-started-remote-cluster,remote cluster>> and the
-<<ccr-getting-started-leader-index,leader index>> that you created in the
+When you create a follower index, you must reference the remote cluster and the
+leader index that you created in the
 remote cluster.
 
 When initiating the follower request, the response returns before the
@@ -304,37 +253,35 @@ POST /server-metrics-follower/_ccr/unfollow
 ====
 
 [[ccr-getting-started-auto-follow]]
-==== Automatically create follower indices
-Create <<ccr-auto-follow,auto-follow patterns>> to automatically follow time
-series indices that are periodically created in a remote cluster (such as daily
-{beats} indices).
+==== Create an auto-follow pattern to replicate time series indices
+You use <<ccr-auto-follow,auto-follow patterns>> to automatically create new
+followers for rolling time series indices. Whenever the name of a new index on
+the remote cluster matches the auto-follow pattern, a corresponding follower
+index is added to the local cluster.
 
-With an auto-follow pattern, you reference the
-<<ccr-getting-started-remote-cluster,remote cluster>> connected to your
-local cluster. You must also specify a collection of patterns that match the
-indices you want to automatically follow.
+An auto-follow pattern specifies the remote cluster you want to replicate from,
+and one or more index patterns that specify the rolling time series indices you
+want to replicate.
 
 // tag::ccr-create-auto-follow-pattern-tag[]
-To create follower indices from an {kibana-ref}/managing-cross-cluster-replication.html#_create_follower_indices_from_an_auto_follow_pattern[auto-follow pattern],
-access {kib} on your remote cluster and go to
-*Management > Stack Management*. In the side navigation, select
-*Cross Cluster Replication* and choose the *Auto-follow patterns* tab.
+To create an auto-follow pattern from Stack Management in {kib}:
 
-[role="screenshot"]
-image::images/auto-follow-patterns.png["The Auto-follow patterns page in {kib}"]
-
-* Enter a name for the auto-follow pattern. For this tutorial, enter `beats`
-as the name.
-* Choose the remote cluster containing the index you want to replicate, which
-is `leader` if you are following the tutorial.
-* Enter one or more index patterns that identify the indices you want to
-replicate from the remote cluster. For this tutorial, enter
-`metricbeat-*,packetbeat-*` as the index pattern.
-* Enter *copy-* as the prefix to apply to the names of the follower indices so
+. Select *Cross Cluster Replication* in the side navigation and choose the
+*Auto-follow patterns* tab.
+. Enter a name for the auto-follow pattern, such as `beats`.
+. Choose the remote cluster that contains the index you want to replicate,
+which in the example scenario is Cluster A.
+. Enter one or more index patterns that identify the indices you want to
+replicate from the remote cluster. For example, enter
+`metricbeat-* packetbeat-*` to automatically create followers for {metricbeat} and {packetbeat} indices.
+. Enter *follower-* as the prefix to apply to the names of the follower indices so
 you can more easily identify replicated indices.
 
 As new indices matching these patterns are
-created, they are replicated to the follower indices.
+created on the remote, {es} automatically replicates them to local follower indices.
+
+[role="screenshot"]
+image::images/auto-follow-patterns.png["The Auto-follow patterns page in {kib}"]
 
 // end::ccr-create-auto-follow-pattern-tag[]
 

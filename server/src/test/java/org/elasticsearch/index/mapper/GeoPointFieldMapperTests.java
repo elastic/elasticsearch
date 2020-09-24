@@ -56,6 +56,20 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         b.field("type", "geo_point");
     }
 
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(stringEncode(1.3, 1.2));
+    }
+
+    public final void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
     public void testGeoHashValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", stringEncode(1.3, 1.2))));
@@ -299,7 +313,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         );
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

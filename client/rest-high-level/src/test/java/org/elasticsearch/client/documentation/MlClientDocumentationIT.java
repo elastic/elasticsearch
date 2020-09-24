@@ -3694,11 +3694,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-trained-models-request
             GetTrainedModelsRequest request = new GetTrainedModelsRequest("my-trained-model") // <1>
                 .setPageParams(new PageParams(0, 1)) // <2>
-                .setIncludeDefinition(false) // <3>
-                .setDecompressDefinition(false) // <4>
-                .setAllowNoMatch(true) // <5>
-                .setTags("regression") // <6>
-                .setForExport(false); // <7>
+                .includeDefinition() // <3>
+                .includeTotalFeatureImportance() // <4>
+                .setDecompressDefinition(false) // <5>
+                .setAllowNoMatch(true) // <6>
+                .setTags("regression") // <7>
+                .setForExport(false); // <8>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

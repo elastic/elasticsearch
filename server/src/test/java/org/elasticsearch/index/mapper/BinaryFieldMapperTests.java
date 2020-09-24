@@ -36,8 +36,47 @@ import static org.hamcrest.Matchers.instanceOf;
 public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        final byte[] binaryValue = new byte[100];
+        binaryValue[56] = 1;
+        builder.value(binaryValue);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "binary");
+    }
+
+    public void testExistsQueryDocValuesEnabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", true);
+            if (randomBoolean()) {
+                b.field("store", randomBoolean());
+            }
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public void testExistsQueryStoreEnabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", true);
+            if (randomBoolean()) {
+                b.field("doc_values", false);
+            }
+        }));
+        assertExistsQuery(mapperService);
+    }
+
+    public void testExistsQueryStoreAndDocValuesDiabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", false);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
     }
 
     public void testDefaultMapping() throws Exception {

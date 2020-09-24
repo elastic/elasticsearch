@@ -44,7 +44,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
         ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME);
     private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME);
+        FreezeAction.NAME, SearchableSnapshotAction.NAME);
     private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME);
 
     private String lifecycleName;
@@ -79,6 +79,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                 WaitForSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
         ));
         return new NamedXContentRegistry(entries);
@@ -228,6 +230,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return SetPriorityActionTests.randomInstance();
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
+                case SearchableSnapshotAction.NAME:
+                    return SearchableSnapshotActionTests.randomInstance();
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
@@ -263,6 +267,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                 return WaitForSnapshotActionTests.randomInstance();
             case SetPriorityAction.NAME:
                 return SetPriorityActionTests.randomInstance();
+            case SearchableSnapshotAction.NAME:
+                return SearchableSnapshotActionTests.randomInstance();
             case UnfollowAction.NAME:
                 return new UnfollowAction();
             default:

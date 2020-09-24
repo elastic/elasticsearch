@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.esplugin'
 
@@ -15,7 +17,6 @@ dependencies {
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
-
 
 testClusters.all {
   // This is important, so that all the modules are available too.

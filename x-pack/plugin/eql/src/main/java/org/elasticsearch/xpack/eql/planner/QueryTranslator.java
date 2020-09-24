@@ -39,6 +39,8 @@ final class QueryTranslator {
             new ExpressionTranslators.BinaryComparisons(),
             new ExpressionTranslators.Ranges(),
             new BinaryLogic(),
+            new ExpressionTranslators.IsNotNulls(),
+            new ExpressionTranslators.IsNulls(),
             new ExpressionTranslators.Nots(),
             new ExpressionTranslators.Likes(),
             new ExpressionTranslators.InComparisons(),

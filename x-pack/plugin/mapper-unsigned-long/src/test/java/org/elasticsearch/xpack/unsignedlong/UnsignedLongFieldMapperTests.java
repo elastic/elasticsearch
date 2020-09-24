@@ -59,8 +59,10 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((UnsignedLongFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((UnsignedLongFieldMapper) m).ignoreMalformed())
+        );
     }
 
     public void testDefaults() throws Exception {

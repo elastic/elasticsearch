@@ -292,6 +292,12 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
     }
 
     @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((HyperLogLogPlusPlusFieldMapper)m).ignoreMalformed()));
+    }
+
+    @Override
     protected HyperLogLogPlusPlusFieldMapper.Builder newBuilder() {
         return new HyperLogLogPlusPlusFieldMapper.Builder(FIELD);
     }

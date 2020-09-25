@@ -196,6 +196,10 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
     }
 
+    public boolean ignoreMalformed() {
+        return ignoreMalformed.value();
+    }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;

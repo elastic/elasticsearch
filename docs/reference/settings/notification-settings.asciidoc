@@ -109,8 +109,8 @@ via email, see <<configuring-email-actions>>.
 Default email account to use.
 +
 If you configure multiple email accounts, you must either configure this setting
-or specify which account the email should be sent with in the
-<<actions-email,`email`>> action. See <<configuring-email>>.
+or specify the email account to use in the <<actions-email,`email`>> action. See
+<<configuring-email>>.
 
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
@@ -285,8 +285,8 @@ via Slack, see <<configuring-slack-actions>>.
 Default Slack account to use.
 +
 If you configure multiple Slack accounts, you must either configure this setting
-or specify which account the Slack message should be sent with in the
-<<actions-slack,`slack`>> action. See <<configuring-slack>>.
+or specify the Slack account to use in the <<actions-slack,`slack`>> action. See
+<<configuring-slack>>.
 
 [[slack-account-attributes]]
 `xpack.notification.slack.account`::
@@ -342,8 +342,8 @@ to create issues in Jira, see <<configuring-jira-actions>>.
 Default Jira account to use.
 +
 If you configure multiple Jira accounts, you must either configure this setting
-or specify which account is used to create Jira issues sent with in the
-<<actions-jira,`jira`>> action. See <<configuring-jira>>.
+or specify the Jira account to use in the <<actions-jira,`jira`>> action. See
+<<configuring-jira>>.
 
 [[jira-account-attributes]]
 `xpack.notification.jira.account`::
@@ -381,7 +381,7 @@ via PagerDuty, see <<configuring-pagerduty-actions>>.
 Default PagerDuty account to use.
 +
 If you configure multiple PagerDuty accounts, you must either configure this
-setting or specify which account is used to communicate with PagerDuty in the
+setting or specify the PagerDuty account to use in the
 <<actions-pagerduty,`pagerduty`>> action. See <<configuring-pagerduty>>.
 
 [[pagerduty-account-attributes]]

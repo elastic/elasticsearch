@@ -1,10 +1,8 @@
 [role="xpack"]
 [testenv="basic"]
+[discrete]
 [[ilm-index-lifecycle]]
-=== Index lifecycle
-++++
-<titleabbrev>Index lifecycle</titleabbrev>
-++++
+== Index lifecycle
 
 {ilm-init} defines four index lifecycle _phases_:
 

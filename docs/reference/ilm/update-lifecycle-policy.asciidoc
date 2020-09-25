@@ -1,10 +1,6 @@
-[role="xpack"]
-[testenv="basic"]
+[discrete]
 [[update-lifecycle-policy]]
-=== Lifecycle policy updates
-++++
-<titleabbrev>Policy updates</titleabbrev>
-++++
+== Lifecycle policy updates
 
 You can change how the lifecycle of an index or collection of rolling indices is managed
 by modifying the current policy or switching to a different policy. 

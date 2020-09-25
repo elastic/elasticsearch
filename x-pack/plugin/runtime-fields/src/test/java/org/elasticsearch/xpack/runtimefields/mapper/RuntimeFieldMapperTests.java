@@ -76,6 +76,11 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // TODO need to be able to pass a completely new config rather than updating minimal mapping
+    }
+
     public void testRuntimeTypeIsRequired() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

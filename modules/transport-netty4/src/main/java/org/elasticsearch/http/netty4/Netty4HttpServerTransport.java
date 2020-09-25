@@ -59,10 +59,9 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
@@ -286,6 +285,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final Netty4HttpServerTransport transport;
         private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
+        private final Netty4HttpResponseCreator responseCreator;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
@@ -293,6 +293,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             this.handlingSettings = handlingSettings;
             this.requestCreator =  new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.responseCreator = new Netty4HttpResponseCreator();
         }
 
         @Override
@@ -315,9 +316,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", requestCreator);
-            if (handlingSettings.isCorsEnabled()) {
-                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
-            }
+            ch.pipeline().addLast("response_creator", responseCreator);
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);

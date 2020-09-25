@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
+import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -120,8 +121,8 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "constant_keyword");
             b.field("value", 74);
         }));
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft
-            = (ConstantKeywordFieldMapper.ConstantKeywordFieldType) mapperService.fieldType("field");
+        ConstantKeywordFieldType ft
+            = (ConstantKeywordFieldType) mapperService.fieldType("field");
         assertEquals("74", ft.value());
     }
 
@@ -143,6 +144,23 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "constant_keyword");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("value", "foo"), m -> {
+            ConstantKeywordFieldType ft = (ConstantKeywordFieldType) m.fieldType();
+            assertEquals("foo", ft.value());
+        });
+        checker.registerConflictCheck("value",
+            fieldMapping(b -> {
+                b.field("type", "constant_keyword");
+                b.field("value", "foo");
+            }),
+            fieldMapping(b -> {
+                b.field("type", "constant_keyword");
+                b.field("value", "bar");
+            }));
     }
 
     public void testFetchValue() throws Exception {

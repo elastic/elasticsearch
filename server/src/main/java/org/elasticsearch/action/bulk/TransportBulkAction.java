@@ -373,11 +373,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
-        if (minNodeVersion.onOrAfter(Version.V_7_8_0)) {
-            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
-        } else {
-            client.admin().indices().create(createIndexRequest, listener);
-        }
+        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
@@ -440,6 +436,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
                 try {
+                    // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
+                    // an operation is allowed in index into a data stream, but this isn't done when resolve call is cached, so
+                    // the validation needs to be performed here too.
+                    IndexAbstraction indexAbstraction = clusterState.getMetadata().getIndicesLookup().get(concreteIndex.getName());
+                    if (indexAbstraction.getParentDataStream() != null &&
+                        // avoid valid cases when directly indexing into a backing index
+                        // (for example when directly indexing into .ds-logs-foobar-000001)
+                        concreteIndex.getName().equals(docWriteRequest.index()) == false &&
+                        docWriteRequest.opType() != DocWriteRequest.OpType.CREATE) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    }
+
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:

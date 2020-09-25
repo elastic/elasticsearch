@@ -64,7 +64,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexed = true;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo = CopyTo.empty();
-        protected float boost = 1.0f;
         protected Map<String, String> meta = Collections.emptyMap();
         // TODO move to KeywordFieldMapper.Builder
         protected boolean eagerGlobalOrdinals;
@@ -125,11 +124,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
-        }
-
-        public T boost(float boost) {
-            this.boost = boost;
             return builder;
         }
 
@@ -400,7 +394,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
         }
         if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
@@ -452,10 +446,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-
-        if (includeDefaults || fieldType().boost() != 1.0f) {
-            builder.field("boost", fieldType().boost());
-        }
 
         if (includeDefaults || mappedFieldType.isSearchable() != indexedByDefault()) {
             builder.field("index", mappedFieldType.isSearchable());

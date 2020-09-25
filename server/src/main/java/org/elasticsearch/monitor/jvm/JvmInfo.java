@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -272,13 +271,8 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            bundledJdk = in.readBoolean();
-            usingBundledJdk = in.readOptionalBoolean();
-        } else {
-            bundledJdk = false;
-            usingBundledJdk = null;
-        }
+        bundledJdk = in.readBoolean();
+        usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -308,10 +302,8 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(bundledJdk);
-            out.writeOptionalBoolean(usingBundledJdk);
-        }
+        out.writeBoolean(bundledJdk);
+        out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {

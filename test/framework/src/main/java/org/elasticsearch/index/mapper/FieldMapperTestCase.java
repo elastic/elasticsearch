@@ -93,10 +93,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
         }),
-        new Modifier("boost", true, (a, b) -> {
-           a.boost(1.1f);
-           b.boost(1.2f);
-        }),
         new Modifier("doc_values", false, (a, b) -> {
             a.docValues(true);
             b.docValues(false);

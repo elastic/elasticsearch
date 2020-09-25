@@ -56,6 +56,18 @@ public class TransformStatsTests extends AbstractResponseTestCase<
         );
     }
 
+    public static void assertHlrcEquals(
+        org.elasticsearch.xpack.core.transform.transforms.TransformStats serverTestInstance,
+        TransformStats clientInstance
+    ) {
+        assertThat(serverTestInstance.getId(), equalTo(clientInstance.getId()));
+        assertThat(serverTestInstance.getState().value(), equalTo(clientInstance.getState().value()));
+        assertTransformIndexerStats(serverTestInstance.getIndexerStats(), clientInstance.getIndexerStats());
+        assertTransformCheckpointInfo(serverTestInstance.getCheckpointingInfo(), clientInstance.getCheckpointingInfo());
+        assertNodeAttributes(serverTestInstance.getNode(), clientInstance.getNode());
+        assertThat(serverTestInstance.getReason(), equalTo(clientInstance.getReason()));
+    }
+
     @Override
     protected org.elasticsearch.xpack.core.transform.transforms.TransformStats createServerTestInstance(XContentType xContentType) {
         return new org.elasticsearch.xpack.core.transform.transforms.TransformStats(
@@ -78,15 +90,10 @@ public class TransformStatsTests extends AbstractResponseTestCase<
         org.elasticsearch.xpack.core.transform.transforms.TransformStats serverTestInstance,
         TransformStats clientInstance
     ) {
-        assertThat(serverTestInstance.getId(), equalTo(clientInstance.getId()));
-        assertThat(serverTestInstance.getState().value(), equalTo(clientInstance.getState().value()));
-        assertTransformIndexerStats(serverTestInstance.getIndexerStats(), clientInstance.getIndexerStats());
-        assertTransformCheckpointInfo(serverTestInstance.getCheckpointingInfo(), clientInstance.getCheckpointingInfo());
-        assertNodeAttributes(serverTestInstance.getNode(), clientInstance.getNode());
-        assertThat(serverTestInstance.getReason(), equalTo(clientInstance.getReason()));
+        assertHlrcEquals(serverTestInstance, clientInstance);
     }
 
-    private void assertNodeAttributes(
+    private static void assertNodeAttributes(
         org.elasticsearch.xpack.core.transform.transforms.NodeAttributes serverTestInstance,
         NodeAttributes clientInstance
     ) {

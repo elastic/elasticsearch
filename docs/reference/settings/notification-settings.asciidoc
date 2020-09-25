@@ -106,6 +106,13 @@ You can configure the following email notification settings in
 `elasticsearch.yml`. For more information about sending notifications
 via email, see <<configuring-email-actions>>.
 
+`xpack.notification.email.default_account`::
+Default email account to use.
++
+If you configure multiple email accounts, you must either configure this setting
+or specify which account the email should be sent with in the
+<<actions-email,`email`>> action. See <<configuring-email>>.
+
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
@@ -209,8 +216,8 @@ specify individual HTML elements and the following HTML feature groups:
 
 `_tables`::
 (<<static-cluster-setting,Static>>)
-All table related elements: `<table>`, `<th>`, `<tr>`
-and `<td>`.
+All table related elements: `<caption>`, `<col>`, `<colgroup>`, `<table>`,
+`<tbody>`, `<td>`, `<tfoot>`, `<th>`, `<thead>`, and `<tr>`.
 
 `_blocks`::
 (<<static-cluster-setting,Static>>)
@@ -223,7 +230,7 @@ The following block elements: `<p>`, `<div>`, `<h1>`,
 The following inline formatting elements: `<b>`, `<i>`,
 `<s>`, `<u>`, `<o>`, `<sup>`, `<sub>`, `<ins>`, `<del>`,
 `<strong>`, `<strike>`, `<tt>`, `<code>`, `<big>`,
-`<small>`, `<br>`, `<span>`, and `<em>`.
+`<small>`, `<hr>`, `<br>`, `<span>`, and `<em>`.
 
 `_links`::
 (<<static-cluster-setting,Static>>)
@@ -286,27 +293,27 @@ via Slack. You can specify the following Slack account attributes:
 The Incoming Webhook URL to use to post messages to Slack. Required.
 
 `message_defaults.from`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 The sender name to display in the
 Slack message. Defaults to the watch ID.
 
 `message_defaults.to`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 The default Slack channels or groups you
 want to send messages to.
 
 `message_defaults.icon`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 The icon to display in the Slack messages.
 Overrides the incoming webhook's configured
 icon. Accepts a public URL to an image.
 
 `message_defaults.text`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 The default message content.
 
 `message_defaults.attachment`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 Default message attachments. Slack message attachments
 enable you to create more richly-formatted messages.
 Specified as an array as defined in the
@@ -341,7 +348,7 @@ The name of the user to connect to the Jira Software server. Required.
 The password of the user to connect to the Jira Software server. Required.
 
 `issue_defaults`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 Default fields values for the issue created in Jira. See
 <<jira-action-attributes>> for more information.
 Optional.
@@ -379,30 +386,30 @@ Optional.
 +
 --
 `description`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 A string that contains the default description for PagerDuty events.
 If no default is configured, each PagerDuty action must specify a
 `description`.
 
 `incident_key`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 A string that contains the default incident key to use when sending
 PagerDuty events.
 
 `client`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 A string that specifies the default monitoring client.
 
 `client_url`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 The URL of the default monitoring client.
 
 `event_type`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
 
 `attach_payload`::
-(<<static-cluster-setting,Static>>)
+(<<dynamic-cluster-setting,Dynamic>>)
 Whether or not to provide the watch payload as context for
 the event by default. Valid values: `true`, `false`.
 --

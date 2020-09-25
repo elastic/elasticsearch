@@ -351,7 +351,7 @@ Specifies account information for using notifications to create
 issues in Jira. You can specify the following Jira account attributes:
 +
 --
-`allow_http::
+`allow_http`::
 (<<dynamic-cluster-setting,Dynamic>>)
 If `false`, Watcher rejects URL settings that use a HTTP protocol. Defaults to
 `false`.

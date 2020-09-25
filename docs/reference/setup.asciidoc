@@ -28,6 +28,10 @@ https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
 within each distribution. The bundled JVM is the recommended JVM and
 is located within the `jdk` directory of the Elasticsearch home directory.
 
+WARNING: The bundled JVM requires glibc 2.14+. CentoOS 6 and Oracle Enterprise Linux 6
+have an outdated version of glibc, so on those platforms you must use your
+own version of Java, version 14 or older.
+
 To use your own version of Java, set the `JAVA_HOME` environment variable.
 If you must use a version of Java that is different from the bundled JVM,
 we recommend using a link:/support/matrix[supported]

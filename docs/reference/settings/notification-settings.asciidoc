@@ -21,7 +21,6 @@ For more information about creating and updating the {es} keystore, see
 <<cluster-update-settings,cluster update settings API>>.
 // end::notification-settings-description-tag[]
 
-[discrete]
 [[general-notification-settings]]
 ==== General Watcher Settings
 `xpack.watcher.enabled`::
@@ -99,7 +98,6 @@ corresponding endpoints are explicitly allowed as well.
 
 include::ssl-settings.asciidoc[]
 
-[discrete]
 [[email-notification-settings]]
 ==== Email Notification Settings
 You can configure the following email notification settings in
@@ -107,6 +105,7 @@ You can configure the following email notification settings in
 via email, see <<configuring-email-actions>>.
 
 `xpack.notification.email.default_account`::
+(<<dynamic-cluster-setting,Dynamic>>)
 Default email account to use.
 +
 If you configure multiple email accounts, you must either configure this setting
@@ -274,45 +273,56 @@ Defaults to `true`.
 
 include::ssl-settings.asciidoc[]
 
-[discrete]
 [[slack-notification-settings]]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
 via Slack, see <<configuring-slack-actions>>.
 
-`xpack.notification.slack` ::
+
+`xpack.notification.slack.default_account`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Default Slack account to use.
++
+If you configure multiple Slack accounts, you must either configure this setting
+or specify which account the Slack message should be sent with in the
+<<actions-slack,`slack`>> action. See <<configuring-slack>>.
+
+[[slack-account-attributes]]
+`xpack.notification.slack.account`::
 Specifies account information for sending notifications
 via Slack. You can specify the following Slack account attributes:
 +
 --
-[[slack-account-attributes]]
-
 `secure_url`::
 (<<secure-settings,Secure>>)
 The Incoming Webhook URL to use to post messages to Slack. Required.
 
-`message_defaults.from`::
+`message_defaults`::
+Default values for
+<<slack-action-attributes,Slack message attributes>>.
+
+`from`:::
 (<<dynamic-cluster-setting,Dynamic>>)
 The sender name to display in the
 Slack message. Defaults to the watch ID.
 
-`message_defaults.to`::
+`to`:::
 (<<dynamic-cluster-setting,Dynamic>>)
 The default Slack channels or groups you
 want to send messages to.
 
-`message_defaults.icon`::
+`icon`:::
 (<<dynamic-cluster-setting,Dynamic>>)
 The icon to display in the Slack messages.
 Overrides the incoming webhook's configured
 icon. Accepts a public URL to an image.
 
-`message_defaults.text`::
+`text`:::
 (<<dynamic-cluster-setting,Dynamic>>)
 The default message content.
 
-`message_defaults.attachment`::
+`attachment`:::
 (<<dynamic-cluster-setting,Dynamic>>)
 Default message attachments. Slack message attachments
 enable you to create more richly-formatted messages.
@@ -321,20 +331,26 @@ https://api.slack.com/docs/attachments[
 Slack attachments documentation].
 --
 
-[discrete]
 [[jira-notification-settings]]
 ==== Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
 to create issues in Jira, see <<configuring-jira-actions>>.
 
-`xpack.notification.jira` ::
+`xpack.notification.jira.default_account`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Default Jira account to use.
++
+If you configure multiple Jira accounts, you must either configure this setting
+or specify which account is used to create Jira issues sent with in the
+<<actions-jira,`jira`>> action. See <<configuring-jira>>.
+
+[[jira-account-attributes]]
+`xpack.notification.jira.account`::
 Specifies account information for using notifications to create
 issues in Jira. You can specify the following Jira account attributes:
 +
 --
-[[jira-account-attributes]]
-
 `secure_url`::
 (<<secure-settings,Secure>>)
 The URL of the Jira Software server. Required.
@@ -354,18 +370,24 @@ Default fields values for the issue created in Jira. See
 Optional.
 --
 
-[discrete]
 [[pagerduty-notification-settings]]
 ==== PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in
 `elasticsearch.yml`. For more information about sending notifications
 via PagerDuty, see <<configuring-pagerduty-actions>>.
 
+`xpack.notification.pagerduty.default_account`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Default PagerDuty account to use.
++
+If you configure multiple PagerDuty accounts, you must either configure this
+setting or specify which account is used to communicate with PagerDuty in the
+<<actions-pagerduty,`pagerduty`>> action. See <<configuring-pagerduty>>.
 
 [[pagerduty-account-attributes]]
-`xpack.notification.pagerduty`::
-Specifies account information for sending notifications
-via PagerDuty. You can specify the following PagerDuty account attributes:
+`xpack.notification.pagerduty.account`::
+Specifies account information for sending notifications via PagerDuty. You can
+specify the following PagerDuty account attributes:
 +
 --
 `name`::

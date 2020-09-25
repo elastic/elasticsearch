@@ -43,7 +43,7 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
     public void testBasic()  {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
         HyperLogLogPlusPlusSparse sparse  = new HyperLogLogPlusPlusSparse(p, BigArrays.NON_RECYCLING_INSTANCE, 10, 1);
-        AbstractLinearCounting.HashesIterator iterator = sparse.getLinearCounting(randomIntBetween(1, 10));
+        AbstractLinearCounting.EncodedHashesIterator iterator = sparse.getLinearCounting(randomIntBetween(1, 10));
         assertEquals(0, iterator.size());
         IllegalArgumentException ex =
             expectThrows(IllegalArgumentException.class, () -> sparse.getHyperLogLog(randomIntBetween(1, 10)));

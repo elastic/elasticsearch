@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import com.carrotsearch.hppc.ByteArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -45,14 +46,16 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
+import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.HllValue;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.HllValues;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHllFieldData;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.LeafHllFieldData;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValue;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValues;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHyperLogLogPlusPlusFieldData;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.LeafHyperLogLogPlusPlusFieldData;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -64,10 +67,10 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
- * Field Mapper for pre-aggregated HyperLogLog sketches.
+ * Field Mapper for pre-aggregated HyperLogLogPlusPlus sketches.
  */
-public class HllFieldMapper extends FieldMapper {
-    public static final String CONTENT_TYPE = "hll";
+public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
+    public static final String CONTENT_TYPE = "hll++";
 
     public static class Names {
         public static final String IGNORE_MALFORMED = "ignore_malformed";
@@ -86,9 +89,8 @@ public class HllFieldMapper extends FieldMapper {
         }
     }
 
-    public static final ParseField SKETCH_FIELD = new ParseField("sketch");
-
-
+    public static final ParseField HLL_FIELD = new ParseField("hll");
+    public static final ParseField LC_FIELD = new ParseField("lc");
 
     public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
@@ -105,11 +107,11 @@ public class HllFieldMapper extends FieldMapper {
         }
 
         public Builder precision(int precision) {
-            if (precision < 4) {
-                throw new IllegalArgumentException("precision must be >= 4");
+            if (precision < AbstractHyperLogLogPlusPlus.MIN_PRECISION) {
+                throw new IllegalArgumentException("precision must be >= " + AbstractHyperLogLogPlusPlus.MIN_PRECISION);
             }
-            if (precision > 18) {
-                throw new IllegalArgumentException("precision must be <= 18");
+            if (precision > AbstractHyperLogLogPlusPlus.MAX_PRECISION) {
+                throw new IllegalArgumentException("precision must be <= " + AbstractHyperLogLogPlusPlus.MAX_PRECISION);
             }
             this.precision = precision;
             return builder;
@@ -122,22 +124,23 @@ public class HllFieldMapper extends FieldMapper {
             if (context.indexSettings() != null) {
                 return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
             }
-            return HllFieldMapper.Defaults.IGNORE_MALFORMED;
+            return HyperLogLogPlusPlusFieldMapper.Defaults.IGNORE_MALFORMED;
         }
 
         protected Explicit<Integer> precision() {
             if (precision != null) {
                 return new Explicit<>(precision, true);
             }
-            return HllFieldMapper.Defaults.PRECISION;
+            return HyperLogLogPlusPlusFieldMapper.Defaults.PRECISION;
         }
 
         @Override
-        public HllFieldMapper build(BuilderContext context) {
+        public HyperLogLogPlusPlusFieldMapper build(BuilderContext context) {
             Explicit<Boolean> ignoreMalformed = ignoreMalformed(context);
-            final HllFieldType mappedFieldType
-                = new HllFieldType(buildFullName(context), hasDocValues, precision().value(), ignoreMalformed.value(), meta);
-            return new HllFieldMapper(name, fieldType, mappedFieldType, multiFieldsBuilder.build(this, context),
+            final HyperLogLogPlusPlusFieldType mappedFieldType
+                = new HyperLogLogPlusPlusFieldType(buildFullName(context),
+                hasDocValues, precision().value(), ignoreMalformed.value(), meta);
+            return new HyperLogLogPlusPlusFieldMapper(name, fieldType, mappedFieldType, multiFieldsBuilder.build(this, context),
                 ignoreMalformed, precision(), copyTo);
         }
     }
@@ -146,7 +149,7 @@ public class HllFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
-            Builder builder = new HllFieldMapper.Builder(name);
+            Builder builder = new HyperLogLogPlusPlusFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
@@ -170,9 +173,9 @@ public class HllFieldMapper extends FieldMapper {
     protected Explicit<Integer> precision;
     private int m;
 
-    public HllFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                          MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                          Explicit<Integer> precision, CopyTo copyTo) {
+    public HyperLogLogPlusPlusFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                          MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                          Explicit<Integer> precision, CopyTo copyTo) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.precision = precision;
@@ -181,12 +184,12 @@ public class HllFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        HllFieldMapper gpfmMergeWith = (HllFieldMapper) other;
+        HyperLogLogPlusPlusFieldMapper gpfmMergeWith = (HyperLogLogPlusPlusFieldMapper) other;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }
         if (precision.value() != gpfmMergeWith.precision.value()) {
-            conflicts.add("mapper [" + name() + "] has different [precision]");
+            conflicts.add("mapper [" + name() + "] has different [" + Names.PRECISION + "]");
         } else if (precision.explicit() == false && gpfmMergeWith.precision.explicit()) {
             this.precision = gpfmMergeWith.precision;
             this.m = 1 << precision.value();
@@ -216,13 +219,14 @@ public class HllFieldMapper extends FieldMapper {
         };
     }
 
-    public static class HllFieldType extends MappedFieldType {
+    public static class HyperLogLogPlusPlusFieldType extends MappedFieldType {
 
         private final int precision;
         private final boolean ignoreMalformed;
 
-        public HllFieldType(String name, boolean hasDocValues, int precision, boolean ignoreMalformed, Map<String, String> meta) {
-            super(name, false, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public HyperLogLogPlusPlusFieldType(String name, boolean hasDocValues, int precision,
+                                            boolean ignoreMalformed, Map<String, String> meta) {
+            super(name, false, false, hasDocValues, TextSearchInfo.NONE, meta);
             this.precision = precision;
             this.ignoreMalformed = ignoreMalformed;
         }
@@ -244,19 +248,19 @@ public class HllFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return (cache, breakerService, mapperService) ->
-                new IndexHllFieldData(name(), AnalyticsValuesSourceType.CARDINALITY) {
+                new IndexHyperLogLogPlusPlusFieldData(name(), AnalyticsValuesSourceType.HYPERLOGLOGPLUSPLUS) {
 
                 @Override
-                public LeafHllFieldData load(LeafReaderContext context) {
+                public LeafHyperLogLogPlusPlusFieldData load(LeafReaderContext context) {
 
-                    return new LeafHllFieldData() {
+                    return new LeafHyperLogLogPlusPlusFieldData() {
                         @Override
-                        public HllValues getHllValues() throws IOException {
+                        public HyperLogLogPlusPlusValues getHllValues() throws IOException {
                             try {
                                 final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
                                 final ByteArrayDataInput dataInput = new ByteArrayDataInput();
-                                final HLLDocValuesBuilder builder = new HLLDocValuesBuilder();
-                                return new HllValues() {
+                                final HyperLogLogPlusPlusDocValuesBuilder builder = new HyperLogLogPlusPlusDocValuesBuilder(precision);
+                                return new HyperLogLogPlusPlusValues() {
 
                                     @Override
                                     public boolean advanceExact(int doc) throws IOException {
@@ -264,7 +268,7 @@ public class HllFieldMapper extends FieldMapper {
                                     }
 
                                     @Override
-                                    public HllValue hllValue() throws IOException {
+                                    public HyperLogLogPlusPlusValue hllValue() throws IOException {
                                         try {
                                             BytesRef bytesRef = values.binaryValue();
                                             dataInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
@@ -304,7 +308,7 @@ public class HllFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public LeafHllFieldData loadDirect(LeafReaderContext context) throws Exception {
+                public LeafHyperLogLogPlusPlusFieldData loadDirect(LeafReaderContext context) {
                     return load(context);
                 }
 
@@ -342,7 +346,7 @@ public class HllFieldMapper extends FieldMapper {
         @Override
         public boolean equals(Object o) {
             if (!super.equals(o)) return false;
-            HllFieldType that = (HllFieldType) o;
+            HyperLogLogPlusPlusFieldType that = (HyperLogLogPlusPlusFieldType) o;
             return precision == that.precision;
         }
 
@@ -357,6 +361,10 @@ public class HllFieldMapper extends FieldMapper {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
+        if (context.doc().getByKey(fieldType().name()) != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                "] doesn't not support indexing multiple values for the same field in the same document");
+        }
         context.path().add(simpleName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -367,6 +375,7 @@ public class HllFieldMapper extends FieldMapper {
                 return;
             }
             ByteArrayList runLens = null;
+            IntArrayList hashes = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
@@ -375,32 +384,44 @@ public class HllFieldMapper extends FieldMapper {
                 // should be a field
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
-                if (fieldName.equals(SKETCH_FIELD.getPreferredName())) {
+                if (fieldName.equals(HLL_FIELD.getPreferredName())) {
+                    if (hashes != null) {
+                        throw new MapperParsingException("error parsing field ["
+                            + name() + "], expected only one field from ["
+                            + HLL_FIELD.getPreferredName() + "] and [" + LC_FIELD + "]");
+                    }
                     runLens = parseHLLSketch(subParser);
+                } else if (fieldName.equals(LC_FIELD.getPreferredName())) {
+                    if (runLens != null) {
+                        throw new MapperParsingException("error parsing field ["
+                            + name() + "], expected only one field from ["
+                            + HLL_FIELD.getPreferredName() + "] and [" + LC_FIELD + "]");
+                    }
+                    hashes = parseLCSketch(subParser);
                 } else {
                     throw new MapperParsingException("error parsing field [" +
                         name() + "], with unknown parameter [" + fieldName + "]");
                 }
                 token = subParser.nextToken();
             }
-            if (runLens == null) {
+            if (runLens == null && hashes == null) {
                 throw new MapperParsingException("error parsing field ["
-                    + name() + "], expected field called [" + SKETCH_FIELD.getPreferredName() + "]");
+                    + name() + "], expected field called [" + HLL_FIELD.getPreferredName() + "]");
             }
-            if (runLens.size() != m) {
+            if (runLens != null  && runLens.size() != m) {
                 throw new MapperParsingException("error parsing field ["
-                    + name() + "], expected length from [" + SKETCH_FIELD.getPreferredName() +"] is " + m + ""
+                    + name() + "], expected length from [" + HLL_FIELD.getPreferredName() +"] is " + m + ""
                     + ", got [" + runLens.size() + "]");
             }
             if (fieldType().hasDocValues()) {
                 final ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
-                HLLDocValuesBuilder.writeCompressed(runLens, dataOutput);
+                if (runLens != null) {
+                    HyperLogLogPlusPlusDocValuesBuilder.writeHLL(runLens, dataOutput);
+                } else {
+                    HyperLogLogPlusPlusDocValuesBuilder.writeLC(hashes, dataOutput);
+                }
                 final BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
                 final Field field = new BinaryDocValuesField(name(), docValue);
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] doesn't not support indexing multiple values for the same field in the same document");
-                }
                 context.doc().addWithKey(fieldType().name(), field);
             }
 
@@ -423,24 +444,50 @@ public class HllFieldMapper extends FieldMapper {
         XContentParser.Token token = subParser.nextToken();
         // should be an array
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-        ByteArrayList runLens = new ByteArrayList(m);
+        final ByteArrayList runLens = new ByteArrayList(m);
         token = subParser.nextToken();
         while (token != XContentParser.Token.END_ARRAY) {
             // should be a number
             ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-            int newValue = subParser.intValue();
-            if (newValue < 0) {
+            final int runLen = subParser.intValue();
+            if (runLen < 0) {
                 throw new MapperParsingException("error parsing field ["
-                    + name() + "], ["+ SKETCH_FIELD + "] elements must be >= 0 but got " + newValue);
+                    + name() + "], ["+ HLL_FIELD + "] elements must be >= 0 but got " + runLen);
             }
-            if (newValue > Byte.MAX_VALUE) { // is that correct? what is the real max value for a runLen?
+            if (runLen > Byte.MAX_VALUE) { // is that correct? what is the real max value for a runLen?
                 throw new MapperParsingException("error parsing field ["
-                    + name() + "], ["+ SKETCH_FIELD + "] elements must be <= " + Byte.MAX_VALUE + " but got " + newValue);
+                    + name() + "], ["+ HLL_FIELD + "] elements must be <= " + Byte.MAX_VALUE + " but got " + runLen);
             }
-            runLens.add((byte) newValue);
+            runLens.add((byte) runLen);
             token = subParser.nextToken();
         }
         return runLens;
+    }
+
+    private IntArrayList parseLCSketch(XContentSubParser subParser) throws IOException {
+        XContentParser.Token token = subParser.nextToken();
+        // should be an array
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
+        final IntArrayList hashes = new IntArrayList();
+        token = subParser.nextToken();
+        while (token != XContentParser.Token.END_ARRAY) {
+            // should be a number
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
+            final int encodedHash = subParser.intValue();
+            if (encodedHash == 0) {
+                throw new MapperParsingException("error parsing field ["
+                    + name() + "], ["+ LC_FIELD + "] cannot be 0");
+            }
+            final int register = AbstractHyperLogLog.decodeIndex(encodedHash, precision.value());
+            final int runLen = AbstractHyperLogLog.decodeRunLen(encodedHash, precision.value());
+            if (register < 0 || register >= m || runLen < 0 || runLen > Byte.MAX_VALUE) {
+                throw new MapperParsingException("error parsing field ["
+                    + name() + "], ["+ LC_FIELD + "] value is invalid for [" + encodedHash + "]");
+            }
+            hashes.add(subParser.intValue());
+            token = subParser.nextToken();
+        }
+        return hashes;
     }
 
     @Override

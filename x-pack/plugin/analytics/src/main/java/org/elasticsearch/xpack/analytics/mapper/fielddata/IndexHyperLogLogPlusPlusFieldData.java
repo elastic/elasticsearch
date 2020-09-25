@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.analytics.mapper.fielddata;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-public abstract class IndexHllFieldData implements IndexFieldData<LeafHllFieldData> {
+public abstract class IndexHyperLogLogPlusPlusFieldData implements IndexFieldData<LeafHyperLogLogPlusPlusFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    public IndexHllFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    public IndexHyperLogLogPlusPlusFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
     }

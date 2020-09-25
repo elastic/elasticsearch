@@ -717,6 +717,38 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         120000,
         350000 };
 
+    // TODO: This is weird, as it represents the real values when precision of the algorithm is
+    // changed in respect to the provided threshold
+    private static final long[] HLLPRECISIONTOTHRESHOLDS = new long[] {
+        2,
+        5,
+        11,
+        23,
+        47,
+        95,
+        191,
+        383,
+        767,
+        1535,
+        3071,
+        6143,
+        12287,
+        24575,
+        350000 };
+
+    /**
+     * Compute the required threshold for the given precision.
+     */
+    public static long thresholdFromPrecision(int precision) {
+        if (precision < AbstractHyperLogLog.MIN_PRECISION) {
+            throw new IllegalArgumentException("Min precision is " + AbstractHyperLogLog.MIN_PRECISION + ", got " + precision);
+        }
+        if (precision > AbstractHyperLogLog.MAX_PRECISION) {
+            throw new IllegalArgumentException("Max precision is " + AbstractHyperLogLog.MAX_PRECISION + ", got " + precision);
+        }
+        return HLLPRECISIONTOTHRESHOLDS[precision - 4];
+    }
+
     protected final int m;
     private final double alphaMM;
 
@@ -743,7 +775,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
     protected abstract void addRunLen(long bucketOrd, int register, int runLen);
 
     /** Returns an iterator over all values of the register. */
-    protected abstract RunLenIterator getRunLens(long bucketOrd);
+    public abstract RunLenIterator getRunLens(long bucketOrd);
 
     public void collect(long bucketOrd, long hash) {
         final int index = Math.toIntExact(index(hash, p));
@@ -792,7 +824,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         return 1 + Math.min(Long.numberOfLeadingZeros(hash << p), 64 - p);
     }
 
-    static int decodeRunLen(int encoded, int p) {
+    public static int decodeRunLen(int encoded, int p) {
         if ((encoded & 1) == 1) {
             return (((encoded >>> 1) & 0x3F) + (P2 - p));
         } else {
@@ -802,7 +834,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         }
     }
 
-    static int decodeIndex(int encoded, int p) {
+    public static int decodeIndex(int encoded, int p) {
         long index;
         if ((encoded & 1) == 1) {
             index = encoded >>> 7;
@@ -857,6 +889,12 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
     public interface RunLenIterator {
 
         /**
+         * Precisions of the HyperLogLog structure.
+         * @return the precision
+         */
+        int precision();
+
+        /**
          * Moves the iterator to the next element if it exists.
          * @return true if there is a next register, else false.
          */
@@ -867,5 +905,11 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
          * @return the current value of the register.
          */
         byte value();
+
+        /**
+         * Skips over and discards n bytes of data from this HLL value.
+         * @param registers the number of registers to skip
+         */
+        void skip(int registers);
     }
 }

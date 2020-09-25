@@ -112,17 +112,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     @Override
-    protected boolean getAlgorithm(long bucketOrd) {
+    public boolean getAlgorithm(long bucketOrd) {
         return algorithm.get(bucketOrd);
     }
 
     @Override
-    protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
+    public AbstractLinearCounting.EncodedHashesIterator getLinearCounting(long bucketOrd) {
         return lc.values(bucketOrd);
     }
 
     @Override
-    protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
+    public AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
         return hll.getRunLens(bucketOrd);
     }
 
@@ -153,7 +153,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     void upgradeToHll(long bucketOrd) {
         hll.ensureCapacity(bucketOrd + 1);
-        final AbstractLinearCounting.HashesIterator hashes = lc.values(bucketOrd);
+        final AbstractLinearCounting.EncodedHashesIterator hashes = lc.values(bucketOrd);
         // We need to copy values into an arrays as we will override
         // the values on the buffer
         final IntArray values = lc.bigArrays.newIntArray(hashes.size());
@@ -175,10 +175,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     public void merge(long thisBucket, AbstractHyperLogLogPlusPlus other, long otherBucket) {
-        if (precision() != other.precision()) {
-            throw new IllegalArgumentException();
-        }
-        hll.ensureCapacity(thisBucket + 1);
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
             merge(thisBucket, other.getLinearCounting(otherBucket));
         } else {
@@ -186,15 +182,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
-    public void merge(long thisBucket, AbstractHyperLogLog other, long otherBucket) {
-        if (precision() != other.precision()) {
+    public void merge(long thisBucket, AbstractLinearCounting.EncodedHashesIterator values) {
+        if (precision() == values.precision()) {
+            mergeEqualPrecision(thisBucket, values);
+        } else if (precision() < values.precision()) {
+            mergeDifferentPrecision(thisBucket, values);
+        } else {
             throw new IllegalArgumentException();
         }
-        hll.ensureCapacity(thisBucket + 1);
-        merge(thisBucket, other.getRunLens(otherBucket));
     }
 
-    private void merge(long thisBucket, AbstractLinearCounting.HashesIterator values) {
+    private void mergeEqualPrecision(long thisBucket, AbstractLinearCounting.EncodedHashesIterator values) {
+        hll.ensureCapacity(thisBucket + 1);
         while (values.next()) {
             final int encoded = values.value();
             if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
@@ -208,7 +207,56 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    private void mergeDifferentPrecision(long thisBucket, AbstractLinearCounting.EncodedHashesIterator values) {
+        hll.ensureCapacity(thisBucket + 1);
+        while (values.next()) {
+            final int encoded = adjustEncodedHashPrecision(values.value(), values.precision(), precision());
+            if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
+                final int newSize = lc.addEncoded(thisBucket, encoded);
+                if (newSize > lc.threshold) {
+                    upgradeToHll(thisBucket);
+                }
+            } else {
+                hll.collectEncoded(thisBucket, encoded);
+            }
+        }
+    }
+
+    /**
+     * Changes the precision of an Linear counting encoded hash.
+     *
+     * @param encoded the encoded hash.
+     * @param thisPrecision The precision of the given hash.
+     * @param newPrecision  THe new precision. It must lower or equal to the precision of the hash.
+     * @return The transformed encoded hash.
+     */
+    private static int adjustEncodedHashPrecision(int encoded, int thisPrecision, int newPrecision) {
+        assert thisPrecision >= newPrecision;
+        if (Integer.numberOfTrailingZeros(encoded) > 0 ||
+            (encoded & LinearCounting.mask(32 - thisPrecision)) == (encoded & LinearCounting.mask(32 - newPrecision))) {
+            // If the trailing bit is not set or masking the leading bits for the given precision
+            // does not change the value, then there is nothing to do
+            return encoded;
+        } else {
+            // Any of the bits for the new precision is set so we remove the trailing bits the
+            // encoding has added
+            return encoded >>> 6;
+        }
+
+    }
+
     public void merge(long thisBucket, AbstractHyperLogLog.RunLenIterator runLens) {
+        if (precision() == runLens.precision()) {
+            mergeEqualPrecision(thisBucket, runLens);
+        } else if (precision() < runLens.precision()) {
+            mergeDifferentPrecision(thisBucket, runLens);
+        } else {
+            throw new IllegalArgumentException();
+        }
+    }
+
+    private void mergeEqualPrecision(long thisBucket, AbstractHyperLogLog.RunLenIterator runLens) {
+        hll.ensureCapacity(thisBucket + 1);
         if (algorithm.get(thisBucket) != HYPERLOGLOG) {
             upgradeToHll(thisBucket);
         }
@@ -216,6 +264,46 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             runLens.next();
             hll.addRunLen(thisBucket, i, runLens.value());
         }
+    }
+
+    private void mergeDifferentPrecision(long thisBucket, AbstractHyperLogLog.RunLenIterator runLens) {
+        hll.ensureCapacity(thisBucket + 1);
+        if (algorithm.get(thisBucket) != HYPERLOGLOG) {
+            upgradeToHll(thisBucket);
+        }
+        final int precisionDiff = runLens.precision() - precision();
+        final int registersToMerge = 1 << precisionDiff;
+        for (int i = 0; i < hll.m; ++i) {
+            final byte value = mergeRegisters(runLens, precisionDiff, registersToMerge);
+            hll.addRunLen(thisBucket, i, value);
+        }
+    }
+
+    /**
+     * Advance and merge the next {@code registersToMerge} values and return the resulting value.
+     *
+     * @param precisionDiff  The precision difference related to the merge
+     * @param registersToMerge number of register to merge. This value should be equal to 1 &lt;&lt; precisionDiff
+     * @return the merged value
+     */
+    private static byte mergeRegisters(AbstractHyperLogLog.RunLenIterator iterator, int precisionDiff, int registersToMerge) {
+        assert (1 << precisionDiff) == registersToMerge;
+        for (int i = 0; i < registersToMerge; i++) {
+            iterator.next();
+            final byte runLen = iterator.value();
+            if (runLen != 0) {
+                iterator.skip(registersToMerge - i - 1);
+                if (i == 0) {
+                    // If the first element is set, then runLen is the current runLen plus the change in precision
+                    return (byte) (runLen + precisionDiff);
+                } else {
+                    // If any other register is set, the runLen is computed from the register position
+                    return (byte) (precisionDiff - (int) (Math.log(i) / Math.log(2)));
+                }
+            }
+        }
+        // No value for this register
+        return 0;
     }
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
@@ -239,7 +327,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
 
         @Override
-        protected RunLenIterator getRunLens(long bucketOrd) {
+        public RunLenIterator getRunLens(long bucketOrd) {
             iterator.reset(bucketOrd);
             return iterator;
         }
@@ -272,6 +360,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.p = p;
         }
 
+        @Override
+        public int precision() {
+            return p;
+        }
+
         void reset(long bucket) {
             pos = 0;
             start = bucket << p;
@@ -290,6 +383,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         public byte value() {
             return value;
+        }
+
+        @Override
+        public void skip(int registers) {
+            pos += registers;
         }
     }
 
@@ -347,7 +445,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
 
         @Override
-        protected HashesIterator values(long bucketOrd) {
+        public EncodedHashesIterator values(long bucketOrd) {
             iterator.reset(bucketOrd, size(bucketOrd));
             return iterator;
         }
@@ -383,7 +481,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
-    private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
+    private static class LinearCountingIterator implements AbstractLinearCounting.EncodedHashesIterator {
 
         private final LinearCounting lc;
         private final int capacity;
@@ -400,6 +498,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.bucketOrd = bucketOrd;
             this.size = size;
             this.pos = size == 0 ? capacity : 0;
+        }
+
+        @Override
+        public int precision() {
+            return lc.precision();
         }
 
         @Override

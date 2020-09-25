@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 
-public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Builder> {
+public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<HyperLogLogPlusPlusFieldMapper.Builder> {
 
     private static final int[] RUNLENS = new int[16];
     static {
@@ -35,32 +35,57 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
             RUNLENS[i] = i;
         }
     }
+
+    private static final int[] HASHES = new int[] {1, 2};
+
     private static final int[] RUNLENS1024 = new int[1024];
     static {
         for (int i = 0; i < 1024; i++) {
             RUNLENS1024[i] = i / 128;
         }
     }
-    private static final String SKETCH = HllFieldMapper.SKETCH_FIELD.getPreferredName();
+
+    private static final String TYPE = HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE;
+    private static final String HLL = HyperLogLogPlusPlusFieldMapper.HLL_FIELD.getPreferredName();
+    private static final String LC = HyperLogLogPlusPlusFieldMapper.LC_FIELD.getPreferredName();
     private static final String FIELD = "pre_aggregated";
 
     private DocumentMapper getMapping(int precision, boolean ignoreMalformed) throws IOException {
        return createDocumentMapper(mapping(b -> {
-            b.startObject(FIELD).field("type", HllFieldMapper.CONTENT_TYPE);
-            if (precision != HllFieldMapper.Defaults.PRECISION.value() || randomBoolean()) {
+            b.startObject(FIELD).field("type", TYPE);
+            if (precision != HyperLogLogPlusPlusFieldMapper.Defaults.PRECISION.value() || randomBoolean()) {
                  b.field("precision", precision);
             }
-           if (ignoreMalformed != HllFieldMapper.Defaults.IGNORE_MALFORMED.value() || randomBoolean()) {
+           if (ignoreMalformed != HyperLogLogPlusPlusFieldMapper.Defaults.IGNORE_MALFORMED.value() || randomBoolean()) {
                b.field("ignore_malformed", ignoreMalformed);
            }
            b.endObject();
         }));
     }
 
-    public void testParseValue() throws Exception {
+    public void testParseHLLValue() throws Exception {
         DocumentMapper mapper = getMapping(4, randomBoolean());
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(SKETCH, RUNLENS).endObject()));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(HLL, RUNLENS).endObject()));
         assertThat(doc.rootDoc().getField(FIELD), notNullValue());
+    }
+
+    public void testParseLCValue() throws Exception {
+        DocumentMapper mapper = getMapping(4, randomBoolean());
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(LC, HASHES).endObject()));
+        assertThat(doc.rootDoc().getField(FIELD), notNullValue());
+    }
+
+    public void testParseLCAndHLLValue() throws Exception {
+        DocumentMapper mapper = getMapping(4, false);
+        SourceToParse source = source(b ->
+            b.startArray(FIELD)
+                .startObject()
+                  .field(HLL, RUNLENS)
+                  .field(LC, HASHES)
+                .endObject()
+             .endArray());
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("expected only one field from [hll] and [lc]"));
     }
 
     public void testParseArrayValue() throws Exception {
@@ -68,10 +93,10 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
         SourceToParse source = source(b ->
             b.startArray(FIELD)
               .startObject()
-                .field(SKETCH, RUNLENS)
+                .field(HLL, RUNLENS)
               .endObject()
               .startObject()
-                .field(SKETCH, RUNLENS)
+                .field(HLL, RUNLENS)
               .endObject()
             .endArray());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
@@ -91,7 +116,7 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
         for (int i = 0; i < 17; i++) {
             runLens[i] = i;
         }
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(SKETCH, runLens).endObject()));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(HLL, runLens).endObject()));
         assertThat(doc.rootDoc().getField(FIELD), nullValue());
     }
 
@@ -149,16 +174,37 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
     public void testUnknownField() throws Exception {
         DocumentMapper mapper = getMapping(4, false);
         SourceToParse source = source(b ->
-            b.field(FIELD).startObject().field(SKETCH, RUNLENS).field("unknown", new double[] {2, 2}).endObject());
+            b.field(FIELD).startObject().field(HLL, RUNLENS).field("unknown", new double[] {2, 2}).endObject());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("with unknown parameter [unknown]"));
     }
 
-    public void testFieldRunLensNotArray() throws Exception {
+    public void testFieldHLLsNotArray() throws Exception {
         DocumentMapper mapper = getMapping(4, false);
-        SourceToParse source = source(b -> b.startObject(FIELD).field(SKETCH, "bah").endObject());
+        SourceToParse source = source(b -> b.startObject(FIELD).field(HLL, "bah").endObject());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
+    }
+
+    public void testFieldLCNotArray() throws Exception {
+        DocumentMapper mapper = getMapping(4, false);
+        SourceToParse source = source(b -> b.startObject(FIELD).field(LC, "bah").endObject());
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
+    }
+
+    public void testFieldLCIsZero() throws Exception {
+        DocumentMapper mapper = getMapping(4, false);
+        SourceToParse source = source(b -> b.startObject(FIELD).field(LC, new int[] {0}).endObject());
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("[" + LC + "] cannot be 0"));
+    }
+
+    public void testFieldLCIsInvalid() throws Exception {
+        DocumentMapper mapper = getMapping(4, false);
+        SourceToParse source = source(b -> b.startObject(FIELD).field(LC, new int[] {1526283788}).endObject());
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("[" + LC + "] value is invalid for [1526283788]"));
     }
 
     public void testRunLenIsLong() throws Exception {
@@ -172,7 +218,7 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
             }
         }
         DocumentMapper mapper = getMapping(4, false);
-        SourceToParse source = source(b -> b.startObject(FIELD).field(SKETCH, runLens).endObject());
+        SourceToParse source = source(b -> b.startObject(FIELD).field(HLL, runLens).endObject());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString(" out of range of int"));
     }
@@ -196,24 +242,24 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
             }
         }
         DocumentMapper mapper = getMapping(4, false);
-        SourceToParse source = source(b -> b.startObject(FIELD).field(SKETCH, runLens).endObject());
+        SourceToParse source = source(b -> b.startObject(FIELD).field(HLL, runLens).endObject());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("[sketch] elements must be >= 0 but got " + runLens[pos]));
+        assertThat(e.getCause().getMessage(), containsString("[" + HLL + "] elements must be >= 0 but got " + runLens[pos]));
     }
 
     public void testMergeField() {
         Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
-        HllFieldMapper.Builder builder1 = newBuilder();
+        HyperLogLogPlusPlusFieldMapper.Builder builder1 = newBuilder();
         {
             FieldMapper mapper = builder1.build(context);
-            HllFieldMapper.Builder builder2 = newBuilder();
+            HyperLogLogPlusPlusFieldMapper.Builder builder2 = newBuilder();
             builder2.ignoreMalformed(true);
             FieldMapper toMerge = builder2.build(context);
             mapper.merge(toMerge);  // ignore_malformed should merge with no issue
         }
         {
             FieldMapper mapper = builder1.build(context);
-            HllFieldMapper.Builder builder2 = newBuilder();
+            HyperLogLogPlusPlusFieldMapper.Builder builder2 = newBuilder();
             builder2.precision(4);
             FieldMapper toMerge = builder2.build(context);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(toMerge));
@@ -233,16 +279,20 @@ public class HllFieldMapperTests extends FieldMapperTestCase2<HllFieldMapper.Bui
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "hll");
+        b.field("type", TYPE);
     }
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field(SKETCH, RUNLENS1024).endObject();
+        if (randomBoolean()) {
+            builder.startObject().field(HLL, RUNLENS1024).endObject();
+        } else {
+            builder.startObject().field(LC, HASHES).endObject();
+        }
     }
 
     @Override
-    protected HllFieldMapper.Builder newBuilder() {
-        return new HllFieldMapper.Builder(FIELD);
+    protected HyperLogLogPlusPlusFieldMapper.Builder newBuilder() {
+        return new HyperLogLogPlusPlusFieldMapper.Builder(FIELD);
     }
 }

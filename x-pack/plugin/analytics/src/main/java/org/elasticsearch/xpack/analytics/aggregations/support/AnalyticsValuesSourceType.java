@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHllFieldData;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHyperLogLogPlusPlusFieldData;
 
 import java.util.Locale;
 import java.util.function.LongSupplier;
@@ -48,7 +48,7 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
-    CARDINALITY() {
+    HYPERLOGLOGPLUSPLUS() {
         @Override
         public ValuesSource getEmpty() {
             // TODO: Is this the correct exception type here?
@@ -64,11 +64,12 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
-            if ((indexFieldData instanceof IndexHllFieldData) == false) {
-                throw new IllegalArgumentException("Expected cardinality type on field [" + fieldContext.field() +
+            if ((indexFieldData instanceof IndexHyperLogLogPlusPlusFieldData) == false) {
+                throw new IllegalArgumentException("Expected hll++ type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
-            return new HllValuesSource.HllSketch.Fielddata((IndexHllFieldData) indexFieldData);
+            final IndexHyperLogLogPlusPlusFieldData hyperLogLogPlusPlusFieldData = (IndexHyperLogLogPlusPlusFieldData) indexFieldData;
+            return new HyperLogLogPlusPlusValuesSource.HyperLogLogPlusPlusSketch.Fielddata(hyperLogLogPlusPlusFieldData);
         }
 
         @Override

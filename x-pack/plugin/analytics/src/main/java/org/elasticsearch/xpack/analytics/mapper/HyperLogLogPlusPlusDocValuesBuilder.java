@@ -7,33 +7,40 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import com.carrotsearch.hppc.ByteArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.HllValue;
+import org.elasticsearch.search.aggregations.metrics.AbstractLinearCounting;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValue;
 
 import java.io.IOException;
 
-/** read/write HLL doc values */
-class HLLDocValuesBuilder {
+/** read/write HyperLogLogPlusPlus doc values */
+public class HyperLogLogPlusPlusDocValuesBuilder {
 
-    // compression modes for doc values
+    // encoding modes for doc values
     private static final byte FIXED_LENGTH = 0;
     private static final byte RUN_LENGTH = 1;
     private static final byte CUSTOM = 2;
+    private static final byte LC = 3;
 
-    final InternalFixedLengthHllValue fixedValue;
-    final InternalRunLenHllValue runLenValue;
-    final InternalCustomHllValue customValue;
+    final InternalHyperLogLogPlusPlusValue counts;
 
-    HLLDocValuesBuilder() {
-        fixedValue = new InternalFixedLengthHllValue();
-        runLenValue = new InternalRunLenHllValue();
-        customValue = new InternalCustomHllValue();
+    HyperLogLogPlusPlusDocValuesBuilder(int precision) {
+        counts = new InternalHyperLogLogPlusPlusValue(precision);
     }
 
-    static void writeCompressed(ByteArrayList runLens, ByteBuffersDataOutput dataOutput) throws IOException {
-        // chose the compression to use
+    public static void writeLC(IntArrayList hashes, ByteBuffersDataOutput dataOutput) throws IOException {
+        dataOutput.writeByte(LC);
+        dataOutput.writeVInt(hashes.size());
+        for (int i = 0; i < hashes.size(); i++) {
+            dataOutput.writeInt(hashes.get(i));
+        }
+    }
+
+    public static void writeHLL(ByteArrayList runLens, ByteBuffersDataOutput dataOutput) throws IOException {
+        // chose the encoding to use
         final int fixedLength = runLens.size();
         final int runLenLength = runLenLength(runLens);
         final int customLength = customLength(runLens);
@@ -141,30 +148,88 @@ class HLLDocValuesBuilder {
         dataOutput.writeByte(value);
     }
 
-    protected HllValue decode(ByteArrayDataInput dataInput) throws IOException {
-        byte mode = dataInput.readByte();
-        switch (mode) {
-            case FIXED_LENGTH:
-                fixedValue.reset(dataInput);
-                return fixedValue;
-            case RUN_LENGTH:
-                runLenValue.reset(dataInput);
-                return runLenValue;
-            case CUSTOM:
-                customValue.reset(dataInput);
-                return customValue;
-            default:
-                throw new IOException("Unknown compression mode: " + mode);
+    protected HyperLogLogPlusPlusValue decode(ByteArrayDataInput dataInput) throws IOException {
+        counts.reset(dataInput);
+        return counts;
+    }
+
+    /** re-usable {@link HyperLogLogPlusPlusValue} implementation */
+    private static class InternalHyperLogLogPlusPlusValue extends HyperLogLogPlusPlusValue {
+
+        private final FixedLengthHllValue fixedValue;
+        private final RunLenHllValue runLenValue;
+        private final CustomHllValue customValue;
+
+        private final LcValue lc;
+        private AbstractHyperLogLog.RunLenIterator hll;
+        private Algorithm algorithm;
+
+        InternalHyperLogLogPlusPlusValue(int precision) {
+            fixedValue = new FixedLengthHllValue(precision);
+            runLenValue = new RunLenHllValue(precision);
+            customValue = new CustomHllValue(precision);
+            lc = new LcValue(precision);
+        }
+
+        /** reset the value for the HyperLogLogPlusPlus sketch */
+        void reset(ByteArrayDataInput dataInput) throws IOException {
+            byte mode = dataInput.readByte();
+            switch (mode) {
+                case FIXED_LENGTH:
+                    fixedValue.reset(dataInput);
+                    hll = fixedValue;
+                    algorithm = Algorithm.HYPERLOGLOG;
+                    break;
+                case RUN_LENGTH:
+                    runLenValue.reset(dataInput);
+                    hll = runLenValue;
+                    algorithm = Algorithm.HYPERLOGLOG;
+                    break;
+                case CUSTOM:
+                    customValue.reset(dataInput);
+                    hll = customValue;
+                    algorithm = Algorithm.HYPERLOGLOG;
+                    break;
+                case LC:
+                    lc.reset(dataInput);
+                    algorithm = Algorithm.LINEAR_COUNTING;
+                    break;
+                default:
+                    throw new IOException("Unknown compression mode: " + mode);
+            }
+        }
+
+        @Override
+        public Algorithm getAlgorithm() {
+            return algorithm;
+        }
+
+        @Override
+        public AbstractLinearCounting.EncodedHashesIterator getLinearCounting() {
+            return algorithm == Algorithm.LINEAR_COUNTING ? lc : null;
+        }
+
+        @Override
+        public AbstractHyperLogLog.RunLenIterator getHyperLogLog() {
+            return algorithm == Algorithm.HYPERLOGLOG ? hll : null;
         }
     }
 
-    /** re-usable {@link HllValue} implementation. HLL sketch is compressed as fixed length array */
-    private static class InternalFixedLengthHllValue extends HllValue implements AbstractHyperLogLog.RunLenIterator {
+    /** re-usable {@link AbstractHyperLogLog.RunLenIterator} implementation.
+     * HLL sketch is compressed as fixed length array */
+    private static class FixedLengthHllValue implements AbstractHyperLogLog.RunLenIterator {
         private byte value;
         private boolean isExhausted;
         private ByteArrayDataInput dataInput;
+        private final int precision;
 
-        InternalFixedLengthHllValue() {
+        FixedLengthHllValue(int precision) {
+            this.precision = precision;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
         }
 
         /** reset the value for the HLL sketch */
@@ -193,19 +258,27 @@ class HLLDocValuesBuilder {
         }
 
         @Override
-        protected void skip(int bytes) {
+        public void skip(int bytes) {
             dataInput.skipBytes(bytes);
         }
     }
 
-    /** re-usable {@link HllValue} implementation. HLL sketch is compressed using run length compression. */
-    private static class InternalRunLenHllValue extends HllValue implements AbstractHyperLogLog.RunLenIterator {
+    /** re-usable {@link AbstractHyperLogLog.RunLenIterator} implementation.
+     * HLL sketch is compressed using run length compression. */
+    private static class RunLenHllValue implements AbstractHyperLogLog.RunLenIterator {
         private byte value;
         private boolean isExhausted;
         private ByteArrayDataInput dataInput;
         private int valuesInBuffer;
+        private final int precision;
 
-        InternalRunLenHllValue() {
+        RunLenHllValue(int precision) {
+            this.precision = precision;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
         }
 
         /** reset the value for the HLL sketch */
@@ -240,7 +313,7 @@ class HLLDocValuesBuilder {
         }
 
         @Override
-        protected void skip(int bytes) {
+        public void skip(int bytes) {
             if (valuesInBuffer >= bytes) {
                 valuesInBuffer -= bytes;
             } else {
@@ -252,15 +325,22 @@ class HLLDocValuesBuilder {
         }
     }
 
-    /** re-usable {@link HllValue} implementation. HLL sketch is compressed using custom compression. Negative values
-     * indicate repeated values. */
-    private static class InternalCustomHllValue extends HllValue implements AbstractHyperLogLog.RunLenIterator {
+    /** re-usable {@link AbstractHyperLogLog.RunLenIterator} implementation.
+     * HLL sketch is compressed using custom compression. Negative values indicate repeated values. */
+    private static class CustomHllValue implements AbstractHyperLogLog.RunLenIterator {
         private byte value;
         private boolean isExhausted;
         private ByteArrayDataInput dataInput;
         private int valuesInBuffer;
+        private final int precision;
 
-        InternalCustomHllValue() {
+        CustomHllValue(int precision) {
+            this.precision = precision;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
         }
 
         /** reset the value for the HLL sketch */
@@ -300,7 +380,7 @@ class HLLDocValuesBuilder {
         }
 
         @Override
-        protected void skip(int bytes) {
+        public void skip(int bytes) {
             if (valuesInBuffer >= bytes) {
                 valuesInBuffer -= bytes;
             } else {
@@ -309,6 +389,55 @@ class HLLDocValuesBuilder {
                 next();
                 skip(bytes - valuesLeft - 1);
             }
+        }
+    }
+
+    /** re-usable {@link AbstractLinearCounting.EncodedHashesIterator} implementation. */
+    private static class LcValue implements AbstractLinearCounting.EncodedHashesIterator {
+        private int size;
+        private int value;
+        private boolean isExhausted;
+        private ByteArrayDataInput dataInput;
+        private final int precision;
+
+        LcValue(int precision) {
+            this.precision = precision;
+        }
+
+        /** reset the value for the LC sketch */
+        void reset(ByteArrayDataInput dataInput) {
+            this.dataInput = dataInput;
+            size = this.dataInput.readVInt();
+            isExhausted = false;
+            value = 0;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public boolean next() {
+            if (dataInput.eof() == false) {
+                value = dataInput.readInt();
+                return true;
+            }
+            isExhausted = true;
+            return false;
+        }
+
+        @Override
+        public int value() {
+            if (isExhausted) {
+                throw new IllegalArgumentException("Linear Counting sketch already exhausted");
+            }
+            return value;
         }
     }
 }

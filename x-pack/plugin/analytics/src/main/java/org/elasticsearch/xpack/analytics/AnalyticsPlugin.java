@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
-import org.elasticsearch.xpack.analytics.mapper.HllFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HyperLogLogPlusPlusFieldMapper;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
@@ -146,7 +146,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser(),
-            HllFieldMapper.CONTENT_TYPE, new HllFieldMapper.TypeParser());
+            HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE, new HyperLogLogPlusPlusFieldMapper.TypeParser());
     }
 
     @Override
@@ -160,7 +160,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
             AnalyticsAggregatorFactory::registerHistoBackedMaxggregator,
-            AnalyticsAggregatorFactory::registerCardinalityBackedCardinalityAggregator
+            AnalyticsAggregatorFactory::registerHyperLogLogPlusPlusBackedCardinalityAggregator
         );
     }
 

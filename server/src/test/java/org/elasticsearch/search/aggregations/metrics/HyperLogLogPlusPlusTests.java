@@ -82,16 +82,29 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertThat((double) e.cardinality(bucket), closeTo(set.size(), 0.1 * set.size()));
     }
 
-    public void testMerge() {
-        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+    public void testMergeTiny()  {
+        doTestMerge(randomInt(10));
+    }
+
+
+    public void testRandomMedium()  {
+        doTestMerge(randomIntBetween(10, 10000));
+    }
+
+    public void testRandomBig()  {
+        doTestMerge(randomIntBetween(10000, 1000000));
+    }
+
+    private void doTestMerge(int numValues) {
+        final int p1 = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final int p2 = randomBoolean() ? p1 : randomIntBetween(MIN_PRECISION, p1);
+        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p2, BigArrays.NON_RECYCLING_INSTANCE, 0);
         final HyperLogLogPlusPlus[] multi = new HyperLogLogPlusPlus[randomIntBetween(2, 100)];
         final long[] bucketOrds = new long[multi.length];
         for (int i = 0; i < multi.length; ++i) {
             bucketOrds[i] = randomInt(20);
-            multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 5);
+            multi[i] = new HyperLogLogPlusPlus(p1, BigArrays.NON_RECYCLING_INSTANCE, 5);
         }
-        final int numValues = randomIntBetween(1, 100000);
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 1000000);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
@@ -101,7 +114,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             final int index = (int) (Math.pow(randomDouble(), 2));
             multi[index].collect(bucketOrds[index], hash);
             if (randomInt(100) == 0) {
-                HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+                HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p2, BigArrays.NON_RECYCLING_INSTANCE, 0);
                 for (int j = 0; j < multi.length; ++j) {
                     merged.merge(0, multi[j], bucketOrds[j]);
                 }
@@ -170,5 +183,19 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
 
         assertThat(total.get(), equalTo(0L));
+    }
+
+    public void testAdjustHashPrecision() {
+        final int precisionHigh = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
+        final int precisionLow = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, precisionHigh);
+        HyperLogLogPlusPlus high = new HyperLogLogPlusPlus(precisionHigh, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        HyperLogLogPlusPlus low = new HyperLogLogPlusPlus(precisionLow, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        final int n = randomInt();
+        final long hash = BitMixer.mix64(n);
+        high.collect(0, hash);
+        low.collect(0, hash);
+        HyperLogLogPlusPlus merge = new HyperLogLogPlusPlus(precisionLow, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        merge.merge(0, high, 0);
+        assertThat(true, equalTo(low.equals(0, merge, 0)));
     }
 }

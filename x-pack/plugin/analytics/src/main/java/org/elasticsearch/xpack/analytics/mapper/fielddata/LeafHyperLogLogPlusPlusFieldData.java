@@ -11,13 +11,13 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import java.io.IOException;
 
 /**
- * {@link LeafFieldData} specialization for Hyperloglog data.
+ * {@link LeafFieldData} specialization for HyperLogLogPlusPlus data.
  */
-public interface LeafHllFieldData extends LeafFieldData {
+public interface LeafHyperLogLogPlusPlusFieldData extends LeafFieldData {
 
     /**
-     * Return Hyperloglog values.
+     * Return HyperLogLogPlusPlus values.
      */
-    HllValues getHllValues() throws IOException;
+    HyperLogLogPlusPlusValues getHllValues() throws IOException;
 
 }

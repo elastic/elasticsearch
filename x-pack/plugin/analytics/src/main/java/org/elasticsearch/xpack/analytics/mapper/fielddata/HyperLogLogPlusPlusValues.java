@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.analytics.mapper.fielddata;
 import java.io.IOException;
 
 /**
- * Per-segment Hll values.
+ * Per-segment HyperLogLogPlusPlus values.
  */
-public abstract class HllValues {
+public abstract class HyperLogLogPlusPlusValues {
 
     /**
      * Advance this instance to the given document id
@@ -20,8 +20,8 @@ public abstract class HllValues {
     public abstract boolean advanceExact(int doc) throws IOException;
 
     /**
-     * Get the {@link HllValue} associated with the current document.
-     * The returned {@link HllValue} might be reused across calls.
+     * Get the {@link HyperLogLogPlusPlusValue} associated with the current document.
+     * The returned {@link HyperLogLogPlusPlusValue} might be reused across calls.
      */
-    public abstract HllValue hllValue() throws IOException;
+    public abstract HyperLogLogPlusPlusValue hllValue() throws IOException;
 }

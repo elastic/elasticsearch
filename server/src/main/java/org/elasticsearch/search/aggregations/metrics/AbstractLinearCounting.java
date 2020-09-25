@@ -52,7 +52,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
     /**
      * return the current values in the counter.
      */
-    protected abstract HashesIterator values(long bucketOrd);
+    public abstract EncodedHashesIterator values(long bucketOrd);
 
     public int collect(long bucketOrd, long hash) {
         final int k = encodeHash(hash, p);
@@ -87,8 +87,14 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         return (int) encoded;
     }
 
-    /** Iterator over the hash values */
-    public interface HashesIterator {
+    /** Iterator over the encoded hash values */
+    public interface EncodedHashesIterator {
+
+        /**
+         * Precisions of the Encoded hashes structure.
+         * @return the precision
+         */
+        int precision();
 
         /**
          * number of elements in the iterator

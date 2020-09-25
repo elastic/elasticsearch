@@ -13,27 +13,29 @@ import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.HllValues;
-import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHllFieldData;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.xpack.analytics.mapper.HyperLogLogPlusPlusFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValues;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHyperLogLogPlusPlusFieldData;
 
 import java.io.IOException;
 import java.util.function.Function;
 
-public class HllValuesSource {
-    public abstract static class HllSketch extends org.elasticsearch.search.aggregations.support.ValuesSource {
+public class HyperLogLogPlusPlusValuesSource {
+    public abstract static class HyperLogLogPlusPlusSketch extends ValuesSource {
 
-        public abstract HllValues getHllValues(LeafReaderContext context) throws IOException;
+        public abstract HyperLogLogPlusPlusValues getHyperLogLogPlusPlusValues(LeafReaderContext context) throws IOException;
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
-            throw new AggregationExecutionException("can't round a [cardinality]");
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) {
+            throw new AggregationExecutionException("can't round a [" + HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE + "]");
         }
 
-        public static class Fielddata extends HllSketch {
+        public static class Fielddata extends HyperLogLogPlusPlusSketch {
 
-            protected final IndexHllFieldData indexFieldData;
+            protected final IndexHyperLogLogPlusPlusFieldData indexFieldData;
 
-            public Fielddata(IndexHllFieldData indexFieldData) {
+            public Fielddata(IndexHyperLogLogPlusPlusFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
             }
 
@@ -44,7 +46,7 @@ public class HllValuesSource {
 
             @Override
             public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-                HllValues values = getHllValues(context);
+                HyperLogLogPlusPlusValues values = getHyperLogLogPlusPlusValues(context);
                 return new DocValueBits() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
@@ -54,7 +56,7 @@ public class HllValuesSource {
             }
 
             @Override
-            public HllValues getHllValues(LeafReaderContext context) throws IOException {
+            public HyperLogLogPlusPlusValues getHyperLogLogPlusPlusValues(LeafReaderContext context) throws IOException {
                 return indexFieldData.load(context).getHllValues();
             }
         }

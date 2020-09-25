@@ -11,11 +11,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,8 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest
-        implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest>, ToXContentObject {
 
     private String name = null;
     private boolean enabled = true;
@@ -167,5 +169,20 @@ public class PutRoleMappingRequest extends ActionRequest
                 metadata,
                 enabled
         );
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+                .field("name", name)
+                .field("enabled", enabled)
+                .field("role_names", roles)
+                .field("role_templates", roleTemplates)
+                .field("rules", rules)
+                .field("metadata", metadata);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+            builder.field("refresh_policy", refreshPolicy.toString());
+        }
+        return builder.endObject();
     }
 }

@@ -10,6 +10,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 
@@ -18,7 +21,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request delete a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequest<DeleteRoleMappingRequest> {
+public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequest<DeleteRoleMappingRequest>, ToXContentObject {
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -65,5 +68,15 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
         super.writeTo(out);
         out.writeString(name);
         refreshPolicy.writeTo(out);
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+                .field("name", name);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+            builder.field("refresh_policy", refreshPolicy.toString());
+        }
+        return builder.endObject();
     }
 }

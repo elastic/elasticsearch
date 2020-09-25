@@ -12,6 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * fields for an OAuth 2.0 access token request that uses the <code>password</code> grant type or the
  * <code>refresh_token</code> grant type.
  */
-public final class CreateTokenRequest extends ActionRequest {
+public final class CreateTokenRequest extends ActionRequest implements ToXContentObject {
 
     public enum GrantType {
         PASSWORD("password"),
@@ -221,5 +224,23 @@ public final class CreateTokenRequest extends ActionRequest {
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(scope);
         out.writeOptionalSecureString(kerberosTicket);
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+                .field("username", username)
+                .field("scope", scope)
+                .field("grant_type", grantType);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
+            builder.field("password", password != null ? String.valueOf(password) : null)
+                    .field("kerberos_ticket", kerberosTicket != null ? String.valueOf(kerberosTicket) : null)
+                    .field("refresh_token", refreshToken);
+        } else {
+            builder.field("password", password != null ? "<redacted>" : null)
+                    .field("kerberos_ticket", kerberosTicket != null ? "<redacted>" : null)
+                    .field("refresh_token", "<redacted>");
+        }
+        return builder.endObject();
     }
 }

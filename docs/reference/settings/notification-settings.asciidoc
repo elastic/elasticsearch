@@ -215,8 +215,8 @@ specify individual HTML elements and the following HTML feature groups:
 
 `_tables`::
 (<<static-cluster-setting,Static>>)
-All table related elements: `<caption>`, `<col>`, `<colgroup>`, `<table>`,
-`<tbody>`, `<td>`, `<tfoot>`, `<th>`, `<thead>`, and `<tr>`.
+All table related elements: `<table>`, `<th>`, `<tr>`, `<td>`, `<caption>`,
+`<col>`, `<colgroup>`, `<thead>`, `<tbody>`, and `<tfoot>`.
 
 `_blocks`::
 (<<static-cluster-setting,Static>>)
@@ -351,6 +351,11 @@ Specifies account information for using notifications to create
 issues in Jira. You can specify the following Jira account attributes:
 +
 --
+`allow_http::
+(<<dynamic-cluster-setting,Dynamic>>)
+If `false`, Watcher rejects URL settings that use a HTTP protocol. Defaults to
+`false`.
+
 `secure_url`::
 (<<secure-settings,Secure>>)
 The URL of the Jira Software server. Required.

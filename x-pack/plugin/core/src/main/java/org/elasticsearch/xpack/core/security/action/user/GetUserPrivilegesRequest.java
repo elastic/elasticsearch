@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * A request for checking a user's privileges
  */
-public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest, ToXContentObject {
+public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest {
 
     private String username;
 
@@ -60,13 +60,6 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field("username", username)
-                .endObject();
     }
 
 }

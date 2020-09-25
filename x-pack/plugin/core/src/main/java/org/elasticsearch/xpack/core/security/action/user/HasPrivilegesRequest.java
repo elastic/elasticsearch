@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request for checking a user's privileges
  */
-public class HasPrivilegesRequest extends ActionRequest implements UserRequest, ToXContentObject {
+public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     private String username;
     private String[] clusterPrivileges;
@@ -124,16 +124,6 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest, 
             priv.writeTo(out);
         }
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field("username", username)
-                .array("cluster_privileges", clusterPrivileges)
-                .array("index_privileges", indexPrivileges)
-                .array("application_privileges", applicationPrivileges)
-                .endObject();
     }
 
 }

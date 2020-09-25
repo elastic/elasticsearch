@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class AuthenticateRequest extends ActionRequest implements UserRequest, ToXContentObject {
+public class AuthenticateRequest extends ActionRequest implements UserRequest {
 
     private String username;
 
@@ -54,10 +54,4 @@ public class AuthenticateRequest extends ActionRequest implements UserRequest, T
         out.writeString(username);
     }
 
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-                .field("username", username);
-        return builder.endObject();
-    }
 }

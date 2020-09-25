@@ -24,7 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for get API key
  */
-public final class GetApiKeyRequest extends ActionRequest implements ToXContentObject {
+public final class GetApiKeyRequest extends ActionRequest {
 
     private final String realmName;
     private final String userName;
@@ -198,14 +198,4 @@ public final class GetApiKeyRequest extends ActionRequest implements ToXContentO
         return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser);
     }
 
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field("username", userName)
-                .field("realm_name", realmName)
-                .field("id", apiKeyId)
-                .field("name", apiKeyName)
-                .field("owned_by_authenticated_user", ownedByAuthenticatedUser)
-                .endObject();
-    }
 }

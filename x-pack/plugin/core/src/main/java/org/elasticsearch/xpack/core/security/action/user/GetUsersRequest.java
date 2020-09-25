@@ -20,7 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to retrieve a native user.
  */
-public class GetUsersRequest extends ActionRequest implements UserRequest, ToXContentObject {
+public class GetUsersRequest extends ActionRequest implements UserRequest {
 
     private String[] usernames;
 
@@ -55,13 +55,6 @@ public class GetUsersRequest extends ActionRequest implements UserRequest, ToXCo
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(usernames);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .array("usernames", usernames)
-                .endObject();
     }
 
 }

@@ -73,7 +73,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
     /**
      * Encode the hash on 32 bits. The encoded hash cannot be equal to <code>0</code>.
      */
-    static int encodeHash(long hash, int p) {
+    public static int encodeHash(long hash, int p) {
         final long e = hash >>> (64 - P2);
         final long encoded;
         if ((e & mask(P2 - p)) == 0) {

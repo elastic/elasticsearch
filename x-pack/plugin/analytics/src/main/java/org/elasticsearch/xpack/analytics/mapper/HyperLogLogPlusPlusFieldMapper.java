@@ -48,6 +48,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
 import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
+import org.elasticsearch.search.aggregations.metrics.AbstractLinearCounting;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
@@ -91,6 +92,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
 
     public static final ParseField HLL_FIELD = new ParseField("hll");
     public static final ParseField LC_FIELD = new ParseField("lc");
+    public static final ParseField MURMUR3_FIELD = new ParseField("murmur3");
 
     public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
@@ -389,19 +391,14 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(HLL_FIELD.getPreferredName())) {
-                    if (hashes != null) {
-                        throw new MapperParsingException("error parsing field ["
-                            + name() + "], expected only one field from ["
-                            + HLL_FIELD.getPreferredName() + "] and [" + LC_FIELD + "]");
-                    }
+                    maybeThrowErrorDuplicateFields(runLens, hashes);
                     runLens = parseHLLSketch(subParser);
                 } else if (fieldName.equals(LC_FIELD.getPreferredName())) {
-                    if (runLens != null) {
-                        throw new MapperParsingException("error parsing field ["
-                            + name() + "], expected only one field from ["
-                            + HLL_FIELD.getPreferredName() + "] and [" + LC_FIELD + "]");
-                    }
+                    maybeThrowErrorDuplicateFields(runLens, hashes);
                     hashes = parseLCSketch(subParser);
+                } else if (fieldName.equals(MURMUR3_FIELD.getPreferredName())) {
+                    maybeThrowErrorDuplicateFields(runLens, hashes);
+                    hashes = parseMurmur3(subParser);
                 } else {
                     throw new MapperParsingException("error parsing field [" +
                         name() + "], with unknown parameter [" + fieldName + "]");
@@ -409,8 +406,8 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
                 token = subParser.nextToken();
             }
             if (runLens == null && hashes == null) {
-                throw new MapperParsingException("error parsing field ["
-                    + name() + "], expected field called [" + HLL_FIELD.getPreferredName() + "]");
+                throw new MapperParsingException("error parsing field [" + name() + "], expected field called either " +
+                    "[" + HLL_FIELD.getPreferredName() + "], [" + LC_FIELD + "] or [" + MURMUR3_FIELD + "]");
             }
             if (runLens != null  && runLens.size() != m) {
                 throw new MapperParsingException("error parsing field ["
@@ -442,6 +439,13 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private void maybeThrowErrorDuplicateFields(ByteArrayList runLens, IntArrayList hashes) {
+        if (runLens != null || hashes != null) {
+            throw new MapperParsingException("error parsing field [" + name() + "], expected only one field from "
+                + "[" + HLL_FIELD.getPreferredName() + "], [" + LC_FIELD + "] and [" + MURMUR3_FIELD + "]");
+        }
     }
 
     private ByteArrayList parseHLLSketch(XContentSubParser subParser) throws IOException {
@@ -489,6 +493,22 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
                     + name() + "], ["+ LC_FIELD + "] value is invalid for [" + encodedHash + "]");
             }
             hashes.add(encodedHash);
+            token = subParser.nextToken();
+        }
+        return hashes;
+    }
+
+    private IntArrayList parseMurmur3(XContentSubParser subParser) throws IOException {
+        XContentParser.Token token = subParser.nextToken();
+        // should be an array
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
+        final IntArrayList hashes = new IntArrayList();
+        token = subParser.nextToken();
+        while (token != XContentParser.Token.END_ARRAY) {
+            // should be a number
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
+            final long hash = subParser.longValue();
+            hashes.add(AbstractLinearCounting.encodeHash(hash, precision.value()));
             token = subParser.nextToken();
         }
         return hashes;

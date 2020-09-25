@@ -43,6 +43,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregationTests extends ESSing
     private static final String TYPE = HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE;
     private static final String HLL = HyperLogLogPlusPlusFieldMapper.HLL_FIELD.getPreferredName();
     private static final String LC = HyperLogLogPlusPlusFieldMapper.LC_FIELD.getPreferredName();
+    private static final String MURMUR3 = HyperLogLogPlusPlusFieldMapper.MURMUR3_FIELD.getPreferredName();
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -97,7 +98,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregationTests extends ESSing
             }
         };
 
-        final BiConsumer<String, int[]> agg = (type, sketch) -> {
+        final BiConsumer<String, Object> agg = (type, sketch) -> {
             try {
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
@@ -169,7 +170,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregationTests extends ESSing
             }
         };
 
-        final BiConsumer<String, int[]> agg = (type, sketch) -> {
+        final BiConsumer<String, Object> agg = (type, sketch) -> {
             try {
                 XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
                     .startObject()
@@ -190,7 +191,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregationTests extends ESSing
 
 
     private void doTestCardinalityAggregation(BiConsumer<BulkRequest, Integer> rawIngestor,
-                                              BiConsumer<String, int[]> aggIngestor,
+                                              BiConsumer<String, Object> aggIngestor,
                                               String field,
                                               int precision) throws Exception {
         final int numDocs = 100000;
@@ -199,20 +200,28 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregationTests extends ESSing
 
         HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         BulkRequest bulkRequest = new BulkRequest();
+        long[] murmur3 = new long[frq];
+        int murmur3Counter  =0;
 
         for (int i =0; i < numDocs; i ++) {
             final int value = randomInt(maxValue);
             final long hash = BitMixer.mix64(value);
+            murmur3[murmur3Counter++] = hash;
             rawIngestor.accept(bulkRequest, value);
             counts.collect(0, hash);
             if ((i + 1) % frq == 0) {
-                String type = counts.getAlgorithm(0) == AbstractHyperLogLogPlusPlus.HYPERLOGLOG ? HLL : LC;
-                int[] sketch = HLL.equals(type) ?
-                    getHyperLogLog(counts.getHyperLogLog(0)) : getLinearCounting(counts.getLinearCounting(0));
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
-                aggIngestor.accept(type, sketch);
+                if (usually()) {
+                    String type = counts.getAlgorithm(0) == AbstractHyperLogLogPlusPlus.HYPERLOGLOG ? HLL : LC;
+                    int[] sketch = HLL.equals(type) ?
+                        getHyperLogLog(counts.getHyperLogLog(0)) : getLinearCounting(counts.getLinearCounting(0));
+                    aggIngestor.accept(type, sketch);
+                } else {
+                    aggIngestor.accept(MURMUR3, murmur3);
+                }
                 counts = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
+                murmur3Counter = 0;
             }
         }
 

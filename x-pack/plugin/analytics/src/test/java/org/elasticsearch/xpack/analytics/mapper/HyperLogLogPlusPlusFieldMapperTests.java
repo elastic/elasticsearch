@@ -36,7 +36,9 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         }
     }
 
-    private static final int[] HASHES = new int[] {1, 2};
+    private static final int[] LC_HASHES = new int[] {1, 2};
+
+    private static final long[] MURMUR3_HASHES = new long[] {1, 2};
 
     private static final int[] RUNLENS1024 = new int[1024];
     static {
@@ -48,6 +50,7 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
     private static final String TYPE = HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE;
     private static final String HLL = HyperLogLogPlusPlusFieldMapper.HLL_FIELD.getPreferredName();
     private static final String LC = HyperLogLogPlusPlusFieldMapper.LC_FIELD.getPreferredName();
+    private static final String MURMUR3 = HyperLogLogPlusPlusFieldMapper.MURMUR3_FIELD.getPreferredName();
     private static final String FIELD = "pre_aggregated";
 
     private DocumentMapper getMapping(int precision, boolean ignoreMalformed) throws IOException {
@@ -71,7 +74,13 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
 
     public void testParseLCValue() throws Exception {
         DocumentMapper mapper = getMapping(4, randomBoolean());
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(LC, HASHES).endObject()));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(LC, LC_HASHES).endObject()));
+        assertThat(doc.rootDoc().getField(FIELD), notNullValue());
+    }
+
+    public void testParseMurmur3Value() throws Exception {
+        DocumentMapper mapper = getMapping(4, randomBoolean());
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject(FIELD).field(MURMUR3, MURMUR3_HASHES).endObject()));
         assertThat(doc.rootDoc().getField(FIELD), notNullValue());
     }
 
@@ -81,11 +90,11 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
             b.startArray(FIELD)
                 .startObject()
                   .field(HLL, RUNLENS)
-                  .field(LC, HASHES)
+                  .field(LC, LC_HASHES)
                 .endObject()
              .endArray());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expected only one field from [hll] and [lc]"));
+        assertThat(e.getCause().getMessage(), containsString("expected only one field from [hll], [lc] and [murmur3]"));
     }
 
     public void testParseArrayValue() throws Exception {
@@ -193,6 +202,13 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
     }
 
+    public void testFieldMurMur3NotArray() throws Exception {
+        DocumentMapper mapper = getMapping(4, false);
+        SourceToParse source = source(b -> b.startObject(FIELD).field(MURMUR3, "bah").endObject());
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
+    }
+
     public void testFieldLCIsZero() throws Exception {
         DocumentMapper mapper = getMapping(4, false);
         SourceToParse source = source(b -> b.startObject(FIELD).field(LC, new int[] {0}).endObject());
@@ -287,7 +303,7 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         if (randomBoolean()) {
             builder.startObject().field(HLL, RUNLENS1024).endObject();
         } else {
-            builder.startObject().field(LC, HASHES).endObject();
+            builder.startObject().field(LC, LC_HASHES).endObject();
         }
     }
 

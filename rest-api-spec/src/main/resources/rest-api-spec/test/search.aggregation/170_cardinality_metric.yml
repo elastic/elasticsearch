@@ -280,13 +280,9 @@ setup:
               cardinality:
                 field: string_field
   - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
   - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
-  - gt: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }

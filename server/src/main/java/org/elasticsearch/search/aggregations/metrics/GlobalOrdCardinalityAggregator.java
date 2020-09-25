@@ -118,17 +118,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         Releasables.close(counts, collector);
     }
 
-    @Override
-    public void collectDebugInfo(BiConsumer<String, Object> add) {
-        // maybe need to add something for global?
-        super.collectDebugInfo(add);
-        add.accept("empty_collectors_used", 0);
-        add.accept("numeric_collectors_used", 0);
-        add.accept("ordinals_collectors_used", 1);
-        add.accept("ordinals_collectors_overhead_too_high", 0);
-        add.accept("string_hashing_collectors_used", 0);
-    }
-
     private static class OrdinalsCollector extends LeafBucketCollector implements Releasable {
 
         private final BigArrays bigArrays;

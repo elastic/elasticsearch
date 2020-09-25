@@ -3,6 +3,7 @@ You can configure the following TLS/SSL settings.
 
 ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::
+(<<static-cluster-setting,Static>>)
 Used to enable or disable TLS/SSL. The default is `false`.
 endif::server[]
 
@@ -12,6 +13,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols
 
 ifdef::server[]
 +{ssl-prefix}.ssl.client_authentication+::
+(<<static-cluster-setting,Static>>)
 Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`

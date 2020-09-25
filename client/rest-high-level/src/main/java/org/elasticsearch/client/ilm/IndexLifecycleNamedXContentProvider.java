@@ -58,6 +58,12 @@ public class IndexLifecycleNamedXContentProvider implements NamedXContentProvide
                 new ParseField(SetPriorityAction.NAME),
                 SetPriorityAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(MigrateAction.NAME),
+                MigrateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class,
                 new ParseField(UnfollowAction.NAME),
                 UnfollowAction::parse)
         );

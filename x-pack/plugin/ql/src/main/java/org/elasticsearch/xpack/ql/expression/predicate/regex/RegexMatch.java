@@ -25,12 +25,12 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFunction {
 
     private final T pattern;
-    
+
     protected RegexMatch(Source source, Expression value, T pattern) {
         super(source, value);
         this.pattern = pattern;
     }
-    
+
     public T pattern() {
         return pattern;
     }
@@ -63,6 +63,10 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     public Boolean fold() {
         Object val = field().fold();
         return RegexProcessor.RegexOperation.match(val, pattern().asJavaRegex());
+    }
+
+    public boolean matchesAll() {
+        return pattern.matchesAll();
     }
 
     @Override

@@ -6,7 +6,7 @@
         body:
           policy:
             deciders:
-              always: {}
+              fixed: {}
 
   - match: { "acknowledged": true }
 
@@ -14,7 +14,7 @@
       autoscaling.get_autoscaling_policy:
         name: my_autoscaling_policy
 
-  - match: { policy.deciders.always: {} }
+  - match: { policy.deciders.fixed: {} }
 
   # test cleanup
   - do:

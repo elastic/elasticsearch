@@ -894,7 +894,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3)
             .setAllowNoMatch(false)
             .setDecompressDefinition(true)
-            .setIncludeDefinition(false)
+            .includeDefinition()
             .setTags("tag1", "tag2")
             .setPageParams(new PageParams(100, 300));
 
@@ -908,7 +908,7 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("allow_no_match", "false"),
                 hasEntry("decompress_definition", "true"),
                 hasEntry("tags", "tag1,tag2"),
-                hasEntry("include_model_definition", "false")
+                hasEntry("include", "definition")
             ));
         assertNull(request.getEntity());
     }

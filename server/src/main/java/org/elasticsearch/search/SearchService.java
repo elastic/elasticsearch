@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -209,6 +210,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final MultiBucketConsumerService multiBucketConsumerService;
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
+    private final String sessionId = UUIDs.randomBase64UUID();
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
@@ -300,8 +302,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            final ReaderContext removed = removeReaderContext(context.id().getId());
-            assert removed == context;
+            removeReaderContext(context.id().getId());
             throw new IndexNotFoundException(index);
         }
     }
@@ -471,7 +472,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   SearchShardTask task,
                                   ActionListener<ScrollQuerySearchResult> listener) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        final Releasable markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        final Releasable markAsUsed;
+        try {
+            markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        } catch (Exception e) {
+            // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
+            freeReaderContext(readerContext.id());
+            throw e;
+        }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -536,7 +544,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        final Releasable markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        final Releasable markAsUsed;
+        try {
+            markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
+        } catch (Exception e) {
+            // We need to release the reader context of the scroll when we hit any exception (here the keep_alive can be too large)
+            freeReaderContext(readerContext.id());
+            throw e;
+        }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
@@ -587,14 +602,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private ReaderContext getReaderContext(ShardSearchContextId id) {
-        final ReaderContext reader = activeReaders.get(id.getId());
-        if (reader == null) {
-            return null;
+        if (id.getSessionId().isEmpty()) {
+            throw new IllegalArgumentException("Session id must be specified");
         }
-        if (reader.id().getReaderId().equals(id.getReaderId()) || id.getReaderId().isEmpty()) {
-            return reader;
+        if (sessionId.equals(id.getSessionId()) == false) {
+            throw new SearchContextMissingException(id);
         }
-        return null;
+        return activeReaders.get(id.getId());
     }
 
     private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
@@ -614,8 +628,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
-            final ReaderContext readerContext = findReaderContext(request.readerId(), request);
-            return readerContext;
+            return findReaderContext(request.readerId(), request);
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
@@ -640,15 +653,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
             final long keepAlive = getKeepAlive(request);
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             if (keepStatesInContext || request.scroll() != null) {
-                readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), indexService, shard, reader, request, keepAlive);
+                readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAlive);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);
                     decreaseScrollContexts = null;
                 }
             } else {
-                readerContext = new ReaderContext(idGenerator.incrementAndGet(), indexService, shard, reader, keepAlive,
-                    request.keepAlive() == null);
+                readerContext = new ReaderContext(id, indexService, shard, reader, keepAlive, request.keepAlive() == null);
             }
             reader = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -688,8 +701,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ReaderContext readerContext = null;
             try {
                 searcherSupplier = shard.acquireSearcherSupplier();
-                readerContext = new ReaderContext(
-                    idGenerator.incrementAndGet(), indexService, shard, searcherSupplier, keepAlive.millis(), false);
+                final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+                readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
@@ -738,7 +751,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
-        try (ReaderContext readerContext = new ReaderContext(idGenerator.incrementAndGet(), indexService, indexShard, reader, -1L, true)) {
+        final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+        try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
@@ -953,9 +967,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
-            String indexName = context.indexShard().shardId().getIndexName();
-            FetchFieldsContext fetchFieldsContext = FetchFieldsContext.create(
-                indexName, context.mapperService(), source.fetchFields());
+            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {
@@ -1017,9 +1029,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                if (context.version()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [version] is requested");
-                }
                 if (context.sourceRequested()) {
                     throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
                 }

@@ -87,11 +87,6 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertParseMinimalWarnings();
     }
 
-    @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
-    }
-
     private Object getFrom(String type) {
         if (type.equals("date_range")) {
             return FROM_DATE;

@@ -436,10 +436,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
 
-        public static Parameter<Float> boostParam() {
-            return Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
-        }
-
     }
 
     private static final class Conflicts {
@@ -565,6 +561,18 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     iterator.remove();
                     continue;
                 }
+                if (Objects.equals("boost", propName)) {
+                    if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                        deprecationLogger.deprecate(
+                            "boost",
+                            "Parameter [boost] on field [{}] is deprecated and has no effect",
+                            name);
+                        iterator.remove();
+                        continue;
+                    } else {
+                        throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
+                    }
+                }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
                     deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
@@ -582,12 +590,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     throw new MapperParsingException("unknown parameter [" + propName
                         + "] on mapper [" + name + "] of type [" + type + "]");
                 }
-                if (Objects.equals("boost", propName)) {
-                    deprecationLogger.deprecate(
-                        "boost",
-                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
-                        name);
-                }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException("[" + propName + "] on mapper [" + name
                         + "] of type [" + type + "] must not have a [null] value");
@@ -602,7 +604,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         // made no sense; if we've got here, that means that they're not declared on a current mapper,
         // and so we emit a deprecation warning rather than failing a previously working mapping.
         private static final Set<String> DEPRECATED_PARAMS
-            = Set.of("store", "meta", "index", "doc_values", "boost", "index_options", "similarity");
+            = Set.of("store", "meta", "index", "doc_values", "index_options", "similarity");
 
         private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
             if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {

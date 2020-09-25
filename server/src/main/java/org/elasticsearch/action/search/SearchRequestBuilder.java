@@ -318,7 +318,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Adds a field to load and return. The field must be present in the document _source.
      *
      * @param name The field to load
-     * @param format TODO(jtibs): fill this in
+     * @param format an optional format string used when formatting values, for example a date format.
      */
     public SearchRequestBuilder addFetchField(String name, String format) {
         sourceBuilder().fetchField(name, format);

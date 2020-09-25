@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.ByteArrayList;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
 import org.elasticsearch.search.aggregations.metrics.AbstractLinearCounting;
 import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValue;
@@ -33,9 +34,34 @@ public class HyperLogLogPlusPlusDocValuesBuilder {
 
     public static void writeLC(IntArrayList hashes, ByteBuffersDataOutput dataOutput) throws IOException {
         dataOutput.writeByte(LC);
-        dataOutput.writeVInt(hashes.size());
-        for (int i = 0; i < hashes.size(); i++) {
-            dataOutput.writeInt(hashes.get(i));
+        final int size = hashes.size();
+        dataOutput.writeVInt(size);
+        // sort the values for delta encoding
+        new IntroSorter() {
+            int pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+               final int tmp = hashes.get(i);
+               hashes.set(i, hashes.get(j));
+               hashes.set(j, tmp);
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = hashes.get(i);
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                return Integer.compare(pivot, hashes.get(j));
+            }
+        }.sort(0, size);
+        if (size > 0) {
+            dataOutput.writeInt(hashes.get(0));
+            for (int i = 1; i < size; i++) {
+                dataOutput.writeVLong((long) hashes.get(i) - (long) hashes.get(i - 1));
+            }
         }
     }
 
@@ -392,7 +418,9 @@ public class HyperLogLogPlusPlusDocValuesBuilder {
         }
     }
 
-    /** re-usable {@link AbstractLinearCounting.EncodedHashesIterator} implementation. */
+    /** re-usable {@link AbstractLinearCounting.EncodedHashesIterator} implementation.
+     *  LC sketch is compressed using delta encoding.
+     */
     private static class LcValue implements AbstractLinearCounting.EncodedHashesIterator {
         private int size;
         private int value;
@@ -425,7 +453,11 @@ public class HyperLogLogPlusPlusDocValuesBuilder {
         @Override
         public boolean next() {
             if (dataInput.eof() == false) {
-                value = dataInput.readInt();
+                if (value == 0) {
+                    value = dataInput.readInt();
+                } else {
+                    value += dataInput.readVLong();
+                }
                 return true;
             }
             isExhausted = true;

@@ -23,8 +23,26 @@ import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusVal
 import static org.hamcrest.CoreMatchers.equalTo;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class HyperLogLogPlusPlusDocValuesBuilderTests extends ESTestCase {
+
+    public void testExtremeValues() throws IOException {
+        final ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
+        final IntArrayList hashes = new IntArrayList();
+        hashes.add(Integer.MAX_VALUE);
+        hashes.add(Integer.MIN_VALUE);
+        HyperLogLogPlusPlusDocValuesBuilder.writeLC(hashes, dataOutput);
+        final ByteArrayDataInput dataInput = new ByteArrayDataInput();
+        dataInput.reset(dataOutput.toArrayCopy());
+        final HyperLogLogPlusPlusDocValuesBuilder builder = new HyperLogLogPlusPlusDocValuesBuilder(5);
+        HyperLogLogPlusPlusValue value = builder.decode(dataInput);
+        AbstractLinearCounting.EncodedHashesIterator iterator = value.getLinearCounting();
+        iterator.next();
+        assertThat(Integer.MIN_VALUE, equalTo(iterator.value()));
+        iterator.next();
+        assertThat(Integer.MAX_VALUE, equalTo(iterator.value()));
+    }
 
     public void testRandomTiny() throws IOException {
         for (int i =0; i < 5; i++) {
@@ -111,10 +129,16 @@ public class HyperLogLogPlusPlusDocValuesBuilderTests extends ESTestCase {
             AbstractLinearCounting.EncodedHashesIterator countsIterator = counts.getLinearCounting(0);
             AbstractLinearCounting.EncodedHashesIterator iterator = value.getLinearCounting();
             assertThat(countsIterator.size(), equalTo(iterator.size()));
+            // encoded hashes are sorted so we need to do the same here
+            int[] countsValues = new int[countsIterator.size()];
+            for (int i = 0; i < countsIterator.size(); i++) {
+                assertThat(true, equalTo(countsIterator.next()));
+                countsValues[i] = countsIterator.value();
+            }
+            Arrays.sort(countsValues);
             for (int i = 0; i < countsIterator.size(); i++) {
                 assertThat(true, equalTo(iterator.next()));
-                assertThat(true, equalTo(countsIterator.next()));
-                assertThat(countsIterator.value(), equalTo(iterator.value()));
+                assertThat(countsValues[i], equalTo(iterator.value()));
             }
             assertThat(false, equalTo(iterator.next()));
             assertThat(false, equalTo(countsIterator.next()));

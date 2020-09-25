@@ -488,7 +488,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
                 throw new MapperParsingException("error parsing field ["
                     + name() + "], ["+ LC_FIELD + "] value is invalid for [" + encodedHash + "]");
             }
-            hashes.add(subParser.intValue());
+            hashes.add(encodedHash);
             token = subParser.nextToken();
         }
         return hashes;

@@ -113,7 +113,7 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
         builder.startObject()
                 .field("username", username)
                 .field("enabled", enabled());
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

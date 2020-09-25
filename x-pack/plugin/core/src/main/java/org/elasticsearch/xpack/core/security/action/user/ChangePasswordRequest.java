@@ -105,7 +105,7 @@ public class ChangePasswordRequest extends ActionRequest
         } else {
             builder.field("password_hash", passwordHash != null ? "<redacted>" : null);
         }
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

@@ -135,7 +135,7 @@ public final class CreateApiKeyRequest extends ActionRequest implements ToXConte
                 .field("name", name)
                 .timeField("expiration", expiration)
                 .field("role_descriptors", roleDescriptors);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

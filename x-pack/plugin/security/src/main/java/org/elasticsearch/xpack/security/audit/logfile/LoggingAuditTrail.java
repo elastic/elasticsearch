@@ -29,11 +29,27 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -78,6 +94,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_GRANT
 import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICATION_FAILED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
@@ -89,6 +106,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String LOCAL_ORIGIN_FIELD_VALUE = "local_node";
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
+    public static final String SECURITY_CHANGE_ORIGIN_FIELD_VALUE = "security_config_change";
 
     // changing any of this names requires changing the log4j2.properties file too
     public static final String LOG_TYPE = "type";
@@ -120,6 +138,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String ACTION_FIELD_NAME = "action";
     public static final String INDICES_FIELD_NAME = "indices";
     public static final String REQUEST_NAME_FIELD_NAME = "request.name";
+    public static final String CONFIG_CHANGE_FIELD_NAME = "config_change";
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
@@ -136,7 +155,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
-            RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString());
+            RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGED.toString());
     public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.include"),
             DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
             Property.NodeScope, Property.Dynamic);
@@ -482,6 +501,38 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logger.info(AUDIT_MARKER, logEntry);
             }
         }
+        if (events.contains(SECURITY_CONFIG_CHANGED)) {
+            String eventAction = null;
+            if (msg instanceof PutUserRequest ||
+                    msg instanceof PutRoleMappingRequest ||
+                    msg instanceof PutRoleRequest ||
+                    msg instanceof SetEnabledRequest ||
+                    msg instanceof ChangePasswordRequest ||
+                    msg instanceof CreateApiKeyRequest ||
+                    msg instanceof GrantApiKeyRequest ||
+                    msg instanceof CreateTokenRequest ||
+                    msg instanceof PutPrivilegesRequest) {
+                eventAction = "set";
+            } else if (msg instanceof DeleteUserRequest ||
+                    msg instanceof DeleteRoleMappingRequest ||
+                    msg instanceof DeleteRoleRequest ||
+                    msg instanceof InvalidateTokenRequest ||
+                    msg instanceof InvalidateApiKeyRequest ||
+                    msg instanceof DeletePrivilegesRequest) {
+                eventAction = "clear";
+            }
+            if (eventAction != null) {
+                assert msg instanceof ToXContentObject;
+                final StringMapMessage logEntry = new LogEntryBuilder(false)
+                        .with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
+                        .with(EVENT_ACTION_FIELD_NAME, eventAction)
+                        .with(ACTION_FIELD_NAME, action)
+                        .withRequestId(requestId)
+                        .with(CONFIG_CHANGE_FIELD_NAME, Strings.toString((ToXContentObject)msg))
+                        .build();
+                logger.info(AUDIT_MARKER, logEntry);
+            }
+        }
     }
 
     @Override
@@ -736,7 +787,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final StringMapMessage logEntry;
 
         LogEntryBuilder() {
+            this(true);
+        }
+
+        LogEntryBuilder(boolean showOrigin) {
             logEntry = new StringMapMessage(LoggingAuditTrail.this.entryCommonFields.commonFields);
+            if (false == showOrigin) {
+                logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
+                logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
+            }
         }
 
         LogEntryBuilder withRestUriAndMethod(RestRequest request) {

@@ -180,7 +180,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
                 .field("role_templates", roleTemplates)
                 .field("rules", rules)
                 .field("metadata", metadata);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

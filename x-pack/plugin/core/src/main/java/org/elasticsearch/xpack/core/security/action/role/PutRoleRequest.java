@@ -229,16 +229,16 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         builder.startObject()
                 .field("name", name())
                 .array("cluster_privileges", cluster())
-                .array("indices_privileges", indices())
-                .field("application_privileges", applicationPrivileges())
                 .array("run_as", runAs())
+                .field("indices_privileges", indicesPrivileges)
+                .field("application_privileges", applicationPrivileges())
                 .field("metadata", metadata());
         builder.startObject("configurable_cluster_privileges");
         for (ConfigurableClusterPrivilege configurableClusterPrivilege : configurableClusterPrivileges) {
             configurableClusterPrivilege.toXContent(builder, params);
         }
         builder.endObject();
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

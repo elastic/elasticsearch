@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.describedAs;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -300,10 +301,17 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
-            builder.startObject().field(HLL, RUNLENS1024).endObject();
-        } else {
-            builder.startObject().field(LC, LC_HASHES).endObject();
+        final int field = randomInt(2);
+        switch (field) {
+            case 0:
+                builder.startObject().field(HLL, RUNLENS1024).endObject();
+                break;
+            case 1:
+                builder.startObject().field(LC, LC_HASHES).endObject();
+                break;
+            case 2:
+                builder.startObject().field(MURMUR3, MURMUR3_HASHES).endObject();
+                break;
         }
     }
 

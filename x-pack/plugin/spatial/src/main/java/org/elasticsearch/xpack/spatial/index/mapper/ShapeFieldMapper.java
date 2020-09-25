@@ -51,7 +51,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
         @Override
         public ShapeFieldMapper build(BuilderContext context) {
-            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
             GeometryParser geometryParser
                 = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
             ft.setGeometryParser(new GeoShapeParser(geometryParser));
@@ -77,8 +77,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
-        public ShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
         }
 
         @Override

@@ -29,7 +29,6 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -50,18 +49,21 @@ final class DfsQueryPhase extends SearchPhase {
 
     DfsQueryPhase(List<DfsSearchResult> searchResults,
                   AggregatedDfs dfs,
-                  SearchPhaseController searchPhaseController,
+                  QueryPhaseResultConsumer queryResult,
                   Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
-                  SearchPhaseContext context, Consumer<Exception> onPartialMergeFailure) {
+                  SearchPhaseContext context) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
-        this.queryResult = searchPhaseController.newSearchPhaseResults(context, progressListener,
-            context.getRequest(), context.getNumShards(), onPartialMergeFailure);
+        this.queryResult = queryResult;
         this.searchResults = searchResults;
         this.dfs = dfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
+
+        // register the release of the query consumer to free up the circuit breaker memory
+        // at the end of the search
+        context.addReleasable(queryResult);
     }
 
     @Override

@@ -188,7 +188,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         } else if (precision() < values.precision()) {
             mergeDifferentPrecision(thisBucket, values);
         } else {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Cannot merge a sketch of lower precision, provided got ["
+                + values.precision() + "], this got [" + precision() + "]");
         }
     }
 
@@ -223,7 +224,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     /**
-     * Changes the precision of an Linear counting encoded hash.
+     * Changes the precision of an encoded hash.
      *
      * @param encoded the encoded hash.
      * @param thisPrecision The precision of the given hash.
@@ -251,7 +252,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         } else if (precision() < runLens.precision()) {
             mergeDifferentPrecision(thisBucket, runLens);
         } else {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Cannot merge a sketch of lower precision, provided got ["
+                + runLens.precision() + "], this got [" + precision() + "]");
         }
     }
 
@@ -292,6 +294,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             iterator.next();
             final byte runLen = iterator.value();
             if (runLen != 0) {
+                // skip any other register
                 iterator.skip(registersToMerge - i - 1);
                 if (i == 0) {
                     // If the first element is set, then runLen is the current runLen plus the change in precision

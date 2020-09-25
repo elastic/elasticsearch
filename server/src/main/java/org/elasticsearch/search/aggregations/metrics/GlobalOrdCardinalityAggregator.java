@@ -40,7 +40,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * An aggregator that computes approximate counts of unique values.

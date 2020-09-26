@@ -57,6 +57,7 @@ public abstract class IRNode {
     public <T extends IRDecoration> boolean copyDecorationFrom(IRNode copyFromIRNode, Class<T> type) {
         T decoration = copyFromIRNode.getDecoration(type);
 
+
         if (decoration != null) {
             attachDecoration(decoration);
 

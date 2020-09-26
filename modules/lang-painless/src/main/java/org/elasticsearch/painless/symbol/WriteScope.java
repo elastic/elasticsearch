@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Type;
@@ -64,21 +65,61 @@ public class WriteScope {
     }
 
     protected final WriteScope parent;
+    protected final ClassWriter classWriter;
+    protected final MethodWriter methodWriter;
     protected final Map<String, Variable> variables = new HashMap<>();
     protected int nextSlot;
 
-    public WriteScope() {
+    protected WriteScope() {
         this.parent = null;
+        this.classWriter = null;
+        this.methodWriter = null;
         this.nextSlot = 0;
     }
 
-    protected WriteScope(WriteScope parent, int nextSlot) {
+    protected WriteScope(WriteScope parent, ClassWriter classWriter) {
         this.parent = parent;
-        this.nextSlot = nextSlot;
+        this.classWriter = classWriter;
+        this.methodWriter = parent.methodWriter;
+        this.nextSlot = parent.nextSlot;
     }
 
-    public WriteScope newScope() {
-        return new WriteScope(this, nextSlot);
+    protected WriteScope(WriteScope parent, MethodWriter methodWriter) {
+        this.parent = parent;
+        this.classWriter = parent.classWriter;
+        this.methodWriter = methodWriter;
+        this.nextSlot = parent.nextSlot;
+    }
+
+    protected WriteScope(WriteScope parent) {
+        this.parent = parent;
+        this.classWriter = parent.classWriter;
+        this.methodWriter = parent.methodWriter;
+        this.nextSlot = parent.nextSlot;
+    }
+
+    public static WriteScope newScriptScope() {
+        return new WriteScope();
+    }
+
+    public WriteScope newClassScope(ClassWriter classWriter) {
+        return new WriteScope(this, classWriter);
+    }
+
+    public WriteScope newMethodScope(MethodWriter methodWriter) {
+        return new WriteScope(this, methodWriter);
+    }
+
+    public WriteScope newBlockScope() {
+        return new WriteScope(this);
+    }
+
+    public ClassWriter getClassWriter() {
+        return classWriter;
+    }
+
+    public MethodWriter getMethodWriter() {
+        return methodWriter;
     }
 
     public Variable defineVariable(Class<?> type, String name) {

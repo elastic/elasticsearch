@@ -59,7 +59,7 @@ public class IfNode extends ConditionNode {
 
         getBlockNode().continueLabel = continueLabel;
         getBlockNode().breakLabel = breakLabel;
-        getBlockNode().write(classWriter, methodWriter, writeScope.newScope());
+        getBlockNode().write(classWriter, methodWriter, writeScope.newBlockScope());
 
         methodWriter.mark(fals);
     }

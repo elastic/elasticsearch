@@ -59,7 +59,7 @@ public class ForEachLoopNode extends StatementNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        writeScope = writeScope.newScope();
+        writeScope = writeScope.newBlockScope();
         conditionNode.write(classWriter, methodWriter, writeScope);
     }
 }

@@ -86,7 +86,7 @@ public class TryNode extends StatementNode {
 
         blockNode.continueLabel = continueLabel;
         blockNode.breakLabel = breakLabel;
-        blockNode.write(classWriter, methodWriter, writeScope.newScope());
+        blockNode.write(classWriter, methodWriter, writeScope.newBlockScope());
 
         if (blockNode.doAllEscape() == false) {
             methodWriter.goTo(exception);
@@ -98,7 +98,7 @@ public class TryNode extends StatementNode {
             catchNode.begin = begin;
             catchNode.end = end;
             catchNode.exception = catchNodes.size() > 1 ? exception : null;
-            catchNode.write(classWriter, methodWriter, writeScope.newScope());
+            catchNode.write(classWriter, methodWriter, writeScope.newBlockScope());
         }
 
         if (blockNode.doAllEscape() == false || catchNodes.size() > 1) {

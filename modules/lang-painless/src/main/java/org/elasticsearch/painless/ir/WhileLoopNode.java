@@ -58,7 +58,7 @@ public class WhileLoopNode extends LoopNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(getLocation());
 
-        writeScope = writeScope.newScope();
+        writeScope = writeScope.newBlockScope();
 
         Label begin = new Label();
         Label end = new Label();

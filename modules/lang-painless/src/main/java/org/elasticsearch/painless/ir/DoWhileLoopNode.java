@@ -56,7 +56,7 @@ public class DoWhileLoopNode extends LoopNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(getLocation());
 
-        writeScope = writeScope.newScope();
+        writeScope = writeScope.newBlockScope();
 
         Label start = new Label();
         Label begin = new Label();

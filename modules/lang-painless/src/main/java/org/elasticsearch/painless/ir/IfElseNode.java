@@ -73,7 +73,7 @@ public class IfElseNode extends ConditionNode {
 
         getBlockNode().continueLabel = continueLabel;
         getBlockNode().breakLabel = breakLabel;
-        getBlockNode().write(classWriter, methodWriter, writeScope.newScope());
+        getBlockNode().write(classWriter, methodWriter, writeScope.newBlockScope());
 
         if (getBlockNode().doAllEscape() == false) {
             methodWriter.goTo(end);
@@ -83,7 +83,7 @@ public class IfElseNode extends ConditionNode {
 
         elseBlockNode.continueLabel = continueLabel;
         elseBlockNode.breakLabel = breakLabel;
-        elseBlockNode.write(classWriter, methodWriter, writeScope.newScope());
+        elseBlockNode.write(classWriter, methodWriter, writeScope.newBlockScope());
 
         methodWriter.mark(end);
     }

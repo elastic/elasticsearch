@@ -20,12 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class WhileLoopNode extends LoopNode {
 
@@ -53,37 +48,4 @@ public class WhileLoopNode extends LoopNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeStatementOffset(getLocation());
-
-        writeScope = writeScope.newBlockScope();
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        if (isContinuous() == false) {
-            getConditionNode().write(writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
-        }
-
-        if (getBlockNode() != null) {
-            getBlockNode().write(writeScope.newLoopScope(begin, end));
-        }
-
-        if (getBlockNode() == null || getBlockNode().doAllEscape() == false) {
-            methodWriter.goTo(begin);
-        }
-
-        methodWriter.mark(end);
-    }
 }

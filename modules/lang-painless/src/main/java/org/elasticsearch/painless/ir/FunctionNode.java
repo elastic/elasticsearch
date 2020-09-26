@@ -19,15 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -139,57 +132,4 @@ public class FunctionNode extends IRNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        int access = Opcodes.ACC_PUBLIC;
-
-        if (isStatic) {
-            access |= Opcodes.ACC_STATIC;
-        }
-
-        if (hasVarArgs) {
-            access |= Opcodes.ACC_VARARGS;
-        }
-
-        if (isSynthetic) {
-            access |= Opcodes.ACC_SYNTHETIC;
-        }
-
-        Type asmReturnType = MethodWriter.getType(returnType);
-        Type[] asmParameterTypes = new Type[typeParameters.size()];
-
-        for (int index = 0; index < asmParameterTypes.length; ++index) {
-            asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
-        }
-
-        Method method = new Method(name, asmReturnType, asmParameterTypes);
-
-        ClassWriter classWriter = writeScope.getClassWriter();
-        MethodWriter methodWriter = classWriter.newMethodWriter(access, method);
-        writeScope = writeScope.newMethodScope(methodWriter);
-
-        if (isStatic == false) {
-            writeScope.defineInternalVariable(Object.class, "this");
-        }
-
-        for (int index = 0; index < typeParameters.size(); ++index) {
-            writeScope.defineVariable(typeParameters.get(index), parameterNames.get(index));
-        }
-
-        methodWriter.visitCode();
-
-        if (maxLoopCounter > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-
-            Variable loop = writeScope.defineInternalVariable(int.class, "loop");
-
-            methodWriter.push(maxLoopCounter);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        blockNode.write(writeScope.newBlockScope());
-
-        methodWriter.endMethod();
-    }
 }

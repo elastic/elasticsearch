@@ -20,11 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class IfElseNode extends ConditionNode {
 
@@ -60,24 +56,4 @@ public class IfElseNode extends ConditionNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeStatementOffset(getLocation());
-
-        Label fals = new Label();
-        Label end = new Label();
-
-        getConditionNode().write(writeScope);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-        getBlockNode().write(writeScope.newBlockScope());
-
-        if (getBlockNode().doAllEscape() == false) {
-            methodWriter.goTo(end);
-        }
-
-        methodWriter.mark(fals);
-        elseBlockNode.write(writeScope.newBlockScope());
-        methodWriter.mark(end);
-    }
 }

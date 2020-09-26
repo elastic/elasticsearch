@@ -20,14 +20,9 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class ForEachSubArrayNode extends LoopNode {
 
@@ -141,46 +136,4 @@ public class ForEachSubArrayNode extends LoopNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeStatementOffset(getLocation());
-
-        Variable variable = writeScope.defineVariable(variableType, variableName);
-        Variable array = writeScope.defineInternalVariable(arrayType, arrayName);
-        Variable index = writeScope.defineInternalVariable(indexType, indexName);
-
-        getConditionNode().write(writeScope);
-        methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ISTORE), array.getSlot());
-        methodWriter.push(-1);
-        methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ISTORE), index.getSlot());
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        methodWriter.visitIincInsn(index.getSlot(), 1);
-        methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.arrayLength();
-        methodWriter.ifICmp(MethodWriter.GE, end);
-
-        methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.arrayLoad(MethodWriter.getType(indexedType));
-        methodWriter.writeCast(cast);
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
-        }
-
-        getBlockNode().write(writeScope.newLoopScope(begin, end));
-
-        methodWriter.goTo(begin);
-        methodWriter.mark(end);
-    }
 }

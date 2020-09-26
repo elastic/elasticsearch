@@ -20,9 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 public class ConstantNode extends ExpressionNode {
 
@@ -56,21 +54,4 @@ public class ConstantNode extends ExpressionNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-
-        if      (constant instanceof String)    methodWriter.push((String)constant);
-        else if (constant instanceof Double)    methodWriter.push((double)constant);
-        else if (constant instanceof Float)     methodWriter.push((float)constant);
-        else if (constant instanceof Long)      methodWriter.push((long)constant);
-        else if (constant instanceof Integer)   methodWriter.push((int)constant);
-        else if (constant instanceof Character) methodWriter.push((char)constant);
-        else if (constant instanceof Short)     methodWriter.push((short)constant);
-        else if (constant instanceof Byte)      methodWriter.push((byte)constant);
-        else if (constant instanceof Boolean)   methodWriter.push((boolean)constant);
-        else {
-            throw new IllegalStateException("unexpected constant [" + constant + "]");
-        }
-    }
 }

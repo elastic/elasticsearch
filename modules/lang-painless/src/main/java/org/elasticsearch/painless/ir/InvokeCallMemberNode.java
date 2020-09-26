@@ -20,18 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 public class InvokeCallMemberNode extends ArgumentsNode {
 
@@ -112,78 +105,4 @@ public class InvokeCallMemberNode extends ArgumentsNode {
         super(location);
     }
 
-    @Override
-    public void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (localFunction != null) {
-            if (localFunction.isStatic() == false) {
-                methodWriter.loadThis();
-            }
-
-            for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(writeScope);
-           }
-
-            if (localFunction.isStatic()) {
-                methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
-            } else {
-                methodWriter.invokeVirtual(CLASS_TYPE, localFunction.getAsmMethod());
-            }
-        } else if (importedMethod != null) {
-            for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(writeScope);
-           }
-
-            methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
-                    new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
-        } else if (classBinding != null) {
-            Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
-            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
-
-            Label nonNull = new Label();
-
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, bindingName, type);
-            methodWriter.ifNonNull(nonNull);
-            methodWriter.loadThis();
-            methodWriter.newInstance(type);
-            methodWriter.dup();
-
-            if (classBindingOffset == 1) {
-                methodWriter.loadThis();
-            }
-
-            for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                getArgumentNodes().get(argument).write(writeScope);
-           }
-
-            methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
-            methodWriter.putField(CLASS_TYPE, bindingName, type);
-
-            methodWriter.mark(nonNull);
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, bindingName, type);
-
-            for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                getArgumentNodes().get(argument + javaConstructorParameterCount).write(writeScope);
-            }
-
-            methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
-        } else if (instanceBinding != null) {
-            Type type = Type.getType(instanceBinding.targetInstance.getClass());
-
-            methodWriter.loadThis();
-            methodWriter.getStatic(CLASS_TYPE, bindingName, type);
-
-            for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                getArgumentNodes().get(argument).write(writeScope);
-            }
-
-            methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
-        } else {
-            throw new IllegalStateException("invalid unbound call");
-        }
-    }
 }

@@ -20,16 +20,9 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class BinaryMathNode extends BinaryNode {
 
@@ -99,34 +92,4 @@ public class BinaryMathNode extends BinaryNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (operation == Operation.FIND || operation == Operation.MATCH) {
-            getRightNode().write(writeScope);
-            getLeftNode().write(writeScope);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
-
-            if (operation == Operation.FIND) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);
-            } else if (operation == Operation.MATCH) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
-            } else {
-                throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
-                        "for type [" + getExpressionCanonicalTypeName() + "]");
-            }
-        } else {
-            getLeftNode().write(writeScope);
-            getRightNode().write(writeScope);
-
-            if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
-                methodWriter.writeDynamicBinaryInstruction(getLocation(),
-                        getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
-            } else {
-                methodWriter.writeBinaryInstruction(getLocation(), getExpressionType(), operation);
-            }
-        }
-    }
 }

@@ -140,7 +140,7 @@ public class FunctionNode extends IRNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
         int access = Opcodes.ACC_PUBLIC;
 
         if (isStatic) {
@@ -164,7 +164,8 @@ public class FunctionNode extends IRNode {
 
         Method method = new Method(name, asmReturnType, asmParameterTypes);
 
-        methodWriter = classWriter.newMethodWriter(access, method);
+        ClassWriter classWriter = writeScope.getClassWriter();
+        MethodWriter methodWriter = classWriter.newMethodWriter(access, method);
         writeScope = writeScope.newMethodScope(methodWriter);
 
         if (isStatic == false) {
@@ -187,7 +188,7 @@ public class FunctionNode extends IRNode {
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        blockNode.write(classWriter, methodWriter, writeScope.newBlockScope());
+        blockNode.write(writeScope.newBlockScope());
 
         methodWriter.endMethod();
     }

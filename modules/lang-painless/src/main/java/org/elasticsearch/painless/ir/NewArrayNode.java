@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -60,7 +59,8 @@ public class NewArrayNode extends ArgumentsNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(getLocation());
 
         if (initialize) {
@@ -72,12 +72,12 @@ public class NewArrayNode extends ArgumentsNode {
 
                 methodWriter.dup();
                 methodWriter.push(index);
-                argumentNode.write(classWriter, methodWriter, writeScope);
+                argumentNode.write(writeScope);
                 methodWriter.arrayStore(MethodWriter.getType(getExpressionType().getComponentType()));
             }
         } else {
             for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, writeScope);
+                argumentNode.write(writeScope);
             }
 
             if (getArgumentNodes().size() > 1) {

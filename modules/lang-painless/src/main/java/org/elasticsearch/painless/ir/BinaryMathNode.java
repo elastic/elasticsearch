@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
@@ -101,12 +100,13 @@ public class BinaryMathNode extends BinaryNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(getLocation());
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            getLeftNode().write(classWriter, methodWriter, writeScope);
+            getRightNode().write(writeScope);
+            getLeftNode().write(writeScope);
             methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
@@ -118,8 +118,8 @@ public class BinaryMathNode extends BinaryNode {
                         "for type [" + getExpressionCanonicalTypeName() + "]");
             }
         } else {
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            getRightNode().write(classWriter, methodWriter, writeScope);
+            getLeftNode().write(writeScope);
+            getRightNode().write(writeScope);
 
             if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
                 methodWriter.writeDynamicBinaryInstruction(getLocation(),

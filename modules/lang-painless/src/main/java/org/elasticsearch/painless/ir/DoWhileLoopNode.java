@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -53,7 +52,8 @@ public class DoWhileLoopNode extends LoopNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
 
         writeScope = writeScope.newBlockScope();
@@ -66,12 +66,12 @@ public class DoWhileLoopNode extends LoopNode {
 
         getBlockNode().continueLabel = begin;
         getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, writeScope);
+        getBlockNode().write(writeScope);
 
         methodWriter.mark(begin);
 
         if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, writeScope);
+            getConditionNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 

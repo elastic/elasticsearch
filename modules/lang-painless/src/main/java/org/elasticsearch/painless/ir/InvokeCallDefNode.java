@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -70,7 +69,8 @@ public class InvokeCallDefNode extends ArgumentsNode {
      * Writes an invokedynamic instruction for a call with an unknown receiver type.
      */
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(getLocation());
 
         // its possible to have unknown functional interfaces
@@ -88,7 +88,7 @@ public class InvokeCallDefNode extends ArgumentsNode {
 
         for (int i = 0; i < getArgumentNodes().size(); ++i) {
             ExpressionNode argumentNode = getArgumentNodes().get(i);
-            argumentNode.write(classWriter, methodWriter, writeScope);
+            argumentNode.write(writeScope);
 
             typeParameters.add(argumentNode.getExpressionType());
 

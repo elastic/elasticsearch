@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -75,7 +74,8 @@ public class TryNode extends StatementNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
 
         Label begin = new Label();
@@ -86,7 +86,7 @@ public class TryNode extends StatementNode {
 
         blockNode.continueLabel = continueLabel;
         blockNode.breakLabel = breakLabel;
-        blockNode.write(classWriter, methodWriter, writeScope.newBlockScope());
+        blockNode.write(writeScope.newBlockScope());
 
         if (blockNode.doAllEscape() == false) {
             methodWriter.goTo(exception);
@@ -98,7 +98,7 @@ public class TryNode extends StatementNode {
             catchNode.begin = begin;
             catchNode.end = end;
             catchNode.exception = catchNodes.size() > 1 ? exception : null;
-            catchNode.write(classWriter, methodWriter, writeScope.newBlockScope());
+            catchNode.write(writeScope.newBlockScope());
         }
 
         if (blockNode.doAllEscape() == false || catchNodes.size() > 1) {

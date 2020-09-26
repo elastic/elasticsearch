@@ -885,7 +885,8 @@ public final class InternalTestCluster extends TestCluster {
                     throw new RuntimeException("already closed");
                 }
                 if (nodeClient == null) {
-                    nodeClient = node.client();
+                    nodeClient = new InternalTestClusterClient(NodeAndClient.this.node.client(),
+                            () -> node.injector().getInstance(TransportService.class).getLocalNode());
                 }
                 return clientWrapper.apply(nodeClient);
             }
@@ -999,6 +1000,7 @@ public final class InternalTestCluster extends TestCluster {
                 dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
         }
+
     }
 
     @Override

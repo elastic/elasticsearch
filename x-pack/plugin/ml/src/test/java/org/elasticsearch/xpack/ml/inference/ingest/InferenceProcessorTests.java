@@ -139,9 +139,9 @@ public class InferenceProcessorTests extends ESTestCase {
 
         List<ClassificationFeatureImportance> featureInfluence = new ArrayList<>();
         featureInfluence.add(new ClassificationFeatureImportance("feature_1",
-            Collections.singletonList(new ClassificationFeatureImportance.ClassImportance("class_a", -42.0))));
+            Collections.singletonList(new ClassificationFeatureImportance.ClassImportance("class_a", 1.13))));
         featureInfluence.add(new ClassificationFeatureImportance("feature_2",
-            Collections.singletonList(new ClassificationFeatureImportance.ClassImportance("class_b", 1.13))));
+            Collections.singletonList(new ClassificationFeatureImportance.ClassImportance("class_b", -42.0))));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new ClassificationInferenceResults(1.0,
@@ -157,10 +157,10 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
         assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
         assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.feature_name", String.class), equalTo("feature_2"));
-        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.classes.0.class_name", Double.class), equalTo("class_a"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.classes.0.class_name", String.class), equalTo("class_b"));
         assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.classes.0.importance", Double.class), equalTo(-42.0));
         assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.feature_name", String.class), equalTo("feature_1"));
-        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.classes.0.class_name", Double.class), equalTo("class_b"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.classes.0.class_name", String.class), equalTo("class_a"));
         assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.classes.0.importance", Double.class), equalTo(1.13));
     }
 

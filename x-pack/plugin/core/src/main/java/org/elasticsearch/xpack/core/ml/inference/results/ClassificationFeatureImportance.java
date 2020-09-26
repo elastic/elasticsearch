@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,7 +60,6 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
         this.classImportance = in.readList(ClassImportance::new);
     }
 
-    @Nullable
     public List<ClassImportance> getClassImportance() {
         return classImportance;
     }

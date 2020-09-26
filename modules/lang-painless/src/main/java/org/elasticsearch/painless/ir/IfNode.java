@@ -56,11 +56,7 @@ public class IfNode extends ConditionNode {
 
         getConditionNode().write(writeScope);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-        getBlockNode().continueLabel = continueLabel;
-        getBlockNode().breakLabel = breakLabel;
         getBlockNode().write(writeScope.newBlockScope());
-
         methodWriter.mark(fals);
     }
 }

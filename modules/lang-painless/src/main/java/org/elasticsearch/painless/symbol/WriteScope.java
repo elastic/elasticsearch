@@ -22,6 +22,7 @@ package org.elasticsearch.painless.symbol;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 
 import java.util.HashMap;
@@ -67,6 +68,8 @@ public class WriteScope {
     protected final WriteScope parent;
     protected final ClassWriter classWriter;
     protected final MethodWriter methodWriter;
+    protected final Label continueLabel;
+    protected final Label breakLabel;
     protected final Map<String, Variable> variables = new HashMap<>();
     protected int nextSlot;
 
@@ -74,6 +77,8 @@ public class WriteScope {
         this.parent = null;
         this.classWriter = null;
         this.methodWriter = null;
+        this.continueLabel = null;
+        this.breakLabel = null;
         this.nextSlot = 0;
     }
 
@@ -81,6 +86,8 @@ public class WriteScope {
         this.parent = parent;
         this.classWriter = classWriter;
         this.methodWriter = parent.methodWriter;
+        this.continueLabel = parent.continueLabel;
+        this.breakLabel = parent.breakLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -88,6 +95,17 @@ public class WriteScope {
         this.parent = parent;
         this.classWriter = parent.classWriter;
         this.methodWriter = methodWriter;
+        this.continueLabel = parent.continueLabel;
+        this.breakLabel = parent.breakLabel;
+        this.nextSlot = parent.nextSlot;
+    }
+
+    protected WriteScope(WriteScope parent, Label continueLabel, Label breakLabel) {
+        this.parent = parent;
+        this.classWriter = parent.classWriter;
+        this.methodWriter = parent.methodWriter;
+        this.continueLabel = continueLabel;
+        this.breakLabel = breakLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -95,6 +113,8 @@ public class WriteScope {
         this.parent = parent;
         this.classWriter = parent.classWriter;
         this.methodWriter = parent.methodWriter;
+        this.continueLabel = parent.continueLabel;
+        this.breakLabel = parent.breakLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -110,6 +130,10 @@ public class WriteScope {
         return new WriteScope(this, methodWriter);
     }
 
+    public WriteScope newLoopScope(Label continueLabel, Label breakLabel) {
+        return new WriteScope(this, continueLabel, breakLabel);
+    }
+
     public WriteScope newBlockScope() {
         return new WriteScope(this);
     }
@@ -120,6 +144,14 @@ public class WriteScope {
 
     public MethodWriter getMethodWriter() {
         return methodWriter;
+    }
+
+    public Label getContinueLabel() {
+        return continueLabel;
+    }
+
+    public Label getBreakLabel() {
+        return breakLabel;
     }
 
     public Variable defineVariable(Class<?> type, String name) {

@@ -178,9 +178,7 @@ public class ForEachSubArrayNode extends LoopNode {
             methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
         }
 
-        getBlockNode().continueLabel = begin;
-        getBlockNode().breakLabel = end;
-        getBlockNode().write(writeScope);
+        getBlockNode().write(writeScope.newLoopScope(begin, end));
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

@@ -75,8 +75,6 @@ public class BlockNode extends StatementNode {
     @Override
     protected void write(WriteScope writeScope) {
         for (StatementNode statementNode : statementNodes) {
-            statementNode.continueLabel = continueLabel;
-            statementNode.breakLabel = breakLabel;
             statementNode.write(writeScope);
         }
     }

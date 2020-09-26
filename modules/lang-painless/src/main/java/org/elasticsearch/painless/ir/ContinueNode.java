@@ -47,6 +47,6 @@ public class ContinueNode extends StatementNode {
     @Override
     protected void write(WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.goTo(continueLabel);
+        methodWriter.goTo(writeScope.getContinueLabel());
     }
 }

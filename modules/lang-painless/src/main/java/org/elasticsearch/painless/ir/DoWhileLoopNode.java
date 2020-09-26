@@ -63,11 +63,7 @@ public class DoWhileLoopNode extends LoopNode {
         Label end = new Label();
 
         methodWriter.mark(start);
-
-        getBlockNode().continueLabel = begin;
-        getBlockNode().breakLabel = end;
-        getBlockNode().write(writeScope);
-
+        getBlockNode().write(writeScope.newLoopScope(begin, end));
         methodWriter.mark(begin);
 
         if (isContinuous() == false) {

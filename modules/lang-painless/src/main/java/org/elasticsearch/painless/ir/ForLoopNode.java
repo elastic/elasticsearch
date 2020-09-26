@@ -119,10 +119,7 @@ public class ForLoopNode extends LoopNode {
 
         if (getBlockNode() != null) {
             allEscape = getBlockNode().doAllEscape();
-
-            getBlockNode().continueLabel = begin;
-            getBlockNode().breakLabel = end;
-            getBlockNode().write(writeScope);
+            getBlockNode().write(writeScope.newLoopScope(begin, end));
         }
 
         if (afterthoughtNode != null) {

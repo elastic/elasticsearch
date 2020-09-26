@@ -96,8 +96,6 @@ public class CatchNode extends StatementNode {
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (blockNode != null) {
-            blockNode.continueLabel = continueLabel;
-            blockNode.breakLabel = breakLabel;
             blockNode.write(writeScope);
         }
 

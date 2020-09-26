@@ -84,8 +84,6 @@ public class TryNode extends StatementNode {
 
         methodWriter.mark(begin);
 
-        blockNode.continueLabel = continueLabel;
-        blockNode.breakLabel = breakLabel;
         blockNode.write(writeScope.newBlockScope());
 
         if (blockNode.doAllEscape() == false) {

@@ -70,9 +70,6 @@ public class IfElseNode extends ConditionNode {
 
         getConditionNode().write(writeScope);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-        getBlockNode().continueLabel = continueLabel;
-        getBlockNode().breakLabel = breakLabel;
         getBlockNode().write(writeScope.newBlockScope());
 
         if (getBlockNode().doAllEscape() == false) {
@@ -80,11 +77,7 @@ public class IfElseNode extends ConditionNode {
         }
 
         methodWriter.mark(fals);
-
-        elseBlockNode.continueLabel = continueLabel;
-        elseBlockNode.breakLabel = breakLabel;
         elseBlockNode.write(writeScope.newBlockScope());
-
         methodWriter.mark(end);
     }
 }

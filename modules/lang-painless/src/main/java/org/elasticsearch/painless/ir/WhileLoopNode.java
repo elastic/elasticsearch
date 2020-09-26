@@ -77,9 +77,7 @@ public class WhileLoopNode extends LoopNode {
         }
 
         if (getBlockNode() != null) {
-            getBlockNode().continueLabel = begin;
-            getBlockNode().breakLabel = end;
-            getBlockNode().write(writeScope);
+            getBlockNode().write(writeScope.newLoopScope(begin, end));
         }
 
         if (getBlockNode() == null || getBlockNode().doAllEscape() == false) {

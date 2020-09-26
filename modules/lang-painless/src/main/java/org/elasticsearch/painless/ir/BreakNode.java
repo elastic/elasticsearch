@@ -47,6 +47,6 @@ public class BreakNode extends StatementNode {
     @Override
     protected void write(WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.goTo(breakLabel);
+        methodWriter.goTo(writeScope.getBreakLabel());
     }
 }

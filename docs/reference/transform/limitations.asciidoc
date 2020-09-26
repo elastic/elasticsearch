@@ -106,6 +106,14 @@ neither the destination index nor the {kib} index pattern, should one have been
 created, are deleted. These objects must be deleted separately.
 
 [discrete]
+[[transform-ilm-limitations]]
+== Using an alias as destination index for a {transform}
+
+Using an alias as destination index for a {transform} might lead to
+duplicate entries if the actual destination index changes over time.
+E.g. Using a ILM Rollover Alias
+
+[discrete]
 [[transform-aggregation-page-limitations]]
 == Handling dynamic adjustment of aggregation page size
 

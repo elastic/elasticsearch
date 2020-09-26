@@ -193,7 +193,7 @@ public class SecurityContext {
     }
 
     private BytesReference convertRoleDescriptorsMapToBytes(Map<String, Object> roleDescriptorsMap) {
-        try(final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+        try(XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.map(roleDescriptorsMap);
             return BytesReference.bytes(builder);
         } catch (IOException e) {

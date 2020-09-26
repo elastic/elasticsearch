@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -53,5 +51,4 @@ public class AuthenticateRequest extends ActionRequest implements UserRequest {
         super.writeTo(out);
         out.writeString(username);
     }
-
 }

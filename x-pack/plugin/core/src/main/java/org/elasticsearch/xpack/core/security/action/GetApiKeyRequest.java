@@ -13,8 +13,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -197,5 +195,4 @@ public final class GetApiKeyRequest extends ActionRequest {
     public int hashCode() {
         return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser);
     }
-
 }

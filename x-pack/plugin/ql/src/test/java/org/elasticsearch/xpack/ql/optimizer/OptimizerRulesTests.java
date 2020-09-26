@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
@@ -1317,5 +1318,30 @@ public class OptimizerRulesTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(Predicates.combineOr(Arrays.asList(eq, range, neq, gt)));
         assertEquals(TRUE, exp);
+    }
+
+    //
+    //
+    //
+    public void testMatchAllLikeToExist() throws Exception {
+        for (String s : Arrays.asList("%", "%%", "%%%")) {
+            LikePattern pattern = new LikePattern(s, (char) 0);
+            FieldAttribute fa = getFieldAttribute();
+            Like l = new Like(EMPTY, fa, pattern);
+            Expression e = new OptimizerRules.ReplaceMatchAll().rule(l);
+            assertEquals(IsNotNull.class, e.getClass());
+            IsNotNull inn = (IsNotNull) e;
+            assertEquals(fa, inn.field());
+        }
+    }
+
+    public void testMatchAllRLikeToExist() throws Exception {
+            RLikePattern pattern = new RLikePattern(".*");
+            FieldAttribute fa = getFieldAttribute();
+            RLike l = new RLike(EMPTY, fa, pattern);
+            Expression e = new OptimizerRules.ReplaceMatchAll().rule(l);
+            assertEquals(IsNotNull.class, e.getClass());
+            IsNotNull inn = (IsNotNull) e;
+            assertEquals(fa, inn.field());
     }
 }

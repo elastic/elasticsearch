@@ -288,7 +288,7 @@ the scores are not used for sorting. Defaults to `false`.
 (Optional, integer or boolean)
 Number of hits matching the query to count accurately. Defaults to `10000`.
 +
-If `true`, the default value is used. If `false`, the response does not
+If `true`, the exact number of hits is returned. If `false`, the response does not
 include the total number of hits matching the query.
 
 `typed_keys`::

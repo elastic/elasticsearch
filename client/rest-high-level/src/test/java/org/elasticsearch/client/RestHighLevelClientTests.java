@@ -52,6 +52,7 @@ import org.elasticsearch.client.ilm.FreezeAction;
 import org.elasticsearch.client.ilm.LifecycleAction;
 import org.elasticsearch.client.ilm.ReadOnlyAction;
 import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.SearchableSnapshotAction;
 import org.elasticsearch.client.ilm.SetPriorityAction;
 import org.elasticsearch.client.ilm.ShrinkAction;
 import org.elasticsearch.client.ilm.UnfollowAction;
@@ -705,7 +706,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(71, namedXContents.size());
+        assertEquals(72, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -731,7 +732,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(10), categories.get(LifecycleAction.class));
+        assertEquals(Integer.valueOf(11), categories.get(LifecycleAction.class));
         assertTrue(names.contains(UnfollowAction.NAME));
         assertTrue(names.contains(AllocateAction.NAME));
         assertTrue(names.contains(DeleteAction.NAME));
@@ -741,6 +742,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
         assertTrue(names.contains(SetPriorityAction.NAME));
+        assertTrue(names.contains(SearchableSnapshotAction.NAME));
         assertEquals(Integer.valueOf(3), categories.get(DataFrameAnalysis.class));
         assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.OutlierDetection.NAME.getPreferredName()));
         assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Regression.NAME.getPreferredName()));

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
@@ -43,6 +44,7 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -404,6 +406,34 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    private abstract class PreparedRounding implements Prepared {
+        /**
+         * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
+         * "round down" points. If there would be more than {@code max} points then return
+         * the original implementation, otherwise return the new, faster implementation.
+         */
+        protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+            long[] values = new long[1];
+            long rounded = round(minUtcMillis);
+            int i = 0;
+            values[i++] = rounded;
+            while ((rounded = nextRoundingValue(rounded)) <= maxUtcMillis) {
+                if (i >= max) {
+                    return this;
+                }
+                /*
+                 * We expect a time in the last transition (rounded - 1) to round
+                 * to the last value we calculated. If it doesn't then we're
+                 * probably doing something wrong here....
+                 */
+                assert values[i - 1] == round(rounded - 1);
+                values = ArrayUtil.grow(values, i + 1);
+                values[i++]= rounded;
+            }
+            return new ArrayRounding(values, i, this);
+        }
+    }
+
     static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
@@ -468,6 +498,15 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
+            /*
+             * 128 is a power of two that isn't huge. We might be able to do
+             * better if the limit was based on the actual type of prepared
+             * rounding but this'll do for now.
+             */
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
+        }
+
+        private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
             long maxLookup = maxUtcMillis;
 
@@ -486,7 +525,6 @@ public abstract class Rounding implements Writeable {
                 // Range too long, just use java.time
                 return prepareJavaTime();
             }
-
             LocalTimeOffset fixedOffset = lookup.fixedInRange(minLookup, maxLookup);
             if (fixedOffset != null) {
                 // The time zone is effectively fixed
@@ -515,7 +553,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        TimeUnitPreparedRounding prepareJavaTime() {
             if (unitRoundsToMidnight) {
                 return new JavaTimeToMidnightRounding();
             }
@@ -554,7 +592,7 @@ public abstract class Rounding implements Writeable {
             return "Rounding[" + unit + " in " + timeZone + "]";
         }
 
-        private abstract class TimeUnitPreparedRounding implements Prepared {
+        private abstract class TimeUnitPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased == unit.isMillisBased) {
@@ -648,6 +686,14 @@ public abstract class Rounding implements Writeable {
             public long beforeOverlap(long localMillis, Overlap overlap) {
                 return overlap.previous().localToUtc(localMillis, this);
             }
+
+            @Override
+            protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+                if (lookup.anyMoveBackToPreviousDay()) {
+                    return this;
+                }
+                return super.maybeUseArray(minUtcMillis, maxUtcMillis, max);
+            }
         }
 
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
@@ -705,6 +751,12 @@ public abstract class Rounding implements Writeable {
                 LocalDateTime earlierLocalMidnight = truncateLocalDateTime(localDateTime);
                 LocalDateTime localMidnight = nextRelevantMidnight(earlierLocalMidnight);
                 return firstTimeOnDay(localMidnight);
+            }
+
+            @Override
+            protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+                // We don't have the right information needed to know if this is safe for this time zone so we always use java rounding
+                return this;
             }
 
             private long firstTimeOnDay(LocalDateTime localMidnight) {
@@ -1107,7 +1159,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            return wrapPreparedRounding(delegate.prepare(minUtcMillis, maxUtcMillis));
+            return wrapPreparedRounding(delegate.prepare(minUtcMillis - offset, maxUtcMillis - offset));
         }
 
         @Override
@@ -1180,6 +1232,43 @@ public abstract class Rounding implements Writeable {
                 return new OffsetRounding(in);
             default:
                 throw new ElasticsearchException("unknown rounding id [" + id + "]");
+        }
+    }
+
+    /**
+     * Implementation of {@link Prepared} using pre-calculated "round down" points.
+     */
+    private static class ArrayRounding implements Prepared {
+        private final long[] values;
+        private final int max;
+        private final Prepared delegate;
+
+        private ArrayRounding(long[] values, int max, Prepared delegate) {
+            this.values = values;
+            this.max = max;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long round(long utcMillis) {
+            assert values[0] <= utcMillis : "utcMillis must be after " + values[0];
+            int idx = Arrays.binarySearch(values, 0, max, utcMillis);
+            assert idx != -1 : "The insertion point is before the array! This should have tripped the assertion above.";
+            assert -1 - idx <= values.length : "This insertion point is after the end of the array.";
+            if (idx < 0) {
+                idx = -2 - idx;
+            }
+            return values[idx];
+        }
+
+        @Override
+        public long nextRoundingValue(long utcMillis) {
+            return delegate.nextRoundingValue(utcMillis);
+        }
+
+        @Override
+        public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+            return delegate.roundingSize(utcMillis, timeUnit);
         }
     }
 }

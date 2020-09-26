@@ -87,6 +87,15 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((RangeFieldMapper)m).coerce()));
+    }
+
     private Object getFrom(String type) {
         if (type.equals("date_range")) {
             return FROM_DATE;

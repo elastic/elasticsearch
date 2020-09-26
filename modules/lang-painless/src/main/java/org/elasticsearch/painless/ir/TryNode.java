@@ -78,29 +78,28 @@ public class TryNode extends StatementNode {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
 
-        Label begin = new Label();
-        Label end = new Label();
-        Label exception = new Label();
+        Label tryBeginLabel = new Label();
+        Label tryEndLabel = new Label();
+        Label catchesEndLabel = new Label();
 
-        methodWriter.mark(begin);
+        methodWriter.mark(tryBeginLabel);
 
         blockNode.write(writeScope.newBlockScope());
 
         if (blockNode.doAllEscape() == false) {
-            methodWriter.goTo(exception);
+            methodWriter.goTo(catchesEndLabel);
         }
 
-        methodWriter.mark(end);
+        methodWriter.mark(tryEndLabel);
 
-        for (CatchNode catchNode : catchNodes) {
-            catchNode.begin = begin;
-            catchNode.end = end;
-            catchNode.exception = catchNodes.size() > 1 ? exception : null;
-            catchNode.write(writeScope.newBlockScope());
+        for (int i = 0; i < catchNodes.size(); ++i) {
+            CatchNode catchNode = catchNodes.get(i);
+            Label catchJumpLabel = catchNodes.size() > 1 && i < catchNodes.size() - 1 ? catchesEndLabel : null;
+            catchNode.write(writeScope.newTryScope(tryBeginLabel, tryEndLabel, catchJumpLabel));
         }
 
         if (blockNode.doAllEscape() == false || catchNodes.size() > 1) {
-            methodWriter.mark(exception);
+            methodWriter.mark(catchesEndLabel);
         }
     }
 }

@@ -70,6 +70,9 @@ public class WriteScope {
     protected final MethodWriter methodWriter;
     protected final Label continueLabel;
     protected final Label breakLabel;
+    protected final Label tryBeginLabel;
+    protected final Label tryEndLabel;
+    protected final Label catchesEndLabel;
     protected final Map<String, Variable> variables = new HashMap<>();
     protected int nextSlot;
 
@@ -79,6 +82,9 @@ public class WriteScope {
         this.methodWriter = null;
         this.continueLabel = null;
         this.breakLabel = null;
+        this.tryBeginLabel = null;
+        this.tryEndLabel = null;
+        this.catchesEndLabel = null;
         this.nextSlot = 0;
     }
 
@@ -88,6 +94,9 @@ public class WriteScope {
         this.methodWriter = parent.methodWriter;
         this.continueLabel = parent.continueLabel;
         this.breakLabel = parent.breakLabel;
+        this.tryBeginLabel = parent.tryBeginLabel;
+        this.tryEndLabel = parent.tryEndLabel;
+        this.catchesEndLabel = parent.catchesEndLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -97,6 +106,9 @@ public class WriteScope {
         this.methodWriter = methodWriter;
         this.continueLabel = parent.continueLabel;
         this.breakLabel = parent.breakLabel;
+        this.tryBeginLabel = parent.tryBeginLabel;
+        this.tryEndLabel = parent.tryEndLabel;
+        this.catchesEndLabel = parent.catchesEndLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -106,6 +118,21 @@ public class WriteScope {
         this.methodWriter = parent.methodWriter;
         this.continueLabel = continueLabel;
         this.breakLabel = breakLabel;
+        this.tryBeginLabel = parent.tryBeginLabel;
+        this.tryEndLabel = parent.tryEndLabel;
+        this.catchesEndLabel = parent.catchesEndLabel;
+        this.nextSlot = parent.nextSlot;
+    }
+
+    protected WriteScope(WriteScope parent, Label tryBeginLabel, Label tryEndLabel, Label catchesEndLabel) {
+        this.parent = parent;
+        this.classWriter = parent.classWriter;
+        this.methodWriter = parent.methodWriter;
+        this.continueLabel = parent.continueLabel;
+        this.breakLabel = parent.breakLabel;
+        this.tryBeginLabel = tryBeginLabel;
+        this.tryEndLabel = tryEndLabel;
+        this.catchesEndLabel = catchesEndLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -115,6 +142,9 @@ public class WriteScope {
         this.methodWriter = parent.methodWriter;
         this.continueLabel = parent.continueLabel;
         this.breakLabel = parent.breakLabel;
+        this.tryBeginLabel = parent.tryBeginLabel;
+        this.tryEndLabel = parent.tryEndLabel;
+        this.catchesEndLabel = parent.catchesEndLabel;
         this.nextSlot = parent.nextSlot;
     }
 
@@ -132,6 +162,10 @@ public class WriteScope {
 
     public WriteScope newLoopScope(Label continueLabel, Label breakLabel) {
         return new WriteScope(this, continueLabel, breakLabel);
+    }
+
+    public WriteScope newTryScope(Label tryBeginLabel, Label tryEndLabel, Label catchesEndLabel) {
+        return new WriteScope(this, tryBeginLabel, tryEndLabel, catchesEndLabel);
     }
 
     public WriteScope newBlockScope() {
@@ -152,6 +186,18 @@ public class WriteScope {
 
     public Label getBreakLabel() {
         return breakLabel;
+    }
+
+    public Label getTryBeginLabel() {
+        return tryBeginLabel;
+    }
+
+    public Label getTryEndLabel() {
+        return tryEndLabel;
+    }
+
+    public Label getCatchesEndLabel() {
+        return catchesEndLabel;
     }
 
     public Variable defineVariable(Class<?> type, String name) {

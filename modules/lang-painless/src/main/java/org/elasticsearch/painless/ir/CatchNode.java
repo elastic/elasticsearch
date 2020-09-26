@@ -75,10 +75,6 @@ public class CatchNode extends StatementNode {
 
     /* ---- end visitor ---- */
 
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
-
     public CatchNode(Location location) {
         super(location);
     }
@@ -96,13 +92,14 @@ public class CatchNode extends StatementNode {
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (blockNode != null) {
-            blockNode.write(writeScope);
+            blockNode.write(writeScope.newTryScope(null, null, null));
         }
 
-        methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());
+        methodWriter.visitTryCatchBlock(
+                writeScope.getTryBeginLabel(), writeScope.getTryEndLabel(), jump, variable.getAsmType().getInternalName());
 
-        if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
-            methodWriter.goTo(exception);
+        if (writeScope.getCatchesEndLabel() != null && (blockNode == null || blockNode.doAllEscape() == false)) {
+            methodWriter.goTo(writeScope.getCatchesEndLabel());
         }
     }
 }

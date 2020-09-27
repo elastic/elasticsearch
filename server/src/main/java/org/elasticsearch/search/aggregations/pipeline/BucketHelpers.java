@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -212,6 +213,62 @@ public class BucketHelpers {
             return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                 + " must reference either a number value or a single value numeric metric aggregation, got: ["
                 + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        }
+    }
+
+    /**
+     * Interpolation type to be used on calculation of percentiles.
+     *
+     * "none": The nearest-rank method is used to calculate percentiles
+     * "linear": Percentiles are calculated using linear interpolation. Both endpoints of the data are included.
+     */
+    public enum InterpolationType implements Writeable {
+        NONE("none"), LINEAR("linear");
+
+        private final ParseField type;
+
+        InterpolationType(String name) {
+            this.type = new ParseField(name);
+        }
+
+        /**
+         * Parse string value of InterpolationType
+         *
+         * @param value InterpolationType in String format
+         * @return InterpolationType enum
+         */
+        public static InterpolationType parse(String value) {
+            for (InterpolationType interpolationType : values()) {
+                if (interpolationType.type.match(value, LoggingDeprecationHandler.INSTANCE)) {
+                    return interpolationType;
+                }
+            }
+            throw new ElasticsearchParseException("Invalid interpolation type: [{}]", value);
+        }
+
+        /**
+         * Deserialize input stream to InterpolationType
+         *
+         * @return    GapPolicy Enum
+         */
+        public static InterpolationType readFromStream(StreamInput in) throws IOException {
+            return in.readEnum(InterpolationType.class);
+        }
+
+        /**
+         * Serialize InterpolationType to output stream
+         */
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        /**
+         * Return the english-formatted name of the InterpolationType
+         *
+         * @return English representation of InterpolationType
+         */
+        public String getName() {
+            return type.getPreferredName();
         }
     }
 }

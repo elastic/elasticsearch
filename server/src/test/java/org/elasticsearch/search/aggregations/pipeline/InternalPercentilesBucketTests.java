@@ -46,22 +46,22 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     @Override
     protected InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata) {
-        return createTestInstance(name, metadata, randomPercents(), true);
+        return createTestInstance(name, metadata, randomPercents(), true, randomFrom(BucketHelpers.InterpolationType.values()));
     }
 
     private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
-            double[] percents, boolean keyed) {
+            double[] percents, boolean keyed, BucketHelpers.InterpolationType interpolationType) {
         final double[] percentiles = new double[percents.length];
         for (int i = 0; i < percents.length; ++i) {
             percentiles[i] = frequently() ? randomDouble() : Double.NaN;
         }
-        return createTestInstance(name, metadata, percents, percentiles, keyed);
+        return createTestInstance(name, metadata, percents, percentiles, keyed, interpolationType);
     }
 
     private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
-            double[] percents, double[] percentiles, boolean keyed) {
+            double[] percents, double[] percentiles, boolean keyed, BucketHelpers.InterpolationType interpolationType) {
         DocValueFormat format = randomNumericDocValueFormat();
-        return new InternalPercentilesBucket(name, percents, percentiles, keyed, format, metadata);
+        return new InternalPercentilesBucket(name, percents, percentiles, keyed, interpolationType, format, metadata);
     }
 
     @Override
@@ -95,7 +95,8 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
      */
     public void testPercentOrder() {
         final double[] percents =  new double[]{ 0.50, 0.25, 0.01, 0.99, 0.60 };
-        InternalPercentilesBucket aggregation = createTestInstance("test", Collections.emptyMap(), percents, randomBoolean());
+        InternalPercentilesBucket aggregation = createTestInstance("test", Collections.emptyMap(), percents, randomBoolean(),
+            randomFrom(BucketHelpers.InterpolationType.values()));
         Iterator<Percentile> iterator = aggregation.iterator();
         for (double percent : percents) {
             assertTrue(iterator.hasNext());
@@ -109,7 +110,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         final double[] percents =  new double[]{ 0.1, 0.2, 0.3};
         final double[] percentiles =  new double[]{ 0.10, 0.2};
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new InternalPercentilesBucket("test", percents,
-                percentiles, randomBoolean(), DocValueFormat.RAW, Collections.emptyMap()));
+            percentiles, randomBoolean(), randomFrom(BucketHelpers.InterpolationType.values()), DocValueFormat.RAW,Collections.emptyMap()));
         assertEquals("The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
                 e.getMessage());
     }
@@ -131,8 +132,10 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             percentiles[i] = randomBoolean() ? Double.NaN : Double.POSITIVE_INFINITY;
         }
         boolean keyed = randomBoolean();
+        final BucketHelpers.InterpolationType interpolationType = randomFrom(BucketHelpers.InterpolationType.values());
 
-        InternalPercentilesBucket agg = createTestInstance("test", Collections.emptyMap(), percents, percentiles, keyed);
+        InternalPercentilesBucket agg = createTestInstance("test", Collections.emptyMap(), percents, percentiles, keyed,
+            interpolationType);
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -204,7 +207,8 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, metadata);
+        return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(),
+            randomFrom(BucketHelpers.InterpolationType.values()), formatter, metadata);
     }
 
     private double[] extractPercentiles(InternalPercentilesBucket instance) {

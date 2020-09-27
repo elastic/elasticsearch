@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.InterpolationType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,9 +42,10 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     private double[] percents;
     private boolean keyed = true;
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
+    private InterpolationType interpolation;
 
     InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
-                                     DocValueFormat formatter, Map<String, Object> metadata) {
+                              InterpolationType interpolation, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
@@ -53,6 +55,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         this.percentiles = percentiles;
         this.percents = percents;
         this.keyed = keyed;
+        this.interpolation = interpolation;
         computeLookup();
     }
 
@@ -71,6 +74,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
+        interpolation = InterpolationType.readFromStream(in);
 
         computeLookup();
     }
@@ -81,6 +85,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
         out.writeBoolean(keyed);
+        interpolation.writeTo(out);
     }
 
     @Override

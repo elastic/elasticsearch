@@ -30,6 +30,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
 |`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
+|`interpolation` |Parameter to use <<interpolation-parameter, interpolation>> between data points. |Optional | `none`
 |===
 
 The following snippet calculates the percentiles for the total monthly `sales` buckets:
@@ -120,10 +121,15 @@ And the following may be the response:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-==== Percentiles_bucket implementation
+[[interpolation-parameter]]
+==== interpolation parameter
 
-The Percentile Bucket returns the nearest input data point that is not greater than the requested percentile; it does not
-interpolate between data points.
+By default (with `interpolation = none`), the Percentile Bucket returns the nearest
+input data point that is not greater than the requested percentile.
+To calculate percentiles with linear interpolation, use `interpolation = linear`,
+the implementation includes both endpoints of the data.
+
+==== Percentiles_bucket implementation
 
 The percentiles are calculated exactly and is not an approximation (unlike the Percentiles Metric). This means
 the implementation maintains an in-memory, sorted list of your data to compute the percentiles, before discarding the

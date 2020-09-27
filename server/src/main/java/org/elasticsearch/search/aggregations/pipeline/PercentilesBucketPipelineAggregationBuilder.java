@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.InterpolationType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,9 +38,11 @@ public class PercentilesBucketPipelineAggregationBuilder
     public static final String NAME = "percentiles_bucket";
     static final ParseField PERCENTS_FIELD = new ParseField("percents");
     static final ParseField KEYED_FIELD = new ParseField("keyed");
+    static final ParseField INTERPOLATION_FIELD = new ParseField("interpolation");
 
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
     private boolean keyed = true;
+    private InterpolationType interpolation = InterpolationType.NONE;
 
     public PercentilesBucketPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, NAME, new String[] { bucketsPath });
@@ -53,12 +56,14 @@ public class PercentilesBucketPipelineAggregationBuilder
         super(in, NAME);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
+        interpolation = InterpolationType.readFromStream(in);
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
         out.writeBoolean(keyed);
+        interpolation.writeTo(out);
     }
 
     /**
@@ -100,9 +105,28 @@ public class PercentilesBucketPipelineAggregationBuilder
         return keyed;
     }
 
+    /**
+     * Set type of the interpolation, default is none
+     */
+    public PercentilesBucketPipelineAggregationBuilder setInterpolation(InterpolationType interpolation) {
+        if (interpolation == null) {
+            throw new IllegalArgumentException("[" + INTERPOLATION_FIELD.getPreferredName() + "] must not be null.");
+        }
+        this.interpolation = interpolation;
+        return this;
+    }
+
+    /**
+     * Get type of the interpolation
+     */
+    public InterpolationType getInterpolation() {
+        return interpolation;
+    }
+
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new PercentilesBucketPipelineAggregator(name, percents, keyed, bucketsPaths, gapPolicy(), formatter(), metadata);
+        return new PercentilesBucketPipelineAggregator(name, percents, keyed, interpolation, bucketsPaths, gapPolicy(), formatter(),
+            metadata);
     }
 
     @Override
@@ -123,6 +147,7 @@ public class PercentilesBucketPipelineAggregationBuilder
             builder.array(PERCENTS_FIELD.getPreferredName(), percents);
         }
         builder.field(KEYED_FIELD.getPreferredName(), keyed);
+        builder.field(INTERPOLATION_FIELD.getPreferredName(), interpolation.getName());
         return builder;
     }
 
@@ -143,6 +168,12 @@ public class PercentilesBucketPipelineAggregationBuilder
             if (keyed != null) {
                 factory.setKeyed(keyed);
             }
+            if (Objects.nonNull(params.get(INTERPOLATION_FIELD.getPreferredName()))) {
+                InterpolationType interpolation = InterpolationType.parse((String) params.get(INTERPOLATION_FIELD.getPreferredName()));
+                if (Objects.nonNull(interpolation)) {
+                    factory.setInterpolation(interpolation);
+                }
+            }
 
             return factory;
         }
@@ -162,6 +193,10 @@ public class PercentilesBucketPipelineAggregationBuilder
                 params.put(KEYED_FIELD.getPreferredName(), parser.booleanValue());
                 return true;
             }
+            else if (INTERPOLATION_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_STRING) {
+                params.put(INTERPOLATION_FIELD.getPreferredName(), parser.text());
+                return true;
+            }
             return false;
         }
 
@@ -169,7 +204,7 @@ public class PercentilesBucketPipelineAggregationBuilder
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed);
+        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed, interpolation);
     }
 
     @Override
@@ -179,7 +214,8 @@ public class PercentilesBucketPipelineAggregationBuilder
         if (super.equals(obj) == false) return false;
         PercentilesBucketPipelineAggregationBuilder other = (PercentilesBucketPipelineAggregationBuilder) obj;
         return Objects.deepEquals(percents, other.percents)
-            && Objects.equals(keyed, other.keyed);
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(interpolation, other.interpolation);
     }
 
     @Override

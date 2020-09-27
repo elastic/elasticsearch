@@ -1,0 +1,129 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.rollup.v2;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RollupGroup;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
+import org.elasticsearch.xpack.core.rollup.v2.RollupV2Task;
+import org.elasticsearch.xpack.rollup.Rollup;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+// TODO(talevy): enforce that rollup-indices of indices backing a datastream must be hidden
+public class TransportRollupV2Action extends HandledTransportAction<RollupV2Action.Request, RollupV2Action.Response> {
+    private final Client client;
+    private final ThreadPool threadPool;
+    private final ClusterService clusterService;
+
+    @Inject
+    public TransportRollupV2Action(
+            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final TransportService transportService,
+            final ActionFilters actionFilters
+    ) {
+        super(RollupV2Action.NAME, transportService, actionFilters, RollupV2Action.Request::new);
+        this.client = client;
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
+    }
+
+    @Override
+    protected void doExecute(Task task, RollupV2Action.Request request, ActionListener<RollupV2Action.Response> listener) {
+        RollupV2Task rollupV2Task = (RollupV2Task) task;
+        RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, Rollup.TASK_THREAD_POOL_NAME,
+            rollupV2Task.config(), rollupV2Task.headers(), ActionListener.wrap(c -> {
+            // update Rollup metadata to include this index
+            clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new RollupV2Action.Response(true));
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    String rollupIndexName = rollupV2Task.config().getRollupIndex();
+                    IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
+                    Index rollupIndex = rollupIndexMetadata.getIndex();
+                    // TODO(talevy): find better spot to get the original index name
+                    // extract created rollup index original index name to be used as metadata key
+                    String originalIndexName = rollupV2Task.config().getSourceIndex();
+                    Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
+                        .getCustomData(RollupMetadata.TYPE);
+                    String rollupGroupKeyName = (idxMetadata == null) ?
+                        originalIndexName : idxMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD);
+                    Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
+                    rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupGroupKeyName);
+                    final RollupMetadata rollupMetadata = currentState.metadata().custom(RollupMetadata.TYPE);
+                    final Map<String, RollupGroup> rollupGroups;
+                    if (rollupMetadata == null) {
+                        rollupGroups = new HashMap<>();
+                    } else {
+                        rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
+                    }
+                    if (rollupGroups.containsKey(rollupGroupKeyName)) {
+                        RollupGroup group = rollupGroups.get(rollupGroupKeyName);
+                        group.add(rollupIndexName);
+                    } else {
+                        rollupGroups.put(rollupGroupKeyName, new RollupGroup(List.of(rollupIndexName)));
+                    }
+                    // add rolled up index to backing datastream if rolling up a backing index of a datastream
+                    IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
+                    DataStream dataStream = null;
+                    if (originalIndex.getParentDataStream() != null) {
+                        DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
+                        List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
+                        backingIndices.add(backingIndices.size() - 1, rollupIndex);
+                        dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
+                            backingIndices, originalDataStream.getGeneration());
+                    }
+                    Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
+                        .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata))
+                        .putCustom(RollupMetadata.TYPE, new RollupMetadata(rollupGroups));
+                    if (dataStream != null) {
+                        metadataBuilder.put(dataStream);
+                    }
+                    return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(new ElasticsearchException("failed to publish new cluster state with rollup metadata", e));
+                }
+            });
+        }, e -> listener.onFailure(
+            new ElasticsearchException("Failed to rollup index [" + rollupV2Task.config().getSourceIndex() + "]", e))));
+        if (indexer.start() == IndexerState.STARTED) {
+            indexer.maybeTriggerAsyncJob(Long.MAX_VALUE);
+        } else {
+            listener.onFailure(new ElasticsearchException("failed to start rollup task"));
+        }
+    }
+}

@@ -199,6 +199,7 @@ import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFlags;
@@ -265,7 +266,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irClassNode.addFunctionNode(irFunctionNode);
 
             BlockNode blockNode = new BlockNode(internalLocation);
-            blockNode.setAllEscape(true);
+            blockNode.attachCondition(IRCAllEscape.class);
 
             irFunctionNode.setBlockNode(blockNode);
 
@@ -575,7 +576,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irBlockNode.addStatementNode((StatementNode)visit(userStatementNode, scriptScope));
         }
 
-        irBlockNode.setAllEscape(scriptScope.getCondition(userBlockNode, AllEscape.class));
+        if (scriptScope.getCondition(userBlockNode, AllEscape.class)) {
+            irBlockNode.attachCondition(IRCAllEscape.class);
+        }
 
         scriptScope.putDecoration(userBlockNode, new IRNodeDecoration(irBlockNode));
     }
@@ -1377,7 +1380,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         irReturnNode.setExpressionNode(irNewArrayNode);
 
         BlockNode irBlockNode = new BlockNode(userNewArrayFunctionRefNode.getLocation());
-        irBlockNode.setAllEscape(true);
+        irBlockNode.attachCondition(IRCAllEscape.class);
         irBlockNode.addStatementNode(irReturnNode);
 
         FunctionNode irFunctionNode = new FunctionNode(userNewArrayFunctionRefNode.getLocation());

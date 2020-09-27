@@ -105,6 +105,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFlags;
@@ -310,7 +311,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
         visit(irIfElseNode.getBlockNode(), writeScope.newBlockScope());
 
-        if (irIfElseNode.getBlockNode().doAllEscape() == false) {
+        if (irIfElseNode.getBlockNode().hasCondition(IRCAllEscape.class) == false) {
             methodWriter.goTo(end);
         }
 
@@ -348,7 +349,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             visit(irBlockNode, writeScope.newLoopScope(begin, end));
         }
 
-        if (irBlockNode == null || irBlockNode.doAllEscape() == false) {
+        if (irBlockNode == null || irBlockNode.hasCondition(IRCAllEscape.class) == false) {
             methodWriter.goTo(begin);
         }
 
@@ -426,7 +427,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         boolean allEscape = false;
 
         if (irBlockNode != null) {
-            allEscape = irBlockNode.doAllEscape();
+            allEscape = irBlockNode.hasCondition(IRCAllEscape.class);
             visit(irBlockNode, writeScope.newLoopScope(begin, end));
         }
 
@@ -608,7 +609,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         visit(irTryNode.getBlockNode(), writeScope.newBlockScope());
 
-        if (irTryNode.getBlockNode().doAllEscape() == false) {
+        if (irTryNode.getBlockNode().hasCondition(IRCAllEscape.class) == false) {
             methodWriter.goTo(catchesEndLabel);
         }
 
@@ -622,7 +623,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             visit(irCatchNode, writeScope.newTryScope(tryBeginLabel, tryEndLabel, catchJumpLabel));
         }
 
-        if (irTryNode.getBlockNode().doAllEscape() == false || catchNodes.size() > 1) {
+        if (irTryNode.getBlockNode().hasCondition(IRCAllEscape.class) == false || catchNodes.size() > 1) {
             methodWriter.mark(catchesEndLabel);
         }
     }
@@ -648,7 +649,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.visitTryCatchBlock(
                 writeScope.getTryBeginLabel(), writeScope.getTryEndLabel(), jump, variable.getAsmType().getInternalName());
 
-        if (writeScope.getCatchesEndLabel() != null && (irBlockNode == null || irBlockNode.doAllEscape() == false)) {
+        if (writeScope.getCatchesEndLabel() != null && (irBlockNode == null || irBlockNode.hasCondition(IRCAllEscape.class) == false)) {
             methodWriter.goTo(writeScope.getCatchesEndLabel());
         }
     }

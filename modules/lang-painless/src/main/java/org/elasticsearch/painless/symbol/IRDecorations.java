@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ir.IRNode.IRCondition;
 import org.elasticsearch.painless.ir.IRNode.IRDecoration;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
@@ -77,5 +78,9 @@ public class IRDecorations {
         public IRDFlags(Integer flags) {
             super(Objects.requireNonNull(flags));
         }
+    }
+
+    public static class IRCAllEscape implements IRCondition {
+
     }
 }

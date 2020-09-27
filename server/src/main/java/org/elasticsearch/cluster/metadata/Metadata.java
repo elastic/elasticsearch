@@ -1407,6 +1407,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+            // TODO(talevy) include rollup indices here
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);

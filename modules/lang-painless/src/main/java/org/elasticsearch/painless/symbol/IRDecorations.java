@@ -22,6 +22,7 @@ package org.elasticsearch.painless.symbol;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.IRNode.IRCondition;
 import org.elasticsearch.painless.ir.IRNode.IRDecoration;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Objects;
@@ -31,7 +32,7 @@ public class IRDecorations {
     public abstract static class IRDType extends IRDecoration<Class<?>> {
 
         public IRDType(Class<?> type) {
-            super(Objects.requireNonNull(type));
+            super(type);
         }
 
         @Override
@@ -64,7 +65,7 @@ public class IRDecorations {
     public static class IRDOperation extends IRDecoration<Operation> {
 
         public IRDOperation(Operation operation) {
-            super(Objects.requireNonNull(operation));
+            super(operation);
         }
 
         @Override
@@ -82,5 +83,40 @@ public class IRDecorations {
 
     public static class IRCAllEscape implements IRCondition {
 
+    }
+
+    public static class IRDCast extends IRDecoration<PainlessCast> {
+
+        public IRDCast(PainlessCast painlessCast) {
+            super(painlessCast);
+        }
+    }
+
+    public static class IRDExceptionType extends IRDType {
+
+        public IRDExceptionType(Class<?> type) {
+            super(type);
+        }
+    }
+
+    public static class IRDSymbol extends IRDecoration<String> {
+
+        public IRDSymbol(String symbol) {
+            super(symbol);
+        }
+    }
+
+    public static class IRDComparisonType extends IRDType {
+
+        public IRDComparisonType(Class<?> type) {
+            super(type);
+        }
+    }
+
+    public static class IRDConstant extends IRDecoration<Object> {
+
+        public IRDConstant(Object constant) {
+            super(constant);
+        }
     }
 }

@@ -20,38 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class ComparisonNode extends BinaryNode {
 
-    /* ---- begin node data ---- */
-
-    private Operation operation;
-    private Class<?> comparisonType;
-
-    public void setOperation(Operation operation) {
-        this.operation = operation;
-    }
-
-    public Operation getOperation() {
-        return operation;
-    }
-
-    public void setComparisonType(Class<?> comparisonType) {
-        this.comparisonType = comparisonType;
-    }
-
-    public Class<?> getComparisonType() {
-        return comparisonType;
-    }
-
-    public String getComparisonCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(comparisonType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

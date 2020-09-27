@@ -107,10 +107,15 @@ import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDCast;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFlags;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDShiftType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.elasticsearch.painless.symbol.WriteScope.Variable;
@@ -633,7 +638,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(irCatchNode.getLocation());
 
-        Variable variable = writeScope.defineVariable(irCatchNode.getExceptionType(), irCatchNode.getSymbol());
+        Variable variable = writeScope.defineVariable(
+                irCatchNode.getDecorationValue(IRDExceptionType.class), irCatchNode.getDecorationValue(IRDSymbol.class));
 
         Label jump = new Label();
 
@@ -811,7 +817,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irBooleanNode.getLocation());
 
-        Operation operation = irBooleanNode.getOperation();
+        Operation operation = irBooleanNode.getDecorationValue(IRDOperation.class);
         ExpressionNode irLeftNode = irBooleanNode.getLeftNode();
         ExpressionNode irRightNode = irBooleanNode.getRightNode();
 
@@ -856,7 +862,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irComparisonNode.getLocation());
 
-        Operation operation = irComparisonNode.getOperation();
+        Operation operation = irComparisonNode.getDecorationValue(IRDOperation.class);
         ExpressionNode irLeftNode = irComparisonNode.getLeftNode();
         ExpressionNode irRightNode = irComparisonNode.getRightNode();
 
@@ -878,7 +884,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         boolean writejump = true;
 
-        Class<?> comparisonType = irComparisonNode.getComparisonType();
+        Class<?> comparisonType = irComparisonNode.getDecorationValue(IRDComparisonType.class);
         Type type = MethodWriter.getType(comparisonType);
 
         if (comparisonType == void.class || comparisonType == byte.class
@@ -985,7 +991,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         visit(irCastNode.getChildNode(), writeScope);
         methodWriter.writeDebugInfo(irCastNode.getLocation());
-        methodWriter.writeCast(irCastNode.getCast());
+        methodWriter.writeCast(irCastNode.getDecorationValue(IRDCast.class));
     }
 
     @Override
@@ -1142,7 +1148,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     @Override
     public void visitConstant(ConstantNode irConstantNode, WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
-        Object constant = irConstantNode.getConstant();
+        Object constant = irConstantNode.getDecorationValue(IRDConstant.class);
 
         if      (constant instanceof String)    methodWriter.push((String)constant);
         else if (constant instanceof Double)    methodWriter.push((double)constant);

@@ -20,24 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class BooleanNode extends BinaryNode {
 
-    /* ---- begin node data ---- */
-
-    private Operation operation;
-
-    public void setOperation(Operation operation) {
-        this.operation = operation;
-    }
-
-    public Operation getOperation() {
-        return operation;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

@@ -53,7 +53,10 @@ import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Opcodes;
@@ -97,18 +100,18 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                         irConstantNode.attachDecoration(new IRDExpressionType(returnType));
 
                         if (returnType == boolean.class) {
-                            irConstantNode.setConstant(false);
+                            irConstantNode.attachDecoration(new IRDConstant(false));
                         } else if (returnType == byte.class
                                 || returnType == char.class
                                 || returnType == short.class
                                 || returnType == int.class) {
-                            irConstantNode.setConstant(0);
+                            irConstantNode.attachDecoration(new IRDConstant(0));
                         } else if (returnType == long.class) {
-                            irConstantNode.setConstant(0L);
+                            irConstantNode.attachDecoration(new IRDConstant(0L));
                         } else if (returnType == float.class) {
-                            irConstantNode.setConstant(0f);
+                            irConstantNode.attachDecoration(new IRDConstant(0f));
                         } else if (returnType == double.class) {
-                            irConstantNode.setConstant(0d);
+                            irConstantNode.attachDecoration(new IRDConstant(0d));
                         } else {
                             throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
                         }
@@ -318,7 +321,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             ConstantNode irConstantNode = new ConstantNode(internalLocation);
             irConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
-            irConstantNode.setConstant(scriptScope.getUsedVariables().contains(name));
+            irConstantNode.attachDecoration(new IRDConstant(scriptScope.getUsedVariables().contains(name)));
 
             irReturnNode.setExpressionNode(irConstantNode);
         }
@@ -342,8 +345,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irTryNode.setBlockNode(irBlockNode);
 
             CatchNode irCatchNode = new CatchNode(internalLocation);
-            irCatchNode.setExceptionType(PainlessExplainError.class);
-            irCatchNode.setSymbol("#painlessExplainError");
+            irCatchNode.attachDecoration(new IRDExceptionType(PainlessExplainError.class));
+            irCatchNode.attachDecoration(new IRDSymbol("#painlessExplainError"));
 
             irTryNode.addCatchNode(irCatchNode);
 
@@ -420,8 +423,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 name = "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
                 irCatchNode = new CatchNode(internalLocation);
-                irCatchNode.setExceptionType(throwable);
-                irCatchNode.setSymbol(name);
+                irCatchNode.attachDecoration(new IRDExceptionType(throwable));
+                irCatchNode.attachDecoration(new IRDSymbol(name));
 
                 irTryNode.addCatchNode(irCatchNode);
 

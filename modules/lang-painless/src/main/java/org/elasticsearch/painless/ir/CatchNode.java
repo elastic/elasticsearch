@@ -26,25 +26,7 @@ public class CatchNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    private Class<?> exceptionType;
-    private String symbol;
     private BlockNode blockNode;
-
-    public void setExceptionType(Class<?> exceptionType) {
-        this.exceptionType = exceptionType;
-    }
-
-    public Class<?> getExceptionType() {
-        return exceptionType;
-    }
-
-    public void setSymbol(String symbol) {
-        this.symbol = symbol;
-    }
-
-    public String getSymbol() {
-        return symbol;
-    }
 
     public void setBlockNode(BlockNode blockNode) {
         this.blockNode = blockNode;

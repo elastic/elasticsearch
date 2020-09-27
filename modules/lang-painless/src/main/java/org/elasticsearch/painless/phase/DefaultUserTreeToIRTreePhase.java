@@ -199,7 +199,11 @@ import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDFlags;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDShiftType;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.objectweb.asm.Opcodes;
@@ -447,12 +451,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             // build the structure to combine the prefix and the load/store
             BinaryImplNode binaryImplNode = new BinaryImplNode(location);
-            binaryImplNode.copyDecorationFrom(irExpressionNode, IRDExpressionType.class);
+            binaryImplNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
 
             if (isNullSafe) {
                 // build the structure for a null safe load
                 NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(location);
-                irNullSafeSubNode.copyDecorationFrom(irExpressionNode, IRDExpressionType.class);
+                irNullSafeSubNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
                 irNullSafeSubNode.setChildNode(irExpressionNode);
                 binaryImplNode.setLeftNode(irPrefixNode);
                 binaryImplNode.setRightNode(irNullSafeSubNode);
@@ -804,10 +808,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 BinaryMathNode irBinaryMathNode = new BinaryMathNode(irStoreNode.getLocation());
                 irBinaryMathNode.setLeftNode(irLoadNode);
                 irBinaryMathNode.attachDecoration(new IRDExpressionType(compoundType));
-                irBinaryMathNode.setBinaryType(compoundType);
-                irBinaryMathNode.setOperation(userAssignmentNode.getOperation());
+                irBinaryMathNode.attachDecoration(new IRDOperation(userAssignmentNode.getOperation()));
+                irBinaryMathNode.attachDecoration(new IRDBinaryType(compoundType));
                 // add a compound assignment flag to the binary math node
-                irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                irBinaryMathNode.attachDecoration(new IRDFlags(DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT));
                 irCompoundNode = irBinaryMathNode;
             }
 
@@ -835,8 +839,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 // the value is read from prior to assignment (post-increment)
                 if (userAssignmentNode.postIfRead()) {
                     irDupNode = new DupNode(irLoadNode.getLocation());
-                    irDupNode.copyDecorationFrom(irLoadNode, IRDExpressionType.class);
-                    irDupNode.setSize(MethodWriter.getType(irLoadNode.getDecoration(IRDExpressionType.class).getType()).getSize());
+                    irDupNode.attachDecoration(irLoadNode.getDecoration(IRDExpressionType.class));
+                    irDupNode.setSize(MethodWriter.getType(irLoadNode.getDecorationValue(IRDExpressionType.class)).getSize());
                     irDupNode.setDepth(accessDepth);
                     irDupNode.setChildNode(irLoadNode);
                     irLoadNode = irDupNode;
@@ -844,7 +848,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 } else {
                     irDupNode = new DupNode(irStoreNode.getLocation());
                     irDupNode.attachDecoration(new IRDExpressionType(irStoreNode.getStoreType()));
-                    irDupNode.setSize(MethodWriter.getType(irStoreNode.getDecoration(IRDExpressionType.class).getType()).getSize());
+                    irDupNode.setSize(MethodWriter.getType(irStoreNode.getDecorationValue(IRDExpressionType.class)).getSize());
                     irDupNode.setDepth(accessDepth);
                     irDupNode.setChildNode(irStoreNode.getChildNode());
                     irStoreNode.setChildNode(irDupNode);
@@ -883,8 +887,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 int accessDepth = scriptScope.getDecoration(userAssignmentNode.getLeftNode(), AccessDepth.class).getAccessDepth();
 
                 DupNode irDupNode = new DupNode(irValueNode.getLocation());
-                irDupNode.copyDecorationFrom(irValueNode, IRDExpressionType.class);
-                irDupNode.setSize(MethodWriter.getType(irValueNode.getDecoration(IRDExpressionType.class).getType()).getSize());
+                irDupNode.attachDecoration(irValueNode.getDecoration(IRDExpressionType.class));
+                irDupNode.setSize(MethodWriter.getType(irValueNode.getDecorationValue(IRDExpressionType.class)).getSize());
                 irDupNode.setDepth(accessDepth);
                 irDupNode.setChildNode(irValueNode);
                 irValueNode = irDupNode;
@@ -941,12 +945,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             BinaryMathNode irBinaryMathNode = new BinaryMathNode(userBinaryNode.getLocation());
 
-            irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());
-            irBinaryMathNode.setShiftType(shiftType);
-            irBinaryMathNode.setOperation(operation);
+            irBinaryMathNode.attachDecoration(new IRDOperation(operation));
+            irBinaryMathNode.attachDecoration(
+                    new IRDBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType()));
+
+            if (shiftType != null) {
+                irBinaryMathNode.attachDecoration(new IRDShiftType(shiftType));
+            }
 
             if (scriptScope.getCondition(userBinaryNode, Explicit.class)) {
-                irBinaryMathNode.setFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST);
+                irBinaryMathNode.attachDecoration(new IRDFlags(DefBootstrap.OPERATOR_EXPLICIT_CAST));
             }
 
             irBinaryMathNode.setLeftNode(injectCast(userBinaryNode.getLeftNode(), scriptScope));
@@ -1739,14 +1747,14 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (userCallNode.isNullSafe()) {
             NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(irExpressionNode.getLocation());
             irNullSafeSubNode.setChildNode(irExpressionNode);
-            irNullSafeSubNode.copyDecorationFrom(irExpressionNode, IRDExpressionType.class);
+            irNullSafeSubNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
             irExpressionNode = irNullSafeSubNode;
         }
 
         BinaryImplNode irBinaryImplNode = new BinaryImplNode(irExpressionNode.getLocation());
         irBinaryImplNode.setLeftNode((ExpressionNode)visit(userCallNode.getPrefixNode(), scriptScope));
         irBinaryImplNode.setRightNode(irExpressionNode);
-        irBinaryImplNode.copyDecorationFrom(irExpressionNode, IRDExpressionType.class);
+        irBinaryImplNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
 
         scriptScope.putDecoration(userCallNode, new IRNodeDecoration(irBinaryImplNode));
     }

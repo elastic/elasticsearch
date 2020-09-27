@@ -119,4 +119,53 @@ public class IRDecorations {
             super(constant);
         }
     }
+
+    public static class IRDDeclarationType extends IRDType {
+
+        public IRDDeclarationType(Class<?> type) {
+            super(type);
+        }
+    }
+
+    public static class IRDName extends IRDecoration<String> {
+
+        public IRDName(String name) {
+            super(name);
+        }
+    }
+
+    public static class IRDEncoding extends IRDecoration<String> {
+
+        public IRDEncoding(String encoding) {
+            super(encoding);
+        }
+    }
+
+    public static class IRDSize extends IRDecoration<Integer> {
+
+        public IRDSize(Integer size) {
+            super(size);
+        }
+    }
+
+    public static class IRDDepth extends IRDecoration<Integer> {
+
+        public IRDDepth(Integer size) {
+            super(size);
+        }
+    }
+
+    public static class IRDModifiers extends IRDecoration<Integer> {
+
+        public IRDModifiers(Integer size) {
+            super(size);
+        }
+    }
+
+    public static class IRDFieldType extends IRDType {
+
+        public IRDFieldType(Class<?> type) {
+            super(type);
+        }
+    }
 }

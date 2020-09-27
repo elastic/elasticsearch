@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DeclarationNode extends StatementNode {
@@ -37,32 +36,7 @@ public class DeclarationNode extends StatementNode {
         return expressionNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String name;
-    protected Class<?> declarationType;
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setDeclarationType(Class<?> declarationType) {
-        this.declarationType = declarationType;
-    }
-
-    public Class<?> getDeclarationType() {
-        return declarationType;
-    }
-
-    public String getDeclarationCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

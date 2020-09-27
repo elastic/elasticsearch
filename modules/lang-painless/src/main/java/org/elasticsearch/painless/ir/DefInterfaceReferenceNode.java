@@ -24,19 +24,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DefInterfaceReferenceNode extends ReferenceNode {
 
-    /* ---- begin node data ---- */
-
-    private String defReferenceEncoding;
-
-    public void setDefReferenceEncoding(String defReferenceEncoding) {
-        this.defReferenceEncoding = defReferenceEncoding;
-    }
-
-    public String getDefReferenceEncoding() {
-        return defReferenceEncoding;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

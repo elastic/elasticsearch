@@ -54,8 +54,12 @@ import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDeclarationType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDFieldType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
@@ -163,23 +167,23 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         int modifiers = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
 
         FieldNode irFieldNode = new FieldNode(internalLocation);
-        irFieldNode.setModifiers(modifiers);
-        irFieldNode.setFieldType(String.class);
-        irFieldNode.setName("$NAME");
+        irFieldNode.attachDecoration(new IRDModifiers(modifiers));
+        irFieldNode.attachDecoration(new IRDFieldType(String.class));
+        irFieldNode.attachDecoration(new IRDName("$NAME"));
 
         irClassNode.addFieldNode(irFieldNode);
 
         irFieldNode = new FieldNode(internalLocation);
-        irFieldNode.setModifiers(modifiers);
-        irFieldNode.setFieldType(String.class);
-        irFieldNode.setName("$SOURCE");
+        irFieldNode.attachDecoration(new IRDModifiers(modifiers));
+        irFieldNode.attachDecoration(new IRDFieldType(String.class));
+        irFieldNode.attachDecoration(new IRDName("$SOURCE"));
 
         irClassNode.addFieldNode(irFieldNode);
 
         irFieldNode = new FieldNode(internalLocation);
-        irFieldNode.setModifiers(modifiers);
-        irFieldNode.setFieldType(BitSet.class);
-        irFieldNode.setName("$STATEMENTS");
+        irFieldNode.attachDecoration(new IRDModifiers(modifiers));
+        irFieldNode.attachDecoration(new IRDFieldType(BitSet.class));
+        irFieldNode.attachDecoration(new IRDName("$STATEMENTS"));
 
         irClassNode.addFieldNode(irFieldNode);
 
@@ -278,12 +282,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 Class<?> returnType = scriptScope.getScriptClassInfo().getGetReturns().get(i);
 
                 DeclarationNode irDeclarationNode = new DeclarationNode(internalLocation);
-                irDeclarationNode.setName(name);
-                irDeclarationNode.setDeclarationType(returnType);
+                irDeclarationNode.attachDecoration(new IRDName(name));
+                irDeclarationNode.attachDecoration(new IRDDeclarationType(returnType));
                 irBlockNode.getStatementsNodes().add(0, irDeclarationNode);
 
                 InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
-                irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(irDeclarationNode.getDeclarationType()));
+                irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(returnType));
                 irInvokeCallMemberNode.setLocalFunction(new LocalFunction(
                         getMethod.getName(), returnType, Collections.emptyList(), true, false));
                 irDeclarationNode.setExpressionNode(irInvokeCallMemberNode);

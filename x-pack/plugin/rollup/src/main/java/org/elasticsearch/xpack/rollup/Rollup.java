@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -96,6 +97,23 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final Set<String> HEADER_FILTERS =
             new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
+    private static final boolean ROLLUP_V2_FEATURE_ENABLED;
+
+    static {
+        final String property = System.getProperty("es.rollup_v2_feature_enabled");
+        if ("true".equals(property)) {
+            ROLLUP_V2_FEATURE_ENABLED = true;
+        } else if ("false".equals(property)) {
+            ROLLUP_V2_FEATURE_ENABLED = false;
+        } else if (property == null) {
+            ROLLUP_V2_FEATURE_ENABLED = Build.CURRENT.isSnapshot();
+        } else {
+            throw new IllegalArgumentException(
+                "expected es.rollup_v2_feature_enabled to be unset or [true|false] but was [" + property + "]"
+            );
+        }
+    }
+
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
 
@@ -128,7 +146,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new RestGetRollupCapsAction(),
             new RestGetRollupIndexCapsAction()));
 
-        handlers.add(new RestRollupV2Action());
+        if (ROLLUP_V2_FEATURE_ENABLED) {
+            handlers.add(new RestRollupV2Action());
+        }
 
         return handlers;
     }
@@ -147,7 +167,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)));
 
-        actions.add(new ActionHandler<>(RollupV2Action.INSTANCE, TransportRollupV2Action.class));
+        if (ROLLUP_V2_FEATURE_ENABLED) {
+            actions.add(new ActionHandler<>(RollupV2Action.INSTANCE, TransportRollupV2Action.class));
+        }
 
         return actions;
     }

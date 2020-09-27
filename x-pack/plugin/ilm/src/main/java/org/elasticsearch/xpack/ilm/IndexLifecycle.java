@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -144,6 +145,23 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private final Settings settings;
 
+    private static final boolean ROLLUP_V2_FEATURE_ENABLED;
+
+    static {
+        final String property = System.getProperty("es.rollup_v2_feature_enabled");
+        if ("true".equals(property)) {
+            ROLLUP_V2_FEATURE_ENABLED = true;
+        } else if ("false".equals(property)) {
+            ROLLUP_V2_FEATURE_ENABLED = false;
+        } else if (property == null) {
+            ROLLUP_V2_FEATURE_ENABLED = Build.CURRENT.isSnapshot();
+        } else {
+            throw new IllegalArgumentException(
+                "expected es.rollup_v2_feature_enabled to be unset or [true|false] but was [" + property + "]"
+            );
+        }
+    }
+
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
     }
@@ -210,7 +228,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> getNamedXContent() {
-        return Arrays.asList(
+        List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> entries = new ArrayList<>(Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
@@ -234,9 +252,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
                 SearchableSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME),
-                MigrateAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupAction.NAME), RollupAction::parse)
-        );
+                MigrateAction::parse)));
+
+        if (ROLLUP_V2_FEATURE_ENABLED) {
+            entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupAction.NAME), RollupAction::parse));
+        }
+
+        return entries;
     }
 
     @Override

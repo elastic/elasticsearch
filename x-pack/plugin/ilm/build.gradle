@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -26,3 +28,9 @@ gradle.projectsEvaluated {
     .each { check.dependsOn it.check }
 }
 
+// TODO(talevy): should this even be here? TBD
+test {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.rollup_v2_feature_enabled', 'true'
+  }
+}

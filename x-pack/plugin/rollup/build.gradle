@@ -25,3 +25,9 @@ gradle.projectsEvaluated {
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
 }
+
+test {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.rollup_v2_feature_enabled', 'true'
+  }
+}

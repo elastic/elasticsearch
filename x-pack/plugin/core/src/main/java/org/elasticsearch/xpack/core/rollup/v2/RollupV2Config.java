@@ -54,6 +54,7 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
     private static final ConstructingObjectParser<RollupV2Config, String> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (args, sourceIndex) -> {
+            // TODO(talevy): fix RollupV2Config to include the target index so that it can be completely read from XContent
             String rollupIndex = (String) args[0];
             GroupConfig groupConfig = (GroupConfig) args[1];
             @SuppressWarnings("unchecked")

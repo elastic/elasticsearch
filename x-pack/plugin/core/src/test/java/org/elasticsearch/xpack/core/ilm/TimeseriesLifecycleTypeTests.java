@@ -7,7 +7,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.v2.RollupV2Config;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,6 +58,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
+    private static final RollupAction TEST_ROLLUP_ACTION =new RollupAction(new RollupV2Config("source",
+        new GroupConfig(new DateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
+        Collections.emptyList(), null, "rollup"));
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -677,6 +684,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             case MigrateAction.NAME:
                 return TEST_MIGRATE_ACTION;
+            case RollupAction.NAME:
+                return TEST_ROLLUP_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

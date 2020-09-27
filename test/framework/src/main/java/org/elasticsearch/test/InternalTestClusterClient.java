@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.empty;
  * This kind of client close behavior is not relevant for production uses where leaking a listener is irrelevant as the JVM is shut down
  * anyway. In tests it is useful to enable safely stopping nodes that have outstanding client request listeners across multiple threads.
  */
-final class InternalTestClusterClient extends FilterClient {
+public final class InternalTestClusterClient extends FilterClient {
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 

@@ -112,7 +112,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             }
         }
         if (sourceFiles == null) {
-            throw new IllegalArgumentException("unknown source");
+            throw new IllegalArgumentException("unknown source [" + source + "]");
         }
         final List<SnapshotFiles> updated = new ArrayList<>(shardSnapshots);
         updated.add(sourceFiles.withSnapshotName(target));

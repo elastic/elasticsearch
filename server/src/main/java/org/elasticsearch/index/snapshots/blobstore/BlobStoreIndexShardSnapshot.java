@@ -395,8 +395,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * @param time               time it took to create the clone
      */
     public BlobStoreIndexShardSnapshot asClone(String targetSnapshotName, long startTime, long time) {
-        return new BlobStoreIndexShardSnapshot(
-                targetSnapshotName, indexVersion, indexFiles, startTime, time, 0, 0);
+        return new BlobStoreIndexShardSnapshot(targetSnapshotName, indexVersion, indexFiles, startTime, time, 0, 0);
     }
 
     /**

@@ -78,32 +78,25 @@ public class DocumentMapperParser {
 
     @SuppressWarnings("unchecked")
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        String typeName = null;
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-            if (root.isEmpty()) {
+            mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+            if (mapping.isEmpty()) {
                 if (type == null) {
                     throw new MapperParsingException("malformed mapping, no type name found");
-                } else {
-                    typeName = type;
-                    mapping = root;
                 }
             } else {
-                String rootName = root.keySet().iterator().next();
+                String rootName = mapping.keySet().iterator().next();
                 if (type == null || type.equals(rootName) || mapperService.resolveDocumentType(type).equals(rootName)) {
-                    typeName = rootName;
-                    mapping = (Map<String, Object>) root.get(rootName);
-                } else {
-                    typeName = type;
-                    mapping = root;
+                    type = rootName;
+                    mapping = (Map<String, Object>) mapping.get(rootName);
                 }
             }
         }
         if (mapping == null) {
             mapping = new HashMap<>();
         }
-        return parse(typeName, mapping);
+        return parse(type, mapping);
     }
 
     @SuppressWarnings({"unchecked"})

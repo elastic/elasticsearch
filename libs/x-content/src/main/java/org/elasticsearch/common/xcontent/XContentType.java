@@ -115,6 +115,8 @@ public enum XContentType implements MediaType {
         }
     };
 
+    private static final Pattern VERSION_PATTERN = Pattern.compile("\\d+");
+    private static final String COMPATIBLE_WITH_PARAMETER_NAME = "compatible-with";
      public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
         .withMediaTypeAndParams("application/smile", SMILE, Collections.emptyMap())
         .withMediaTypeAndParams("application/cbor", CBOR, Collections.emptyMap())
@@ -123,15 +125,15 @@ public enum XContentType implements MediaType {
         .withMediaTypeAndParams("application/*", JSON, Map.of("charset", Pattern.compile("UTF-8")))
         .withMediaTypeAndParams("application/x-ndjson", JSON, Map.of("charset", Pattern.compile("UTF-8")))
         .withMediaTypeAndParams("application/vnd.elasticsearch+json", JSON,
-            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", Pattern.compile("UTF-8")))
         .withMediaTypeAndParams("application/vnd.elasticsearch+smile", SMILE,
-            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", Pattern.compile("UTF-8")))
         .withMediaTypeAndParams("application/vnd.elasticsearch+yaml", YAML,
-            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", Pattern.compile("UTF-8")))
         .withMediaTypeAndParams("application/vnd.elasticsearch+cbor", CBOR,
-            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", Pattern.compile("UTF-8")))
         .withMediaTypeAndParams("application/vnd.elasticsearch+x-ndjson", JSON,
-            Map.of("compatible-with", Pattern.compile("\\d+"),"charset", Pattern.compile("UTF-8")))
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", Pattern.compile("UTF-8")))
         .build();
 
     /**
@@ -165,7 +167,7 @@ public enum XContentType implements MediaType {
         if (parsedMediaType != null) {
             String version = parsedMediaType
                 .getParameters()
-                .get("compatible-with");
+                .get(COMPATIBLE_WITH_PARAMETER_NAME);
             return version != null ? Byte.parseByte(version) : null;
         }
         return null;

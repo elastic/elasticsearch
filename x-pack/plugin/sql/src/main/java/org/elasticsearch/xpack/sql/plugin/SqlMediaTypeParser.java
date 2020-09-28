@@ -59,8 +59,6 @@ public class SqlMediaTypeParser {
             }
         }
 
-        //todo pg we should probably remove this possibility. it should only be accept or format.
-        // also if you specify sql's textformat in content type it will fail with exception now
         String contentType = request.header("Content-Type");
         assert contentType != null : "The Content-Type header is required";
         return validateColumnarRequest(sqlRequest.columnar(), parser.fromMediaType(contentType));

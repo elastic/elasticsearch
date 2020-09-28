@@ -39,5 +39,4 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         return queryShardContext;
     }
-
 }

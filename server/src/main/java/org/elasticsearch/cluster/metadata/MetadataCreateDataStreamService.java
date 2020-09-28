@@ -20,8 +20,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -123,9 +124,6 @@ public class MetadataCreateDataStreamService {
                                          ClusterState currentState,
                                          CreateDataStreamClusterStateUpdateRequest request)
         throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
-            throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
-        }
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
             throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");
         }
@@ -147,7 +145,15 @@ public class MetadataCreateDataStreamService {
             new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
                 .dataStreamName(request.name)
                 .settings(Settings.builder().put("index.hidden", true).build());
-        currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+        try {
+            currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+        } catch (ResourceAlreadyExistsException e) {
+            // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
+            // auto index/data stream creation.
+            // (otherwise bulk execution fails later, because data stream will also not have been created)
+            throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
+                RestStatus.BAD_REQUEST, e, firstBackingIndexName);
+        }
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
         assert firstBackingIndex != null;
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";

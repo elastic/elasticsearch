@@ -83,7 +83,7 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
 
     public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
         List<ProfileResult> aggProfileResults = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             aggProfileResults.add(ProfileResult.fromXContent(parser));

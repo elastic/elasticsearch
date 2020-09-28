@@ -62,7 +62,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [my-template1] has index patterns [s*, create-doc-data-stream1, write-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+        - "index template [my-template1] has index patterns [s*, easy-data-stream1, create-doc-data-stream1, write-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template1
         body:

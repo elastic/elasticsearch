@@ -23,11 +23,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -118,7 +115,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(context), indexed.getValue(), hasDocValues.getValue(), meta.getValue()),
+                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
@@ -131,12 +128,12 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
-        public IpFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public IpFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, Collections.emptyMap());
         }
 
         @Override
@@ -152,15 +149,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                     value = ((BytesRef) value).utf8ToString();
                 }
                 return InetAddresses.forString(value.toString());
-            }
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
         }
 
@@ -359,6 +347,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+    }
+
+    boolean ignoreMalformed() {
+        return ignoreMalformed;
     }
 
     @Override

@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -92,7 +88,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             = Parameter.stringParam("format", false, m -> toType(m).format, Defaults.DATE_FORMATTER.pattern());
         private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
-        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final RangeType type;
@@ -122,7 +117,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(index, hasDocValues, store, coerce, format, locale, boost, meta);
+            return List.of(index, hasDocValues, store, coerce, format, locale, meta);
         }
 
         protected RangeFieldType setupFieldType(BuilderContext context) {
@@ -131,20 +126,20 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                     throw new IllegalArgumentException("field [" + name() + "] of type [range]"
                         + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
-                return new RangeFieldType(buildFullName(context), index.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()), meta.getValue());
             }
             if (type == RangeType.DATE) {
-                return new RangeFieldType(buildFullName(context), index.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER, meta.getValue());
             }
-            return new RangeFieldType(buildFullName(context), type, index.getValue(), hasDocValues.getValue(), meta.getValue());
+            return new RangeFieldType(buildFullName(context), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+                meta.getValue());
         }
 
         @Override
         public RangeFieldMapper build(BuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            ft.setBoost(boost.getValue());
             return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
         }
     }
@@ -154,8 +149,9 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
 
-        public RangeFieldType(String name, RangeType type, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public RangeFieldType(String name, RangeType type, boolean indexed, boolean stored,
+                              boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -164,11 +160,12 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, true, Collections.emptyMap());
+            this(name, type, true, false, true, Collections.emptyMap());
         }
 
-        public RangeFieldType(String name, boolean indexed, boolean hasDocValues, DateFormatter formatter, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public RangeFieldType(String name, boolean indexed, boolean stored,  boolean hasDocValues, DateFormatter formatter,
+                              Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -176,7 +173,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, true, formatter, Collections.emptyMap());
+            this(name, true, false, true, formatter, Collections.emptyMap());
         }
 
         public RangeType rangeType() { return rangeType; }
@@ -201,15 +198,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
-
-        @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (rangeType == RangeType.DATE) {
                 DateFormatter dateTimeFormatter = this.dateTimeFormatter;
@@ -228,11 +216,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override
@@ -273,6 +257,10 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         this.format = builder.format.getValue();
         this.locale = builder.locale.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+    }
+
+    boolean coerce() {
+        return coerce.value();
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -82,14 +83,17 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_9_0 = new Version(7090099, org.apache.lucene.util.Version.LUCENE_8_6_0);
     public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_2 = new Version(7090299, org.apache.lucene.util.Version.LUCENE_8_6_2);
+    public static final Version V_7_9_3 = new Version(7090399, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
+    private static final ImmutableOpenMap<String, Version> stringToVersion;
 
     static {
         final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
+        final ImmutableOpenMap.Builder<String, Version> builderByString = ImmutableOpenMap.builder();
 
         for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
@@ -111,6 +115,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                                 "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
                     }
                     final Version maybePrevious = builder.put(version.id, version);
+                    builderByString.put(version.toString(), version);
                     assert maybePrevious == null :
                             "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
@@ -122,7 +127,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
 
         builder.put(V_EMPTY_ID, V_EMPTY);
+        builderByString.put(V_EMPTY.toString(), V_EMPTY);
         idToVersion = builder.build();
+        stringToVersion = builderByString.build();
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -204,6 +211,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
+        final Version cached = stringToVersion.get(version);
+        if (cached != null) {
+            return cached;
+        }
+        return fromStringSlow(version);
+    }
+
+    private static Version fromStringSlow(String version) {
         final boolean snapshot; // this is some BWC for 2.x and before indices
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);
@@ -241,6 +256,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte revision;
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
+    private final String toString;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
@@ -249,6 +265,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
+        this.toString = major + "." + minor + "." + revision;
     }
 
     public boolean after(Version version) {
@@ -388,7 +405,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @Override
     public String toString() {
-        return major + "." + minor + "." + revision;
+        return toString;
     }
 
     @Override

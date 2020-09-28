@@ -39,6 +39,12 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 
 public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMapper.Builder> {
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("value");
+    }
+
     @Override
     protected Set<String> unsupportedProperties() {
         return Set.of("analyzer", "similarity", "doc_values", "index");
@@ -52,6 +58,11 @@ public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMa
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "murmur3");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // no parameters to configure
     }
 
     public void testDefaults() throws Exception {

@@ -134,6 +134,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        super.mergeOptions(other, conflicts);
         AbstractPointGeometryFieldMapper gpfm = (AbstractPointGeometryFieldMapper)other;
         // TODO make this un-updateable
         if (gpfm.nullValue != null) {

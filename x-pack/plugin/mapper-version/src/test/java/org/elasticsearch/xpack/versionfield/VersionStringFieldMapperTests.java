@@ -51,6 +51,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         builder.value("1.2.3");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        // no configurable parameters
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);

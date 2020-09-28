@@ -24,7 +24,8 @@ public class SqlMediaTypeParser {
         .withMediaTypeAndParams(TextFormat.PLAIN_TEXT.typeWithSubtype(), TextFormat.PLAIN_TEXT,
             Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
         .withMediaTypeAndParams(TextFormat.CSV.typeWithSubtype(), TextFormat.CSV,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8"),
+                "delimiter", Pattern.compile("[^\"\n\r\t]+")))
         .withMediaTypeAndParams(TextFormat.TSV.typeWithSubtype(), TextFormat.TSV,
             Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
         .build();

@@ -46,7 +46,7 @@ The name of the policy to use to manage the index.
 If specified, this is the timestamp used to calculate the index age for its phase transitions. 
 Use this setting if you create a new index that contains old data and 
 want to use the original creation date to calculate the index age. 
-Specified as a Unix epoch value.
+Specified as a Unix epoch value in milliseconds.
 
 `index.lifecycle.parse_origination_date`::
 (<<indices-update-settings,Dynamic>>, boolean) 

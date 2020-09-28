@@ -299,7 +299,8 @@
         index: test
         id: 1
   - match: { _source.field1: "82.171.64.0" }
-  - length: { _source.geoip: 3 }
+  - length: { _source.geoip: 4 }
   - match: { _source.geoip.ip: "82.171.64.0" }
   - match: { _source.geoip.asn: 1136 }
   - match: { _source.geoip.organization_name: "KPN B.V." }
+  - match: { _source.geoip.network: "82.168.0.0/14" }

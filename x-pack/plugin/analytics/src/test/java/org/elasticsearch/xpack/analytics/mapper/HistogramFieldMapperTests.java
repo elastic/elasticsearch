@@ -27,6 +27,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFieldMapper.Builder> {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field("values", new double[] { 2, 3 }).field("counts", new int[] { 0, 4 }).endObject();
+    }
+
+    @Override
     protected Set<String> unsupportedProperties() {
         return Set.of("analyzer", "similarity", "doc_values", "store", "index");
     }
@@ -44,6 +49,12 @@ public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFie
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "histogram");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((HistogramFieldMapper)m).ignoreMalformed()));
     }
 
     public void testParseValue() throws Exception {

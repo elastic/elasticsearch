@@ -90,10 +90,7 @@ public class DataFrameAnalyticsManager {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
-                // At this point we have the config at hand and we can reset the progress tracker
-                // to use the analyses phases. We preserve reindexing progress as if reindexing was
-                // finished it will not be reset.
-                task.getStatsHolder().resetProgressTrackerPreservingReindexingProgress(config.getAnalysis().getProgressPhases(),
+                task.getStatsHolder().adjustProgressTracker(config.getAnalysis().getProgressPhases(),
                     config.getAnalysis().supportsInference());
 
                 switch(currentState) {

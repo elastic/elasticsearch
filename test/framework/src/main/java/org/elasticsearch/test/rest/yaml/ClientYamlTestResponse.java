@@ -53,7 +53,8 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
-            // todo pg it feels like there is a lot of 'ifs' around text, csv etc being returned. shouldn't we treat text as the same json and others?
+            // todo pg it feels like there is a lot of 'ifs' around text, csv etc being returned.
+            //  shouldn't we treat text as the same json and others?
             // we are testing sql formats with this client, but don't have access to sql parsing code
             try{
                 this.bodyContentType =  XContentType.fromMediaType(contentType);

@@ -52,7 +52,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
-        MediaType responseMediaType = sqlMediaTypeParser.getMediaType(request, sqlRequest);
+        responseMediaType = sqlMediaTypeParser.getMediaType(request, sqlRequest);
 
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {

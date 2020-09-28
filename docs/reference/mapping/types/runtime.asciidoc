@@ -216,10 +216,30 @@ The mapping contains two fields: `@timestamp` and `message`.
         },
         "message" : {
           "type" : "wildcard"
-        },
+        }
       }
     },
-...
+    "settings" : {
+      "index" : {
+        "routing" : {
+          "allocation" : {
+            "include" : {
+              "_tier" : "data_hot"
+            }
+          }
+        },
+        "number_of_shards" : "1",
+        "provided_name" : "my-index",
+        "creation_date" : "1601313565318",
+        "number_of_replicas" : "1",
+        "uuid" : "zpdFg3pXSNm4UBinOUc75A",
+        "version" : {
+          "created" : "7100099"
+        }
+      }
+    }
+  }
+}
 ----
 
 If you want to retrieve results that include `clientip`, you can add that field

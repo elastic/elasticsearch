@@ -14,7 +14,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
@@ -49,7 +51,7 @@ public class Regression implements DataFrameAnalysis {
     public static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_regression_state#1";
+    private static final String STATE_DOC_ID_INFIX = "_regression_state#";
 
     private static final ConstructingObjectParser<Regression, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Regression, Void> STRICT_PARSER = createParser(false);
@@ -97,6 +99,20 @@ public class Regression implements DataFrameAnalysis {
         )
     );
 
+    static final Map<String, Object> FEATURE_IMPORTANCE_MAPPING;
+    static {
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        properties.put("importance", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("dynamic", false);
+        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("properties", properties);
+
+        FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(mapping);
+    }
+
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
@@ -114,8 +130,8 @@ public class Regression implements DataFrameAnalysis {
                       @Nullable LossFunction lossFunction,
                       @Nullable Double lossFunctionParameter,
                       @Nullable List<PreProcessor> featureProcessors) {
-        if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
+        if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
@@ -162,6 +178,7 @@ public class Regression implements DataFrameAnalysis {
         return predictionFieldName;
     }
 
+    @Override
     public double getTrainingPercent() {
         return trainingPercent;
     }
@@ -269,7 +286,7 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
         Map<String, Object> additionalProperties = new HashMap<>();
-        additionalProperties.put(resultsFieldName + ".feature_importance", MapUtils.regressionFeatureImportanceMapping());
+        additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
         // Prediction field should be always mapped as "double" rather than "float" in order to increase precision in case of
         // high (over 10M) values of dependent variable.
         additionalProperties.put(resultsFieldName + "." + predictionFieldName,
@@ -288,8 +305,8 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public String getStateDocId(String jobId) {
-        return jobId + STATE_DOC_ID_SUFFIX;
+    public String getStateDocIdPrefix(String jobId) {
+        return jobId + STATE_DOC_ID_INFIX;
     }
 
     @Override
@@ -311,7 +328,7 @@ public class Regression implements DataFrameAnalysis {
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {
-        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_INFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 

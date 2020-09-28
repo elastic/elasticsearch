@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -22,6 +22,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,7 +33,7 @@ import java.util.concurrent.ExecutionException;
 /**
  * A reader that only exposes documents via {@link #getLiveDocs()} that matches with the provided role query.
  */
-public final class DocumentSubsetReader extends FilterLeafReader {
+public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
 
     public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache,
             Query roleQuery) throws IOException {
@@ -221,5 +222,10 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     public CacheHelper getReaderCacheHelper() {
         // Not delegated since we change the live docs
         return null;
+    }
+
+    @Override
+    protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+        return reader;
     }
 }

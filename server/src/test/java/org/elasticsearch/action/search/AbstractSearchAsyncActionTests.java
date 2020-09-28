@@ -24,7 +24,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
@@ -97,12 +96,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 results, request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override
-            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
+            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return null;
             }
 
             @Override
-            protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
+            protected void executePhaseOnShard(final SearchShardIterator shardIt, final SearchShardTarget shard,
                                                final SearchActionListener<SearchPhaseResult> listener) {
             }
 

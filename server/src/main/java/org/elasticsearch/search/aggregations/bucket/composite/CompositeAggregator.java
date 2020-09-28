@@ -32,6 +32,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -40,6 +41,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
@@ -289,40 +291,47 @@ final class CompositeAggregator extends BucketsAggregator {
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new FieldComparator.LongComparator(1, delegate.getField(), (Long) missingValue) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
                             @Override
-                            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                                NumericDocValues dvs =  SortedNumericSelector.wrap(DocValues.getSortedNumeric(context.reader(), field),
-                                    delegate.getSelector(), delegate.getNumericType());
-                                return new NumericDocValues() {
+                            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                                return new LongLeafComparator(context) {
                                     @Override
-                                    public long longValue() throws IOException {
-                                        return round.applyAsLong(dvs.longValue());
-                                    }
+                                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
+                                            throws IOException {
+                                        NumericDocValues dvs =  SortedNumericSelector.wrap(
+                                                DocValues.getSortedNumeric(context.reader(), field),
+                                            delegate.getSelector(), delegate.getNumericType());
+                                        return new NumericDocValues() {
+                                            @Override
+                                            public long longValue() throws IOException {
+                                                return round.applyAsLong(dvs.longValue());
+                                            }
 
-                                    @Override
-                                    public boolean advanceExact(int target) throws IOException {
-                                        return dvs.advanceExact(target);
-                                    }
+                                            @Override
+                                            public boolean advanceExact(int target) throws IOException {
+                                                return dvs.advanceExact(target);
+                                            }
 
-                                    @Override
-                                    public int docID() {
-                                        return dvs.docID();
-                                    }
+                                            @Override
+                                            public int docID() {
+                                                return dvs.docID();
+                                            }
 
-                                    @Override
-                                    public int nextDoc() throws IOException {
-                                        return dvs.nextDoc();
-                                    }
+                                            @Override
+                                            public int nextDoc() throws IOException {
+                                                return dvs.nextDoc();
+                                            }
 
-                                    @Override
-                                    public int advance(int target) throws IOException {
-                                        return dvs.advance(target);
-                                    }
+                                            @Override
+                                            public int advance(int target) throws IOException {
+                                                return dvs.advance(target);
+                                            }
 
-                                    @Override
-                                    public long cost() {
-                                        return dvs.cost();
+                                            @Override
+                                            public long cost() {
+                                                return dvs.cost();
+                                            }
+                                        };
                                     }
                                 };
                             }

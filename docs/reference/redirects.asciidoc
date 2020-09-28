@@ -676,10 +676,11 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
-because it was out of date and erroneously implied that it should be used by application developers.
-There is an issue ({es-issue}[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+erroneously implied that it should be used by application developers.
+
+There is an issue ({es-issue}55258[#55258]) for providing general testing
+guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="why-randomized-testing"]
@@ -1148,3 +1149,44 @@ See <<percolate-query-notes>>.
 
 See <<point-in-time-api>>.
 
+[role="exclude",id="constant-keyword"]
+=== Constant keyword field type
+
+See <<constant-keyword-field-type>>.
+
+[role="exclude",id="wildcard"]
+=== Wildcard field type
+
+See <<wildcard-field-type>>.
+
+[role="exclude",id="searchable-snapshots-api-clear-cache"]
+=== Clear cache API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="searchable-snapshots-api-stats"]
+=== Searchable snapshot statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="searchable-snapshots-repository-stats"]
+=== Searchable snapshot repository statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about snapshot-backed indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="avoid-oversharding"]
+=== Avoid oversharding
+
+See <<size-your-shards>>.

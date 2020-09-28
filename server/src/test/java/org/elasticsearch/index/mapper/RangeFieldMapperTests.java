@@ -73,6 +73,29 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         b.field("type", "long_range");
     }
 
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((RangeFieldMapper)m).coerce()));
+    }
+
     private Object getFrom(String type) {
         if (type.equals("date_range")) {
             return FROM_DATE;
@@ -332,15 +355,15 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
+        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
+        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("yyyy/MM/dd||epoch_millis")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
@@ -348,15 +371,15 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             fetchSourceValue(dateMapper, dateRange));
     }
 
-    public void testParseSourceValueWithFormat() {
+    public void testParseSourceValueWithFormat() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
+        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
+        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("strict_date_time")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -491,9 +490,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             recovered = in.readVInt();
             total = in.readVInt();
             totalOnStart = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                totalLocal = in.readVInt();
-            }
+            totalLocal = in.readVInt();
         }
 
         @Override
@@ -502,9 +499,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVInt(recovered);
             out.writeVInt(total);
             out.writeVInt(totalOnStart);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                out.writeVInt(totalLocal);
-            }
+            out.writeVInt(totalLocal);
         }
 
         public synchronized void reset() {

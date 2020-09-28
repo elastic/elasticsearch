@@ -24,13 +24,9 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -191,7 +187,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
-        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Parameter<String> format
@@ -229,7 +224,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
+            return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, meta);
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -253,7 +248,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public DateFieldMapper build(BuilderContext context) {
             DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, meta.getValue());
-            ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
@@ -318,21 +312,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
-
-        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override

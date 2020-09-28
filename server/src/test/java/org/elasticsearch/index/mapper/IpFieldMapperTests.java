@@ -42,8 +42,32 @@ import static org.hamcrest.Matchers.containsString;
 public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("::1");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "ip");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
+            m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {

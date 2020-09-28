@@ -22,8 +22,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
@@ -44,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -139,7 +136,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 b.startArray(n);
                 c.toXContent(b, ToXContent.EMPTY_PARAMS);
                 b.endArray();
-            }, ContextMappings::toString);
+            }, Objects::toString);
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> toType(m).maxInputLength, Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
@@ -292,11 +289,6 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             return postingsFormat;
         }
 
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-        }
-
         /**
          * Completion prefix query
          */
@@ -361,6 +353,10 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     @Override
     public boolean parsesArrayValue() {
         return true;
+    }
+
+    int getMaxInputLength() {
+        return maxInputLength;
     }
 
     /**

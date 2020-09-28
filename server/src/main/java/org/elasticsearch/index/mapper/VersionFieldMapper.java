@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -48,11 +47,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override

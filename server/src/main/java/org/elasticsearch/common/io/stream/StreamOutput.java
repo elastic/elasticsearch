@@ -49,6 +49,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -819,6 +820,13 @@ public abstract class StreamOutput extends OutputStream {
                             o.writeByte((byte) 25);
                         }
                         o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
+                    }),
+            entry(
+                    // TODO: improve serialization of BigInteger
+                    BigInteger.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 26);
+                        o.writeString(v.toString());
                     }
             ));
 

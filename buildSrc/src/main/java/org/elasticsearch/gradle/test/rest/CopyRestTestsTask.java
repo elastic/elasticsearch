@@ -58,6 +58,7 @@ public class CopyRestTestsTask extends DefaultTask {
     String sourceSetName;
     Configuration coreConfig;
     Configuration xpackConfig;
+    Configuration additionalConfig;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
@@ -104,10 +105,13 @@ public class CopyRestTestsTask extends DefaultTask {
                 coreFileTree = coreConfig.getAsFileTree(); // jar file
             }
         }
-        ConfigurableFileCollection fileCollection = getProject().files(coreFileTree, xpackFileTree);
+        ConfigurableFileCollection fileCollection = additionalConfig == null
+            ? getProject().files(coreFileTree, xpackFileTree)
+            : getProject().files(coreFileTree, xpackFileTree, additionalConfig.getAsFileTree());
 
         // copy tests only if explicitly requested
-        return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
+        return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false || additionalConfig != null
+            ? fileCollection.getAsFileTree() : null;
     }
 
     @OutputDirectory
@@ -156,6 +160,13 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.from(xpackConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
+            });
+        }
+        // copy any additional config
+        if (additionalConfig != null) {
+            project.copy(c -> {
+                c.from(additionalConfig.getAsFileTree());
+                c.into(getOutputDir());
             });
         }
     }

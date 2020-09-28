@@ -93,10 +93,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
         }),
-        new Modifier("boost", true, (a, b) -> {
-           a.boost(1.1f);
-           b.boost(1.2f);
-        }),
         new Modifier("doc_values", false, (a, b) -> {
             a.docValues(true);
             b.docValues(false);
@@ -255,17 +251,17 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         return Strings.toString(x);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
         return fetchSourceValue(mapper, sourceValue, null);
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) {
+    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
         String field = mapper.name();
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, format);
+        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);

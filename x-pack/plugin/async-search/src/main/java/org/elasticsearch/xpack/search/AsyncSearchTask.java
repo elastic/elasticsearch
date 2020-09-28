@@ -20,7 +20,6 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -391,7 +390,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                DelayableWriteable.Serialized<InternalAggregations> aggregations, int reducePhase) {
+                                    InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
             // The way that the MutableSearchResponse will build the aggs.
@@ -401,16 +400,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 reducedAggs = () -> null;
             } else {
                 /*
-                 * Keep a reference to the serialized form of the partially
-                 * reduced aggs and reduce it on the fly when someone asks
+                 * Keep a reference to the partially reduced aggs and reduce it on the fly when someone asks
                  * for it. It's important that we wait until someone needs
                  * the result so we don't perform the final reduce only to
                  * throw it away. And it is important that we keep the reference
-                 * to the serialized aggregations because SearchPhaseController
+                 * to the aggregations because SearchPhaseController
                  * *already* has that reference so we're not creating more garbage.
                  */
                 reducedAggs = () ->
-                    InternalAggregations.topLevelReduce(singletonList(aggregations.expand()), aggReduceContextSupplier.get());
+                    InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }

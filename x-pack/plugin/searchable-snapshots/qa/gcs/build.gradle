@@ -95,10 +95,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
-
   keystore 'gcs.client.searchable_snapshots.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
     tasks.integTest.dependsOn createServiceAccountFile

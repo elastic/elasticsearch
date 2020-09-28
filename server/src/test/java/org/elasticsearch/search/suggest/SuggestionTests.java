@@ -134,9 +134,9 @@ public class SuggestionTests extends ESTestCase {
             }
             Suggestion parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
                 parsed = Suggestion.fromXContent(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 assertNull(parser.nextToken());
@@ -157,11 +157,11 @@ public class SuggestionTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toXContent(createTestItem(), xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             assertNull(Suggestion.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
     }
 
@@ -186,9 +186,9 @@ public class SuggestionTests extends ESTestCase {
             + "}").replaceAll("\\s+", "");
         try (XContentParser parser = xContent.createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, suggestionString)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
             assertEquals("[1:31] unknown field [unknownType]", e.getMessage());
         }

@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShar
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,8 +48,6 @@ import static org.hamcrest.Matchers.is;
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
     public void testStatusApiConsistency() {
-        Client client = client();
-
         createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -66,14 +63,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         createFullSnapshot("test-repo", "test-snap");
 
-        List<SnapshotInfo> snapshotInfos =
-            client.admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
+        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = client.admin().cluster().snapshotsStatus(
+        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
             new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots();
         assertThat(snapshotStatus.size(), equalTo(1));
         final SnapshotStatus snStatus = snapshotStatus.get(0);
@@ -82,8 +78,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStatusAPICallInProgressSnapshot() throws Exception {
-        Client client = client();
-
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
         createIndex("test-idx-1");
@@ -96,21 +90,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         refresh();
 
         logger.info("--> snapshot");
-        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture =
-            client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
 
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
-
-        assertBusy(() -> {
-            try {
-                assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().snapshotsStatus(
-                        new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots().get(0)
-                        .getState());
-            } catch (SnapshotMissingException sme) {
-                throw new AssertionError(sme);
-            }
-        }, 1L, TimeUnit.MINUTES);
+        awaitNumberOfSnapshotsInProgress(1);
+        assertEquals(SnapshotsInProgress.State.STARTED, client().admin().cluster().prepareSnapshotStatus("test-repo")
+                .setSnapshots("test-snap").get().getSnapshots().get(0).getState());
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");
@@ -160,15 +146,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet());
     }
 
-    public void testGetSnapshotsWithoutIndices() {
+    public void testGetSnapshotsWithoutIndices() throws Exception {
         createRepository("test-repo", "fs");
 
         logger.info("--> snapshot");
-        final SnapshotInfo snapshotInfo =
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setIndices().setWaitForCompletion(true).get().getSnapshotInfo();
-
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = assertSuccessful(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                .setIndices().setWaitForCompletion(true).execute());
         assertThat(snapshotInfo.totalShards(), is(0));
 
         logger.info("--> verify that snapshot without index shows up in non-verbose listing");

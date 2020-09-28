@@ -68,6 +68,11 @@ import static org.hamcrest.Matchers.is;
 public class CompletionFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("value");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "completion");
     }
@@ -79,6 +84,31 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         b.field("preserve_separators", true);
         b.field("preserve_position_increments", true);
         b.field("max_input_length", 50);
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
+        checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
+        checker.registerConflictCheck("preserve_position_increments", b -> b.field("preserve_position_increments", false));
+        checker.registerConflictCheck("contexts", b -> {
+            b.startArray("contexts");
+            {
+                b.startObject();
+                b.field("name", "place_type");
+                b.field("type", "category");
+                b.field("path", "cat");
+                b.endObject();
+            }
+            b.endArray();
+        });
+
+        checker.registerUpdateCheck(b -> b.field("search_analyzer", "standard"),
+            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+                CompletionFieldMapper cfm = (CompletionFieldMapper) m;
+                assertEquals(30, cfm.getMaxInputLength());
+            });
     }
 
     @Override
@@ -735,7 +765,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"));
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());

@@ -83,6 +83,10 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         return this;
     }
 
+    public ParsedScrollId parseScrollId() {
+        return TransportSearchHelper.parseScrollId(scrollId);
+    }
+
     /**
      * If set, will enable scrolling of the search request.
      */

@@ -27,7 +27,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -117,7 +116,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         public FieldNamesFieldType(boolean enabled) {
-            super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -158,19 +157,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldNamesFieldType fieldType() {
         return (FieldNamesFieldType) super.fieldType();
-    }
-
-    @Override
-    public void preParse(ParseContext context) {
-    }
-
-    @Override
-    public void postParse(ParseContext context) {
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        // Adding values to the _field_names field is handled by the mappers for each field type
     }
 
     static Iterable<String> extractFieldNames(final String fullPath) {

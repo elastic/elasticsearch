@@ -75,7 +75,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
 
     private void testCase(String user, String other) throws Exception {
         for (String indexName : new String[] {"index", "index-" + user}) {
-            Response submitResp = submitAsyncEqlSearch(indexName, "my_event where val=0", TimeValue.timeValueSeconds(10), user);
+            Response submitResp = submitAsyncEqlSearch(indexName, "my_event where val==0", TimeValue.timeValueSeconds(10), user);
             assertOK(submitResp);
             String id = extractResponseId(submitResp);
             Response getResp = getAsyncEqlSearch(id, user);

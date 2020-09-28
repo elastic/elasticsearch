@@ -31,8 +31,8 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testMemoryBytesMarkedAndReleased() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10);
-             Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(50);
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10, false);
+             Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(50, false);
              Releasable primary = indexingPressure.markPrimaryOperationStarted(15, true);
              Releasable primary2 = indexingPressure.markPrimaryOperationStarted(5, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(25, true);
@@ -56,7 +56,7 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testAvoidDoubleAccounting() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10);
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10, false);
              Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(15)) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(10, stats.getCurrentCoordinatingBytes());
@@ -74,11 +74,11 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testCoordinatingPrimaryRejections() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1024 * 3);
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1024 * 3, false);
              Releasable primary = indexingPressure.markPrimaryOperationStarted(1024 * 3, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(1024 * 3, false)) {
             if (randomBoolean()) {
-                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 2));
+                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 2, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -109,7 +109,7 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testReplicaRejections() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1024 * 3);
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1024 * 3, false);
              Releasable primary = indexingPressure.markPrimaryOperationStarted(1024 * 3, false);
              Releasable replica = indexingPressure.markReplicaOperationStarted(1024 * 3, false)) {
             // Replica will not be rejected until replica bytes > 15KB
@@ -132,5 +132,14 @@ public class IndexingPressureTests extends ESTestCase {
         }
 
         assertEquals(1024 * 14, indexingPressure.stats().getTotalReplicaBytes());
+    }
+
+    public void testForceExecutionOnCoordinating() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1024 * 11, false));
+        try (Releasable ignore = indexingPressure.markCoordinatingOperationStarted(1024 * 11, true)) {
+            assertEquals(1024 * 11, indexingPressure.stats().getCurrentCoordinatingBytes());
+        }
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }
 }

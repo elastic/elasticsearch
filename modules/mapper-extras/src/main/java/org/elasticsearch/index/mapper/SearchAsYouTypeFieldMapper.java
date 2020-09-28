@@ -36,7 +36,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -54,6 +53,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -248,7 +248,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
                                  NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false,
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(), false,
                 new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
         }
 
@@ -271,20 +271,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().hasNorms() == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
-        }
-
-        @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
-                return super.prefixQuery(value, method, context);
+                return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
-                final Query query = prefixField.prefixQuery(value, method, context);
+                final Query query = prefixField.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                     || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
@@ -353,7 +344,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final String parentField;
 
         PrefixFieldType(String parentField, TextSearchInfo textSearchInfo, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, textSearchInfo, Collections.emptyMap());
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, false, textSearchInfo, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -364,8 +355,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (value.length() >= minChars) {
+                if(caseInsensitive) {
+                    return super.termQueryCaseInsensitive(value, context);
+                }
                 return super.termQuery(value, context);
             }
             List<Automaton> automata = new ArrayList<>();
@@ -419,7 +413,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -465,7 +459,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -483,7 +477,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixFieldType;
 
         ShingleFieldType(String name, int shingleSize, TextSearchInfo textSearchInfo) {
-            super(name, true, false, textSearchInfo, Collections.emptyMap());
+            super(name, true, false, false, textSearchInfo, Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 
@@ -497,20 +491,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().hasNorms() == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
-        }
-
-        @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
-                return super.prefixQuery(value, method, context);
+                return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
-                final Query query = prefixFieldType.prefixQuery(value, method, context);
+                final Query query = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                     || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
@@ -588,7 +573,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
         throw new UnsupportedOperationException();
     }
 

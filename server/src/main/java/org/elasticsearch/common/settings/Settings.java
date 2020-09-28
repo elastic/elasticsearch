@@ -583,7 +583,7 @@ public final class Settings implements ToXContentFragment {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Builder innerBuilder = Settings.builder();
         StringBuilder currentKeyBuilder = new StringBuilder();
         fromXContent(parser, currentKeyBuilder, innerBuilder, allowNullValues);

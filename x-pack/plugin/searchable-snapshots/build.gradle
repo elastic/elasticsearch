@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -37,10 +35,3 @@ def testJar = tasks.register("testJar", Jar) {
 artifacts {
   testArtifacts testJar
 }
-
-internalClusterTest {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
-}
-

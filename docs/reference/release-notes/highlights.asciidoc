@@ -30,12 +30,10 @@ templates often meant copying similar configurations across templates.
 In 7.8, we added a more modular version of index templates called composable
 index templates. You can still define configurations directly in these
 templates. However, composable index templates can also contain component
-templates.
-
-Also added in 7.8, component templates are reusable configurations for mappings,
-index settings, and aliases. With a component template, you can define a
-configuration once and reuse it across multiple index templates. If you later
-need to change the configuration, you only need to change its component
+templates. Also added in 7.8, component templates are reusable configurations
+for mappings, index settings, and aliases. With a component template, you can
+define a configuration once and reuse it across multiple index templates. If you
+later need to change the configuration, you only need to change its component
 template.
 
 Composable index templates replace the previous version of index templates,

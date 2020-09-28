@@ -94,7 +94,7 @@ public class TransformNodesTests extends ESTestCase {
             Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz),
             cs
         );
-        // assertEquals(2, nodes.length);
+        assertEquals(2, nodes.length);
         Set<String> nodesSet = new HashSet<>(Arrays.asList(nodes));
         assertTrue(nodesSet.contains("node-1"));
         assertTrue(nodesSet.contains("node-2"));

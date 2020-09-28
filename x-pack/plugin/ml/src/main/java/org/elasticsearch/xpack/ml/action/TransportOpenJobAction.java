@@ -373,12 +373,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final Client client;
         private final IndexNameExpressionResolver expressionResolver;
         private final JobResultsProvider jobResultsProvider;
+        private final long maxNodeMemory;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
-        private volatile long maxNodeMemory;
         private volatile ClusterState clusterState;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
@@ -401,7 +401,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeMemoryBytes);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -548,9 +547,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxOpenJobs = maxOpenJobs;
         }
 
-        void setMaxNodeMemoryBytes(ByteSizeValue byteSizeValue) {
-            this.maxNodeMemory = byteSizeValue.getBytes();
-        }
     }
 
     public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {

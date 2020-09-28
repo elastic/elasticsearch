@@ -606,11 +606,11 @@ public class TransportStartDataFrameAnalyticsAction
         private final MlMemoryTracker memoryTracker;
         private final IndexNameExpressionResolver resolver;
         private final IndexTemplateConfig inferenceIndexTemplate;
+        private final long maxNodeMemory;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
-        private volatile long maxNodeMemory;
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
@@ -632,7 +632,6 @@ public class TransportStartDataFrameAnalyticsAction
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeMemoryBytes);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -763,9 +762,6 @@ public class TransportStartDataFrameAnalyticsAction
             this.maxOpenJobs = maxOpenJobs;
         }
 
-        void setMaxNodeMemoryBytes(ByteSizeValue byteSizeValue) {
-            this.maxNodeMemory = byteSizeValue.getBytes();
-        }
     }
 
 

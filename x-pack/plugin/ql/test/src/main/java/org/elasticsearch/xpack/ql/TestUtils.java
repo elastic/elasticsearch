@@ -164,6 +164,7 @@ public final class TestUtils {
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).
      */
+    @SuppressForbidden(reason = "classpath discovery")
     public static List<URL> classpathResources(String pattern) throws IOException {
         while (pattern.startsWith("/")) {
             pattern = pattern.substring(1);

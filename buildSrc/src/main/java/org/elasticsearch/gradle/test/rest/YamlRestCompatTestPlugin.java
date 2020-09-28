@@ -97,8 +97,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .register("copyRestApiCompatSpecsTask", CopyRestApiTask.class, task -> {
                 task.includeCore.set(extension.restApi.getIncludeCore());
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
-                task.sourceSetName = YamlRestTestPlugin.SOURCE_SET_NAME;
-                task.sourceSetNameForOutput = SOURCE_SET_NAME;
+                task.sourceSetName = SOURCE_SET_NAME;
+                task.skipHasRestTestCheck = true;
                 task.coreConfig = compatSpec;
                 project.getDependencies().add(task.coreConfig.getName(),
                     project.files(checkoutDir.resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_API_PATH)));

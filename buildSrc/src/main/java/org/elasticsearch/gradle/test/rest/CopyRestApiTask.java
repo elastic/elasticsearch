@@ -58,7 +58,7 @@ public class CopyRestApiTask extends DefaultTask {
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
     String sourceSetName;
-    String sourceSetNameForOutput;
+    boolean skipHasRestTestCheck;
     Configuration coreConfig;
     Configuration xpackConfig;
     Configuration additionalConfig;
@@ -92,8 +92,8 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @Input
-    String getSourceSetNameForOutput(){
-        return sourceSetNameForOutput == null ? sourceSetName : sourceSetNameForOutput;
+    public boolean isSkipHasRestTestCheck() {
+        return skipHasRestTestCheck;
     }
 
     @SkipWhenEmpty
@@ -105,7 +105,7 @@ public class CopyRestApiTask extends DefaultTask {
             xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
             xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
         }
-        boolean projectHasYamlRestTests = projectHasYamlRestTests();
+        boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
         if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
             if (BuildParams.isInternal()) {
                 corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
@@ -128,7 +128,7 @@ public class CopyRestApiTask extends DefaultTask {
     @OutputDirectory
     public File getOutputDir() {
         return new File(
-            getSourceSetForOutput().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + getSourceSetForOutput() + "]"))
+            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
                 .getOutput()
                 .getResourcesDir(),
             REST_API_PREFIX
@@ -155,7 +155,7 @@ public class CopyRestApiTask extends DefaultTask {
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
                 // this ends up as the same dir as outputDir
-                c.into(Objects.requireNonNull(getSourceSetForOutput().orElseThrow().getOutput().getResourcesDir()));
+                c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -228,7 +228,7 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestOutputResourceDir() {
-        Optional<SourceSet> testSourceSet = getSourceSetForOutput();
+        Optional<SourceSet> testSourceSet = getSourceSet();
         return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
     }
 
@@ -237,12 +237,5 @@ public class CopyRestApiTask extends DefaultTask {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
-    }
-
-    private Optional<SourceSet> getSourceSetForOutput() {
-        Project project = getProject();
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetNameForOutput()));
     }
 }

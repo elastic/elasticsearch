@@ -20,7 +20,7 @@ Other versions:
 // tag::notable-highlights[]
 [discrete]
 [[add-composable-index-templates]]
-=== Add composable index templates
+=== Composable index templates
 
 Index templates are an easy, repeatable way to configure mappings, index
 settings, and aliases for new indices. However, in previous versions, you had to

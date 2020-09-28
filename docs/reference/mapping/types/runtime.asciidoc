@@ -1,14 +1,5 @@
 [[runtime]]
 === Runtime
-
-////
-[source,console]
-----
-PUT /my-index
-----
-// TESTSETUP
-////
-
 Typically, you must index fields to {es} before they can be retrieved,
 aggregated, or searched. With runtime fields, you can explicitly define a field
 in the mapping and access it at search time without indexing your data during
@@ -72,14 +63,16 @@ The script in the following request extracts the day of the week from the
 
 [source,console]
 ----
-PUT /my-index/_mappings
+PUT /my-index
 {
-  "properties" : {
-    "day_of_week" : {
-      "type" : "runtime", <1>
-      "runtime_type" : "keyword", <2>
-      "script" : {
-        "source" : "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+  "mappings": {
+    "properties": {
+      "day_of_week": {
+        "type": "runtime", <1>
+        "runtime_type": "keyword", <2>
+        "script": {
+          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        }
       }
     }
   }
@@ -114,6 +107,7 @@ GET /my-index/_search
   }
 }
 ----
+// TEST[continued]
 
 [[runtime-params]]
 ==== Parameters for `runtime` fields
@@ -148,17 +142,19 @@ field type for `message`.
 
 [source,console]
 ----
-PUT /my-index/_mappings
+PUT /my-index/
 {
-  "properties": {
-    "@timestamp": {
-    "format": "strict_date_optional_time||epoch_second",
-    "type": "date"
-  },
-  "message": {
-    "type": "wildcard"
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "format": "strict_date_optional_time||epoch_second",
+        "type": "date"
+      },
+      "message": {
+        "type": "wildcard"
+      }
+    }
   }
- }
 }
 ----
 
@@ -169,7 +165,7 @@ data, you can use a small sample to experiment with runtime fields.
 
 [source,console]
 ----
-POST /my-index/_bulk
+POST /my-index/_bulk?refresh
 { "index": {}}
 { "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
 { "index": {}}
@@ -193,6 +189,7 @@ POST /my-index/_bulk
 { "index": {}}
 { "@timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
 ----
+// TEST[continued]
 
 At this point, you can view how {es} stores your raw data.
 
@@ -200,6 +197,7 @@ At this point, you can view how {es} stores your raw data.
 ----
 GET /my-index
 ----
+// TEST[continued]
 
 The mapping contains two fields: `@timestamp` and `message`.
 
@@ -207,7 +205,6 @@ The mapping contains two fields: `@timestamp` and `message`.
 ----
 {
   "my-index" : {
-    "aliases" : { },
     "mappings" : {
       "properties" : {
         "@timestamp" : {
@@ -219,28 +216,11 @@ The mapping contains two fields: `@timestamp` and `message`.
         }
       }
     },
-    "settings" : {
-      "index" : {
-        "routing" : {
-          "allocation" : {
-            "include" : {
-              "_tier" : "data_hot"
-            }
-          }
-        },
-        "number_of_shards" : "1",
-        "provided_name" : "my-index",
-        "creation_date" : "1601313565318",
-        "number_of_replicas" : "1",
-        "uuid" : "zpdFg3pXSNm4UBinOUc75A",
-        "version" : {
-          "created" : "7100099"
-        }
-      }
-    }
+    ...
   }
 }
 ----
+// TESTRESPONSE[s/\.\.\./"aliases": $body.my-index.aliases, "settings": $body.my-index.settings/]
 
 If you want to retrieve results that include `clientip`, you can add that field
 as a runtime field in the mapping. The runtime script operates on the `clientip`
@@ -261,6 +241,7 @@ PUT /my-index/_mappings
   }
 }
 ----
+// TEST[continued]
 
 Using the `clientip` runtime field, you can define a simple query to run a
 search for a specific IP address and return all related fields.
@@ -277,6 +258,7 @@ GET my-index/_search
   "fields" : ["*"]
 }
 ----
+// TEST[continued]
 
 The API returns the following result. Without building your data structure in
 advance, you can search and explore your data in meaningful ways to experiment
@@ -285,7 +267,7 @@ and determine which fields to index.
 [source,console-result]
 ----
 {
-  "took" : 1,
+  "took" : 150,
   "timed_out" : false,
   "_shards" : {
     "total" : 1,
@@ -303,18 +285,18 @@ and determine which fields to index.
       {
         "_index" : "my-index",
         "_type" : "_doc",
-        "_id" : "m4d6wXQBQVoWbakQ_rGg",
+        "_id" : "8Jh81nQBp2DRDXdiOxVt",
         "_score" : 1.0,
         "_source" : {
           "@timestamp" : "2020-06-21T15:00:01-05:00",
-          "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
         },
         "fields" : {
           "clientip" : [
             "211.11.9.0"
           ],
           "message" : [
-            """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
           ],
           "@timestamp" : [
             "2020-06-21T20:00:01.000Z"
@@ -324,18 +306,18 @@ and determine which fields to index.
       {
         "_index" : "my-index",
         "_type" : "_doc",
-        "_id" : "nId6wXQBQVoWbakQ_rGg",
+        "_id" : "8Zh81nQBp2DRDXdiOxVu",
         "_score" : 1.0,
         "_source" : {
           "@timestamp" : "2020-06-21T15:00:01-05:00",
-          "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
         },
         "fields" : {
           "clientip" : [
             "211.11.9.0"
           ],
           "message" : [
-            """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
           ],
           "@timestamp" : [
             "2020-06-21T20:00:01.000Z"
@@ -346,6 +328,11 @@ and determine which fields to index.
   }
 }
 ----
+// TESTRESPONSE[s/"took": 150/"took": $body.took/]
+// TESTRESPONSE[s/"_type": "_doc"/"_type": $body.$_path/]
+// TESTRESPONSE[s/"_type": "_doc"/"_type": $body.$_path/]
+// TESTRESPONSE[s/"_id": "8Jh81nQBp2DRDXdiOxVt"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id": "8Zh81nQBp2DRDXdiOxVu"/"_id": $body.hits.hits.1._id/]
 
 If you add the `day_of_week` field to the mapping using the request in
 <<runtime-mapping-fields,mapping a runtime field>>, you can re-run the previous

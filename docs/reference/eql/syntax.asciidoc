@@ -676,7 +676,7 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-compare-fields]]
 ==== Comparing fields
 
-In {es} EQL, you also cannot use comparison operators to compare a field to
+In {es} EQL, you cannot use comparison operators to compare a field to
 another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
 

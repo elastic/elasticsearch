@@ -70,8 +70,8 @@ GET /my-index-000001/_eql/search
 
 By default, EQL searches return only the top 10 matching hits. For basic EQL
 queries, these hits are matching events and are included in the `hits.events`
-property. These events are sorted by timestamp, converted to milliseconds since
-the {wikipedia}/Unix_time[Unix epoch], in ascending order.
+property. Matching events are sorted by timestamp, converted to milliseconds
+since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 
 [source,console-result]
 ----
@@ -130,8 +130,8 @@ the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
-You can use the `size` request body parameter to get a larger set of hits.
-For example, the following request can retrieve up to `50` hits.
+You can use the `size` request body parameter to get a larger or smaller set of
+hits. For example, the following request retrieves up to `50` matching hits.
 
 [source,console]
 ----
@@ -180,7 +180,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The top 10 matching sequences are included in the `hits.sequences` property.
+Matching sequences are returned in the `hits.sequences` property.
 
 [source,console-result]
 ----

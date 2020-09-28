@@ -105,9 +105,8 @@ You cannot chain comparison operators. Instead, use a
 example, `foo < bar <= baz` is not supported. However, you can rewrite the
 expression as `foo < bar and bar <= baz`, which is supported.
 
-You also cannot use comparison operators to compare a variable, such as a field
-value, to another variable, even if those variables are modified using a
-<<eql-functions,function>>.
+You also cannot use comparison operators to compare a field to another field.
+This applies even if the fields are changed using a <<eql-functions,function>>.
 
 *Example* +
 The following EQL query compares the `process.parent_name` field
@@ -672,6 +671,14 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 === Limitations
 
 {es} EQL does not support the following features and syntax.
+
+[discrete]
+[[eql-compare-fields]]
+==== Comparing fields
+
+In {es} EQL, you cannot use comparison operators to compare a field to
+another field. This applies even if the fields are changed using a
+<<eql-functions,function>>.
 
 [discrete]
 [[eql-nested-fields]]

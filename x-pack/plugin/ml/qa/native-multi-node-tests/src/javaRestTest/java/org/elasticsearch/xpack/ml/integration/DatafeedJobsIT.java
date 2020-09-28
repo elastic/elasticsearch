@@ -32,7 +32,7 @@ import org.junit.After;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -78,10 +78,9 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
-        List<String> t = new ArrayList<>(2);
-        t.add("data-1");
-        t.add("data-2");
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), t);
+        // Having a pattern with missing indices is acceptable
+        List<String> indices = Arrays.asList("data-*", "missing-*");
+        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), indices);
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 

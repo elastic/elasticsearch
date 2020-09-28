@@ -52,3 +52,106 @@ setup:
   - match: { hits.hits.0._source.version: "3.1.0" }
   - match: { hits.hits.1._source.version: "1.1.12" }
   - match: { hits.hits.2._source.version: "2.0.0-beta" }
+
+---
+"Filter script for illegal versions":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "test_index", "_id" : "4" } }'
+          - '{"version": "a123.2.2-beta" }'
+
+  - do:
+        search:
+          index: test_index
+          body:
+            query: { "bool" : { "filter" : [{ "script" : { "script" : {"source": "doc['version'].isValid() == false"}}}] }} 
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.version: "a123.2.2-beta" }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query: { "bool" : { "filter" : [{ "script" : { "script" : {"source": "doc['version'].isValid()"}}}] }} 
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.version: "1.1.12" }
+  - match: { hits.hits.1._source.version: "2.0.0-beta" }
+  - match: { hits.hits.2._source.version: "3.1.0" }
+
+---
+"Filter script for pre-release versions":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "test_index", "_id" : "4" } }'
+          - '{"version": "a123.2.2-beta" }'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query: { "bool" : { "filter" : [{ "script" : { "script" : {"source": "doc['version'].isRelease()"}}}] }} 
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.version: "1.1.12" }
+  - match: { hits.hits.1._source.version: "3.1.0" }
+
+---
+"Aggregate using script on major, minor, patch versions":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "test_index", "_id" : "4" } }'
+          - '{"version": "3" }'
+          - '{ "index" : { "_index" : "test_index", "_id" : "5" } }'
+          - '{"version": "3.1" }'
+          - '{ "index" : { "_index" : "test_index", "_id" : "6" } }'
+          - '{"version": "illegal3.1" }'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 0
+          aggs: { "majors": { "terms": { "script": { "source": "doc['version'].getMajor()", "lang": "painless"}}}}
+
+  - length: { aggregations.majors.buckets: 3 }
+  - match: { aggregations.majors.buckets.0.key: "3" }
+  - match: { aggregations.majors.buckets.0.doc_count: 3 }
+  - match: { aggregations.majors.buckets.1.key: "1" }
+  - match: { aggregations.majors.buckets.1.doc_count: 1 }
+  - match: { aggregations.majors.buckets.2.key: "2" }
+  - match: { aggregations.majors.buckets.2.doc_count: 1 }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 0
+          aggs: { "majors": { "terms": { "script": { "source": "doc['version'].getMinor()", "lang": "painless"}}}}
+
+  - length: { aggregations.majors.buckets: 2 }
+  - match: { aggregations.majors.buckets.0.key: "1" }
+  - match: { aggregations.majors.buckets.0.doc_count: 3 }
+  - match: { aggregations.majors.buckets.1.key: "0" }
+  - match: { aggregations.majors.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 0
+          aggs: { "majors": { "terms": { "script": { "source": "doc['version'].getPatch()", "lang": "painless"}}}}
+
+  - length: { aggregations.majors.buckets: 2 }
+  - match: { aggregations.majors.buckets.0.key: "0" }
+  - match: { aggregations.majors.buckets.0.doc_count: 2 }
+  - match: { aggregations.majors.buckets.1.key: "12" }
+  - match: { aggregations.majors.buckets.1.doc_count: 1 }

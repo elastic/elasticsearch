@@ -68,3 +68,62 @@ This field type isn't optimized for heavy wildcard, regex or fuzzy searches. Whi
 type of queries work in this field, you should consider using a regular `keyword` field if
 you strongly rely on these kind of queries.
 
+==== Script support
+
+The `version` fields offers some specialized access to detailed information derived from
+valid version strings like the Major, Minor or Patch release number, whether the version value
+is valid according to Semver or if it is a pre-release version. This can be helpful when e.g.
+filtering for only released versions or running aggregations on parts of the version.
+The following query, for example, filters for released versions and groups them by Major version
+using a `terms` aggregation:
+
+[source,console]
+--------------------------------------------------
+POST my-index-000001/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "script": {
+            "script": {
+              "source": "doc['my_version'].isRelease() == true"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "group_major": {
+      "terms": {
+        "script": { "source": "doc['my_version'].getMajor()"},
+        "order": {
+          "_key": "asc"
+        }
+      }
+    }
+  }
+}
+
+--------------------------------------------------
+// TEST[continued]
+
+Functions available on via doc values in scripting are:
+
+[horizontal]
+
+isValid()::
+    Returns `true` if the field contains a version thats legal according to the Semantic Versioning rules
+
+isRelease()::
+    Returns `true` if the field contains a valid release version, `false` if it is a pre-release version or invalid.
+
+getMajor()::
+    Returns an Integer value of the Major version if the version is valid, or null otherwise
+
+getMinor()::
+    Returns an Integer value of the Minor  version if the version is valid, or null otherwise.
+
+getPatch()::
+    Returns an Integer value of the Patch version if the version is valid, or null otherwise.

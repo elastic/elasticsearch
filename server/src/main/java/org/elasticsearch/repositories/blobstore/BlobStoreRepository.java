@@ -401,30 +401,61 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId,
                                    @Nullable String shardGeneration, ActionListener<String> listener) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot clone shard snapshot on a readonly repository"));
+            return;
+        }
         final IndexId index = shardId.index();
         final int shardNum = shardId.shardId();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(listener, () -> {
+            final long startTime = threadPool.absoluteTimeInMillis();
             final BlobContainer shardContainer = shardContainer(index, shardNum);
-            final BlobStoreIndexShardSnapshots existingSnapshots =
-                    buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
-            for (SnapshotFiles existingSnapshot : existingSnapshots) {
-                if (existingSnapshot.snapshot().equals(target.getName())) {
-                    throw new RepositoryException(metadata.name(), "Can't create clone of [" + shardId + "] for snapshot ["
-                            + target + "]. A snapshot by that name already exists for this shard.");
-                }
-            }
-            final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
+            final BlobStoreIndexShardSnapshots existingSnapshots;
             final String newGen;
+            final String existingShardGen;
             if (shardGeneration == null) {
-                throw new AssertionError("Not implemented yet");
+                Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
+                        shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet(), shardContainer);
+                existingShardGen = String.valueOf(tuple.v2());
+                newGen = String.valueOf(tuple.v2() + 1);
+                existingSnapshots = tuple.v1();
             } else {
                 newGen = UUIDs.randomBase64UUID();
-                logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
-                INDEX_SHARD_SNAPSHOT_FORMAT.write(sourceMeta.clone(target.getName()), shardContainer, target.getUUID(), compress);
-                INDEX_SHARD_SNAPSHOTS_FORMAT.write(existingSnapshots.withClone(source.getName(), target.getName()), shardContainer, newGen,
-                        compress);
+                existingSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+                existingShardGen = shardGeneration;
             }
+            SnapshotFiles existingTargetFiles = null;
+            SnapshotFiles sourceFiles = null;
+            for (SnapshotFiles existingSnapshot : existingSnapshots) {
+                final String snapshotName = existingSnapshot.snapshot();
+                if (snapshotName.equals(target.getName())) {
+                    existingTargetFiles = existingSnapshot;
+                } else if (snapshotName.equals(source.getName())) {
+                    sourceFiles = existingSnapshot;
+                }
+                if (sourceFiles != null && existingTargetFiles != null) {
+                    break;
+                }
+            }
+            if (sourceFiles == null) {
+                throw new RepositoryException(metadata.name(), "Can't create clone of [" + shardId + "] for snapshot ["
+                        + target + "]. The source snapshot [" + source + "] was not found in the shard metadata.");
+            }
+            if (existingTargetFiles != null) {
+                if (existingTargetFiles.isSame(sourceFiles)) {
+                    return existingShardGen;
+                }
+                throw new RepositoryException(metadata.name(), "Can't create clone of [" + shardId + "] for snapshot ["
+                        + target + "]. A snapshot by that name already exists for this shard.");
+            }
+            final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
+            logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
+            INDEX_SHARD_SNAPSHOT_FORMAT.write(sourceMeta.asClone(target.getName(), startTime,
+                    threadPool.absoluteTimeInMillis() - startTime),
+                    shardContainer, target.getUUID(), compress);
+            INDEX_SHARD_SNAPSHOTS_FORMAT.write(existingSnapshots.withClone(source.getName(), target.getName()), shardContainer, newGen,
+                    compress);
             return newGen;
         }));
     }
@@ -1821,6 +1852,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
                               Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
+            return;
+        }
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {
@@ -2121,6 +2156,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
                     ensureNotClosing(store);
+                    logger.trace(() -> new ParameterizedMessage("[{}] restoring [{}] to [{}]", metadata.name(), fileInfo, store));
                     boolean success = false;
                     try (IndexOutput indexOutput =
                              store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {

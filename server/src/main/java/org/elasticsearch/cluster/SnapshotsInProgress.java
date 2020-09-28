@@ -51,8 +51,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
-
 /**
  * Meta data about snapshots that are currently executing
  */
@@ -182,11 +180,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             failure = in.readOptionalString();
             userMetadata = in.readMap();
             version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-                dataStreams = in.readStringList();
-            } else {
-                dataStreams = Collections.emptyList();
-            }
+            dataStreams = in.readStringList();
             if (in.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
                 source = in.readOptionalWriteable(SnapshotId::new);
                 clones = in.readImmutableMap(RepositoryShardId::new, ShardSnapshotStatus::readFrom);
@@ -466,9 +460,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeOptionalString(failure);
             out.writeMap(userMetadata);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-                out.writeStringCollection(dataStreams);
-            }
+            out.writeStringCollection(dataStreams);
             if (out.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
                 out.writeOptionalWriteable(source);
                 out.writeMap(clones);

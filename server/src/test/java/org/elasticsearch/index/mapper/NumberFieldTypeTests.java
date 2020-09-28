@@ -136,7 +136,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
 
         MappedFieldType unsearchable
-            = new NumberFieldType("field", NumberType.LONG, false, true, Collections.emptyMap());
+            = new NumberFieldType("field", NumberType.LONG, false, false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("42", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -253,7 +253,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
-        MappedFieldType unsearchable = new NumberFieldType("field", NumberType.LONG, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new NumberFieldType("field", NumberType.LONG, false, false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());

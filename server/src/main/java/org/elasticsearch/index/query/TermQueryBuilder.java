@@ -104,14 +104,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
      */
     public TermQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
         }        
     }
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
         }    
     }    

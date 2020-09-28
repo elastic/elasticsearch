@@ -41,7 +41,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -380,8 +379,8 @@ public class TextFieldMapper extends FieldMapper {
 
         final TextFieldType parent;
 
-        PhraseFieldType(TextFieldType parent) {
-            super(parent.name() + FAST_PHRASE_SUFFIX, true, false, parent.getTextSearchInfo(), Collections.emptyMap());
+        private PhraseFieldType(TextFieldType parent) {
+            super(parent.name() + FAST_PHRASE_SUFFIX, true, false, false, parent.getTextSearchInfo(), Collections.emptyMap());
             setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
             this.parent = parent;
         }
@@ -409,7 +408,7 @@ public class TextFieldMapper extends FieldMapper {
         final boolean hasPositions;
 
         PrefixFieldType(TextFieldType parentField, String name, int minChars, int maxChars, boolean hasPositions) {
-            super(name, true, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+            super(name, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -453,7 +452,7 @@ public class TextFieldMapper extends FieldMapper {
             } else {
                 automata.add(Automata.makeString(value));
             }
-                
+
             for (int i = value.length(); i < minChars; i++) {
                 automata.add(Automata.makeAnyChar());
             }
@@ -567,23 +566,20 @@ public class TextFieldMapper extends FieldMapper {
         private int fielddataMinSegmentSize;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
-        private final FieldType indexedFieldType;
 
         public TextFieldType(String name, FieldType indexedFieldType, SimilarityProvider similarity, NamedAnalyzer searchAnalyzer,
                              NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, false,
+            super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, indexedFieldType.stored(), false,
                 new TextSearchInfo(indexedFieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
-            this.indexedFieldType = indexedFieldType;
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
             fielddataMaxFrequency = Defaults.FIELDDATA_MAX_FREQUENCY;
             fielddataMinSegmentSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;
         }
 
-        public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
-            super(name, indexed, false,
+        public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+            super(name, indexed, stored, false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER), meta);
-            this.indexedFieldType = Defaults.FIELD_TYPE;
             fielddata = false;
         }
 
@@ -667,15 +663,6 @@ public class TextFieldMapper extends FieldMapper {
                     new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
-            }
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (indexedFieldType.omitNorms()) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
             }
         }
 

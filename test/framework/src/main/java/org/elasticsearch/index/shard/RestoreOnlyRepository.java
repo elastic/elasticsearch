@@ -162,6 +162,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId repositoryShardId, String shardGeneration,
                                    ActionListener<String> listener) {
-        throw new AssertionError("not supported");
+        throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
 }

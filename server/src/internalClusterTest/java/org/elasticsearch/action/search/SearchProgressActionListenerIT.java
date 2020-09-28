@@ -23,7 +23,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -174,8 +173,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                    DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
+            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 

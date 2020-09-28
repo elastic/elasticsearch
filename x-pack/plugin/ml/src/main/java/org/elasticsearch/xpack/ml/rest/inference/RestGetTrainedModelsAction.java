@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +37,8 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -62,11 +65,18 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
                 restRequest.paramAsStringArray(
                     GetTrainedModelsAction.Request.INCLUDE.getPreferredName(),
                     Strings.EMPTY_ARRAY)));
-        final GetTrainedModelsAction.Request request = restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION) ?
-            new GetTrainedModelsAction.Request(modelId,
+        final GetTrainedModelsAction.Request request;
+        if (restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION)) {
+            deprecationLogger.deprecate(
+                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION,
+                "[{}] parameter is deprecated! Use [include=definition] instead.",
+                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION);
+            request = new GetTrainedModelsAction.Request(modelId,
                 restRequest.paramAsBoolean(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION, false),
-                tags) :
-            new GetTrainedModelsAction.Request(modelId, tags, includes);
+                tags);
+        } else {
+            request = new GetTrainedModelsAction.Request(modelId, tags, includes);
+        }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));

@@ -187,6 +187,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     @Override
     protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
+        super.mergeOptions(other, conflicts);
         AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)other;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;

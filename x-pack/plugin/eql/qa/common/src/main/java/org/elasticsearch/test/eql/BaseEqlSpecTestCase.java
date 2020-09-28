@@ -118,10 +118,14 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         // some queries return more than 10 results
         request.size(50);
         request.fetchSize(randomIntBetween(2, 50));
-        return eqlClient().search(request, RequestOptions.DEFAULT);
+        return runRequest(eqlClient(), request);
     }
 
-    private EqlClient eqlClient() {
+    protected  EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
+        return eqlClient.search(request, RequestOptions.DEFAULT);
+    }
+
+    protected EqlClient eqlClient() {
         return highLevelClient().eql();
     }
 

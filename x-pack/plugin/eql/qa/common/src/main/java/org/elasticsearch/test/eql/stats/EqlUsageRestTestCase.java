@@ -297,6 +297,10 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
     private void runEql(String eql) throws IOException {
         Request request = new Request("POST", DataLoader.TEST_INDEX + "/_eql/search");
         request.setJsonEntity("{\"query\":\"" + eql +"\"}");
+        runRequest(request);
+    }
+
+    protected void runRequest(Request request) throws IOException {
         client().performRequest(request);
     }
 

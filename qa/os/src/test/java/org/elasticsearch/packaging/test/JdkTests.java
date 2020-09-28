@@ -34,7 +34,7 @@ public class JdkTests extends PackagingTestCase {
 
     public void test90UnsupportedGlibc() throws Exception {
         assumeFalse(Platforms.IS_BUNDLED_JDK_SUPPORTED);
-        sh.getEnv().put("JAVA_HOME", ""); // set java home to empty, to ensure any system java home is overridden
+        sh.getEnv().remove("JAVA_HOME"); // set java home to empty, to ensure any system java home is overridden
 
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
         assertElasticsearchFailure(result, Arrays.asList("The JDK bundled with Elasticsearch requires glibc >= 2.14"));

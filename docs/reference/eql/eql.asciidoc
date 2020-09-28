@@ -444,7 +444,7 @@ The following request specifies `event.id` as the tiebreaker field.
 
 [source,console]	
 ----	
-GET /sec_logs/_eql/search	
+GET /my-index-000001/_eql/search	
 {	
   "tiebreaker_field": "event.id",	
   "query": """	

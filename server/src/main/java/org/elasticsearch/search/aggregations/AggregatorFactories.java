@@ -208,7 +208,7 @@ public class AggregatorFactories {
         for (int i = 0; i < factories.length; i++) {
             /*
              * Top level aggs only collect from owningBucketOrd 0 which is
-             * *exactly* what CardinalityUpperBound.ONE *means*.  
+             * *exactly* what CardinalityUpperBound.ONE *means*.
              */
             Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
             Profilers profilers = factory.context().getProfilers();
@@ -225,6 +225,11 @@ public class AggregatorFactories {
      */
     public int countAggregators() {
         return factories.length;
+    }
+
+    // TODO(talevy) check aggregator factories
+    public AggregatorFactory[] factories() {
+        return factories;
     }
 
     /**

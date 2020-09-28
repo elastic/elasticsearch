@@ -22,7 +22,10 @@ package org.elasticsearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -34,6 +37,9 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RollupGroup;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -75,12 +81,16 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
@@ -124,6 +134,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1177,16 +1188,37 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             try (canMatchSearcher) {
+                // get info about things
+
+                RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
+                String requestIndex = request.shardId().getIndexName();
+                IndexMetadata indexMeta = clusterService.state().getMetadata().index(requestIndex);
+                Map<String, String> indexRollupMeta = indexMeta.getCustomData(RollupMetadata.TYPE);
+                logger.error("indices searching: " + Arrays.toString(request.indices()));
+                logger.error("shard's index: " + requestIndex);
+
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
                     request::nowInMillis, request.getClusterAlias());
+
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
+
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
                 FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                 MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
                 final boolean canMatch;
+
+                // TODO(talevy): once there is a new request, pass flag to instruct whether rollup is to be considered or not
+                //               this will only be the case in datastreams
+                //  check if shard should match rollup
+                QueryBuilder queryBuilder = request.source() == null ? null : request.source().query();
+                AggregatorFactories.Builder aggregations = request.source() == null ? null : request.source().aggregations();
+                if (shouldMatchRollup(context, queryBuilder, aggregations, rollupMetadata, indexRollupMeta,
+                        requestIndex, request.indices()) == false) {
+                    return new CanMatchResponse(false, minMax);
+                }
+
                 if (canRewriteToMatchNone(request.source())) {
-                    QueryBuilder queryBuilder = request.source().query();
                     canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
                 } else {
                     // null query means match_all
@@ -1195,6 +1227,60 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
+    }
+
+    boolean shouldMatchRollup(QueryShardContext context, QueryBuilder queryBuilder, AggregatorFactories.Builder aggFactoryBuilders,
+                              RollupMetadata rollupMetadata, Map<String, String> indexRollupMetadata,
+                              String requestIndex, String[] indices) {
+        // TODO(talevy): currently assumes that all indices part of the same rollup group are searched as well, since this is the case
+        //  for data-streams. should not be here in the non-datastream case...
+        if (aggFactoryBuilders != null && rollupMetadata != null && indexRollupMetadata != null && queryBuilder != null) {
+            Query query = context.toQuery(queryBuilder).query();
+            logger.error("deciding how to handle rollup shard against query");
+            logger.error("indexRollupMeta - " +  indexRollupMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD));
+            try {
+                AggregatorFactory[] factories = aggFactoryBuilders
+                    .build(new ProductionAggregationContext(context, query), null)
+                    .factories();
+            } catch (IOException e) {
+                throw new AggregationInitializationException("Failed to create aggregators, shard not supported", e);
+            }
+
+            // check builders
+            // TODO(talevy): borrow a lot from RollupJobIdentifierUtils to validate and find best index/rollup shard for the job
+
+            for (AggregationBuilder builder : aggFactoryBuilders.getAggregatorFactories()) {
+                if (builder.getWriteableName().equals(DateHistogramAggregationBuilder.NAME)) {
+                    DateHistogramAggregationBuilder dateBuilder = (DateHistogramAggregationBuilder) builder;
+                    DateHistogramInterval aggInterval = dateBuilder.getCalendarInterval();
+                    // TODO (talevy): for now do nothing, assume interval matches if one exists and this is a rollup index
+                    return true;
+                }
+            }
+
+            // do something with query?
+            query.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query query, Term... terms) {
+                    super.consumeTerms(query, terms);
+                }
+            });
+            return false;
+        } else if (aggFactoryBuilders != null && rollupMetadata != null ) {
+            // TODO(talevy): figure out an actual solution here. one that is faster and one that works for datastream's hidden indices
+
+            // not a rollup index and dealing with aggregation... check if a matching rollup exists in query
+            RollupGroup group = rollupMetadata.rollupGroups().get(requestIndex);
+            if (group != null) {
+                for (String index : indices) {
+                    if (group.contains(index)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     /**

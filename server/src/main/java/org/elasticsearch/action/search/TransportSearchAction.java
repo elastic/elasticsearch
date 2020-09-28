@@ -218,7 +218,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
+        executeRequest(task, searchRequest, (task1, searchRequest1, executor, shardIterators, timeProvider, connectionLookup,
+                                             clusterState, aliasFilter, concreteIndexBoosts, indexRoutings, listener1, preFilter,
+                                             preFilterRollup, clusters, threadPool1) -> searchAsyncAction(task1, searchRequest1, executor,
+            shardIterators, timeProvider, connectionLookup, clusterState, aliasFilter, concreteIndexBoosts, indexRoutings, listener1,
+            preFilter, preFilterRollup, threadPool1, clusters), listener);
     }
 
     public interface SinglePhaseSearchAction {
@@ -236,7 +240,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 SearchTimeProvider timeProvider, BiFunction<String, String, Transport.Connection> connectionLookup,
                 ClusterState clusterState, Map<String, AliasFilter> aliasFilter,
                 Map<String, Float> concreteIndexBoosts, Map<String, Set<String>> indexRoutings,
-                ActionListener<SearchResponse> listener, boolean preFilter, ThreadPool threadPool, SearchResponse.Clusters clusters) {
+                ActionListener<SearchResponse> listener, boolean preFilter, boolean preFilterRollup, SearchResponse.Clusters clusters,
+                    ThreadPool threadPool) {
                 return new AbstractSearchAsyncAction<>(
                     actionName, logger, searchTransportService, connectionLookup, aliasFilter, concreteIndexBoosts,
                     indexRoutings, executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
@@ -673,7 +678,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         searchAsyncActionProvider.asyncSearchAction(
             task, searchRequest, asyncSearchExecutor, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, indexRoutings, listener,
-            preFilterSearchShards, threadPool, clusters).start();
+            preFilterSearchShards, false, clusters, threadPool).start();
     }
 
     Executor asyncSearchExecutor(final String[] indices, final ClusterState clusterState) {
@@ -719,9 +724,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else if (preFilterShardSize == null) {
             preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
         }
-        return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
-                    && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
-                    && preFilterShardSize < numShards;
+
+        boolean shouldFilterSearchShardsByQuery =
+            searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
+                && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
+                && preFilterShardSize < numShards;
+        boolean shouldFilterSearchShardsByRollupGroup = true;
+        return shouldFilterSearchShardsByQuery || shouldFilterSearchShardsByRollupGroup;
     }
 
     private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {
@@ -747,7 +756,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchTimeProvider timeProvider, BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState, Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
             Map<String, Set<String>> indexRoutings, ActionListener<SearchResponse> listener, boolean preFilter,
-            ThreadPool threadPool, SearchResponse.Clusters clusters);
+            boolean preFilterRollup, SearchResponse.Clusters clusters, ThreadPool threadPool);
     }
 
     private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
@@ -763,6 +772,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, Set<String>> indexRoutings,
         ActionListener<SearchResponse> listener,
         boolean preFilter,
+        boolean preFilterRollup,
         ThreadPool threadPool,
         SearchResponse.Clusters clusters) {
         if (preFilter) {
@@ -782,6 +792,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     indexRoutings,
                     listener,
                     false,
+                    false,
                     threadPool,
                     clusters);
                 return new SearchPhase(action.getName()) {
@@ -790,7 +801,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         action.start();
                     }
                 };
-            }, clusters);
+            }, clusters, preFilterRollup);
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
                 circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),

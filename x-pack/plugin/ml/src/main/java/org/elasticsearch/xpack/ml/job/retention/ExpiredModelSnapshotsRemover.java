@@ -23,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
@@ -65,8 +66,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(OriginSettingClient client, Iterator<Job> jobIterator, ThreadPool threadPool) {
-        super(client, jobIterator);
+    public ExpiredModelSnapshotsRemover(OriginSettingClient client, Iterator<Job> jobIterator,
+                                        ThreadPool threadPool, TaskId parentTaskId) {
+        super(client, jobIterator, parentTaskId);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
@@ -118,6 +120,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        searchRequest.setParentTask(getParentTaskId());
 
         client.search(searchRequest, ActionListener.wrap(
                 response -> {
@@ -176,6 +179,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         source.docValueField(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), null);
         source.docValueField(ModelSnapshot.TIMESTAMP.getPreferredName(), "epoch_millis");
         searchRequest.source(source);
+        searchRequest.setParentTask(getParentTaskId());
 
         long deleteAllBeforeMs = (job.getModelSnapshotRetentionDays() == null)
             ? 0 : latestTimeMs - TimeValue.timeValueDays(job.getModelSnapshotRetentionDays()).getMillis();
@@ -233,6 +237,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         JobSnapshotId idPair = modelSnapshotIterator.next();
         DeleteModelSnapshotAction.Request deleteSnapshotRequest =
             new DeleteModelSnapshotAction.Request(idPair.jobId, idPair.snapshotId);
+        deleteSnapshotRequest.setParentTask(getParentTaskId());
         client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {

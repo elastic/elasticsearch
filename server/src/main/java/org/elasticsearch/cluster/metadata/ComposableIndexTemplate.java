@@ -57,6 +57,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
 
+    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_8_0_0;
+
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
         false,
@@ -138,7 +140,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         } else {
             this.dataStreamTemplate = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(ALLOW_AUTO_CREATE_VERSION)) {
             this.allowAutoCreate = in.readOptionalBoolean();
         } else {
             this.allowAutoCreate = null;
@@ -205,7 +207,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalWriteable(dataStreamTemplate);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(ALLOW_AUTO_CREATE_VERSION)) {
             out.writeOptionalBoolean(allowAutoCreate);
         }
     }

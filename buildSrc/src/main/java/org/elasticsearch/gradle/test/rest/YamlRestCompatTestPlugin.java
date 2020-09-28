@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -31,25 +30,15 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.PublishArtifact;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.TaskDependency;
-import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.Date;
-import java.util.Map;
 
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.createTestCluster;
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.registerTask;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 
 /**
@@ -82,12 +71,15 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         ElasticsearchCluster testCluster = createTestCluster(project, yamlCompatTestSourceSet);
         testCluster.setTestDistribution(TestDistribution.DEFAULT);
 
-        //TODO: this is pretty fragile but the existing logic to checkout prior version branches isn't general purpose
+        // TODO: this is pretty fragile but the existing logic to checkout prior version branches isn't general purpose
         // eventually we will want to test against multiple minor versions and will need a better way to checkout an arbitrary prior branch
         // however, for now we will just get a reference to the checkout directory for ":distribution:bwc:minor:checkoutBwcBranch"
         int priorMajorVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
-        final Path checkoutDir = project.findProject(":distribution:bwc:minor").getBuildDir().toPath()
-            .resolve("bwc").resolve("checkout-" + priorMajorVersion + ".x");
+        final Path checkoutDir = project.findProject(":distribution:bwc:minor")
+            .getBuildDir()
+            .toPath()
+            .resolve("bwc")
+            .resolve("checkout-" + priorMajorVersion + ".x");
 
         // copy compatible rest specs
         Configuration compatSpec = project.getConfigurations().create("compatSpec");
@@ -100,16 +92,26 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.sourceSetName = SOURCE_SET_NAME;
                 task.skipHasRestTestCheck = true;
                 task.coreConfig = compatSpec;
-                project.getDependencies().add(task.coreConfig.getName(),
-                    project.files(checkoutDir.resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_API_PATH)));
+                project.getDependencies()
+                    .add(
+                        task.coreConfig.getName(),
+                        project.files(checkoutDir.resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_API_PATH))
+                    );
                 task.xpackConfig = xpackCompatSpec;
-                project.getDependencies().add(task.xpackConfig.getName(),
-                    project.files(checkoutDir.resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_API_PATH)));
+                project.getDependencies()
+                    .add(
+                        task.xpackConfig.getName(),
+                        project.files(checkoutDir.resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_API_PATH))
+                    );
                 task.additionalConfig = additionalCompatSpec;
                 // per project can define custom specifications
-                project.getDependencies().add(task.additionalConfig.getName(),
-                    project.files(getCompatProjectPath(project, checkoutDir)
-                        .resolve("src/yamlRestTest/resources").resolve(RELATIVE_API_PATH)));
+                project.getDependencies()
+                    .add(
+                        task.additionalConfig.getName(),
+                        project.files(
+                            getCompatProjectPath(project, checkoutDir).resolve("src/yamlRestTest/resources").resolve(RELATIVE_API_PATH)
+                        )
+                    );
                 task.dependsOn(task.coreConfig);
                 task.dependsOn(task.xpackConfig);
                 task.dependsOn(task.additionalConfig);
@@ -126,15 +128,25 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.sourceSetName = SOURCE_SET_NAME;
                 task.coreConfig = compatTest;
-                project.getDependencies().add(task.coreConfig.getName(),
-                    project.files(checkoutDir.resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_TEST_PATH)));
+                project.getDependencies()
+                    .add(
+                        task.coreConfig.getName(),
+                        project.files(checkoutDir.resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_TEST_PATH))
+                    );
                 task.xpackConfig = xpackCompatTest;
-                project.getDependencies().add(task.xpackConfig.getName(),
-                    project.files(checkoutDir.resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_TEST_PATH)));
+                project.getDependencies()
+                    .add(
+                        task.xpackConfig.getName(),
+                        project.files(checkoutDir.resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_TEST_PATH))
+                    );
                 task.additionalConfig = additionalCompatTest;
-                project.getDependencies().add(task.additionalConfig.getName(),
-                    project.files(getCompatProjectPath(project, checkoutDir)
-                        .resolve("src/yamlRestTest/resources").resolve(RELATIVE_TEST_PATH)));
+                project.getDependencies()
+                    .add(
+                        task.additionalConfig.getName(),
+                        project.files(
+                            getCompatProjectPath(project, checkoutDir).resolve("src/yamlRestTest/resources").resolve(RELATIVE_TEST_PATH)
+                        )
+                    );
                 task.dependsOn(task.coreConfig);
                 task.dependsOn(task.xpackConfig);
                 task.dependsOn(task.additionalConfig);
@@ -145,14 +157,15 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         // setup the yamlRestTest task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTask(project, yamlCompatTestSourceSet);
         project.getTasks().withType(RestIntegTestTask.class).named(SOURCE_SET_NAME).configure(testTask -> {
-            //Use test runner and classpath from "normal" yaml source set
+            // Use test runner and classpath from "normal" yaml source set
             testTask.setTestClassesDirs(yamlTestSourceSet.getOutput().getClassesDirs());
-            testTask.setClasspath(yamlTestSourceSet.getRuntimeClasspath()
-                //remove the "normal" api and tests
-                .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
-                // add any additional classes/resources from the compatible source set
-                // the api and tests are copied to the compatible source set
-                .plus(yamlCompatTestSourceSet.getRuntimeClasspath())
+            testTask.setClasspath(
+                yamlTestSourceSet.getRuntimeClasspath()
+                    // remove the "normal" api and tests
+                    .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
+                    // add any additional classes/resources from the compatible source set
+                    // the api and tests are copied to the compatible source set
+                    .plus(yamlCompatTestSourceSet.getRuntimeClasspath())
             );
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
@@ -169,7 +182,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestCompatTestTask));
     }
 
-    //TODO: implement custom extension that allows us move around of the projects between major versions and still find them
+    // TODO: implement custom extension that allows us move around of the projects between major versions and still find them
     private Path getCompatProjectPath(Project project, Path checkoutDir) {
         return checkoutDir.resolve(project.getPath().replaceFirst(":", "").replace(":", File.separator));
     }

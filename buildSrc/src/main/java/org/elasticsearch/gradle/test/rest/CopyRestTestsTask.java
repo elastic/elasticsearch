@@ -111,7 +111,8 @@ public class CopyRestTestsTask extends DefaultTask {
 
         // copy tests only if explicitly requested
         return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false || additionalConfig != null
-            ? fileCollection.getAsFileTree() : null;
+            ? fileCollection.getAsFileTree()
+            : null;
     }
 
     @OutputDirectory

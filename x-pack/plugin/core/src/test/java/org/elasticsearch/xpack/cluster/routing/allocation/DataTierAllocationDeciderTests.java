@@ -294,8 +294,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -330,7 +329,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, 0);
+        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
@@ -378,8 +377,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -441,8 +439,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -504,8 +501,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;

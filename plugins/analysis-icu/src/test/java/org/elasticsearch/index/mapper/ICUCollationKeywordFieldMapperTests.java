@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -66,31 +65,16 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         return Set.of("analyzer", "similarity");
     }
 
-    @Before
-    public void setup() {
-        addModifier("strength", false, (a, b) -> {
-            a.strength("primary");
-            b.strength("secondary");
-        });
-        addModifier("decomposition", false, (a, b) -> {
-            a.decomposition("no");
-            b.decomposition("canonical");
-        });
-        addModifier("alternate", false, (a, b) -> {
-            a.alternate("shifted");
-            b.alternate("non-ignorable");
-        });
-        addBooleanModifier("case_level", false, ICUCollationKeywordFieldMapper.Builder::caseLevel);
-        addModifier("case_first", false, (a, b) -> {
-            a.caseFirst("upper");
-            a.caseFirst("lower");
-        });
-        addBooleanModifier("numeric", false, ICUCollationKeywordFieldMapper.Builder::numeric);
-        addModifier("variable_top", false, (a, b) -> {
-            a.variableTop(";");
-            b.variableTop(":");
-        });
-        addBooleanModifier("hiragana_quaternary_mode", false, ICUCollationKeywordFieldMapper.Builder::hiraganaQuaternaryMode);
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("strength", b -> b.field("strength", "secondary"));
+        checker.registerConflictCheck("decomposition", b -> b.field("decomposition", "canonical"));
+        checker.registerConflictCheck("alternate", b -> b.field("alternate", "non-ignorable"));
+        checker.registerConflictCheck("case_level", b -> b.field("case_level", true));
+        checker.registerConflictCheck("case_first", b -> b.field("case_first", "lower"));
+        checker.registerConflictCheck("numeric", b -> b.field("numeric", true));
+        checker.registerConflictCheck("variable_top", b -> b.field("variable_top", ":"));
+        checker.registerConflictCheck("hiragana_quaternary_mode", b -> b.field("hiragana_quaternary_mode", true));
     }
 
     @Override

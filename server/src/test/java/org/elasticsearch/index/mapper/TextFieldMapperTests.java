@@ -45,8 +45,6 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -73,8 +71,6 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -133,36 +129,76 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
             .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
-    @Before
-    public void addModifiers() {
-        addBooleanModifier("fielddata", true, TextFieldMapper.Builder::fielddata);
-        addModifier("fielddata_frequency_filter.min", true, (a, b) -> {
-            a.fielddataFrequencyFilter(1, 10, 10);
-            a.fielddataFrequencyFilter(2, 10, 10);
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("fielddata", true), m -> {
+            TextFieldType ft = (TextFieldType) m.fieldType();
+            assertTrue(ft.fielddata());
         });
-        addModifier("fielddata_frequency_filter.max", true, (a, b) -> {
-            a.fielddataFrequencyFilter(1, 10, 10);
-            a.fielddataFrequencyFilter(1, 12, 10);
+        checker.registerUpdateCheck(b -> {
+            b.field("fielddata", true);
+            b.startObject("fielddata_frequency_filter");
+            {
+                b.field("min", 10);
+                b.field("max", 20);
+                b.field("min_segment_size", 100);
+            }
+            b.endObject();
+        }, m -> {
+            TextFieldType ft = (TextFieldType) m.fieldType();
+            assertEquals(10, ft.fielddataMinFrequency(), 0);
+            assertEquals(20, ft.fielddataMaxFrequency(), 0);
+            assertEquals(100, ft.fielddataMinSegmentSize());
         });
-        addModifier("fielddata_frequency_filter.min_segment_size", true, (a, b) -> {
-            a.fielddataFrequencyFilter(1, 10, 10);
-            a.fielddataFrequencyFilter(1, 10, 11);
-        });
-        addModifier("index_phrases", false, (a, b) -> {
-            a.indexPhrases(true);
-            b.indexPhrases(false);
-        });
-        addModifier("index_prefixes", false, (a, b) -> {
-            a.indexPrefixes(2, 4);
-        });
-        addModifier("index_options", false, (a, b) -> {
-            a.indexOptions(IndexOptions.DOCS_AND_FREQS);
-            b.indexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        });
-        addModifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
-        });
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+                b.field("search_quote_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+
+
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
+        checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "keyword"));
+        checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
+
+        // TODO position_increment_gap should not be updateable!
+        //checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
+
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms",
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            }));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
+
     }
 
     @Override

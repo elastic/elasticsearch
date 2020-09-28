@@ -91,7 +91,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<String> indexOptions
             = Parameter.restrictedStringParam("index_options", false, m -> toType(m).indexOptions, "docs", "freqs");
         private final Parameter<Boolean> hasNorms
-            = Parameter.boolParam("norms", false, m -> toType(m).fieldType.omitNorms() == false, false);
+            = Parameter.boolParam("norms", true, m -> toType(m).fieldType.omitNorms() == false, false)
+            .setMergeValidator((o, n) -> o == n || (o && n == false));  // norms can be updated from 'true' to 'false' but not vv
         private final Parameter<SimilarityProvider> similarity = new Parameter<>("similarity", false, () -> null,
             (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), m -> toType(m).similarity)
             .setSerializer((b, f, v) -> b.field(f, v == null ? null : v.name()), v -> v == null ? null : v.name())

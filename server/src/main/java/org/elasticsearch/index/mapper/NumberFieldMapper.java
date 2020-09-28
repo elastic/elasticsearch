@@ -999,6 +999,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
+    boolean coerce() {
+        return coerce.value();
+    }
+
+    boolean ignoreMalformed() {
+        return ignoreMalformed.value();
+    }
+
     @Override
     public NumberFieldType fieldType() {
         return (NumberFieldType) super.fieldType();

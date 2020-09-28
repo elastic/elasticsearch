@@ -8,7 +8,6 @@ from that node.
 
 You can use the following settings to control disk-based allocation:
 
-
 [[cluster-routing-disk-threshold]]
 // tag::cluster-routing-disk-threshold-tag[]
 `cluster.routing.allocation.disk.threshold_enabled` {ess-icon}::

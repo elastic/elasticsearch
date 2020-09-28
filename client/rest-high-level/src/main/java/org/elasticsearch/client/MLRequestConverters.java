@@ -779,9 +779,9 @@ final class MLRequestConverters {
             params.putParam(GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
                 Boolean.toString(getTrainedModelsRequest.getDecompressDefinition()));
         }
-        if (getTrainedModelsRequest.getIncludeDefinition() != null) {
-            params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
-                Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
+        if (getTrainedModelsRequest.getIncludes().isEmpty() == false) {
+            params.putParam(GetTrainedModelsRequest.INCLUDE,
+                Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIncludes()));
         }
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));

@@ -92,7 +92,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(process.isProcessAlive()).thenReturn(true);
         when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
         processFactory = mock(AnalyticsProcessFactory.class);
-        when(processFactory.createAnalyticsProcess(any(), any(), any(), any(), any())).thenReturn(process);
+        when(processFactory.createAnalyticsProcess(any(), any(), anyBoolean(), any(), any())).thenReturn(process);
         auditor = mock(DataFrameAnalyticsAuditor.class);
         trainedModelProvider = mock(TrainedModelProvider.class);
 
@@ -226,7 +226,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
         processContext.stop();
-        assertThat(processContext.startProcess(dataExtractorFactory, task, null), is(false));
+        assertThat(processContext.startProcess(dataExtractorFactory, task, false), is(false));
 
         InOrder inOrder = inOrder(dataExtractor, process, task);
         inOrder.verify(task).isStopping();
@@ -237,7 +237,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(0, NUM_COLS));
 
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
-        assertThat(processContext.startProcess(dataExtractorFactory, task, null), is(false));
+        assertThat(processContext.startProcess(dataExtractorFactory, task, false), is(false));
 
         InOrder inOrder = inOrder(dataExtractor, process, task);
         inOrder.verify(task).isStopping();
@@ -248,7 +248,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
     public void testProcessContext_StartAndStop() throws Exception {
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
-        assertThat(processContext.startProcess(dataExtractorFactory, task, null), is(true));
+        assertThat(processContext.startProcess(dataExtractorFactory, task, false), is(true));
         processContext.stop();
 
         InOrder inOrder = inOrder(dataExtractor, process, task);

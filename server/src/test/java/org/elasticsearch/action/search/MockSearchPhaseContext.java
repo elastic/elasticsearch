@@ -20,9 +20,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -87,9 +87,9 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
+        String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         String searchContextId =
-            getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
+            getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY, searchContextId));
     }
@@ -129,6 +129,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
         } catch (Exception e) {
            onPhaseFailure(nextPhase, "phase failed", e);
         }
+    }
+
+    @Override
+    public void addReleasable(Releasable releasable) {
+        // Noop
     }
 
     @Override

@@ -1058,16 +1058,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 while (contextIds.isEmpty() == false) {
                     final ShardSearchContextId contextId = randomFrom(contextIds);
-                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
+                    expectThrows(SearchContextMissingException.class,
+                        () -> searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                     if (randomBoolean()) {
                         assertTrue(searchService.freeReaderContext(contextId));
                     } else {
-                        assertTrue(searchService.freeReaderContext((new ShardSearchContextId("", contextId.getId()))));
+                        assertTrue(searchService.freeReaderContext((
+                            new ShardSearchContextId(contextId.getSessionId(), contextId.getId()))));
                     }
                     contextIds.remove(contextId);
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId("", contextId.getId())));
                     assertFalse(searchService.freeReaderContext(contextId));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 }
@@ -1089,7 +1090,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
-        return new ReaderContext(randomNonNegativeLong(), indexService, indexShard,
-            indexShard.acquireSearcherSupplier(), randomNonNegativeLong(), false);
+        return new ReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
+            indexService, indexShard, indexShard.acquireSearcherSupplier(), randomNonNegativeLong(), false);
     }
 }

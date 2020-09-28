@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.Network;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
@@ -345,6 +346,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         Integer asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
+        Network network = response.getNetwork();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
@@ -362,6 +364,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         geoData.put("organization_name", organization_name);
                     }
                     break;
+                case NETWORK:
+                    if (network != null) {
+                        geoData.put("network", network.toString());
+                    }
+                    break;
             }
         }
         return geoData;
@@ -376,7 +383,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
         ));
         static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
-            Property.IP, Property.ASN, Property.ORGANIZATION_NAME
+            Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
         ));
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
@@ -464,7 +471,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         TIMEZONE,
         LOCATION,
         ASN,
-        ORGANIZATION_NAME;
+        ORGANIZATION_NAME,
+        NETWORK;
 
         static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
             Property.IP, Property.COUNTRY_ISO_CODE, Property.COUNTRY_NAME, Property.CONTINENT_NAME,
@@ -475,7 +483,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE
         );
         static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
-            Property.IP, Property.ASN, Property.ORGANIZATION_NAME
+            Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
         );
 
         public static Property parseProperty(String databaseType, String value) {

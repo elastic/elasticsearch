@@ -370,7 +370,7 @@ any field values.
             """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
           ],
           "day_of_week" : [
-            "Sunday"
+            "Sunday" <1>
           ]
         }
       },

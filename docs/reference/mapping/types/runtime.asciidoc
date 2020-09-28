@@ -43,8 +43,8 @@ faster search speed.
 
 Runtime fields incur performance costs at search time, depending
 on the <<runtime-params-runtime-type,`runtime_type`>>. For example, let's say
-you created an anomaly detection job that operates on the `timestamp` field.
-If the `timestamp` field is a runtime field, the search cost would be extremely
+you created an anomaly detection job that operates on the `@timestamp` field.
+If the `@timestamp` field is a runtime field, the search cost would be extremely
 high because the data isn't indexed and {es} must compute the value for each
 document that matches the query.
 
@@ -68,7 +68,7 @@ Additionally, existing queries or visualizations that rely on runtime fields
 can break if scripts are updated.
 
 The script in the following request extracts the day of the week from the
-`timestamp` field, which is defined as a `date` data type.
+`@timestamp` field, which is defined as a `date` data type.
 
 [source,console]
 ----
@@ -79,7 +79,7 @@ PUT /my-index/_mappings
       "type" : "runtime", <1>
       "runtime_type" : "keyword", <2>
       "script" : {
-        "source" : "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        "source" : "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
       }
     }
   }
@@ -142,7 +142,7 @@ You know that your log data contains specific fields that you want to extract.
 By using runtime fields, you can define scripts to calculate values at search
 time for these fields.
 
-You can start with a simple example by adding the `timestamp` and `message`
+You can start with a simple example by adding the `@timestamp` and `message`
 fields to the `my-index` mapping. To remain flexible, use `wildcard` as the
 field type for `message`.
 
@@ -171,27 +171,27 @@ data, you can use a small sample to experiment with runtime fields.
 ----
 POST /my-index/_bulk
 { "index": {}}
-{ "timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
 { "index": {}}
-{ "timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [2020-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "@timestamp": "2020-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [2020-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [2020-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "@timestamp": "2020-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [2020-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [2020-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "@timestamp": "2020-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [2020-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+{ "@timestamp": "2020-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [2020-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "@timestamp": "2020-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [2020-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_brdl.gif HTTP/1.0\" 304 0"}
+{ "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_brdl.gif HTTP/1.0\" 304 0"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_arw.gif HTTP/1.0\" 304 0"}
+{ "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_arw.gif HTTP/1.0\" 304 0"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:32-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:32-05:00] \"GET /images/nav_bg_top.gif HTTP/1.0\" 200 929"}
+{ "@timestamp": "2020-04-30T14:31:32-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:32-05:00] \"GET /images/nav_bg_top.gif HTTP/1.0\" 200 929"}
 { "index": {}}
-{ "timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
+{ "@timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
 ----
 
 At this point, you can view how {es} stores your raw data.
@@ -201,7 +201,7 @@ At this point, you can view how {es} stores your raw data.
 GET /my-index
 ----
 
-The mapping contains two fields: `timestamp` and `message`.
+The mapping contains two fields: `@timestamp` and `message`.
 
 [source,console-result]
 ----
@@ -217,7 +217,7 @@ The mapping contains two fields: `timestamp` and `message`.
         "message" : {
           "type" : "wildcard"
         },
-        "timestamp" : {
+        "@timestamp" : {
           "type" : "date"
         }
       }
@@ -289,7 +289,7 @@ and determine which fields to index.
         "_id" : "m4d6wXQBQVoWbakQ_rGg",
         "_score" : 1.0,
         "_source" : {
-          "timestamp" : "2020-06-21T15:00:01-05:00",
+          "@timestamp" : "2020-06-21T15:00:01-05:00",
           "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
         },
         "fields" : {
@@ -299,7 +299,7 @@ and determine which fields to index.
           "message" : [
             """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
           ],
-          "timestamp" : [
+          "@timestamp" : [
             "2020-06-21T20:00:01.000Z"
           ]
         }
@@ -310,7 +310,7 @@ and determine which fields to index.
         "_id" : "nId6wXQBQVoWbakQ_rGg",
         "_score" : 1.0,
         "_source" : {
-          "timestamp" : "2020-06-21T15:00:01-05:00",
+          "@timestamp" : "2020-06-21T15:00:01-05:00",
           "message" : """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
         },
         "fields" : {
@@ -320,7 +320,7 @@ and determine which fields to index.
           "message" : [
             """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
           ],
-          "timestamp" : [
+          "@timestamp" : [
             "2020-06-21T20:00:01.000Z"
           ]
         }
@@ -332,7 +332,7 @@ and determine which fields to index.
 
 If you add the `day_of_week` field to the mapping using the request in
 <<runtime-mapping-fields,mapping a runtime field>>, you can re-run the previous
-search request and also retrieve the day of the week based on the `timestamp`
+search request and also retrieve the day of the week based on the `@timestamp`
 field.
 
 The value for this field was never indexed, and is calculated dynamically at
@@ -351,7 +351,7 @@ any field values.
           "day_of_week" : [
             "Sunday" <1>
           ],
-          "timestamp" : [
+          "@timestamp" : [
             "2020-06-21T20:00:01.000Z"
           ],
           "status" : [

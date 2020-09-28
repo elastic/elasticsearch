@@ -181,22 +181,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-
-        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
-        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return valueParser.apply(value);
-            }
-        };
-    }
-
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 
@@ -286,6 +270,20 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             throw new QueryShardException(context,
                 "Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
                 + name() + "]");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+
+            Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
+
+            return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return valueParser.apply(value);
+                }
+            };
         }
     }
 

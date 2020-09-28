@@ -159,7 +159,8 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             DocumentMapper mapper = createDocumentMapper(
                 fieldMapping(b -> b.field("type", "unsigned_long").field("null_value", "18446744073709551615"))
             );
-            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));;
+            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+            ;
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(2, fields.length);
             IndexableField pointField = fields[0];
@@ -206,7 +207,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testIndexingOutOfRangeValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         for (Object outOfRangeValue : new Object[] { "-1", -1L, "18446744073709551616", new BigInteger("18446744073709551616") }) {
-            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));;
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));
             expectThrows(MapperParsingException.class, runnable);
         }
     }

@@ -14,7 +14,7 @@ aggregated, or searched. With runtime fields, you can explicitly define a field
 in the mapping and access it at search time without indexing your data during
 ingest time.
 
-Runtime fields are accessible from the search API like any other field that has
+Runtime fields beta[] are accessible from the search API like any other field that has
 <<doc-values,doc_values>> and is searchable. You can retrieve and query these
 fields, as well as aggregate on them.
 
@@ -217,9 +217,6 @@ The mapping contains two fields: `@timestamp` and `message`.
         "message" : {
           "type" : "wildcard"
         },
-        "@timestamp" : {
-          "type" : "date"
-        }
       }
     },
 ...

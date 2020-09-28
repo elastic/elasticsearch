@@ -148,6 +148,10 @@ public class HistogramFieldMapper extends FieldMapper {
         this.ignoreMalformed = ignoreMalformed;
     }
 
+    boolean ignoreMalformed() {
+        return ignoreMalformed.value();
+    }
+
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) other;

@@ -136,7 +136,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 b.startArray(n);
                 c.toXContent(b, ToXContent.EMPTY_PARAMS);
                 b.endArray();
-            }, ContextMappings::toString);
+            }, Objects::toString);
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> toType(m).maxInputLength, Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
@@ -353,6 +353,10 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     @Override
     public boolean parsesArrayValue() {
         return true;
+    }
+
+    int getMaxInputLength() {
+        return maxInputLength;
     }
 
     /**

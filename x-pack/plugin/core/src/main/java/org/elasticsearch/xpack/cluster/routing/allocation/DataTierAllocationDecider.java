@@ -238,7 +238,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
      * exist. If no nodes for any of the tiers are available, returns an empty
      * {@code Optional<String>}.
      */
-    static Optional<String> preferredAvailableTier(String prioritizedTiers, DiscoveryNodes nodes) {
+    public static Optional<String> preferredAvailableTier(String prioritizedTiers, DiscoveryNodes nodes) {
         String[] tiers = Strings.tokenizeToStringArray(prioritizedTiers, ",");
         return Arrays.stream(tiers).filter(tier -> tierNodesPresent(tier, nodes)).findFirst();
     }

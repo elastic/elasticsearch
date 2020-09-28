@@ -91,7 +91,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<String> indexOptions
             = Parameter.restrictedStringParam("index_options", false, m -> toType(m).indexOptions, "docs", "freqs");
         private final Parameter<Boolean> hasNorms
-            = Parameter.boolParam("norms", false, m -> toType(m).fieldType.omitNorms() == false, false);
+            = Parameter.boolParam("norms", true, m -> toType(m).fieldType.omitNorms() == false, false)
+            .setMergeValidator((o, n) -> o == n || (o && n == false));  // norms can be updated from 'true' to 'false' but not vv
         private final Parameter<SimilarityProvider> similarity = new Parameter<>("similarity", false, () -> null,
             (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), m -> toType(m).similarity)
             .setSerializer((b, f, v) -> b.field(f, v == null ? null : v.name()), v -> v == null ? null : v.name())
@@ -104,7 +105,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             = Parameter.boolParam("split_queries_on_whitespace", true, m -> toType(m).splitQueriesOnWhitespace, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<Float> boost = Parameter.boostParam();
 
         private final IndexAnalyzers indexAnalyzers;
 
@@ -153,7 +153,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected List<Parameter<?>> getParameters() {
             return List.of(indexed, hasDocValues, stored, nullValue, eagerGlobalOrdinals, ignoreAbove,
-                indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, boost, meta);
+                indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, meta);
         }
 
         private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
@@ -177,7 +177,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             return new KeywordFieldType(buildFullName(context), hasDocValues.getValue(), fieldType,
                 eagerGlobalOrdinals.getValue(), normalizer, searchAnalyzer,
-                similarity.getValue(), boost.getValue(), meta.getValue());
+                similarity.getValue(), meta.getValue());
         }
 
         @Override
@@ -198,12 +198,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
-                                SimilarityProvider similarity, float boost, Map<String, String> meta) {
+                                SimilarityProvider similarity, Map<String, String> meta) {
             super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(),
                 hasDocValues, new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchAnalyzer), meta);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);
-            setBoost(boost);
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
@@ -213,7 +212,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         public KeywordFieldType(String name) {
             this(name, true, Defaults.FIELD_TYPE, false,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, 1.0f, Collections.emptyMap());
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap());
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {

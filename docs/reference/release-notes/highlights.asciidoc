@@ -37,7 +37,8 @@ later need to change the configuration, you only need to change its component
 template.
 
 Composable index templates replace the previous version of index templates,
-which are now deprecated.
+which are now deprecated. If an index matches both a composable template and a
+legacy index template, {es} uses the composable template.
 
 To get started with composable index templates, see
 {ref}/index-templates.html[Index templates].

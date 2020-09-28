@@ -174,8 +174,7 @@ public abstract class PackagingTestCase extends Assert {
             journald.clear();
         }
         if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
-            Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
         }
     }
 
@@ -299,7 +298,7 @@ public abstract class PackagingTestCase extends Assert {
                 }
             case DEB:
             case RPM:
-                return Packages.runElasticsearchStartCommand(sh);
+                return Packages.runElasticsearchStartCommand(installation, sh);
             case DOCKER:
             case DOCKER_UBI:
                 // nothing, "installing" docker image is running it

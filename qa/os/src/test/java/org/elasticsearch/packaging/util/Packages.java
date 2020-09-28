@@ -24,12 +24,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
@@ -88,10 +91,6 @@ public class Packages {
     }
 
     public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
-        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-        if (distribution.hasJdk == false) {
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
         if (result.exitCode != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
@@ -99,9 +98,6 @@ public class Packages {
 
         Installation installation = Installation.ofPackage(sh, distribution);
 
-        if (distribution.hasJdk == false) {
-            Files.write(installation.envFile, singletonList("JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
-        }
         return installation;
     }
 
@@ -256,13 +252,21 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
             return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
         }
+        // match systemctl JAVA_HOME to env, removing any existing JAVA_HOME
+        List<String> envLines = Files.readAllLines(installation.envFile, StandardCharsets.UTF_8).stream()
+            .filter(v -> v.startsWith("JAVA_HOME=")).collect(Collectors.toList());
+        if (sh.getEnv().containsKey("JAVA_HOME")) {
+            envLines.add("JAVA_HOME=" + sh.getEnv().get("JAVA_HOME"));
+        }
+        Files.write(installation.envFile, envLines);
+
         return sh.runIgnoreExitCode("service elasticsearch start");
     }
 

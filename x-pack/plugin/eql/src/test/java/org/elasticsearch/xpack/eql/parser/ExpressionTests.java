@@ -105,8 +105,8 @@ public class ExpressionTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
         assertEquals("line 1:2: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name == ?'hello world'"));
+        assertEquals("line 1:24: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
                 e.getMessage());
     }
 
@@ -114,14 +114,14 @@ public class ExpressionTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?\"hello world\""));
         assertEquals("line 1:2: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?\"hello world\""));
-        assertEquals("line 1:21: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name == ?\"hello world\""));
+        assertEquals("line 1:24: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
                 e.getMessage());
     }
 
     public void testTripleDoubleQuotedUnescapedString() {
         // """hello " world!""" => hello " world!
-        String str = "\"\"\"hello \" world!\"\"\" = foo";
+        String str = "\"\"\"hello \" world!\"\"\" == foo";
         String expectedStr = "hello \" world!";
         Expression parsed = expr(str);
         assertEquals(Equals.class, parsed.getClass());
@@ -131,7 +131,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expectedStr, ((Literal) eq.left()).value());
 
         // """hello \" world!""" => hello \" world!
-        str = "\"\"\"hello \\\" world!\"\"\" = foo";
+        str = "\"\"\"hello \\\" world!\"\"\" == foo";
         expectedStr = "hello \\\" world!";
         parsed = expr(str);
         assertEquals(Equals.class, parsed.getClass());
@@ -141,7 +141,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expectedStr, ((Literal) eq.left()).value());
 
         // """""hello """ world!"""" => ""hello """ world!"
-        str = "\"\"\"\"\"hello \"\"\" world!\"\"\"\" = foo";
+        str = "\"\"\"\"\"hello \"\"\" world!\"\"\"\" == foo";
         expectedStr = "\"\"hello \"\"\" world!\"";
         parsed = expr(str);
         assertEquals(Equals.class, parsed.getClass());

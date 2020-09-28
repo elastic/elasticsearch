@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SqlMediaTypeParserTests extends ESTestCase {
     SqlMediaTypeParser parser = new SqlMediaTypeParser();
@@ -67,9 +68,8 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     }
 
     public void testInvalidFormat() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> parser.getMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false)));
-        assertEquals("unrecognized media type: text/garbage", e.getMessage());
+        MediaType mediaType = parser.getMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false));
+        assertThat(mediaType, is(nullValue()));
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {

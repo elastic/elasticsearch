@@ -394,7 +394,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
         }
         if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");

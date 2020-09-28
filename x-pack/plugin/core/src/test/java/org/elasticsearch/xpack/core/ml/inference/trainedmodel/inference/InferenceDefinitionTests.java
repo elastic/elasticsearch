@@ -18,8 +18,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 
 import java.io.IOException;
@@ -138,9 +138,9 @@ public class InferenceDefinitionTests extends ESTestCase {
         ClassificationInferenceResults results = (ClassificationInferenceResults) inferenceDefinition.infer(featureMap, config);
         assertThat(results.valueAsString(), equalTo("second"));
         assertThat(results.getFeatureImportance().get(0).getFeatureName(), equalTo("col2"));
-        assertThat(results.getFeatureImportance().get(0).getImportance(), closeTo(0.944, 0.001));
+        assertThat(results.getFeatureImportance().get(0).getTotalImportance(), closeTo(0.944, 0.001));
         assertThat(results.getFeatureImportance().get(1).getFeatureName(), equalTo("col1"));
-        assertThat(results.getFeatureImportance().get(1).getImportance(), closeTo(0.199, 0.001));
+        assertThat(results.getFeatureImportance().get(1).getTotalImportance(), closeTo(0.199, 0.001));
     }
 
     public void testComplexInferenceDefinitionInferWithCustomPreProcessor() throws IOException {
@@ -159,20 +159,20 @@ public class InferenceDefinitionTests extends ESTestCase {
 
         ClassificationInferenceResults results = (ClassificationInferenceResults) inferenceDefinition.infer(featureMap, config);
         assertThat(results.valueAsString(), equalTo("second"));
-        FeatureImportance featureImportance1 = results.getFeatureImportance().get(0);
+        ClassificationFeatureImportance featureImportance1 = results.getFeatureImportance().get(0);
         assertThat(featureImportance1.getFeatureName(), equalTo("col2"));
-        assertThat(featureImportance1.getImportance(), closeTo(0.944, 0.001));
-        for (FeatureImportance.ClassImportance classImportance : featureImportance1.getClassImportance()) {
+        assertThat(featureImportance1.getTotalImportance(), closeTo(0.944, 0.001));
+        for (ClassificationFeatureImportance.ClassImportance classImportance : featureImportance1.getClassImportance()) {
             if (classImportance.getClassName().equals("second")) {
                 assertThat(classImportance.getImportance(), closeTo(0.944, 0.001));
             } else {
                 assertThat(classImportance.getImportance(), closeTo(-0.944, 0.001));
             }
         }
-        FeatureImportance featureImportance2 = results.getFeatureImportance().get(1);
+        ClassificationFeatureImportance featureImportance2 = results.getFeatureImportance().get(1);
         assertThat(featureImportance2.getFeatureName(), equalTo("col1_male"));
-        assertThat(featureImportance2.getImportance(), closeTo(0.199, 0.001));
-        for (FeatureImportance.ClassImportance classImportance : featureImportance2.getClassImportance()) {
+        assertThat(featureImportance2.getTotalImportance(), closeTo(0.199, 0.001));
+        for (ClassificationFeatureImportance.ClassImportance classImportance : featureImportance2.getClassImportance()) {
             if (classImportance.getClassName().equals("second")) {
                 assertThat(classImportance.getImportance(), closeTo(0.199, 0.001));
             } else {

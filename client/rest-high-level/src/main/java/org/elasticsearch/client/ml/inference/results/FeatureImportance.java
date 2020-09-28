@@ -47,7 +47,7 @@ public class FeatureImportance implements ToXContentObject {
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(FeatureImportance.FEATURE_NAME));
-        PARSER.declareDouble(constructorArg(), new ParseField(FeatureImportance.IMPORTANCE));
+        PARSER.declareDouble(optionalConstructorArg(), new ParseField(FeatureImportance.IMPORTANCE));
         PARSER.declareObjectArray(optionalConstructorArg(),
             (p, c) -> ClassImportance.fromXContent(p),
             new ParseField(FeatureImportance.CLASSES));
@@ -58,10 +58,10 @@ public class FeatureImportance implements ToXContentObject {
     }
 
     private final List<ClassImportance> classImportance;
-    private final double importance;
+    private final Double importance;
     private final String featureName;
 
-    public FeatureImportance(String featureName, double importance, List<ClassImportance> classImportance) {
+    public FeatureImportance(String featureName, Double importance, List<ClassImportance> classImportance) {
         this.featureName = Objects.requireNonNull(featureName);
         this.importance = importance;
         this.classImportance = classImportance == null ? null : Collections.unmodifiableList(classImportance);
@@ -71,7 +71,7 @@ public class FeatureImportance implements ToXContentObject {
         return classImportance;
     }
 
-    public double getImportance() {
+    public Double getImportance() {
         return importance;
     }
 
@@ -83,7 +83,9 @@ public class FeatureImportance implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FEATURE_NAME, featureName);
-        builder.field(IMPORTANCE, importance);
+        if (importance != null) {
+            builder.field(IMPORTANCE, importance);
+        }
         if (classImportance != null && classImportance.isEmpty() == false) {
             builder.field(CLASSES, classImportance);
         }

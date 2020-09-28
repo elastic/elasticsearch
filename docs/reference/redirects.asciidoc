@@ -1185,3 +1185,8 @@ information about snapshot-backed indices. We plan to remove or drastically
 change this API as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="avoid-oversharding"]
+=== Avoid oversharding
+
+See <<size-your-shards>>.

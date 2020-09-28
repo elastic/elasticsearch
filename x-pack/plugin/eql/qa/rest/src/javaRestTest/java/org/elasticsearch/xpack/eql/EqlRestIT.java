@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.test.eql.CommonEqlRestTestCase;
+import org.elasticsearch.test.eql.EqlRestTestCase;
 
-public class EqlIT extends CommonEqlRestTestCase {
+public class EqlRestIT extends EqlRestTestCase {
 }

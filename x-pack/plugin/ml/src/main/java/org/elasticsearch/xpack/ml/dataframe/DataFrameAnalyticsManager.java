@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -98,8 +97,12 @@ public class DataFrameAnalyticsManager {
                 IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
                 if (destIndex != null) {
                     MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
-                    if (DestinationIndex.isCompatible(config.getId(), destIndexMapping) == false) {
-                        LOGGER.info("[{}] Destination index is out of date; will delete and reindex from scratch", config.getId());
+                    DestinationIndex.CompatibilityCheckResult compatibilityCheckResult =
+                        DestinationIndex.checkCompatible(config.getId(), destIndexMapping);
+                    if (compatibilityCheckResult.isCompatible() == false) {
+                        LOGGER.info("[{}] Destination index was created in version [{}] but minimum supported version is [{}]. " +
+                            "Deleting index and starting from scratch.", config.getId(), compatibilityCheckResult.getDestIndexVersion(),
+                            compatibilityCheckResult.getMinCompatibleVersion());
                         task.getStatsHolder().resetProgressTracker(config.getAnalysis().getProgressPhases(),
                             config.getAnalysis().supportsInference());
                         DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
@@ -326,8 +329,6 @@ public class DataFrameAnalyticsManager {
         // Create destination index if it does not exist
         ActionListener<GetIndexResponse> destIndexListener = ActionListener.wrap(
             indexResponse -> {
-                ImmutableOpenMap<String, MappingMetadata> mappings = indexResponse.mappings();
-                Map<String, Object> sourceAsMap = mappings.valuesIt().next().getSourceAsMap();
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));

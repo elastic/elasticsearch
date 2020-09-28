@@ -234,14 +234,12 @@ public final class DestinationIndex {
         }
     }
 
-    public static boolean isCompatible(String jobId, MappingMetadata mappingMetadata) {
+    public static CompatibilityCheckResult checkCompatible(String jobId, MappingMetadata mappingMetadata) {
         try {
-            Version destIndexVersion = getVersion(mappingMetadata);
-            logger.debug("[{}] Destination index version [{}]", jobId, destIndexVersion);
-            return destIndexVersion.onOrAfter(MIN_COMPATIBLE_VERSION);
+            return new CompatibilityCheckResult(getVersion(mappingMetadata));
         } catch (Exception e) {
             logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
-            return false;
+            return new CompatibilityCheckResult(null);
         }
     }
 
@@ -252,5 +250,26 @@ public final class DestinationIndex {
         Map<String, Object> version = (Map<String, Object>) meta.get(VERSION);
         String createdVersionString = (String) version.get(CREATED);
         return Version.fromString(createdVersionString);
+    }
+
+    public static class CompatibilityCheckResult {
+
+        private final Version destIndexVersion;
+
+        private CompatibilityCheckResult(Version destIndexVersion) {
+            this.destIndexVersion = destIndexVersion;
+        }
+
+        public boolean isCompatible() {
+            return destIndexVersion == null ? false : destIndexVersion.onOrAfter(MIN_COMPATIBLE_VERSION);
+        }
+
+        public String getDestIndexVersion() {
+            return destIndexVersion == null ? "unknown" : destIndexVersion.toString();
+        }
+
+        public String getMinCompatibleVersion() {
+            return MIN_COMPATIBLE_VERSION.toString();
+        }
     }
 }

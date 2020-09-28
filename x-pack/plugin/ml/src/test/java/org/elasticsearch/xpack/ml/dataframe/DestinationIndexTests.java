@@ -337,31 +337,43 @@ public class DestinationIndexTests extends ESTestCase {
         verifyZeroInteractions(client);
     }
 
-    public void testIsCompatible_GivenCurrentVersion() {
+    public void testCheckCompatible_GivenCurrentVersion() {
         Map<String, Object> mappings = new HashMap<>();
         mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.CURRENT));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
-        assertThat(DestinationIndex.isCompatible("test_id", mappingMetadata), is(true));
+        DestinationIndex.CompatibilityCheckResult compatibilityCheckResult = DestinationIndex.checkCompatible("test_id", mappingMetadata);
+
+        assertThat(compatibilityCheckResult.isCompatible(), is(true));
+        assertThat(compatibilityCheckResult.getDestIndexVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(compatibilityCheckResult.getMinCompatibleVersion(), equalTo("7.10.0"));
     }
 
-    public void testIsCompatible_GivenMinCompatibleVersion() {
+    public void testCheckCompatible_GivenMinCompatibleVersion() {
         Map<String, Object> mappings = new HashMap<>();
         mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_10_0));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
-        assertThat(DestinationIndex.isCompatible("test_id", mappingMetadata), is(true));
+        DestinationIndex.CompatibilityCheckResult compatibilityCheckResult = DestinationIndex.checkCompatible("test_id", mappingMetadata);
+
+        assertThat(compatibilityCheckResult.isCompatible(), is(true));
+        assertThat(compatibilityCheckResult.getDestIndexVersion(), equalTo("7.10.0"));
+        assertThat(compatibilityCheckResult.getMinCompatibleVersion(), equalTo("7.10.0"));
     }
 
-    public void testIsCompatible_GivenNonCompatibleVersion() {
+    public void testCheckCompatible_GivenNonCompatibleVersion() {
         Map<String, Object> mappings = new HashMap<>();
         mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_9_3));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
-        assertThat(DestinationIndex.isCompatible("test_id", mappingMetadata), is(false));
+        DestinationIndex.CompatibilityCheckResult compatibilityCheckResult = DestinationIndex.checkCompatible("test_id", mappingMetadata);
+
+        assertThat(compatibilityCheckResult.isCompatible(), is(false));
+        assertThat(compatibilityCheckResult.getDestIndexVersion(), equalTo("7.9.3"));
+        assertThat(compatibilityCheckResult.getMinCompatibleVersion(), equalTo("7.10.0"));
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

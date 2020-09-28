@@ -1146,3 +1146,8 @@ See <<constant-keyword-field-type>>.
 === Wildcard field type
 
 See <<wildcard-field-type>>.
+
+[role="exclude",id="avoid-oversharding"]
+=== Avoid oversharding
+
+See <<size-your-shards>>.

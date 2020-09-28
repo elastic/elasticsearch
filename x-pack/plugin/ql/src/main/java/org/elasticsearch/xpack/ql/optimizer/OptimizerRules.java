@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -50,7 +52,7 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
 public final class OptimizerRules {
-    
+
     public static final class ConstantFolding extends OptimizerExpressionRule {
 
         public ConstantFolding() {
@@ -90,7 +92,7 @@ public final class OptimizerRules {
             return e;
         }
     }
-    
+
     public static final class BooleanSimplification extends OptimizerExpressionRule {
 
         public BooleanSimplification() {
@@ -230,7 +232,7 @@ public final class OptimizerRules {
             return be.left() instanceof Literal && !(be.right() instanceof Literal) ? be.swapLeftAndRight() : be;
         }
     }
-    
+
     /**
      * Propagate Equals to eliminate conjuncted Ranges or BinaryComparisons.
      * When encountering a different Equals, non-containing {@link Range} or {@link BinaryComparison}, the conjunction becomes false.
@@ -537,7 +539,7 @@ public final class OptimizerRules {
             return updated ? Predicates.combineOr(CollectionUtils.combine(exps, equals, notEquals, inequalities, ranges)) : or;
         }
     }
-    
+
     public static final class CombineBinaryComparisons extends OptimizerExpressionRule {
 
         public CombineBinaryComparisons() {
@@ -1046,7 +1048,7 @@ public final class OptimizerRules {
             return e;
         }
     }
-    
+
     public abstract static class PruneFilters extends OptimizerRule<Filter> {
 
         @Override
@@ -1094,7 +1096,7 @@ public final class OptimizerRules {
             return expression;
         }
     }
-    
+
     public static final class PruneLiteralsInOrderBy extends OptimizerRule<OrderBy> {
 
         @Override
@@ -1120,7 +1122,7 @@ public final class OptimizerRules {
             return ob;
         }
     }
-    
+
 
     public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override
@@ -1134,6 +1136,23 @@ public final class OptimizerRules {
         }
 
         protected abstract LogicalPlan skipPlan(Limit limit);
+    }
+
+    public static class ReplaceMatchAll extends OptimizerExpressionRule {
+
+        public ReplaceMatchAll() {
+            super(TransformDirection.DOWN);
+        }
+
+        protected Expression rule(Expression e) {
+            if (e instanceof RegexMatch) {
+                RegexMatch<?> regexMatch = (RegexMatch<?>) e;
+                if (regexMatch.matchesAll()) {
+                    return new IsNotNull(e.source(), regexMatch.field());
+                }
+            }
+            return e;
+        }
     }
 
     public static final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {

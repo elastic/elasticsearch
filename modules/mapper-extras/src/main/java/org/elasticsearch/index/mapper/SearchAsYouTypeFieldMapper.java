@@ -36,7 +36,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -241,7 +240,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
                                  NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false,
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(), false,
                 new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
             this.fieldType = fieldType;
         }
@@ -262,15 +261,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         private ShingleFieldType shingleFieldForPositions(int positions) {
             final int indexFromShingleSize = Math.max(positions - 2, 0);
             return shingleFields[Math.min(indexFromShingleSize, shingleFields.length - 1)];
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().hasNorms() == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
         }
 
         @Override
@@ -347,7 +337,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         final String parentField;
 
         PrefixFieldType(String parentField, TextSearchInfo textSearchInfo, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, textSearchInfo, Collections.emptyMap());
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, false, textSearchInfo, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -480,7 +470,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         PrefixFieldType prefixFieldType;
 
         ShingleFieldType(String name, int shingleSize, TextSearchInfo textSearchInfo) {
-            super(name, true, false, textSearchInfo, Collections.emptyMap());
+            super(name, true, false, false, textSearchInfo, Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 
@@ -491,15 +481,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().hasNorms() == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
         }
 
         @Override

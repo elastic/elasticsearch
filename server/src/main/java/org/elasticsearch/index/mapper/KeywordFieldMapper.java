@@ -25,11 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,7 +32,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -106,7 +100,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             = Parameter.boolParam("split_queries_on_whitespace", true, m -> toType(m).splitQueriesOnWhitespace, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<Float> boost = Parameter.boostParam();
 
         private final IndexAnalyzers indexAnalyzers;
 
@@ -142,7 +135,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected List<Parameter<?>> getParameters() {
             return List.of(indexed, hasDocValues, stored, nullValue, eagerGlobalOrdinals, ignoreAbove,
-                indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, boost, meta);
+                indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, meta);
         }
 
         private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
@@ -166,7 +159,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             return new KeywordFieldType(buildFullName(context), hasDocValues.getValue(), fieldType,
                 eagerGlobalOrdinals.getValue(), normalizer, searchAnalyzer,
-                similarity.getValue(), boost.getValue(), meta.getValue());
+                similarity.getValue(), meta.getValue());
         }
 
         @Override
@@ -185,31 +178,27 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
-        boolean hasNorms;
-
         public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
-                                SimilarityProvider similarity, float boost, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE,
+                                SimilarityProvider similarity, Map<String, String> meta) {
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(),
                 hasDocValues, new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchAnalyzer), meta);
-            this.hasNorms = fieldType.omitNorms() == false;
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);
-            setBoost(boost);
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public KeywordFieldType(String name) {
             this(name, true, Defaults.FIELD_TYPE, false,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, 1.0f, Collections.emptyMap());
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap());
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
-            super(name, true, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
         }
 
         @Override
@@ -219,17 +208,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         NamedAnalyzer normalizer() {
             return indexAnalyzer();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else if (hasNorms == false) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
         }
 
         @Override

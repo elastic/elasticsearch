@@ -639,7 +639,7 @@ public class Docker {
         return sh.run("docker logs " + containerId);
     }
 
-    private static String getImageName(Distribution distribution) {
+    public static String getImageName(Distribution distribution) {
         return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
     }
 }

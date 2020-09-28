@@ -23,20 +23,42 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class RankFeatureFieldMapperTests extends MapperTestCase {
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(10);
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertEquals("_feature", termQuery.getTerm().field());
+        assertEquals("field", termQuery.getTerm().text());
+        assertNotNull(fields.getField("_feature"));
+    }
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -64,7 +86,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
         IndexableField[] fields = doc1.rootDoc().getFields("_feature");
         assertEquals(1, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        assertThat(fields[0], instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
 
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
@@ -83,7 +105,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
         IndexableField[] fields = doc1.rootDoc().getFields("_feature");
         assertEquals(1, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        assertThat(fields[0], instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
 
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
@@ -92,15 +114,6 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 > freq2);
-    }
-
-    public void testUpdatePositiveScoreImpact() throws Exception {
-        assertConflicts("positive_score_impact",
-            fieldMapping(this::minimalMapping),
-            fieldMapping(b -> {
-                b.field("type", "rank_feature");
-                b.field("positive_score_impact", false);
-            }));
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {

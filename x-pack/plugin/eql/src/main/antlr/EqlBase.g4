@@ -26,7 +26,7 @@ query
     ;
 
 sequenceParams
-    : WITH (MAXSPAN EQ timeUnit)
+    : WITH (MAXSPAN ASGN timeUnit)
     ;
 
 sequence
@@ -169,7 +169,8 @@ WHERE: 'where';
 WITH: 'with';
 
 // Operators
-EQ  : '=' | '==';
+ASGN : '=';
+EQ  : '==';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';

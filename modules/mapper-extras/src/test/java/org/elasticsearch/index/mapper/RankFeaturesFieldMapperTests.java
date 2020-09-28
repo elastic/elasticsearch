@@ -34,6 +34,17 @@ import java.util.List;
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field("foo", 10).field("bar", 20).endObject();
+    }
+
+    @Override
+    protected void assertExistsQuery(MapperService mapperService) {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
+        assertEquals("[rank_features] fields do not support [exists] queries", iae.getMessage());
+    }
+
+    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new MapperExtrasPlugin());
     }
@@ -43,11 +54,21 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         b.field("type", "rank_features");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // no parameters to configure
+    }
+
+    @Override
+    protected boolean supportsMeta() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(b -> b.startObject("field").field("foo", 10).field("bar", 20).endObject()));
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.length);

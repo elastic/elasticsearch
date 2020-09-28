@@ -49,6 +49,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -232,6 +233,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        }));
         return queryShardContext;
     }
 }

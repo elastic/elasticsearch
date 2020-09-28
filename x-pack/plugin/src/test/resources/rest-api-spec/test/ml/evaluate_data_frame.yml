@@ -648,48 +648,6 @@ setup:
             }
           }
 ---
-"Test classification auc_roc with missing predicted_class_field":
-  - do:
-      catch: /\[classification\] must define \[predicted_class_field\] as required by the following metrics \[auc_roc\]/
-      ml.evaluate_data_frame:
-        body: >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "predicted_field": "classification_field_pred.keyword",
-                "predicted_probability_field": "ml.top_classes.class_probability",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "fish"
-                  }
-                }
-              }
-            }
-          }
----
-"Test classification auc_roc with missing predicted_probability_field":
-  - do:
-      catch: /\[classification\] must define \[predicted_probability_field\] as required by the following metrics \[auc_roc\]/
-      ml.evaluate_data_frame:
-        body: >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "predicted_field": "classification_field_pred.keyword",
-                "predicted_class_field": "ml.top_classes.class_name",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "fish"
-                  }
-                }
-              }
-            }
-          }
----
 "Test classification auc_roc with missing class_name":
   - do:
       # TODO: Revisit this error message as it does not give any clue about which field is missing
@@ -701,8 +659,7 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "predicted_class_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.class_probability",
+                "top_classes_field": "ml.top_classes",
                 "metrics": {
                   "auc_roc": {}
                 }
@@ -720,8 +677,7 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "predicted_class_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.class_probability",
+                "top_classes_field": "ml.top_classes",
                 "metrics": {
                   "auc_roc": {
                     "class_name": "fish"
@@ -741,8 +697,7 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "predicted_class_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.class_probability",
+                "top_classes_field": "ml.top_classes",
                 "metrics": {
                   "auc_roc": {
                     "class_name": "mouse"
@@ -761,8 +716,28 @@ setup:
             "evaluation": {
               "classification": {
                 "actual_field": "classification_field_act.keyword",
-                "predicted_class_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.class_probability",
+                "top_classes_field": "ml.top_classes",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "cat"
+                  }
+                }
+              }
+            }
+          }
+  - match: { classification.auc_roc.score: 0.8050111095212122 }
+  - match: { classification.auc_roc.doc_count: 8 }
+  - is_false: classification.auc_roc.curve
+---
+"Test classification auc_roc with default top_classes_field":
+  - do:
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
                 "metrics": {
                   "auc_roc": {
                     "class_name": "cat"
@@ -1013,8 +988,7 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "predicted_class_field": "missing.class_name",
-                "predicted_probability_field": "missing.class_probability",
+                "top_classes_field": "missing",
                 "metrics": {
                   "auc_roc": {
                     "class_name": "dummy"
@@ -1023,53 +997,6 @@ setup:
               }
             }
           }
-
----
-"Test classification given missing predicted_class_field":
-  - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, ml.top_classes.missing, ml.top_classes.class_probability\]/
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "predicted_field": "classification_field_pred.keyword",
-                "predicted_class_field": "ml.top_classes.missing",
-                "predicted_probability_field": "ml.top_classes.class_probability",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "dummy"
-                  }
-                }
-              }
-            }
-          }
-
----
-"Test classification given missing predicted_probability_field":
-  - do:
-      catch: /No documents found containing all the required fields \[classification_field_act.keyword, ml.top_classes.class_name, ml.top_classes.missing\]/
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "predicted_field": "classification_field_pred.keyword",
-                "predicted_class_field": "ml.top_classes.class_name",
-                "predicted_probability_field": "ml.top_classes.missing",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "dummy"
-                  }
-                }
-              }
-            }
-          }
-
 ---
 "Test regression given evaluation with empty metrics":
   - do:

@@ -956,8 +956,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 new org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification(
                     dependentVariable,
                     predictedClassField,
-                    "ml.top_classes.class_name",
-                    "ml.top_classes.class_probability",
+                    null,
                     Arrays.asList(
                         new Accuracy(),
                         new AucRoc(true, dependentVariableValues.get(0).toString()),

@@ -38,11 +38,11 @@ public class EvaluationFieldsTests extends ESTestCase {
 
     public void testListPotentiallyRequiredFields() {
         EvaluationFields fields = new EvaluationFields("a", "b", "c", "d", "e", randomBoolean());
-        assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", "b", "d", "e"));
+        assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", "b", "c", "d", "e"));
     }
 
     public void testListPotentiallyRequiredFields_WithNullValues() {
         EvaluationFields fields = new EvaluationFields("a", null, "c", null, "e", randomBoolean());
-        assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", null, null, "e"));
+        assertThat(fields.listPotentiallyRequiredFields().stream().map(Tuple::v2).collect(toList()), contains("a", null, "c", null, "e"));
     }
 }

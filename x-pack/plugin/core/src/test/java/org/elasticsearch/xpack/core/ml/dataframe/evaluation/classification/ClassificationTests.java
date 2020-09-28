@@ -70,13 +70,11 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     RecallTests.createRandom(),
                     MulticlassConfusionMatrixTests.createRandom()));
         boolean usesAucRoc = metrics.stream().map(EvaluationMetric::getName).anyMatch(n -> AucRoc.NAME.getPreferredName().equals(n));
-        boolean specifiesNestedFields = usesAucRoc || randomBoolean();
-        String topClassesField = specifiesNestedFields ? randomAlphaOfLength(10) : null;
         return new Classification(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            specifiesNestedFields ? topClassesField + "." + randomAlphaOfLength(10) : null,
-            specifiesNestedFields ? topClassesField + "." + randomAlphaOfLength(10) : null,
+            // If AucRoc is to be calculated, the top_classes field is required
+            (usesAucRoc || randomBoolean()) ? randomAlphaOfLength(10) : null,
             metrics.isEmpty() ? null : metrics);
     }
 
@@ -100,52 +98,20 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> new Classification("foo", null, null, null, Collections.singletonList(metric)));
+                () -> new Classification("foo", null, null, Collections.singletonList(metric)));
         assertThat(
             e.getMessage(),
             is(equalTo("[classification] must define [predicted_field] as required by the following metrics [fake]")));
     }
 
-    public void testConstructor_GivenBadField() {
-        {
-            ElasticsearchStatusException e =
-                expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> new Classification("foo", "bar", "class_name", "results.class_probability", null));
-            assertThat(
-                e.getMessage(),
-                is(equalTo("The value of [predicted_class_field] must contain a dot ('.') but it didn't ([class_name])")));
-        }
-        {
-            ElasticsearchStatusException e =
-                expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> new Classification("foo", "bar", "results.class_name", "class_probability", null));
-            assertThat(
-                e.getMessage(),
-                is(equalTo("The value of [predicted_probability_field] must contain a dot ('.') but it didn't ([class_probability])")));
-        }
-        {
-            ElasticsearchStatusException e =
-                expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> new Classification("foo", "bar", "results.class_name", "other_results.class_probability", null));
-            assertThat(
-                e.getMessage(),
-                is(equalTo(
-                    "The values of [predicted_class_field] and [predicted_probability_field] must start with the same prefix "
-                    + "but they didn't ([results] vs [other_results])")));
-        }
-    }
-
     public void testConstructor_GivenEmptyMetrics() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", "bar", "results.baz", "results.baz2", Collections.emptyList()));
+            () -> new Classification("foo", "bar", "results", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[classification] must have one or more metrics"));
     }
 
     public void testGetFields() {
-        Classification evaluation = new Classification("foo", "bar", "results.class_name", "results.class_probability", null);
+        Classification evaluation = new Classification("foo", "bar", "results", null);
         EvaluationFields fields = evaluation.getFields();
         assertThat(fields.getActualField(), is(equalTo("foo")));
         assertThat(fields.getPredictedField(), is(equalTo("bar")));
@@ -168,7 +134,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
-        Classification evaluation = new Classification("act", "pred", null, null, Arrays.asList(new MulticlassConfusionMatrix()));
+        Classification evaluation = new Classification("act", "pred", null, Arrays.asList(new MulticlassConfusionMatrix()));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
@@ -188,8 +154,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
-        Classification evaluation =
-            new Classification("act", "pred", "results.pred_class", "results.pred_prob", Arrays.asList(new MulticlassConfusionMatrix()));
+        Classification evaluation = new Classification("act", "pred", "results", Arrays.asList(new MulticlassConfusionMatrix()));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
@@ -215,7 +180,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
-        Classification evaluation = new Classification("act", "pred", null, null, Arrays.asList(new AucRoc(false, "some-value")));
+        Classification evaluation = new Classification("act", "pred", null, Arrays.asList(new AucRoc(false, "some-value")));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
@@ -231,17 +196,16 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.existsQuery("act"))
                 .filter(
-                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.pred_class"), ScoreMode.None)
+                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_name"), ScoreMode.None)
                         .ignoreUnmapped(true))
                 .filter(
-                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.pred_prob"), ScoreMode.None)
+                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_probability"), ScoreMode.None)
                         .ignoreUnmapped(true))
                 .filter(QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
-        Classification evaluation =
-            new Classification("act", "pred", "results.pred_class", "results.pred_prob", Arrays.asList(new AucRoc(false, "some-value")));
+        Classification evaluation = new Classification("act", "pred", "results", Arrays.asList(new AucRoc(false, "some-value")));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
@@ -254,7 +218,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         EvaluationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
         EvaluationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
 
-        Classification evaluation = new Classification("act", "pred", null, null, Arrays.asList(metric1, metric2, metric3, metric4));
+        Classification evaluation = new Classification("act", "pred", null, Arrays.asList(metric1, metric2, metric3, metric4));
         assertThat(metric1.getResult(), isEmpty());
         assertThat(metric2.getResult(), isEmpty());
         assertThat(metric3.getResult(), isEmpty());

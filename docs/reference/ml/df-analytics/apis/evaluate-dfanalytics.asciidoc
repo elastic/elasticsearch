@@ -153,16 +153,14 @@ belongs.
   (Required, string) The field of the `index` which contains the `ground truth`.
   The data type of this field must be categorical.
   
-`predicted_class_field`::
-  (Optional, string) The field of the `index` which contains the predicted class name.
-
 `predicted_field`::
   (Optional, string) The field in the `index` which contains the predicted value,
   in other words the results of the {classanalysis}.
 
-`predicted_probability_field`::
-  (Optional, string) The field of the `index` which contains the probability of
-  whether the item belongs to the class in question or not.
+`top_classes_field`::
+  (Optional, string) The field of the `index` which is an array of documents
+  of the form `{ "class_name": XXX, "class_probability": YYY }`.
+  This field must be defined as `nested` in the mappings.
 
 `metrics`::
   (Optional, object) Specifies the metrics that are used for the evaluation.

@@ -75,7 +75,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
-                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null, null));
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
@@ -90,7 +90,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     ANIMAL_NAME_KEYWORD_FIELD,
                     ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    null,
                     null,
                     List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
@@ -127,7 +126,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     actualField,
                     predictedField,
                     null,
-                    null,
                     List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
@@ -155,12 +153,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
-                new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD,
-                    null,
-                    ML_TOP_CLASSES_FIELD + ".class_name",
-                    ML_TOP_CLASSES_FIELD + ".class_probability",
-                    List.of(new AucRoc(includeCurve, "cat"))));
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, null, ML_TOP_CLASSES_FIELD, List.of(new AucRoc(includeCurve, "cat"))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -186,7 +179,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private Accuracy.Result evaluateAccuracy(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, null, List.of(new Accuracy())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -305,7 +298,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private Precision.Result evaluatePrecision(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, null, List.of(new Precision())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Precision())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -399,14 +392,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
                     ANIMALS_DATA_INDEX,
-                    new Classification(
-                        ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null, List.of(new Precision()))));
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Precision()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
     private Recall.Result evaluateRecall(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, null, List.of(new Recall())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -515,8 +507,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
                     ANIMALS_DATA_INDEX,
-                    new Classification(
-                        ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null, List.of(new Recall()))));
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Recall()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
@@ -527,7 +518,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     ANIMAL_NAME_KEYWORD_FIELD,
                     ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    null,
                     null,
                     List.of(new MulticlassConfusionMatrix())));
 
@@ -612,7 +602,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     ANIMAL_NAME_KEYWORD_FIELD,
                     ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    null,
                     null,
                     List.of(new MulticlassConfusionMatrix(3, null))));
 

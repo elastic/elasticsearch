@@ -24,9 +24,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.ACTUAL_FIELD;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_CLASS_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_FIELD;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_PROBABILITY_FIELD;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.TOP_CLASSES_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -39,20 +38,19 @@ public class Classification implements Evaluation {
     private static final ParseField METRICS = new ParseField("metrics");
 
     private static final String DEFAULT_TOP_CLASSES_FIELD = "ml.top_classes";
-    private static final String DEFAULT_PREDICTED_CLASS_FIELD = DEFAULT_TOP_CLASSES_FIELD + ".class_name";
-    private static final String DEFAULT_PREDICTED_PROBABILITY_FIELD = DEFAULT_TOP_CLASSES_FIELD + ".class_probability";
+    private static final String DEFAULT_PREDICTED_CLASS_FIELD_SUFFIX = ".class_name";
+    private static final String DEFAULT_PREDICTED_PROBABILITY_FIELD_SUFFIX = ".class_probability";
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Classification, Void> PARSER =
         new ConstructingObjectParser<>(
             NAME.getPreferredName(),
-            a -> new Classification((String) a[0], (String) a[1], (String) a[2], (String) a[3], (List<EvaluationMetric>) a[4]));
+            a -> new Classification((String) a[0], (String) a[1], (String) a[2], (List<EvaluationMetric>) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_CLASS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_PROBABILITY_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TOP_CLASSES_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
             (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
     }
@@ -76,39 +74,13 @@ public class Classification implements Evaluation {
 
     public Classification(String actualField,
                           @Nullable String predictedField,
-                          @Nullable String predictedClassField,
-                          @Nullable String predictedProbabilityField,
+                          @Nullable String topClassesField,
                           @Nullable List<EvaluationMetric> metrics) {
-        String topClassesField = null;
-        if (predictedClassField == null && predictedProbabilityField == null) {
+        if (topClassesField == null) {
             topClassesField = DEFAULT_TOP_CLASSES_FIELD;
-            predictedClassField = DEFAULT_PREDICTED_CLASS_FIELD;
-            predictedProbabilityField = DEFAULT_PREDICTED_PROBABILITY_FIELD;
-        } else if (predictedClassField != null && predictedProbabilityField != null) {
-            int predictedClassFieldLastDot = predictedClassField.lastIndexOf(".");
-            int predictedProbabilityFieldLastDot = predictedProbabilityField.lastIndexOf(".");
-            if (predictedClassFieldLastDot == -1) {
-                throw ExceptionsHelper.badRequestException(
-                    "The value of [{}] must contain a dot ('.') but it didn't ([{}])",
-                    PREDICTED_CLASS_FIELD.getPreferredName(), predictedClassField);
-            }
-            if (predictedProbabilityFieldLastDot == -1) {
-                throw ExceptionsHelper.badRequestException(
-                    "The value of [{}] must contain a dot ('.') but it didn't ([{}])",
-                    PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField);
-            }
-            String predictedClassFieldPrefix = predictedClassField.substring(0, predictedClassFieldLastDot);
-            String predictedProbabilityFieldPrefix = predictedProbabilityField.substring(0, predictedProbabilityFieldLastDot);
-            if (predictedClassFieldPrefix.equals(predictedProbabilityFieldPrefix) == false) {
-                throw ExceptionsHelper.badRequestException(
-                    "The values of [{}] and [{}] must start with the same prefix but they didn't ([{}] vs [{}])",
-                    PREDICTED_CLASS_FIELD.getPreferredName(),
-                    PREDICTED_PROBABILITY_FIELD.getPreferredName(),
-                    predictedClassFieldPrefix,
-                    predictedProbabilityFieldPrefix);
-            }
-            topClassesField = predictedClassFieldPrefix;
         }
+        String predictedClassField = topClassesField + DEFAULT_PREDICTED_CLASS_FIELD_SUFFIX;
+        String predictedProbabilityField = topClassesField + DEFAULT_PREDICTED_PROBABILITY_FIELD_SUFFIX;
         this.fields =
             new EvaluationFields(
                 ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
@@ -181,11 +153,8 @@ public class Classification implements Evaluation {
         if (fields.getPredictedField() != null) {
             builder.field(PREDICTED_FIELD.getPreferredName(), fields.getPredictedField());
         }
-        if (fields.getPredictedClassField() != null) {
-            builder.field(PREDICTED_CLASS_FIELD.getPreferredName(), fields.getPredictedClassField());
-        }
-        if (fields.getPredictedProbabilityField() != null) {
-            builder.field(PREDICTED_PROBABILITY_FIELD.getPreferredName(), fields.getPredictedProbabilityField());
+        if (fields.getTopClassesField() != null) {
+            builder.field(TOP_CLASSES_FIELD.getPreferredName(), fields.getTopClassesField());
         }
         builder.startObject(METRICS.getPreferredName());
         for (EvaluationMetric metric : metrics) {

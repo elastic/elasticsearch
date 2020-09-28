@@ -20,6 +20,7 @@ public final class EvaluationFields {
 
     public static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
     public static final ParseField PREDICTED_FIELD = new ParseField("predicted_field");
+    public static final ParseField TOP_CLASSES_FIELD = new ParseField("top_classes_field");
     public static final ParseField PREDICTED_CLASS_FIELD = new ParseField("predicted_class_field");
     public static final ParseField PREDICTED_PROBABILITY_FIELD = new ParseField("predicted_probability_field");
 
@@ -114,6 +115,7 @@ public final class EvaluationFields {
         return Arrays.asList(
             Tuple.tuple(ACTUAL_FIELD.getPreferredName(), actualField),
             Tuple.tuple(PREDICTED_FIELD.getPreferredName(), predictedField),
+            Tuple.tuple(TOP_CLASSES_FIELD.getPreferredName(), topClassesField),
             Tuple.tuple(PREDICTED_CLASS_FIELD.getPreferredName(), predictedClassField),
             Tuple.tuple(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField));
     }

@@ -69,29 +69,31 @@ subprojects {
     }
 
     // Configure compatibility testing tasks
-    for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-      // Compatibility testing for JDBC driver started with version 7.9.0
-      if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
-        String baseName = "v${bwcVersion}"
-        UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-        Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}")
-        Object driverDependency = null
+    if (project.hasProperty('skipBwc') == false) {
+      for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
+        // Compatibility testing for JDBC driver started with version 7.9.0
+        if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
+          String baseName = "v${bwcVersion}"
+          UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+          Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}")
+          Object driverDependency = null
 
-        if (unreleasedVersion) {
-          // For unreleased snapshot versions, build them from source
-          driverDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcJdbc'))
-        } else {
-          // For released versions, download it
-          driverDependency = "org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}"
-        }
+          if (unreleasedVersion) {
+            // For unreleased snapshot versions, build them from source
+            driverDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcJdbc'))
+          } else {
+            // For released versions, download it
+            driverDependency = "org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}"
+          }
 
-        dependencies {
-          "jdbcDriver${baseName}"(driverDependency)
-        }
+          dependencies {
+            "jdbcDriver${baseName}"(driverDependency)
+          }
 
-        tasks.create(bwcTaskName(bwcVersion), RestIntegTestTask) {
+          tasks.create(bwcTaskName(bwcVersion), RestIntegTestTask) {
             classpath += driverConfiguration
             systemProperty 'jdbc.driver.version', bwcVersion.toString()
+          }
         }
       }
     }

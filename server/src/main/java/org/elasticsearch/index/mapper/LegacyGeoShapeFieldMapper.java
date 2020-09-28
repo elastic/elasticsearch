@@ -323,7 +323,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private TermQueryPrefixTreeStrategy termStrategy;
 
         private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, false, meta);
         }
 
         public GeoShapeFieldType(String name) {

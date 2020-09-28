@@ -224,7 +224,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         public KeywordFieldType(String name, FieldType fieldType) {
             super(name, fieldType.indexOptions() != IndexOptions.NONE,
-                false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+                false, false,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                Collections.emptyMap());
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }

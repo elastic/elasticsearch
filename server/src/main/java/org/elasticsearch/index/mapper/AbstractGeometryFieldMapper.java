@@ -223,9 +223,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Indexer<Parsed, Processed> geometryIndexer;
         protected Parser<Parsed> geometryParser;
         protected QueryProcessor geometryQueryBuilder;
+        protected final boolean parsesArrayValue;
 
-        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                            boolean parsesArrayValue, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.parsesArrayValue = parsesArrayValue;
         }
 
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
@@ -278,7 +281,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
 
-            return new SourceValueFetcher(name(), mapperService, true) {
+            return new SourceValueFetcher(name(), mapperService, parsesArrayValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return valueParser.apply(value);

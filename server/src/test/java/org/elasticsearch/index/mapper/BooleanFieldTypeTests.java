@@ -61,7 +61,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(false), fetchSourceValue(fieldType, ""));
 
         MappedFieldType nullFieldType = new BooleanFieldMapper.BooleanFieldType(
-            "field", true, false, true, false, Collections.emptyMap()
+            "field", true, false, true, true, Collections.emptyMap()
         );
         assertEquals(List.of(true), fetchSourceValue(nullFieldType, null));
     }

@@ -88,7 +88,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
         public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, false, meta);
         }
 
         @Override

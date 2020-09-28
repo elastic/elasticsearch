@@ -78,7 +78,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
         public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, false, meta);
         }
 
         @Override

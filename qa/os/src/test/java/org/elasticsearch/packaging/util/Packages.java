@@ -28,14 +28,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
@@ -260,8 +258,10 @@ public class Packages {
             return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
         }
         // match systemctl JAVA_HOME to env, removing any existing JAVA_HOME
-        List<String> envLines = Files.readAllLines(installation.envFile, StandardCharsets.UTF_8).stream()
-            .filter(v -> v.startsWith("JAVA_HOME=")).collect(Collectors.toList());
+        List<String> envLines = Files.readAllLines(installation.envFile, StandardCharsets.UTF_8)
+            .stream()
+            .filter(v -> v.startsWith("JAVA_HOME="))
+            .collect(Collectors.toList());
         if (sh.getEnv().containsKey("JAVA_HOME")) {
             envLines.add("JAVA_HOME=" + sh.getEnv().get("JAVA_HOME"));
         }

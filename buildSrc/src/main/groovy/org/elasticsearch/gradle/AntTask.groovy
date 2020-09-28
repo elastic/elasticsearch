@@ -45,7 +45,6 @@ public abstract class AntTask extends DefaultTask {
      */
     public final ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
 
-
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
         throw new UnsupportedOperationException();

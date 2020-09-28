@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public abstract class CommonEqlRestTestCase extends ESRestTestCase {
+public abstract class EqlRestTestCase extends ESRestTestCase {
 
     private static final String defaultValidationIndexName = "eql_search_validation_test";
     private static final String validQuery = "process where user = \\\"SYSTEM\\\"";

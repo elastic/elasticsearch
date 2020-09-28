@@ -32,7 +32,7 @@ public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImpo
     protected FeatureImportance createTestInstance() {
         return new FeatureImportance(
             randomAlphaOfLength(10),
-            randomDoubleBetween(-10.0, 10.0, false),
+            randomBoolean() ? null : randomDoubleBetween(-10.0, 10.0, false),
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomLongBetween(2, 10))

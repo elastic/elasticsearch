@@ -32,6 +32,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.containsString;
 
 public class AutoCreateIndexIT extends ESRestTestCase {
@@ -49,7 +50,7 @@ public class AutoCreateIndexIT extends ESRestTestCase {
         final ResponseException responseException = expectThrows(ResponseException.class, this::indexDocument);
 
         assertThat(
-            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent())),
+            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
             containsString("no such index [recipe_kr] and [action.auto_create_index] is [false]")
         );
     }
@@ -84,7 +85,7 @@ public class AutoCreateIndexIT extends ESRestTestCase {
         final ResponseException responseException = expectThrows(ResponseException.class, this::indexDocument);
 
         assertThat(
-            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent())),
+            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
             containsString("no such index [composable template [recipe*] forbids index auto creation]")
         );
     }

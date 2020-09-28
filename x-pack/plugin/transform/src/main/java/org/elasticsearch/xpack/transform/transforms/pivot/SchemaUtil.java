@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,7 +108,7 @@ public final class SchemaUtil {
         getSourceFieldMappings(
             client,
             source,
-            allFieldNames.values().toArray(new String[0]),
+            allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(

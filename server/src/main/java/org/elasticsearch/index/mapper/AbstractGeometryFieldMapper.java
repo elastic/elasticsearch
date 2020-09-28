@@ -88,7 +88,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * Parse the given xContent value to an object of type {@link Parsed}. The value can be
          * in any supported format.
          */
-        public abstract Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+        public abstract Parsed parse(XContentParser parser) throws IOException, ParseException;
 
         /**
          * Given a parsed value and a format string, formats the value into a plain Java object.
@@ -105,14 +105,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * it with {@link Parser#format}. However some {@link Parser} implementations override this
          * as they can avoid parsing the value if it is already in the right format.
          */
-        public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
+        public Object parseAndFormatObject(Object value, String format) {
             Parsed geometry;
             try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                 Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
                 parser.nextToken(); // start object
                 parser.nextToken(); // field name
                 parser.nextToken(); // field value
-                geometry = parse(parser, mapper);
+                geometry = parse(parser);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } catch (ParseException e) {
@@ -187,7 +187,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
+        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
 
         return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
             @Override
@@ -337,7 +337,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         try {
             Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
             if (shape == null) {
-                Parsed geometry = geometryParser.parse(context.parser(), this);
+                Parsed geometry = geometryParser.parse(context.parser());
                 if (geometry == null) {
                     return;
                 }

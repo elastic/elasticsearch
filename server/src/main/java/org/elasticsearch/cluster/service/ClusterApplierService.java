@@ -274,6 +274,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     if (timeout != null) {
                         notifyTimeout.cancellable = threadPool.schedule(notifyTimeout, timeout, ThreadPool.Names.GENERIC);
                     }
+                    if (lifecycle.stoppedOrClosed()) {
+                        listener.onClose();
+                        return;
+                    }
                     listener.postAdded();
                 }
             });

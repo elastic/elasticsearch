@@ -94,8 +94,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_MODEL_MEMORY_LIMIT;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /**
@@ -610,7 +610,7 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
-        private volatile long maxModelMemory;
+        private volatile long maxNodeMemory;
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
@@ -627,12 +627,12 @@ public class TransportStartDataFrameAnalyticsAction
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
-            this.maxModelMemory = MAX_MODEL_MEMORY_LIMIT.get(settings).getBytes();
+            this.maxNodeMemory = MAX_ML_NODE_SIZE.get(settings).getBytes();
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemory);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeMemoryBytes);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -689,7 +689,12 @@ public class TransportStartDataFrameAnalyticsAction
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
             return jobNodeSelector.selectNode(
-                maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, maxModelMemory, isMemoryTrackerRecentlyRefreshed);
+                maxOpenJobs,
+                Integer.MAX_VALUE,
+                maxMachineMemoryPercent,
+                //TODO, account for possible dynamic memory percent calculation
+                maxNodeMemory * maxMachineMemoryPercent / 100,
+                isMemoryTrackerRecentlyRefreshed);
         }
 
         @Override
@@ -758,8 +763,8 @@ public class TransportStartDataFrameAnalyticsAction
             this.maxOpenJobs = maxOpenJobs;
         }
 
-        void setMaxModelMemory(ByteSizeValue byteSizeValue) {
-            this.maxModelMemory = byteSizeValue.getBytes();
+        void setMaxNodeMemoryBytes(ByteSizeValue byteSizeValue) {
+            this.maxNodeMemory = byteSizeValue.getBytes();
         }
     }
 

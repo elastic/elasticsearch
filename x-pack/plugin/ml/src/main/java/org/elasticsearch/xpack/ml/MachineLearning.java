@@ -464,6 +464,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             Property.NodeScope
         );
 
+    /**
+     * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
+     * on the cluster.
+     *
+     * If the value is the default special case of `0b`, then that means the value is the current largest ML node.
+     */
+    public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
+        "xpack.ml.max_ml_node_size",
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope);
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -513,7 +524,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND
+                NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+                MAX_ML_NODE_SIZE
             );
     }
 

@@ -10,11 +10,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.IOException;
 
 public class MlAutoscalingDeciderConfigurationTests extends AbstractSerializingTestCase<MlAutoscalingDeciderConfiguration> {
     @Override
-    protected MlAutoscalingDeciderConfiguration doParseInstance(XContentParser parser) throws IOException {
+    protected MlAutoscalingDeciderConfiguration doParseInstance(XContentParser parser) {
         return MlAutoscalingDeciderConfiguration.parse(parser);
     }
 
@@ -27,13 +26,10 @@ public class MlAutoscalingDeciderConfigurationTests extends AbstractSerializingT
     protected MlAutoscalingDeciderConfiguration createTestInstance() {
         MlAutoscalingDeciderConfiguration.Builder builder = MlAutoscalingDeciderConfiguration.builder();
         if (randomBoolean()) {
-            builder.setAnalysisJobTimeInQueue(randomTimeValue());
+            builder.setNumAnalyticsJobsInQueue(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            builder.setAnomalyJobTimeInQueue(randomTimeValue());
-        }
-        if (randomBoolean()) {
-            builder.setMinNumNodes(randomIntBetween(0, 100));
+            builder.setNumAnomalyJobsInQueue(randomIntBetween(0, 10));
         }
         return builder.build();
     }

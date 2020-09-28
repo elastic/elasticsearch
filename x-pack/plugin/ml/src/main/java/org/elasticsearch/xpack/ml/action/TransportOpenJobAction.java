@@ -75,8 +75,8 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_MODEL_MEMORY_LIMIT;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /*
@@ -378,7 +378,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
-        private volatile long maxJobMemoryBytes;
+        private volatile long maxNodeMemory;
         private volatile ClusterState clusterState;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
@@ -394,14 +394,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
-            this.maxJobMemoryBytes = MAX_MODEL_MEMORY_LIMIT.get(settings).getBytes();
+            this.maxNodeMemory = MAX_ML_NODE_SIZE.get(settings).getBytes();
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_MODEL_MEMORY_LIMIT, this::setMaxJobMemoryBytes);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeMemoryBytes);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -443,7 +443,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, jobId, MlTasks.JOB_TASK_NAME, memoryTracker,
                 job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, job));
             return jobNodeSelector.selectNode(
-                maxOpenJobs, maxConcurrentJobAllocations, maxMachineMemoryPercent, maxJobMemoryBytes, isMemoryTrackerRecentlyRefreshed);
+                maxOpenJobs,
+                maxConcurrentJobAllocations,
+                maxMachineMemoryPercent,
+                //TODO, account for possible dynamic memory percent calculation
+                maxNodeMemory * maxMachineMemoryPercent / 100,
+                isMemoryTrackerRecentlyRefreshed);
         }
 
         @Override
@@ -543,8 +548,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxOpenJobs = maxOpenJobs;
         }
 
-        void setMaxJobMemoryBytes(ByteSizeValue byteSizeValue) {
-            this.maxJobMemoryBytes = byteSizeValue.getBytes();
+        void setMaxNodeMemoryBytes(ByteSizeValue byteSizeValue) {
+            this.maxNodeMemory = byteSizeValue.getBytes();
         }
     }
 

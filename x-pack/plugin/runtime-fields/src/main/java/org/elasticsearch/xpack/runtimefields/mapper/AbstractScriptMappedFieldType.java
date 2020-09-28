@@ -24,7 +24,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -43,7 +42,7 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
         TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
         Map<String, String> meta
     ) {
-        super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
         this.factory = factory;
     }
@@ -90,9 +89,6 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     }
 
     @Override
-    public abstract Query termsQuery(List<?> values, QueryShardContext context);
-
-    @Override
     public final Query rangeQuery(
         Object lowerTerm,
         Object upperTerm,
@@ -133,12 +129,12 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
     }
 
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
     }
 
@@ -153,9 +149,6 @@ abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldTyp
     ) {
         throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
     }
-
-    @Override
-    public abstract Query existsQuery(QueryShardContext context);
 
     @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {

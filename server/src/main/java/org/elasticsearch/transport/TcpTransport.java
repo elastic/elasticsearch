@@ -183,6 +183,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         inboundHandler.setMessageListener(listener);
     }
 
+    @Override
+    public void setSlowLogThreshold(TimeValue slowLogThreshold) {
+        inboundHandler.setSlowLogThreshold(slowLogThreshold);
+    }
+
     public final class NodeChannels extends CloseableConnection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;

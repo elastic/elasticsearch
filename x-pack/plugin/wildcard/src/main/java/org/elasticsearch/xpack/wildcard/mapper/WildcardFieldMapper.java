@@ -40,6 +40,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -211,14 +212,14 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, true,
+        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
         }
 
         @Override
-        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
+        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
 
             String ngramIndexPattern = addLineEndChars(toLowerCase(wildcardPattern));
 
@@ -276,7 +277,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 clauseCount++;
             }
             Supplier<Automaton> deferredAutomatonSupplier = () -> {
-                return WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                if(caseInsensitive) {
+                    return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE);
+                } else {
+                    return WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                }
             };
             AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, deferredAutomatonSupplier);
             if (clauseCount > 0) {
@@ -836,18 +841,12 @@ public class WildcardFieldMapper extends FieldMapper {
             return KeywordFieldMapper.CONTENT_TYPE;
         }
 
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
-        }
-
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             String searchTerm = BytesRefs.toString(value);
-            return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+            return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
-        
+
         private String escapeWildcardSyntax(String term) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < term.length();) {
@@ -864,8 +863,14 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            return wildcardQuery(escapeWildcardSyntax(value) + "*", method, context);
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            String searchTerm = BytesRefs.toString(value);
+            return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+            return wildcardQuery(escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
         }
 
         @Override

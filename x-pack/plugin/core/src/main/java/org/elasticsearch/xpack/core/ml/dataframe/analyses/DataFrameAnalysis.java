@@ -63,9 +63,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean persistsState();
 
     /**
-     * Returns the document id for the analysis state
+     * Returns the document id prefix for the analysis state
      */
-    String getStateDocId(String jobId);
+    String getStateDocIdPrefix(String jobId);
 
     /**
      * Returns the progress phases the analysis goes through in order
@@ -83,6 +83,12 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      */
     boolean supportsInference();
 
+    /**
+     * @return the percentage of data to use for training
+     */
+    default double getTrainingPercent() {
+        return 100.0;
+    }
     /**
      * Summarizes information about the fields that is necessary for analysis to generate
      * the parameters needed for the process configuration.

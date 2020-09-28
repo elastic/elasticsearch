@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.runtimefields.query;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
 public class IpScriptFieldExistsQuery extends AbstractIpScriptFieldQuery {
-    public IpScriptFieldExistsQuery(Script script, IpScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    public IpScriptFieldExistsQuery(Script script, IpFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 

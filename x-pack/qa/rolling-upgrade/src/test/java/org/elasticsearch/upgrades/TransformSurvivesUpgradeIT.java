@@ -331,7 +331,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final Request getStats = new Request("GET", getTransformEndpoint() + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         try (XContentParser parser = xContentType.xContent().createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             response.getEntity().getContent())) {

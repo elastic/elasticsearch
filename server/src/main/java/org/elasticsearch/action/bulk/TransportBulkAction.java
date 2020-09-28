@@ -224,7 +224,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        if (needToCheck()) {
+        final boolean includesSystem = includesSystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+
+        if (includesSystem || needToCheck()) {
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
             final Map<String, Boolean> indices = bulkRequest.requests.stream()
@@ -355,6 +357,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         });
         return onlySystem;
+    }
+
+    boolean includesSystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
+        final boolean includesSystem = request.getIndices().stream().anyMatch(indexName -> {
+            final IndexAbstraction abstraction = indicesLookup.get(indexName);
+            if (abstraction != null) {
+                return abstraction.isSystem();
+            } else {
+                return systemIndices.isSystemIndex(indexName);
+            }
+        });
+        return includesSystem;
     }
 
     boolean needToCheck() {

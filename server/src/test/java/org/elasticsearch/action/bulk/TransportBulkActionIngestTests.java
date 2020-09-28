@@ -145,8 +145,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    new IndexNameExpressionResolver()
-                ), new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
+                    new IndexNameExpressionResolver(),
+                    new SystemIndices(Map.of())),
+                new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }
         @Override

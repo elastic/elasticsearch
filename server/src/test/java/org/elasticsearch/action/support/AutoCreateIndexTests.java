@@ -29,6 +29,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -87,6 +89,12 @@ public class AutoCreateIndexTests extends ESTestCase {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
             autoCreateIndex.shouldAutoCreate(randomIndex, buildClusterState()));
         assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
+    }
+
+    public void testSystemIndexWithAutoCreationDisabled() {
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertThat(autoCreateIndex.shouldAutoCreate(".foo", buildClusterState()), equalTo(true));
     }
 
     public void testAutoCreationEnabled() {
@@ -177,7 +185,8 @@ public class AutoCreateIndexTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AutoCreateIndex  autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, new IndexNameExpressionResolver());
+        AutoCreateIndex  autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, new IndexNameExpressionResolver(),
+            new SystemIndices(Map.of()));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
@@ -201,8 +210,9 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
+        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".foo", ""))));
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver());
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(), systemIndices);
     }
 
     private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {

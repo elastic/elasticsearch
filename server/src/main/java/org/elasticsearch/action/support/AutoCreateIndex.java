@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,10 +45,15 @@ public final class AutoCreateIndex {
         new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
 
     private final IndexNameExpressionResolver resolver;
+    private final SystemIndices systemIndices;
     private volatile AutoCreate autoCreate;
 
-    public AutoCreateIndex(Settings settings, ClusterSettings clusterSettings, IndexNameExpressionResolver resolver) {
+    public AutoCreateIndex(Settings settings,
+                           ClusterSettings clusterSettings,
+                           IndexNameExpressionResolver resolver,
+                           SystemIndices systemIndices) {
         this.resolver = resolver;
+        this.systemIndices = systemIndices;
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);
     }
@@ -67,9 +73,10 @@ public final class AutoCreateIndex {
         if (resolver.hasIndexAbstraction(index, state)) {
             return false;
         }
+
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
-        if (autoCreate.autoCreateIndex == false) {
+        if (autoCreate.autoCreateIndex == false && systemIndices.isSystemIndex(index) == false) {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
 

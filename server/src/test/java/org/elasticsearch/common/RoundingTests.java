@@ -449,13 +449,13 @@ public class RoundingTests extends ESTestCase {
                     assertThat("Values smaller than rounded value should round further down", prepared.round(roundedDate - 1),
                         lessThan(roundedDate));
                     assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
+                    assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+                    assertThat("NextRounding value rounds to itself", nextRoundingValue,
+                        isDate(rounding.round(nextRoundingValue), tz));
 
                     if (tz.getRules().isFixedOffset()) {
-                        assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
                         assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
                             equalTo(interval));
-                        assertThat("NextRounding value should be a rounded date", nextRoundingValue,
-                            equalTo(rounding.round(nextRoundingValue)));
                     }
                     previousRoundedValue = roundedDate;
                 } catch (AssertionError e) {
@@ -467,6 +467,20 @@ public class RoundingTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testFoo() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(960000, ZoneId.of("Europe/Minsk"));
+        long rounded = rounding.prepareForUnknown().round(877824908400L);
+        long next = rounding.prepareForUnknown().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    public void testBar() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(480000, ZoneId.of("Portugal"));
+        long rounded = rounding.prepareJavaTime().round(972780720000L);
+        long next = rounding.prepareJavaTime().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
     }
 
     /**

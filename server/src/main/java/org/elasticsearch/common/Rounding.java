@@ -36,7 +36,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
@@ -1119,12 +1118,16 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
-            public long nextRoundingValue(long time) {
-                int offsetSeconds = timeZone.getRules().getOffset(Instant.ofEpochMilli(time)).getTotalSeconds();
-                long millis = time + interval + offsetSeconds * 1000;
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
-                    .withZoneSameLocal(timeZone)
-                    .toInstant().toEpochMilli();
+            public long nextRoundingValue(long utcMillis) {
+                long from = utcMillis + interval; // TODO this implementation makes me very upset
+                while (from > utcMillis) {
+                    long rounded = round(from);
+                    if (rounded > utcMillis) {
+                        return rounded;
+                    }
+                    from += 60000;
+                }
+                throw new IllegalArgumentException("No rounding available after [" + utcMillis + "] in [" + timeZone + "]");
             }
         }
     }

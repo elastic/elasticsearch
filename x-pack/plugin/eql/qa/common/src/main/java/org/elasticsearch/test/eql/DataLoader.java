@@ -24,12 +24,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.net.URL;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,13 +39,20 @@ import java.util.Map.Entry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
 
+/**
+ * Loads EQL dataset into ES.
+ *
+ * Checks for predefined indices:
+ * - endgame-140 - for existing data
+ * - extra       - additional data
+ *
+ * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
+ */
 public class DataLoader {
+    public static final String TEST_INDEX = "endgame-140";
+    public static final String TEST_EXTRA_INDEX = "extra";
 
-    private static final String TEST_DATA = "/test_data.json";
-    private static final String MAPPING = "/mapping-default.json";
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
-    static final String indexPrefix = "endgame";
-    public static final String testIndexName = indexPrefix + "-1.4.0";
 
     private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
     private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
@@ -63,26 +70,52 @@ public class DataLoader {
                 ignore -> {
                 },
                 List.of()) {
-            }, (t, u) -> createParser(t, u));
+            }, DataLoader::createParser);
         }
     }
 
     public static void loadDatasetIntoEs(RestHighLevelClient client,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
 
-        createTestIndex(client);
-        loadData(client, p);
+        //
+        // Main Index
+        //
+        load(client, TEST_INDEX, true, p);
+        //
+        // Aux Index
+        //
+        load(client, TEST_EXTRA_INDEX, false, p);
     }
 
-    private static void createTestIndex(RestHighLevelClient client) throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest(testIndexName).mapping(getMapping(MAPPING), XContentType.JSON);
+    private static void load(RestHighLevelClient client, String indexName, boolean winFileTime,
+                             CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
+        String name = "/data/" + indexName + ".mapping";
+        URL mapping = DataLoader.class.getResource(name);
+        if (mapping == null) {
+            throw new IllegalArgumentException("Cannot find resource " + name);
+        }
+        name = "/data/" + indexName + ".data";
+        URL data = DataLoader.class.getResource(name);
+        if (data == null) {
+            throw new IllegalArgumentException("Cannot find resource " + name);
+        }
+        createTestIndex(client, indexName, readMapping(mapping));
+        loadData(client, indexName, winFileTime, data, p);
+    }
+
+    private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
+        CreateIndexRequest request = new CreateIndexRequest(indexName);
+        if (mapping != null) {
+            request.mapping(mapping, XContentType.JSON);
+        }
         client.indices().create(request, RequestOptions.DEFAULT);
     }
 
-    private static String getMapping(String mappingPath) throws IOException {
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(DataLoader.class.getResourceAsStream(mappingPath), StandardCharsets.UTF_8)))
-        {
+    /**
+     * Reads the mapping file, ignoring comments and replacing placeholders for random types.
+     */
+    private static String readMapping(URL resource) throws IOException {
+        try (BufferedReader reader = TestUtils.reader(resource)) {
             StringBuilder b = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -98,27 +131,30 @@ public class DataLoader {
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadData(RestHighLevelClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
+    private static void loadData(RestHighLevelClient client, String indexName, boolean winfileTime, URL resource,
+                                 CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
         throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        try (XContentParser parser = p.apply(JsonXContent.jsonXContent, DataLoader.class.getResourceAsStream(TEST_DATA))) {
+        try (XContentParser parser = p.apply(JsonXContent.jsonXContent, TestUtils.inputStream(resource))) {
             List<Object> list = parser.list();
             for (Object item : list) {
                 assertThat(item, instanceOf(Map.class));
                 Map<String, Object> entry = (Map<String, Object>) item;
-                transformDataset(entry);
-                bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
+                if (winfileTime) {
+                    transformDataset(entry);
+                }
+                bulk.add(new IndexRequest(indexName).source(entry, XContentType.JSON));
             }
         }
 
         if (bulk.numberOfActions() > 0) {
             BulkResponse bulkResponse = client.bulk(bulk, RequestOptions.DEFAULT);
             if (bulkResponse.hasFailures()) {
-                LogManager.getLogger(DataLoader.class).info("Data FAILED loading");
+                LogManager.getLogger(DataLoader.class).info("Data loading FAILED");
             } else {
-                LogManager.getLogger(DataLoader.class).info("Data loaded");
+                LogManager.getLogger(DataLoader.class).info("Data loading OK");
             }
         }
     }

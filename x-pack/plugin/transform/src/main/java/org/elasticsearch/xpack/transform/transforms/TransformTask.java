@@ -286,16 +286,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }));
     }
 
-    void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
-        this.context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-    }
-
     /**
      * This sets the flag for the task to stop at the next checkpoint.
      *
-     * If first persists the flag and then mutates the local variable.
-     *
-     * It only persists if the value is different than what is currently held in memory.
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
@@ -313,7 +306,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
-        getIndexer().persistShouldStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+
+        // move the call to the generic thread pool, so we do not block the network thread
+        getThreadPool().executor(ThreadPool.Names.GENERIC)
+            .execute(() -> { getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener); });
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
@@ -346,12 +342,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
 
         // If state was in a failed state, we should stop immediately
         if (wasFailed) {
-            getIndexer().onStop();
-            getIndexer().doSaveState(IndexerState.STOPPED, getIndexer().getPosition(), () -> {});
+            getIndexer().stopAndSaveState();
             return;
         }
 
-        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
+        IndexerState indexerState = getIndexer().getState();
+
+        if (indexerState == IndexerState.STOPPED || indexerState == IndexerState.STOPPING) {
             return;
         }
 
@@ -361,11 +358,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
         // or has yet to even start one.
         // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
-            (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
+            (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
             IndexerState state = getIndexer().stop();
             if (state == IndexerState.STOPPED) {
-                getIndexer().onStop();
-                getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
+                getIndexer().stopAndSaveState();
             }
         }
     }

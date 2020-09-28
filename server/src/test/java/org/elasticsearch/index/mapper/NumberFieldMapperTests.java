@@ -59,6 +59,17 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+    }
+
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value(123);
     }

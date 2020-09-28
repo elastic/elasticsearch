@@ -36,7 +36,7 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, ScaledFloatFieldMapper.PARSER);
-        mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
+        mappers.put(TokenCountFieldMapper.CONTENT_TYPE, TokenCountFieldMapper.PARSER);
         mappers.put(RankFeatureFieldMapper.CONTENT_TYPE, RankFeatureFieldMapper.PARSER);
         mappers.put(RankFeaturesFieldMapper.CONTENT_TYPE, RankFeaturesFieldMapper.PARSER);
         mappers.put(SearchAsYouTypeFieldMapper.CONTENT_TYPE, SearchAsYouTypeFieldMapper.PARSER);

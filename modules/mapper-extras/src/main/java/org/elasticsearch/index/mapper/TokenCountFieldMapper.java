@@ -53,7 +53,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
         private final Parameter<Integer> nullValue = new Parameter<>(
             "null_value", false, () -> null,
-            (n, c, o) -> nodeIntegerValue(o), m -> toType(m).nullValue);
+            (n, c, o) -> o == null ? null : nodeIntegerValue(o), m -> toType(m).nullValue).acceptsNull();
         private final Parameter<Boolean> enablePositionIncrements
             = Parameter.boolParam("enable_position_increments", false, m -> toType(m).enablePositionIncrements, true);
 
@@ -73,9 +73,14 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
-            return new TokenCountFieldMapper(name,
-                new NumberFieldMapper.NumberFieldType(buildFullName(context), NumberFieldMapper.NumberType.INTEGER),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            MappedFieldType ft = new NumberFieldMapper.NumberFieldType(
+                buildFullName(context),
+                NumberFieldMapper.NumberType.INTEGER,
+                index.getValue(),
+                store.getValue(),
+                hasDocValues.getValue(),
+                meta.getValue());
+            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 

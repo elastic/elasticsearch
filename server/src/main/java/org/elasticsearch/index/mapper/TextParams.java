@@ -28,11 +28,14 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Utility functions for text mapper parameters
+ */
 public final class TextParams {
 
     private TextParams() {}
 
-    public static class Analyzers {
+    public static final class Analyzers {
         public final Parameter<NamedAnalyzer> indexAnalyzer;
         public final Parameter<NamedAnalyzer> searchAnalyzer;
         public final Parameter<NamedAnalyzer> searchQuoteAnalyzer;
@@ -62,7 +65,8 @@ public final class TextParams {
     }
 
     public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
-        return Parameter.boolParam("norms", false, initializer, defaultValue);
+        return Parameter.boolParam("norms", true, initializer, defaultValue)
+            .setMergeValidator((o, n) -> o == n || (o && n == false));  // norms can be updated from 'true' to 'false' but not vv
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {

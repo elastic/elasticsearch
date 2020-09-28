@@ -284,7 +284,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (alwaysSerialize || (includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean()) {
+            if (alwaysSerialize || ((includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean())) {
                 serializer.serialize(builder, name, getValue());
             }
         }

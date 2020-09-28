@@ -23,8 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +44,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -209,7 +206,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     public static final class JoinFieldType extends StringFieldType {
-        public JoinFieldType(String name, Map<String, String> meta) {
+        private JoinFieldType(String name, Map<String, String> meta) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
@@ -232,11 +229,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             }
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
         }
     }
 

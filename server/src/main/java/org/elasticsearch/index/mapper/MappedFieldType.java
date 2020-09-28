@@ -29,7 +29,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -69,13 +71,11 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
 
     public MappedFieldType(String name, boolean isIndexed, boolean isStored,
                            boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        setBoost(1.0f);
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
@@ -107,14 +107,6 @@ public abstract class MappedFieldType {
 
     public String name() {
         return name;
-    }
-
-    public float boost() {
-        return boost;
-    }
-
-    public void setBoost(float boost) {
-        this.boost = boost;
     }
 
     public boolean hasDocValues() {
@@ -176,8 +168,7 @@ public abstract class MappedFieldType {
     }
 
     /** Generates a query that will only match documents that contain the given value.
-     *  The default implementation returns a {@link TermQuery} over the value bytes,
-     *  boosted by {@link #boost()}.
+     *  The default implementation returns a {@link TermQuery} over the value bytes
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
      *      due to the way it is configured (eg. not indexed)
      *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
@@ -254,7 +245,15 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public abstract Query existsQuery(QueryShardContext context);
+    public Query existsQuery(QueryShardContext context) {
+        if (hasDocValues()) {
+            return new DocValuesFieldExistsQuery(name());
+        } else if (getTextSearchInfo().hasNorms()) {
+            return new NormsFieldExistsQuery(name());
+        } else {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        }
+    }
 
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name

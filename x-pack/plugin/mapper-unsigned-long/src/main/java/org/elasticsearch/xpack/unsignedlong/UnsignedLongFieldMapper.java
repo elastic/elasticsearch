@@ -109,11 +109,14 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public UnsignedLongFieldMapper build(BuilderContext context) {
+            long parsed = parseUnsignedLong(nullValue);
+            Number nullValueFormatted = parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 buildFullName(context),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
+                nullValueFormatted,
                 meta.getValue()
             );
             return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
@@ -124,12 +127,16 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
 
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
-        public UnsignedLongFieldType(String name, boolean indexed, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
+        private final Number nullValueFormatted;
+
+        public UnsignedLongFieldType(String name, boolean indexed, boolean isStored, boolean hasDocValues,
+                                     Number nullValueFormatted, Map<String, String> meta) {
             super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.nullValueFormatted = nullValueFormatted;
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, Collections.emptyMap());
+            this(name, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
@@ -205,6 +212,28 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
                     IndexNumericFieldData.NumericType.LONG
                 ).build(cache, breakerService, mapperService);
                 return new UnsignedLongIndexFieldData(signedLongValues);
+            };
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, false, nullValueFormatted) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return nullValueFormatted;
+                    }
+                    long ulValue = parseUnsignedLong(value);
+                    if (ulValue >= 0) {
+                        return ulValue;
+                    } else {
+                        return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
+                    }
+                }
             };
         }
 
@@ -345,7 +374,6 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final String nullValue;
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
-    private final Number nullValueFormatted; // null value to use in place of a {@code null} value in the document source
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -363,11 +391,9 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.nullValue.getValue();
         if (nullValue == null) {
             this.nullValueIndexed = null;
-            this.nullValueFormatted = null;
         } else {
             long parsed = parseUnsignedLong(nullValue);
             this.nullValueIndexed = unsignedToSortableSignedLong(parsed);
-            this.nullValueFormatted = parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
         }
     }
 
@@ -428,28 +454,6 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValueFormatted) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                if (value.equals("")) {
-                    return nullValueFormatted;
-                }
-                long ulValue = parseUnsignedLong(value);
-                if (ulValue >= 0) {
-                    return ulValue;
-                } else {
-                    return BigInteger.valueOf(ulValue).and(BIGINTEGER_2_64_MINUS_ONE);
-                }
-            }
-        };
     }
 
     @Override

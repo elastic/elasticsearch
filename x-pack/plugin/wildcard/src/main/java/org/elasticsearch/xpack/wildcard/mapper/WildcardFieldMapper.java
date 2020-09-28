@@ -172,8 +172,10 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
             return new WildcardFieldMapper(
-                    name, fieldType, new WildcardFieldType(buildFullName(context), fieldType, meta), ignoreAbove,
-                    multiFieldsBuilder.build(this, context), copyTo, nullValue);
+                name, fieldType,
+                new WildcardFieldType(buildFullName(context), fieldType, nullValue, ignoreAbove, meta),
+                ignoreAbove,
+                multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
 
@@ -212,10 +214,15 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+        private final String nullValue;
+        private final int ignoreAbove;
+
+        private WildcardFieldType(String name, FieldType fieldType, String nullValue, int ignoreAbove, Map<String, String> meta) {
             super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
+            this.nullValue = nullValue;
+            this.ignoreAbove = ignoreAbove;
         }
 
         @Override
@@ -897,6 +904,24 @@ public class WildcardFieldMapper extends FieldMapper {
             };
         }
 
+         @Override
+         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+             if (format != null) {
+                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+             }
+
+             return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                 @Override
+                 protected String parseSourceValue(Object value) {
+                     String keywordValue = value.toString();
+                     if (keywordValue.length() > ignoreAbove) {
+                         return null;
+                     }
+                     return keywordValue;
+                 }
+             };
+         }
+
      }
 
     private int ignoreAbove;
@@ -961,24 +986,6 @@ public class WildcardFieldMapper extends FieldMapper {
         List<IndexableField> fields = new ArrayList<>();
         createFields(value, parseDoc, fields);
         parseDoc.addAll(fields);
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                String keywordValue = value.toString();
-                if (keywordValue.length() > ignoreAbove) {
-                    return null;
-                }
-                return keywordValue;
-            }
-        };
     }
 
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {

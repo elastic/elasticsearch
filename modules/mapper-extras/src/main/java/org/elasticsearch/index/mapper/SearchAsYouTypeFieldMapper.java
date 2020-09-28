@@ -271,6 +271,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value.toString();
+                }
+            };
+        }
+
+        @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
@@ -377,6 +390,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public String typeName() {
             return "prefix";
         }
@@ -409,11 +427,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -459,11 +472,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         protected String contentType() {
             return "shingle";
         }
@@ -483,6 +491,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
             this.prefixFieldType = prefixFieldType;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -570,11 +583,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         if (fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

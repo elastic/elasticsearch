@@ -112,6 +112,19 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    return value.toString();
+                }
+            };
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Murmur3 fields are not searchable: [" + name() + "]");
         }
@@ -144,19 +157,6 @@ public class Murmur3FieldMapper extends FieldMapper {
                 context.doc().add(new StoredField(name(), hash));
             }
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     @Override

@@ -122,7 +122,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public ScaledFloatFieldMapper build(BuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue());
+                hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue(), nullValue.getValue());
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -132,15 +132,17 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
         private final double scalingFactor;
+        private final Double nullValue;
 
         public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                    Map<String, String> meta, double scalingFactor) {
+                                    Map<String, String> meta, double scalingFactor, Double nullValue) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.scalingFactor = scalingFactor;
+            this.nullValue = nullValue;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, false, true, Collections.emptyMap(), scalingFactor);
+            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
         }
 
         public double getScalingFactor() {
@@ -201,6 +203,30 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                     IndexNumericFieldData.NumericType.LONG
                 ).build(cache, breakerService, mapperService);
                 return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
+            };
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Double parseSourceValue(Object value) {
+                    double doubleValue;
+                    if (value.equals("")) {
+                        if (nullValue == null) {
+                            return null;
+                        }
+                        doubleValue = nullValue;
+                    } else {
+                        doubleValue = objectToDouble(value);
+                    }
+
+                    double scalingFactor = getScalingFactor();
+                    return Math.round(doubleValue * scalingFactor) / scalingFactor;
+                }
             };
         }
 
@@ -379,31 +405,6 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         return doubleValue;
     }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Double parseSourceValue(Object value) {
-                double doubleValue;
-                if (value.equals("")) {
-                    if (nullValue == null) {
-                        return null;
-                    }
-                    doubleValue = nullValue;
-                } else {
-                    doubleValue = objectToDouble(value);
-                }
-
-                double scalingFactor = fieldType().getScalingFactor();
-                return Math.round(doubleValue * scalingFactor) / scalingFactor;
-            }
-        };
-    }
-
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
 

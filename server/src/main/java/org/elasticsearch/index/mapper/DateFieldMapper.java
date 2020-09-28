@@ -292,6 +292,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
         }
 
+        public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
+            this(name, true, false, true, dateFormatter, resolution, null, Collections.emptyMap());
+        }
+
         @Override
         public String typeName() {
             return resolution.type();

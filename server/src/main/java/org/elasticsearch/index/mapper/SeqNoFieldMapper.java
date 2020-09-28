@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -119,6 +120,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return Long.parseLong(value.toString());
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            return new DocValueFetcher(DocValueFormat.RAW, lookup.doc().getForField(this));
         }
 
         @Override

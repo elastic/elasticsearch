@@ -35,7 +35,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -190,11 +189,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         @Override
         protected void parseCreateField(ParseContext context) {
 
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return null;
         }
 
         @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -36,11 +37,20 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 
@@ -49,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -56,9 +67,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldType ft = new KeywordFieldType("field");
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
-                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-                randomBoolean(), randomBoolean(), null, null, null));
+            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+            randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testTermQuery() {
@@ -110,8 +121,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft
-                = new KeywordFieldType("field", false, fieldType, randomBoolean(), null, null, null, Collections.emptyMap());
+            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
             assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
@@ -169,5 +179,72 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field").build(context).fieldType();
+        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
+        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
+
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context)
+            .fieldType();
+        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
+
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers()).normalizer("lowercase")
+            .build(context)
+            .fieldType();
+        assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
+        assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
+        assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
+
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context)
+            .fieldType();
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    private static IndexAnalyzers createIndexAnalyzers() {
+        return new IndexAnalyzers(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.ofEntries(
+                Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                Map.entry("other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+            ),
+            Map.of(
+                "lowercase",
+                new NamedAnalyzer(
+                    "lowercase",
+                    AnalyzerScope.INDEX,
+                    new CustomAnalyzer(
+                        TokenizerFactory.newFactory("lowercase", WhitespaceTokenizer::new),
+                        new CharFilterFactory[0],
+                        new TokenFilterFactory[] { new TokenFilterFactory() {
+
+                            @Override
+                            public String name() {
+                                return "lowercase";
+                            }
+
+                            @Override
+                            public TokenStream create(TokenStream tokenStream) {
+                                return new org.apache.lucene.analysis.core.LowerCaseFilter(tokenStream);
+                            }
+                        } }
+                    )
+                )
+            )
+        );
     }
 }

@@ -65,6 +65,11 @@ public class MockFieldMapper extends FieldMapper {
         public String typeName() {
             return "faketype";
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -74,11 +79,6 @@ public class MockFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

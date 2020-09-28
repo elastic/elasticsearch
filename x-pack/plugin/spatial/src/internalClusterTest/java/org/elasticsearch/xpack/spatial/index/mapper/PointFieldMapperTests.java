@@ -6,17 +6,12 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -25,12 +20,9 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -304,35 +296,4 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(ignoreZValue, equalTo(false));
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        AbstractGeometryFieldMapper<?, ?> mapper = new PointFieldMapper.Builder("field").build(context);
-
-        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
-        String wktPoint = "POINT (42.0 27.1)";
-        Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
-        String otherWktPoint = "POINT (30.0 50.0)";
-
-        // Test a single point in [x, y] array format.
-        Object sourceValue = List.of(42.0, 27.1);
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a single point in "x, y" string format.
-        sourceValue = "42.0,27.1";
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a list of points in [x, y] array format.
-        sourceValue = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a single point in well-known text format.
-        sourceValue = "POINT (42.0 27.1)";
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-    }
 }

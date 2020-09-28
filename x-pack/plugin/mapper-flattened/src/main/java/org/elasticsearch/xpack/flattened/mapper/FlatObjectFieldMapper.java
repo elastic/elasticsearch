@@ -177,7 +177,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
-            MappedFieldType ft = new RootFlatObjectFieldType(buildFullName(context), indexed, hasDocValues, meta, splitQueriesOnWhitespace);
+            MappedFieldType ft
+                = new RootFlatObjectFieldType(buildFullName(context), indexed, hasDocValues, meta, splitQueriesOnWhitespace, nullValue);
             if (eagerGlobalOrdinals) {
                 ft.setEagerGlobalOrdinals(true);
             }
@@ -319,6 +320,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             failIfNoDocValues();
             return new KeyedFlatObjectFieldData.Builder(name(), key, CoreValuesSourceType.BYTES);
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();  // TODO can we implement this?
+        }
     }
 
     /**
@@ -432,13 +438,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class RootFlatObjectFieldType extends StringFieldType {
         private final boolean splitQueriesOnWhitespace;
+        private final String nullValue;
 
         public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
-                                       boolean splitQueriesOnWhitespace) {
+                                       boolean splitQueriesOnWhitespace, String nullValue) {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.nullValue = nullValue;
         }
 
         @Override
@@ -459,6 +467,19 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
         }
     }
 
@@ -536,19 +557,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         if (mappedFieldType.hasDocValues() == false) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     @Override

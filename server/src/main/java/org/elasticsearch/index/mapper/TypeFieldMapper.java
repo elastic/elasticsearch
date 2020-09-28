@@ -77,6 +77,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return lookup -> Collections.singletonList(mapperService.documentMapper().type());
+        }
+
+        @Override
         protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
             if (caseInsensitive) {
                 return pattern.equalsIgnoreCase(MapperService.SINGLE_MAPPING_NAME);

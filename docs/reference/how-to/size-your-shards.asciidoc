@@ -66,12 +66,16 @@ kept in heap memory.
 
 [discrete]
 [[shard-auto-balance]]
-==== {es} automatically balances shards within a data tier
+==== {es} automatically balances shards across nodes
 
-A cluster's nodes are grouped into data tiers. Within each tier, {es}
-attempts to spread an index's shards across as many nodes as possible. When you
-add a new node or a node fails, {es} automatically rebalances the index's shards
-across the tier's remaining nodes.
+By default, {es} attempts to spread an index's shards across as many nodes as
+possible. When a node fails or you add a new node, {es} automatically rebalances
+shards across the remaining nodes.
+
+You can use <<shard-allocation-awareness,shard allocation awareness>> to ensure
+shards for particular indices only move to specified nodes. If you use {es} for
+time series data, you can use shard allocation to decrease storage costs by
+assigning shards for older indices to nodes with less expensive hardware.
 
 [discrete]
 [[shard-size-best-practices]]
@@ -132,7 +136,7 @@ Every new backing index is an opportunity to further tune your strategy.
 ==== Aim for shard sizes between 10GB and 50GB
 
 Shards larger than 50GB may make a cluster less likely to recover from failure.
-When a node fails, {es} rebalances the node's shards across the data tier's
+When a node fails, {es} rebalances the node's shards across the cluster's
 remaining nodes. Shards larger than 50GB can be harder to move across a network
 and may tax node resources.
 

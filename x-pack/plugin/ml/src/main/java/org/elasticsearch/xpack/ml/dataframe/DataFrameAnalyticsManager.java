@@ -25,7 +25,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -90,6 +93,25 @@ public class DataFrameAnalyticsManager {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
+                // Check if existing destination index is incompatible.
+                // If it is, we delete it and start from reindexing.
+                IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
+                if (destIndex != null) {
+                    MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
+                    if (DestinationIndex.isCompatible(config.getId(), destIndexMapping) == false) {
+                        LOGGER.info("[{}] Destination index is out of date; will delete and reindex from scratch", config.getId());
+                        task.getStatsHolder().resetProgressTracker(config.getAnalysis().getProgressPhases(),
+                            config.getAnalysis().supportsInference());
+                        DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
+                            task.getAllocationId(), "destination index was out of date");
+                        task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
+                            updatedTask -> executeJobInMiddleOfReindexing(task, config),
+                            task::setFailed
+                        ));
+                        return;
+                    }
+                }
+
                 task.getStatsHolder().adjustProgressTracker(config.getAnalysis().getProgressPhases(),
                     config.getAnalysis().supportsInference());
 
@@ -304,6 +326,8 @@ public class DataFrameAnalyticsManager {
         // Create destination index if it does not exist
         ActionListener<GetIndexResponse> destIndexListener = ActionListener.wrap(
             indexResponse -> {
+                ImmutableOpenMap<String, MappingMetadata> mappings = indexResponse.mappings();
+                Map<String, Object> sourceAsMap = mappings.valuesIt().next().getSourceAsMap();
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));

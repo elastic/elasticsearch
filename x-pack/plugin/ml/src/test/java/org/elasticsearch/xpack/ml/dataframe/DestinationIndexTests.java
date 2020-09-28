@@ -48,6 +48,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -334,6 +335,33 @@ public class DestinationIndexTests extends ESTestCase {
             equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"));
 
         verifyZeroInteractions(client);
+    }
+
+    public void testIsCompatible_GivenCurrentVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.CURRENT));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        assertThat(DestinationIndex.isCompatible("test_id", mappingMetadata), is(true));
+    }
+
+    public void testIsCompatible_GivenMinCompatibleVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_10_0));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        assertThat(DestinationIndex.isCompatible("test_id", mappingMetadata), is(true));
+    }
+
+    public void testIsCompatible_GivenNonCompatibleVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_9_3));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        assertThat(DestinationIndex.isCompatible("test_id", mappingMetadata), is(false));
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

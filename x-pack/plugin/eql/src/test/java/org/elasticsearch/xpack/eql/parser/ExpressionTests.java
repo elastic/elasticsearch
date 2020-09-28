@@ -120,10 +120,35 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testTripleDoubleQuotedUnescapedString() {
-        // """hello \" world"""
-        Expression parsed = expr("\"\"\"hello \\\" world!\"\"\"");
-        Expression expected = new Literal(null, "hello \\\" world!", DataTypes.KEYWORD);
-        assertEquals(expected, parsed);
+        // """hello " world!""" => hello " world!
+        String str = "\"\"\"hello \" world!\"\"\" = foo";
+        String expectedStr = "hello \" world!";
+        Expression parsed = expr(str);
+        assertEquals(Equals.class, parsed.getClass());
+        Equals eq = (Equals) parsed;
+        assertEquals(UnresolvedAttribute.class, eq.right().getClass());
+        assertEquals(Literal.class, eq.left().getClass());
+        assertEquals(expectedStr, ((Literal) eq.left()).value());
+
+        // """hello \" world!""" => hello \" world!
+        str = "\"\"\"hello \\\" world!\"\"\" = foo";
+        expectedStr = "hello \\\" world!";
+        parsed = expr(str);
+        assertEquals(Equals.class, parsed.getClass());
+        eq = (Equals) parsed;
+        assertEquals(UnresolvedAttribute.class, eq.right().getClass());
+        assertEquals(Literal.class, eq.left().getClass());
+        assertEquals(expectedStr, ((Literal) eq.left()).value());
+
+        // """""hello """ world!"""" => ""hello """ world!"
+        str = "\"\"\"\"\"hello \"\"\" world!\"\"\"\" = foo";
+        expectedStr = "\"\"hello \"\"\" world!\"";
+        parsed = expr(str);
+        assertEquals(Equals.class, parsed.getClass());
+        eq = (Equals) parsed;
+        assertEquals(UnresolvedAttribute.class, eq.right().getClass());
+        assertEquals(Literal.class, eq.left().getClass());
+        assertEquals(expectedStr, ((Literal) eq.left()).value());
     }
 
     public void testNumbers() {

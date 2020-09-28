@@ -27,6 +27,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     private static String unquoteIdentifier(String identifier) {
-        return identifier.replace("`", "");
+        String newIdentifier = identifier;
+        if (identifier.charAt(0) == '`') {
+            newIdentifier = identifier.substring(1, identifier.length() - 1);
+        }
+        return newIdentifier.replace("\\`", "`");
     }
 }

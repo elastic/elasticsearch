@@ -124,7 +124,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testBackQuotedAttribute() {
+    public void testBackQuotedIdentifier() {
         String quote = "`";
         String qualifier = "table";
         String name = "@timestamp";
@@ -133,6 +133,19 @@ public class ExpressionTests extends ESTestCase {
         UnresolvedAttribute ua = (UnresolvedAttribute) exp;
         assertThat(ua.name(), equalTo(qualifier + "." + name));
         assertThat(ua.qualifiedName(), equalTo(qualifier + "." + name));
+        assertThat(ua.qualifier(), is(nullValue()));
+    }
+
+    public void testBackQuotedIdentifierWithEscapedBackQuote() {
+        String quote = "`";
+        String qualifier = "\\`test\\`table\\`";
+        String expectedQualifier = "`test`table`";
+        String name = "@timestamp";
+        Expression exp = expr(quote + qualifier + quote + "." + quote + name + quote);
+        assertThat(exp, instanceOf(UnresolvedAttribute.class));
+        UnresolvedAttribute ua = (UnresolvedAttribute) exp;
+        assertThat(ua.name(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifiedName(), equalTo(expectedQualifier + "." + name));
         assertThat(ua.qualifier(), is(nullValue()));
     }
 

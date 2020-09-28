@@ -106,7 +106,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         final String indexFast = "index-fast";
-        createSingleShardIndexWithContent(indexFast, dataNode2, dataNode);
+        createIndexWithContent(indexFast, dataNode2, dataNode);
 
         assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot")
                 .setIndices(indexFast).setWaitForCompletion(true).execute());
@@ -309,7 +309,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         final String secondIndex = "index-two";
-        createSingleShardIndexWithContent(secondIndex, dataNode2, dataNode);
+        createIndexWithContent(secondIndex, dataNode2, dataNode);
 
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshot(repoName, secondSnapshot);
@@ -358,7 +358,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
-        createSingleShardIndexWithContent("index-two", dataNode2, dataNode);
+        createIndexWithContent("index-two", dataNode2, dataNode);
 
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshot(repoName, secondSnapshot);
@@ -421,7 +421,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(5);
         final String secondIndex = "index-two";
-        createSingleShardIndexWithContent(secondIndex, dataNode2, dataNode);
+        createIndexWithContent(secondIndex, dataNode2, dataNode);
 
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshot(repoName, secondSnapshot);
@@ -1194,7 +1194,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         final String indexFast = "index-fast";
-        createSingleShardIndexWithContent(indexFast, dataNode2, dataNode);
+        createIndexWithContent(indexFast, dataNode2, dataNode);
 
         final ActionFuture<CreateSnapshotResponse> createFastSnapshot =
                 client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot").setWaitForCompletion(true).execute();
@@ -1293,7 +1293,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true).execute();
     }
 
-    private void createSingleShardIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
+    private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
         createIndexWithContent(indexName, indexSettingsNoReplicas(1)
                 .put("index.routing.allocation.include._name", nodeInclude)
                 .put("index.routing.allocation.exclude._name", nodeExclude).build());

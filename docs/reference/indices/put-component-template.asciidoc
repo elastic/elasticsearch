@@ -4,7 +4,7 @@
 <titleabbrev>Put component template</titleabbrev>
 ++++
 
-(Component templates have been introduced in 7.8.)
+added::[7.8.0]
 
 Creates or updates a component template. 
 Component templates are building blocks for constructing <<indices-templates,index templates>>.  

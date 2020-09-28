@@ -1173,3 +1173,8 @@ For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 === Point in time API
 
 See <<point-in-time-api>>.
+
+[role="exclude",id="avoid-oversharding"]
+=== Avoid oversharding
+
+See <<size-your-shards>>.

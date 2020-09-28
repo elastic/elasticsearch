@@ -45,7 +45,7 @@ public class ClientYamlTestResponse {
 
     private final Response response;
     private final byte[] body;
-    private XContentType bodyContentType;
+    private final XContentType bodyContentType;
     private ObjectPath parsedResponse;
     private String bodyAsString;
 
@@ -53,14 +53,7 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
-            // todo pg it feels like there is a lot of 'ifs' around text, csv etc being returned.
-            //  shouldn't we treat text as the same json and others?
-            // we are testing sql formats with this client, but don't have access to sql parsing code
-            try{
-                this.bodyContentType =  XContentType.fromMediaType(contentType);
-            }catch (IllegalArgumentException e){
-                this.bodyContentType = null;
-            }
+            this.bodyContentType = XContentType.fromMediaType(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 //skip parsing if we got text back (e.g. if we called _cat apis)

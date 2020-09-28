@@ -103,15 +103,9 @@ public abstract class AbstractRestChannel implements RestChannel {
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
-            } else if (Strings.hasText(acceptHeader) && acceptHeader.equals("*/*") == false
-                && acceptHeader.startsWith("text/plain")==false) { //TODO PG there are a lot of usages of text/plain as a response type.
-                // I feel it would fit into xcontenttype..
-                try {
-                    responseContentType = XContentType.fromMediaType(acceptHeader);
-                }catch (IllegalArgumentException e){
-                    //todo pg this is in a way controlling the flow by exceptions. to be discussed
-                    logger.debug("Unrecognized accept header",e);
-                }
+            }
+            if (responseContentType == null) {
+                responseContentType = XContentType.fromMediaType(acceptHeader);
             }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter

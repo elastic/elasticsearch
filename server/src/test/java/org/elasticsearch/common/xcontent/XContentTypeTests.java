@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class XContentTypeTests extends ESTestCase {
@@ -88,10 +89,10 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testFromRubbish() throws Exception {
-        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType(null));
-        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType(""));
-        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType("text/plain"));
-        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType("gobbly;goop"));
+        assertThat(XContentType.fromMediaType(null), nullValue());
+        assertThat(XContentType.fromMediaType(""), nullValue());
+        assertThat(XContentType.fromMediaType("text/plain"), nullValue());
+        assertThat(XContentType.fromMediaType("gobbly;goop"), nullValue());
     }
 
     public void testVersionedMediaType() {
@@ -135,26 +136,23 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.parseVersion("APPLICATION/JSON"),
             nullValue());
 
-        expectThrows(IllegalArgumentException.class,
-            () -> XContentType.parseVersion("application/json;compatible-with=" + version + ".0"));
+        assertThat(XContentType.parseVersion("application/json;compatible-with=" + version + ".0"),
+            is(nullValue()));
     }
 
     public void testUnrecognizedParameter() {
-        expectThrows(IllegalArgumentException.class, () -> XContentType.parseVersion("application/json; sth=123"));
-    }
+        assertThat(XContentType.parseVersion("application/json; sth=123"),
+            is(nullValue()));    }
 
     public void testMediaTypeWithoutESSubtype() {
         String version = String.valueOf(Math.abs(randomByte()));
-        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType("application/json;compatible-with=" + version));
+        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), nullValue());
     }
 
     public void testAnchoring() {
         String version = String.valueOf(Math.abs(randomByte()));
-        expectThrows(IllegalArgumentException.class,
-            () -> XContentType.fromMediaType("application/json;compatible-with=" + version + ".0"));
-        expectThrows(IllegalArgumentException.class,
-            () -> XContentType.fromMediaType("application/json;compatible-with=" + version + "_sth"));
-        expectThrows(IllegalArgumentException.class,
-            () -> XContentType.fromMediaType("application/json;compatible-with=" + version + "_sth"));
+        assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + ".0"), nullValue());
+        assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + "_sth"), nullValue());
+        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version + "_sth"), nullValue());
     }
 }

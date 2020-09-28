@@ -305,7 +305,9 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
             if (null == response.skip) {
                 current.println("  - match: ")
                 current.println("      \$body: ")
-                response.contents.eachLine { current.println("        $it") }
+                replaceBlockQuote(response.contents).eachLine {
+                    current.println("        $it")
+                }
             }
         }
 

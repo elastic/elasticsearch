@@ -23,8 +23,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
@@ -83,14 +85,20 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FieldComparator.DoubleComparator(numHits, null, null) {
+        return new DoubleComparator(numHits, null, null, reversed, sortPos) {
             @Override
-            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                return DoubleValuesComparatorSource.this.getNumericDocValues(context, dMissingValue).getRawDoubleValues();
-            }
-            @Override
-            public void setScorer(Scorable scorer) {
-                DoubleValuesComparatorSource.this.setScorer(scorer);
+            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                return new DoubleLeafComparator(context) {
+                    @Override
+                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
+                        return DoubleValuesComparatorSource.this.getNumericDocValues(context, dMissingValue).getRawDoubleValues();
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) {
+                        DoubleValuesComparatorSource.this.setScorer(scorer);
+                    }
+                };
             }
         };
     }

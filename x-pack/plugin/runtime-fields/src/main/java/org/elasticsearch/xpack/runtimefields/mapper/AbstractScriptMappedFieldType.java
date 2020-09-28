@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -19,10 +20,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -31,12 +32,19 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for scripted fields.
  */
-abstract class AbstractScriptMappedFieldType extends MappedFieldType {
+abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldType {
     protected final Script script;
+    private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
 
-    AbstractScriptMappedFieldType(String name, Script script, Map<String, String> meta) {
-        super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+    AbstractScriptMappedFieldType(
+        String name,
+        Script script,
+        TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
+        Map<String, String> meta
+    ) {
+        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
+        this.factory = factory;
     }
 
     protected abstract String runtimeType();
@@ -61,7 +69,24 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         return true;
     }
 
-    public abstract Query termsQuery(List<?> values, QueryShardContext context);
+    /**
+     * Create a script leaf factory.
+     */
+    protected final LeafFactory leafFactory(SearchLookup searchLookup) {
+        return factory.apply(name(), script.getParams(), searchLookup);
+    }
+
+    /**
+     * Create a script leaf factory for queries.
+     */
+    protected final LeafFactory leafFactory(QueryShardContext context) {
+        /*
+         * Forking here causes us to count this field in the field data loop
+         * detection code as though we were resolving field data for this field.
+         * We're not, but running the query is close enough.
+         */
+        return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
+    }
 
     @Override
     public final Query rangeQuery(
@@ -104,12 +129,12 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
     }
 
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
     }
 
@@ -124,9 +149,6 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
     ) {
         throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
     }
-
-    @Override
-    public abstract Query existsQuery(QueryShardContext context);
 
     @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
@@ -149,8 +171,15 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
     }
 
     private String unsupported(String query, String supported) {
-        String thisField = "[" + name() + "] which is of type [script] with runtime_type [" + runtimeType() + "]";
-        return "Can only use " + query + " queries on " + supported + " fields - not on " + thisField;
+        return String.format(
+            Locale.ROOT,
+            "Can only use %s queries on %s fields - not on [%s] which is of type [%s] with runtime_type [%s]",
+            query,
+            supported,
+            name(),
+            RuntimeFieldMapper.CONTENT_TYPE,
+            runtimeType()
+        );
     }
 
     protected final void checkAllowExpensiveQueries(QueryShardContext context) {

@@ -129,7 +129,7 @@ public class WatchStatus {
         Map<String, String> headers = Collections.emptyMap();
         long version = -1;
 
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         String currentFieldName = null;
         XContentParser.Token token;

@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,7 +38,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
@@ -142,6 +148,41 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertSearchHits(response, "1", "2");
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2").toString(), equalTo("value2"));
+    }
+
+    public void testUpdatesAreRejected() {
+        for (String indexName : List.of("<test-{2015.05.05||+1d}>", "test")) {
+            assertAcked(client().admin().indices().prepareCreate(indexName)
+                    .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
+                    .setSettings(Settings.builder()
+                            .put("index.number_of_replicas", 0)
+                            .put("index.number_of_shards", 1))
+            );
+            client().prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1")
+                    .setRefreshPolicy(IMMEDIATE)
+                    .get();
+
+            ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, () -> {
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER,
+                        basicAuthHeaderValue("user1", USERS_PASSWD)))
+                        .prepareUpdate(indexName, "1")
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
+                        .get();
+            });
+            assertThat(exception.getDetailedMessage(), containsString("Can't execute an update request if field or document level " +
+                    "security"));
+
+            BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1",
+                    USERS_PASSWD)))
+                    .prepareBulk()
+                    .add(client().prepareUpdate(indexName, "1")
+                            .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2"))
+                    .get();
+            assertThat(bulkResponse.getItems().length, is(1));
+            assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Can't execute a bulk item request with update " +
+                    "requests" +
+                    " embedded if field or document level security is enabled"));
+        }
     }
 
     public void testDLSIsAppliedBeforeFLS() {

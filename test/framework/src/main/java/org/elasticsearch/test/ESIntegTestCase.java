@@ -58,6 +58,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -1327,6 +1328,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected AdminClient admin() {
         return client().admin();
+    }
+
+    /**
+     * Returns a random cluster admin client. This client can be pointing to any of the nodes in the cluster.
+     */
+    protected ClusterAdminClient clusterAdmin() {
+        return admin().cluster();
     }
 
     /**

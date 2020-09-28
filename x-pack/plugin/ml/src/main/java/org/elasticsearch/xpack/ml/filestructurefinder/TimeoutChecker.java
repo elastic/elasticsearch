@@ -84,7 +84,6 @@ public class TimeoutChecker implements Closeable {
      * @throws ElasticsearchTimeoutException If the operation is found to have taken longer than the permitted time.
      */
     public void check(String where) {
-
         if (timeoutExceeded) {
             throw new ElasticsearchTimeoutException("Aborting " + operation + " during [" + where +
                 "] as it has taken longer than the timeout of [" + timeout + "]");
@@ -101,7 +100,6 @@ public class TimeoutChecker implements Closeable {
      * @throws ElasticsearchTimeoutException If the operation is found to have taken longer than the permitted time.
      */
     public Map<String, Object> grokCaptures(Grok grok, String text, String where) {
-
         try {
             return grok.captures(text);
         } finally {
@@ -137,12 +135,15 @@ public class TimeoutChecker implements Closeable {
         }
 
         @Override
-        public void register(Matcher matcher) {
+        public synchronized void register(Matcher matcher) {
             WatchDogEntry value = registry.get(Thread.currentThread());
             if (value != null) {
                 boolean wasFalse = value.registered.compareAndSet(false, true);
                 assert wasFalse;
                 value.matchers.add(matcher);
+                if (value.isTimedOut()) {
+                    matcher.interrupt();
+                }
             }
         }
 
@@ -167,8 +168,9 @@ public class TimeoutChecker implements Closeable {
             assert previousValue != null;
         }
 
-        void interruptLongRunningThreadIfRegistered(Thread thread) {
+        synchronized void interruptLongRunningThreadIfRegistered(Thread thread) {
             WatchDogEntry value = registry.get(thread);
+            value.timedOut();
             if (value.registered.get()) {
                 for (Matcher matcher : value.matchers) {
                     matcher.interrupt();
@@ -181,11 +183,20 @@ public class TimeoutChecker implements Closeable {
             final TimeValue timeout;
             final AtomicBoolean registered;
             final Collection<Matcher> matchers;
+            boolean timedOut;
 
             WatchDogEntry(TimeValue timeout) {
                 this.timeout = timeout;
                 this.registered = new AtomicBoolean(false);
                 this.matchers = new CopyOnWriteArrayList<>();
+            }
+
+            private void timedOut() {
+                timedOut = true;
+            }
+
+            private boolean isTimedOut() {
+                return timedOut;
             }
         }
     }

@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
@@ -138,8 +139,8 @@ public class ExpressionTests extends ESTestCase {
 
     public void testBackQuotedIdentifierWithEscapedBackQuote() {
         String quote = "`";
-        String qualifier = "\\`test\\`table\\`";
-        String expectedQualifier = "`test`table`";
+        String qualifier = "\\`test\\\\`table\\`";
+        String expectedQualifier = "`test\\`table`";
         String name = "@timestamp";
         Expression exp = expr(quote + qualifier + quote + "." + quote + name + quote);
         assertThat(exp, instanceOf(UnresolvedAttribute.class));
@@ -147,6 +148,16 @@ public class ExpressionTests extends ESTestCase {
         assertThat(ua.name(), equalTo(expectedQualifier + "." + name));
         assertThat(ua.qualifiedName(), equalTo(expectedQualifier + "." + name));
         assertThat(ua.qualifier(), is(nullValue()));
+    }
+
+    public void testBackQuotedIdentifierWithUnescapedBackQuotes() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`\\`wrong`identifier` = \"some_value\""));
+        assertEquals("line 1:20: token recognition error at: '` = \"some_value\"'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`\\`wrong``identifier` = \"some_value\""));
+        assertThat(e.getMessage(), startsWith("line 1:10: mismatched input '`identifier`' expecting {<EOF>,"));
     }
 
     public void testFunctions() {

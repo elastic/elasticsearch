@@ -42,7 +42,7 @@ import static org.elasticsearch.gradle.test.rest.RestTestUtil.createTestCluster;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 
 /**
- * Apply this plugin to run the YAML based REST tests.
+ * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
 

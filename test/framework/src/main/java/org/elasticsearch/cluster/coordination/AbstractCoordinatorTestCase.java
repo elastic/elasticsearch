@@ -381,6 +381,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
                 }
 
+                // Drain all the disruption events during cool down period until all nodes are healthy.
+                // This prevents some edge cases where a disruption is scheduled to run some time after the stabilization period
+                // (i.e. black-holed connections throw a disconnected exception after 1 day), preventing the cluster to reach
+                // a stable state. See #61711 for a particular instance of this scenario.
+                if (finishTime != -1 && (disconnectedNodes.isEmpty() == false || blackholedNodes.isEmpty() == false)) {
+                    finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
+                }
+
                 try {
                     if (finishTime == -1 && randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
@@ -445,12 +453,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 }
                                 break;
                             case 1:
-                                if (clusterNode.disconnect()) {
+                                // Avoid disruptions during cool down period
+                                if (finishTime == -1 && clusterNode.disconnect()) {
                                     logger.debug("----> [runRandomly {}] disconnecting {}", step, clusterNode.getId());
                                 }
                                 break;
                             case 2:
-                                if (clusterNode.blackhole()) {
+                                // Avoid disruptions during cool down period
+                                if (finishTime == -1 && clusterNode.blackhole()) {
                                     logger.debug("----> [runRandomly {}] blackholing {}", step, clusterNode.getId());
                                 }
                                 break;

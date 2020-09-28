@@ -84,8 +84,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
     public void testScaleUp_withNoJobsWaiting() {
         int minNodes = randomIntBetween(1, 10);
-        int numAnomaly = randomIntBetween(1, 20);
-        int numAnalytics = randomIntBetween(1, 20);
         String[] nodeNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(minNodes).toArray(String[]::new);
         List<DiscoveryNode> nodes = withMlNodes(nodeNames);
         MlAutoscalingDeciderService service = buildService();
@@ -96,7 +94,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             nodes,
             Collections.emptyList(),
             Collections.emptyList(),
-            Duration.ofSeconds(1),
+            null,
             AutoscalingCapacity.ZERO,
             MlScalingReason.builder()),
             equalTo(Optional.empty()));
@@ -116,12 +114,15 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 nodes,
                 jobTasks,
                 analytics,
-                Duration.ZERO,
+                null,
                 new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO),
                 reasonBuilder);
             assertFalse(decision.isEmpty());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(3 * DEFAULT_JOB_SIZE));
+        }
+        { // we allow
+
         }
     }
 

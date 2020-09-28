@@ -19,11 +19,6 @@ yamlRestTest {
   systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
-yamlRestCompatTest {
-  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
-  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
-}
-
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'

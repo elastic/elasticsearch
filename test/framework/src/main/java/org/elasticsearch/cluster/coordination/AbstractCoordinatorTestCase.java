@@ -371,21 +371,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int thisStep = step; // for lambdas
 
                 if (randomSteps <= step && finishTime == -1) {
-                    finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
                     if (coolDown) {
+                        // Heal all nodes BEFORE finishTime is set so it can take into account any pending disruption that
+                        // would prevent the cluster to reach a stable state after cooling down. Additionally, avoid any new disruptions
+                        // to happen in this phase.
+                        // See #61711 for a particular instance where having unhealthy nodes while cooling down can be problematic.
+                        disconnectedNodes.clear();
+                        blackholedNodes.clear();
                         deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
                         logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
                     } else {
                         logger.debug("----> [runRandomly {}] running until [{}ms] with delay variability of [{}ms]", step, finishTime,
                             deterministicTaskQueue.getExecutionDelayVariabilityMillis());
                     }
-                }
-
-                // Drain all the disruption events during cool down period until all nodes are healthy.
-                // This prevents some edge cases where a disruption is scheduled to run some time after the stabilization period
-                // (i.e. black-holed connections throw a disconnected exception after 1 day), preventing the cluster to reach
-                // a stable state. See #61711 for a particular instance of this scenario.
-                if (finishTime != -1 && (disconnectedNodes.isEmpty() == false || blackholedNodes.isEmpty() == false)) {
                     finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
                 }
 

@@ -69,7 +69,7 @@ GET /my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 
 By default, EQL searches return only the top 10 matching hits. For basic EQL
-queries, these hits are matching events, which are included in the `hits.events`
+queries, these hits are matching events and are included in the `hits.events`
 property. These events are sorted by timestamp, converted to milliseconds since
 the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 

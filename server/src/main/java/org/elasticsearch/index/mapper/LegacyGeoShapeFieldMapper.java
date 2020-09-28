@@ -298,7 +298,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public ShapeBuilder<?, ?, ?> parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
+        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException, ParseException {
             return ShapeParser.parse(parser);
         }
 

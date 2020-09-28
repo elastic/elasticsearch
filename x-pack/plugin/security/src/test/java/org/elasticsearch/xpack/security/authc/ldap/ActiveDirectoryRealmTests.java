@@ -519,6 +519,19 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertSingleLdapServer(sessionFactory, "ad01.testing.elastic.co", 20389);
     }
 
+    public void testMandatorySettings() throws Exception {
+        final RealmConfig.RealmIdentifier realmId = realmId("testMandatorySettingsTestRealm");
+        Settings settings = Settings.builder()
+            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+                randomBoolean() ? null : "")
+            .build();
+        RealmConfig config = setupRealm(realmId, settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new ActiveDirectorySessionFactory(config, sslService, threadPool));
+        assertThat(e.getMessage(), containsString(getFullSettingKey(realmId.getName(),
+            ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)));
+    }
+
     private void assertSingleLdapServer(ActiveDirectorySessionFactory sessionFactory, String hostname, int port) {
         assertThat(sessionFactory.getServerSet(), instanceOf(FailoverServerSet.class));
         FailoverServerSet fss = (FailoverServerSet) sessionFactory.getServerSet();

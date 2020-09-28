@@ -359,6 +359,10 @@ any field values.
 [source,console-result]
 ----
 ...
+        "fields" : {
+          "@timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
           "clientip" : [
             "211.11.9.0"
           ],
@@ -366,16 +370,13 @@ any field values.
             """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
           ],
           "day_of_week" : [
-            "Sunday" <1>
-          ],
-          "@timestamp" : [
-            "2020-06-21T20:00:01.000Z"
-          ],
-          "status" : [
-            304
+            "Sunday"
           ]
-...
+        }
+      },
+  ...
 ----
+// TEST[skip:not a complete result]
 
 <1> This value was calculated at search time using the runtime script defined
 in the mapping.

@@ -32,7 +32,7 @@ import org.junit.After;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -78,10 +78,9 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
-        List<String> t = new ArrayList<>(2);
-        t.add("data-1");
-        t.add("data-2");
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), t);
+        // Having a pattern with missing indices is acceptable
+        List<String> indices = Arrays.asList("data-*", "missing-*");
+        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), indices);
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
@@ -129,43 +128,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed",
             job.getId(),
             Collections.singletonList("datafeed_data_stream"));
-        registerDatafeed(datafeedConfig);
-        putDatafeed(datafeedConfig);
-
-        startDatafeed(datafeedConfig.getId(), 0L, now);
-        assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
-            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
-
-            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
-            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
-            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
-        }, 60, TimeUnit.SECONDS);
-
-        waitUntilJobIsClosed(job.getId());
-    }
-
-    public void testLookbackOneEmptyPattern() throws Exception {
-        client().admin().indices().prepareCreate("data-1")
-            .setMapping("time", "type=date")
-            .get();
-        long numDocs = randomIntBetween(32, 2048);
-        long now = System.currentTimeMillis();
-        long oneWeekAgo = now - 604800000;
-        long twoWeeksAgo = oneWeekAgo - 604800000;
-        indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
-
-        Job.Builder job = createScheduledJob("lookback-empty-pattern-job");
-        registerJob(job);
-        putJob(job);
-        openJob(job.getId());
-        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
-
-        List<String> t = new ArrayList<>(2);
-        t.add("data-*");
-        t.add("missing-*");
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), t);
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 

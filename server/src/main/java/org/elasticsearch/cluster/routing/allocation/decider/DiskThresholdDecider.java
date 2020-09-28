@@ -154,7 +154,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         final double usedDiskThresholdLow = 100.0 - diskThresholdSettings.getFreeDiskThresholdLow();
         final double usedDiskThresholdHigh = 100.0 - diskThresholdSettings.getFreeDiskThresholdHigh();
 
-        // subtractLeavingShards is passed as false here, because they still use disk space, and therefore should we should be extra careful
+        // subtractLeavingShards is passed as false here, because they still use disk space, and therefore we should be extra careful
         // and take the size into account
         final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
         // First, check that the node currently over the low watermark
@@ -484,9 +484,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
             return targetShardSize == 0 ? defaultValue : targetShardSize;
         } else {
-            if (shard.active() == false &&
-                shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                Long shardSize = snapshotShardSizeInfo.getShardSize(shard);
+            if (shard.active() == false
+                && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                final Long shardSize = snapshotShardSizeInfo.getShardSize(shard);
                 assert shardSize != null : "no shard size provided for " + shard;
                 return shardSize;
             }

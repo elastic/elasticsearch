@@ -103,11 +103,6 @@ public class AllocationService {
         this.existingShardsAllocators = Collections.unmodifiableMap(existingShardsAllocators);
     }
 
-    public void setSnapshotsInfoService(SnapshotsInfoService snapshotsInfoService) {
-        assert this.snapshotsInfoService == null : "cannot set snapshots info service " + snapshotsInfoService + " twice";
-        this.snapshotsInfoService = snapshotsInfoService;
-    }
-
     /**
      * Applies the started shards. Note, only initializing ShardRouting instances that exist in the routing table should be
      * provided as parameter and no duplicates should be contained.

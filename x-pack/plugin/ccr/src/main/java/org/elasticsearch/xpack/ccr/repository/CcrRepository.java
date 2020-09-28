@@ -435,15 +435,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
-        String leaderIndex = index.getName();
-        Client remoteClient = getRemoteClusterClient();
-        IndicesStatsResponse response = remoteClient.admin().indices().prepareStats(leaderIndex).clear().setStore(true)
+        final String leaderIndex = index.getName();
+        final IndicesStatsResponse response = getRemoteClusterClient().admin().indices().prepareStats(leaderIndex)
+            .clear().setStore(true)
             .get(ccrSettings.getRecoveryActionTimeout());
         for (ShardStats shardStats : response.getIndex(leaderIndex).getShards()) {
             final ShardRouting shardRouting = shardStats.getShardRouting();
-            if (shardRouting.shardId().id() == shardId.getId() &&
-                shardRouting.primary() &&
-                shardRouting.active()) {
+            if (shardRouting.shardId().id() == shardId.getId()
+                && shardRouting.primary()
+                && shardRouting.active()) {
                 // we only care about the shard size here for shard allocation, populate the rest with dummy values
                 final long totalSize = shardStats.getStats().getStore().getSizeInBytes();
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, "");

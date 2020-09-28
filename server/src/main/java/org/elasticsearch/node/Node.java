@@ -405,10 +405,10 @@ public class Node implements Closeable {
             final FsHealthService fsHealthService = new FsHealthService(settings, clusterService.getClusterSettings(), threadPool,
                 nodeEnvironment);
             final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
-            final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(threadPool,
-                repositoriesServiceReference::get, rerouteServiceReference::get);
+            final InternalSnapshotsInfoService snapshotsInfoService =
+                new InternalSnapshotsInfoService(threadPool, repositoriesServiceReference::get, rerouteServiceReference::get);
             clusterService.addListener(snapshotsInfoService);
-            ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService,
+            final ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService,
                 snapshotsInfoService);
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));

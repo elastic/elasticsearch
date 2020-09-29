@@ -1190,3 +1190,8 @@ For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 === Avoid oversharding
 
 See <<size-your-shards>>.
+
+[role="exclude",id="_parameters_8"]
+=== elasticsearch-croneval parameters
+
+See <<elasticsearch-croneval-parameters>>.

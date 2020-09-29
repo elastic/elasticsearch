@@ -132,12 +132,12 @@ via the <<multi-fields>> parameter.
 {es} indexes most field types by default to promote faster search. However,
 indexing all of your data can be slow and requires more disk space. If you're
 experimenting with your data or are unsure which fields you need for search,
-use _runtime fields_.
+use _runtime fields_ beta[].
 
 {es} treats runtime fields like any other field, except that their values are
 only extracted or computed at search time. When mapping a runtime field, you
-define a script that determines how to extract or compute field values from
-your unindexed data.
+define a script that determines how to extract or compute values from existing
+fields.
 
 Runtime fields use less disk space and provide flexibility in how you access
 your data, but impact search performance based on the computation defined in

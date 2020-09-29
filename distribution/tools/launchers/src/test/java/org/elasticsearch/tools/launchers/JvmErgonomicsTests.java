@@ -114,10 +114,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testG1GOptionsForSmallHeap() throws InterruptedException, IOException {
-        assertThat(
-            JvmErgonomics.choose(Arrays.asList("-Xms2g", "-Xmx2g", "-XX:+UseG1GC")),
-            hasItem("-XX:G1HeapRegionSize=4m")
-        );
+        assertThat(JvmErgonomics.choose(Arrays.asList("-Xms2g", "-Xmx2g", "-XX:+UseG1GC")), hasItem("-XX:G1HeapRegionSize=4m"));
     }
 
     public void testG1GOptionsForSmallHeapWhenTuningSet() throws InterruptedException, IOException {
@@ -136,8 +133,9 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
 
     public void testG1GOptionsForLargeHeapWhenTuningSet() throws InterruptedException, IOException {
         assertThat(
-            JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60",
-                "-XX:G1ReservePercent=10")),
+            JvmErgonomics.choose(
+                Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10")
+            ),
             everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent=")))
         );
     }

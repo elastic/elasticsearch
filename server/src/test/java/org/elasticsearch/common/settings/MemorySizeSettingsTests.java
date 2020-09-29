@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;

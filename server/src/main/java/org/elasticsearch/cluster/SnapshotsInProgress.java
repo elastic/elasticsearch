@@ -127,6 +127,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final List<String> dataStreams;
         private final long startTime;
         private final long repositoryStateId;
+        // see #useShardGenerations
         private final Version version;
 
         /**

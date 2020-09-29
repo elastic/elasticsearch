@@ -206,7 +206,7 @@ aggregations in your {transforms}.
 
 [discrete]
 [[transform-data-streams-destination]]
-== Data streams as {transforms} destination indices are not supported
+== Data streams as destination indices are not supported
 
 {transforms-cap} update data in the destination index which requires writing 
 into the destination. <<data-streams>> are designed to be append-only, which 
@@ -217,7 +217,7 @@ this reason, data streams are not supported as destination indices for
 
 [discrete]
 [[transform-ilm-destination]]
-== ILM as destination index for {transforms} may cause duplicated documents
+== ILM as destination index may cause duplicated documents
 
 <<index-lifecycle-management,ILM>> is not recommended to use as a {transform} 
 destination index. {transforms-cap} update documents in the current destination, 

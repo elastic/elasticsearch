@@ -507,10 +507,19 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      */
     CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name);
 
+    /**
+     * Clones a snapshot.
+     */
     CloneSnapshotRequestBuilder prepareCloneSnapshot(String repository, String source, String target);
 
+    /**
+     * Clones a snapshot.
+     */
     ActionFuture<AcknowledgedResponse> cloneSnapshot(CloneSnapshotRequest request);
 
+    /**
+     * Clones a snapshot.
+     */
     void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**

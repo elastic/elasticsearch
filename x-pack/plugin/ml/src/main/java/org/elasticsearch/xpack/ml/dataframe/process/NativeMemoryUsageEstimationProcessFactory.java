@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -60,7 +58,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
     public NativeMemoryUsageEstimationProcess createAnalyticsProcess(
             DataFrameAnalyticsConfig config,
             AnalyticsProcessConfig analyticsProcessConfig,
-            @Nullable BytesReference state,
+            boolean hasState,
             ExecutorService executorService,
             Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
@@ -69,7 +67,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         // memory estimation process pipe names are unique.  Therefore an increasing counter value is appended to the config ID
         // to ensure uniqueness between calls.
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
+            env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
             false, false, true, false, false);
 
         createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
@@ -80,8 +78,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             processPipes,
             0,
             filesToDelete,
-            onProcessCrash,
-            processConnectTimeout);
+            onProcessCrash);
 
         try {
             process.start(executorService);

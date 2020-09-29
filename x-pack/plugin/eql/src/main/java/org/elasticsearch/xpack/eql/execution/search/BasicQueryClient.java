@@ -8,27 +8,28 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest.Item;
-import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
-import org.elasticsearch.xpack.eql.session.Payload;
+import org.elasticsearch.xpack.ql.util.ActionListeners;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
 
 public class BasicQueryClient implements QueryClient {
@@ -36,17 +37,17 @@ public class BasicQueryClient implements QueryClient {
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
     private final EqlConfiguration cfg;
-    private final Client client;
-    private final String indices;
+    final Client client;
+    final String[] indices;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
-        this.indices = cfg.indexAsWildcard();
+        this.indices = cfg.indices();
     }
 
     @Override
-    public void query(QueryRequest request, ActionListener<Payload> listener) {
+    public void query(QueryRequest request, ActionListener<SearchResponse> listener) {
         SearchSourceBuilder searchSource = request.searchSource();
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
@@ -59,62 +60,60 @@ public class BasicQueryClient implements QueryClient {
         }
 
         SearchRequest search = prepareRequest(client, searchSource, false, indices);
-        client.search(search, new BasicListener(listener));
+        search(search, new BasicListener(listener));
+    }
+
+    protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
+        client.search(search, listener);
     }
 
     @Override
-    public void get(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
-        MultiGetRequestBuilder requestBuilder = client.prepareMultiGet();
-        // no need for real-time
-        requestBuilder.setRealtime(false)
-                      .setRefresh(false);
+    public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+        IdsQueryBuilder idsQuery = idsQuery();
 
-        int sz = 0;
+        int innerListSize = 0;
+        Set<String> indices = new HashSet<>();
+
+        // associate each reference with its own
+        final Map<HitReference, List<Integer>> referenceToPosition = new HashMap<>();
+        int counter = 0;
 
         for (List<HitReference> list : refs) {
-            sz = list.size();
+            innerListSize = list.size();
             for (HitReference ref : list) {
-                Item item = new Item(ref.index(), ref.id());
-                // make sure to get the whole source
-                item.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
-                requestBuilder.add(item);
+                idsQuery.addIds(ref.id());
+                indices.add(ref.index());
+                // remember the reference position
+                List<Integer> positions = referenceToPosition.computeIfAbsent(ref, v -> new ArrayList<>(1));
+                positions.add(counter++);
             }
         }
-        
-        final int listSize = sz;
-        client.multiGet(requestBuilder.request(), wrap(r -> {
-            List<List<SearchHit>> hits = new ArrayList<>(r.getResponses().length / listSize);
-            
-            List<SearchHit> sequence = new ArrayList<>(listSize);
 
-            int counter = 0;
-            for (MultiGetItemResponse mgr : r.getResponses()) {
-                if (mgr.isFailed()) {
-                    listener.onFailure(mgr.getFailure().getFailure());
-                    return;
-                }
+        SearchSourceBuilder builder = SearchSourceBuilder.searchSource()
+            // make sure to fetch the whole source
+            .fetchSource(FetchSourceContext.FETCH_SOURCE)
+            .trackTotalHits(false)
+            .trackScores(false)
+            .query(idsQuery);
 
-                GetResponse response = mgr.getResponse();
-                SearchHit hit = new SearchHit(-1, response.getId(), null, null);
-                hit.sourceRef(response.getSourceInternal());
-                // need to create these objects to set the index
-                hit.shard(new SearchShardTarget(null, new ShardId(response.getIndex(), "", -1), null, null));
-                hit.setSeqNo(response.getSeqNo());
-                hit.setPrimaryTerm(response.getPrimaryTerm());
-                hit.version(response.getVersion());
+        final int listSize = innerListSize;
+        final int topListSize = counter / listSize;
+        // pre-allocate the response matrix
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        List<SearchHit>[] hits = new List[topListSize];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = Arrays.asList(new SearchHit[listSize]);
+        }
+        final List<List<SearchHit>> seq = Arrays.asList(hits);
 
+        SearchRequest search = prepareRequest(client, builder, false, indices.toArray(new String[0]));
 
-                sequence.add(hit);
-
-                if (++counter == listSize) {
-                    counter = 0;
-                    hits.add(sequence);
-                    sequence = new ArrayList<>(listSize);
-                }
+        search(search, ActionListeners.map(listener, r -> {
+            for (SearchHit hit : RuntimeUtils.searchHits(r)) {
+                List<Integer> positions = referenceToPosition.get(new HitReference(hit));
+                positions.forEach(pos -> seq.get(pos / listSize).set(pos % listSize, hit));
             }
-            // send the results
-            listener.onResponse(hits);
-
-        }, listener::onFailure));
+            return seq;
+        }));
     }
 }

@@ -18,7 +18,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 /**
  * Ranged or boxed query. Provides a beginning or end to the current query.
  * The query moves between them through search_after.
- * 
+ *
  * Note that the range is not set at once on purpose since each query tends to have
  * its own number of results separate from the others.
  * As such, each query starts where it lefts to reach the current in-progress window
@@ -35,8 +35,6 @@ public class BoxedQueryRequest implements QueryRequest {
     private Ordinal after;
 
     public BoxedQueryRequest(QueryRequest original, String timestamp, String tiebreaker) {
-        searchSource = original.searchSource();
-
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
         BoolQueryBuilder filter = boolQuery().filter(timestampRange);
@@ -46,8 +44,13 @@ public class BoxedQueryRequest implements QueryRequest {
         } else {
             tiebreakerRange = null;
         }
-        // add ranges to existing query
-        searchSource.query(filter.must(searchSource.query()));
+
+        searchSource = original.searchSource();
+        // combine with existing query (if it exists)
+        if (searchSource.query() != null) {
+            filter = filter.must(searchSource.query());
+        }
+        searchSource.query(filter);
     }
 
     @Override

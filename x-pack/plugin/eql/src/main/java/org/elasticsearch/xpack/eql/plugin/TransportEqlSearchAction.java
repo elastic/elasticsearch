@@ -119,13 +119,13 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fetchSize(request.fetchSize());
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen,
-            request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
+                request.isCaseSensitive(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {
-        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.searchHits(), results.sequences(), results.counts(), results
+        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.counts(), results
             .totalHits());
         if (id != null) {
             return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), id.getEncoded(), false, false);

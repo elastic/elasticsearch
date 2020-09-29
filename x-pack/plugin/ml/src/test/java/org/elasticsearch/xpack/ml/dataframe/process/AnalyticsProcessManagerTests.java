@@ -45,6 +45,7 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -91,7 +92,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(process.isProcessAlive()).thenReturn(true);
         when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
         processFactory = mock(AnalyticsProcessFactory.class);
-        when(processFactory.createAnalyticsProcess(any(), any(), any(), any(), any())).thenReturn(process);
+        when(processFactory.createAnalyticsProcess(any(), any(), anyBoolean(), any(), any())).thenReturn(process);
         auditor = mock(DataFrameAnalyticsAuditor.class);
         trainedModelProvider = mock(TrainedModelProvider.class);
 
@@ -190,6 +191,20 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
     }
 
+    public void testRunJob_ProcessNotAliveAfterStart() {
+        when(process.isProcessAlive()).thenReturn(false);
+        when(task.getParams()).thenReturn(
+            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, Collections.emptyList(), false));
+
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory);
+        assertThat(processManager.getProcessContextCount(), equalTo(1));
+
+        ArgumentCaptor<Exception> errorCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(task).setFailed(errorCaptor.capture());
+
+        assertThat(errorCaptor.getValue().getMessage(), equalTo("Failed to start data frame analytics process"));
+    }
+
     public void testProcessContext_GetSetFailureReason() {
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
         assertThat(processContext.getFailureReason(), is(nullValue()));
@@ -211,7 +226,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
         processContext.stop();
-        assertThat(processContext.startProcess(dataExtractorFactory, task, null), is(false));
+        assertThat(processContext.startProcess(dataExtractorFactory, task, false), is(false));
 
         InOrder inOrder = inOrder(dataExtractor, process, task);
         inOrder.verify(task).isStopping();
@@ -222,7 +237,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(0, NUM_COLS));
 
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
-        assertThat(processContext.startProcess(dataExtractorFactory, task, null), is(false));
+        assertThat(processContext.startProcess(dataExtractorFactory, task, false), is(false));
 
         InOrder inOrder = inOrder(dataExtractor, process, task);
         inOrder.verify(task).isStopping();
@@ -233,7 +248,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
     public void testProcessContext_StartAndStop() throws Exception {
         AnalyticsProcessManager.ProcessContext processContext = processManager.new ProcessContext(dataFrameAnalyticsConfig);
-        assertThat(processContext.startProcess(dataExtractorFactory, task, null), is(true));
+        assertThat(processContext.startProcess(dataExtractorFactory, task, false), is(true));
         processContext.stop();
 
         InOrder inOrder = inOrder(dataExtractor, process, task);

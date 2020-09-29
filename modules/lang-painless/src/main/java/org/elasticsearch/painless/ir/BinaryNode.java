@@ -19,12 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-public class BinaryNode extends ExpressionNode {
+public abstract class BinaryNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
 
@@ -49,22 +44,4 @@ public class BinaryNode extends ExpressionNode {
 
     /* ---- end tree structure, begin visitor ---- */
 
-    @Override
-    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        irTreeVisitor.visitBinary(this, scope);
-    }
-
-    @Override
-    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        leftNode.visit(irTreeVisitor, scope);
-        rightNode.visit(irTreeVisitor, scope);
-    }
-
-    /* ---- end visitor ---- */
-
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        leftNode.write(classWriter, methodWriter, writeScope);
-        rightNode.write(classWriter, methodWriter, writeScope);
-    }
 }

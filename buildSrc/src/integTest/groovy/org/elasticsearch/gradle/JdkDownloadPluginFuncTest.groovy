@@ -95,7 +95,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
         def mockedContent = filebytes(jdkVendor, platform)
-        10.times {
+        3.times {
             settingsFile << """
                 include ':sub-$it'
             """
@@ -132,8 +132,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.tasks.size() == 10
-        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
+        result.tasks.size() == 3
+        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}.") == 1
 
         where:
         platform | jdkVendor           | jdkVersion        | expectedJavaBin
@@ -149,7 +149,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
-            
+            apply plugin: 'base'
             apply plugin: 'elasticsearch.jdk-download'
 
             jdks {
@@ -175,9 +175,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            gradleRunner('getJdk', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-g', commonGradleUserHome).build()
             // run against up-to-date transformations
-            gradleRunner('getJdk', '-i', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-i', '-g', commonGradleUserHome).build()
         }
 
         then:

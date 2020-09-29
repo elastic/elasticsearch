@@ -88,7 +88,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":2"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/a_test_regression_model?human=true&include_model_definition=true"));
+            MachineLearning.BASE_PATH + "inference/a_test_regression_model?human=true&include=definition"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
@@ -100,7 +100,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/a_test_regression_model?decompress_definition=false&include_model_definition=true"));
+            MachineLearning.BASE_PATH + "inference/a_test_regression_model?decompress_definition=false&include=definition"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
@@ -112,7 +112,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
         ResponseException responseException = expectThrows(ResponseException.class, () ->
             client().performRequest(new Request("GET",
-                MachineLearning.BASE_PATH + "inference/a_test_regression*?human=true&include_model_definition=true")));
+                MachineLearning.BASE_PATH + "inference/a_test_regression*?human=true&include=definition")));
         assertThat(EntityUtils.toString(responseException.getResponse().getEntity()),
             containsString(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED));
 
@@ -181,7 +181,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
     public void testGetPrePackagedModels() throws IOException {
         Response getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/lang_ident_model_1?human=true&include_model_definition=true"));
+            MachineLearning.BASE_PATH + "inference/lang_ident_model_1?human=true&include=definition"));
 
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
         String response = EntityUtils.toString(getModel.getEntity());
@@ -204,7 +204,7 @@ public class TrainedModelIT extends ESRestTestCase {
         getModel = client().performRequest(new Request("GET",
             MachineLearning.BASE_PATH +
                 "inference/" + modelId +
-                "?include_model_definition=true&decompress_definition=false&for_export=true"));
+                "?include=definition&decompress_definition=false&for_export=true"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         Map<String, Object> exportedModel = entityAsMap(getModel);

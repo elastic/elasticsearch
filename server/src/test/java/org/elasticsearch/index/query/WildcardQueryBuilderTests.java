@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
@@ -71,14 +72,18 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
 
         if (expectedFieldName.equals(TEXT_FIELD_NAME)) {
-            assertThat(query, instanceOf(WildcardQuery.class));
-            WildcardQuery wildcardQuery = (WildcardQuery) query;
-
-            assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
-            assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
-            // wildcard queries get normalized
-            String text = wildcardQuery.getTerm().text().toLowerCase(Locale.ROOT);
-            assertThat(text, equalTo(text));
+            if (queryBuilder.caseInsensitive()) {
+                assertThat(query, instanceOf(AutomatonQuery.class));
+            } else {
+                assertThat(query, instanceOf(WildcardQuery.class));
+                WildcardQuery wildcardQuery = (WildcardQuery) query;
+    
+                assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
+                assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
+                // wildcard queries get normalized
+                String text = wildcardQuery.getTerm().text().toLowerCase(Locale.ROOT);
+                assertThat(text, equalTo(text));
+            }
         } else {
             Query expected = new MatchNoDocsQuery("unknown field [" + expectedFieldName + "]");
             assertEquals(expected, query);
@@ -103,7 +108,10 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testFromJson() throws IOException {
-        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0 } }}";
+        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\","
+            + " \"case_insensitive\" : true,\n"             
+            + " \"boost\" : 2.0"
+            + " } }}";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "ki*y", parsed.value());

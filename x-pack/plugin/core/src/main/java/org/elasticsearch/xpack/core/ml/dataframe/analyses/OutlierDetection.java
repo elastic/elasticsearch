@@ -264,7 +264,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public String getStateDocId(String jobId) {
+    public String getStateDocIdPrefix(String jobId) {
         throw new UnsupportedOperationException("Outlier detection does not support state");
     }
 

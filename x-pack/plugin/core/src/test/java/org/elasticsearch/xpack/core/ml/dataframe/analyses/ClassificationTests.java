@@ -446,7 +446,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         Classification classification = createRandom();
         assertThat(classification.persistsState(), is(true));
         String randomId = randomAlphaOfLength(10);
-        assertThat(classification.getStateDocId(randomId), equalTo(randomId + "_classification_state#1"));
+        assertThat(classification.getStateDocIdPrefix(randomId), equalTo(randomId + "_classification_state#"));
     }
 
     public void testExtractJobIdFromStateDoc() {

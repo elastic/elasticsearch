@@ -16,8 +16,6 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,7 +23,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -155,56 +152,14 @@ public class AsyncSearchTaskTests extends ESTestCase {
         latch.await();
     }
 
-    public void testGetResponseFailureDuringReduction() throws InterruptedException {
-        AsyncSearchTask task = createAsyncSearchTask();
-        task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
-            SearchResponse.Clusters.EMPTY, false);
-        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true),
-            BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
-        //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
-        //causing an exception when executing getResponse as part of the completion listener callback
-        DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
-            .asSerialized(InternalAggregations::readFrom, new NamedWriteableRegistry(Collections.emptyList()));
-        task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            serializedAggs, 1);
-        AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        task.addCompletionListener(new ActionListener<>() {
-            @Override
-            public void onResponse(AsyncSearchResponse asyncSearchResponse) {
-                assertTrue(response.compareAndSet(null, asyncSearchResponse));
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("onFailure should not be called");
-            }
-        }, TimeValue.timeValueMillis(10L));
-        assertTrue(latch.await(1, TimeUnit.SECONDS));
-        assertNotNull(response.get().getSearchResponse());
-        assertEquals(0, response.get().getSearchResponse().getTotalShards());
-        assertEquals(0, response.get().getSearchResponse().getSuccessfulShards());
-        assertEquals(0, response.get().getSearchResponse().getFailedShards());
-        assertThat(response.get().getFailure(), instanceOf(ElasticsearchException.class));
-        assertEquals("Async search: error while reducing partial results", response.get().getFailure().getMessage());
-        assertThat(response.get().getFailure().getCause(), instanceOf(IllegalArgumentException.class));
-        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]",
-            response.get().getFailure().getCause().getMessage());
-    }
-
     public void testWithFailureAndGetResponseFailureDuringReduction() throws InterruptedException {
         AsyncSearchTask task = createAsyncSearchTask();
         task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
             SearchResponse.Clusters.EMPTY, false);
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true),
             BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
-        //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
-        //causing an exception when executing getResponse as part of the completion listener callback
-        DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
-            .asSerialized(InternalAggregations::readFrom    , new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            serializedAggs, 1);
+            aggs, 1);
         task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -229,9 +184,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
         Exception failure = asyncSearchResponse.getFailure();
         assertThat(failure, instanceOf(ElasticsearchException.class));
         assertEquals("Async search: error while reducing partial results", failure.getMessage());
-        assertThat(failure.getCause(), instanceOf(IllegalArgumentException.class));
-        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() +
-            "]", failure.getCause().getMessage());
         assertEquals(1, failure.getSuppressed().length);
         assertThat(failure.getSuppressed()[0], instanceOf(ElasticsearchException.class));
         assertEquals("error while executing search", failure.getSuppressed()[0].getMessage());

@@ -9,21 +9,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -39,19 +38,24 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final AtomicBoolean hasLatestTemplate;
 
     private Queue<ToXContent> backlog;
+    private ClusterService clusterService;
 
 
     protected AbstractAuditor(OriginSettingClient client,
                               String nodeName,
                               String auditIndex,
                               String templateName,
-                              AbstractAuditMessageFactory<T> messageFactory) {
+                              AbstractAuditMessageFactory<T> messageFactory,
+                              ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.nodeName = Objects.requireNonNull(nodeName);
         this.auditIndex = auditIndex;
         this.templateName = Objects.requireNonNull(templateName);
         this.messageFactory = Objects.requireNonNull(messageFactory);
+        this.clusterService = clusterService;
         this.hasLatestTemplate = new AtomicBoolean();
+        this.backlog = new ConcurrentLinkedQueue<>();
+
     }
 
     public void info(String resourceId, String message) {
@@ -70,10 +74,6 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         logger.trace("Successfully wrote audit message");
     }
 
-    private void onBulkResponse(BulkResponse response) {
-        logger.trace("Successfully wrote audit message");
-    }
-
     private void onIndexFailure(Exception exception) {
         logger.debug("Failed to write audit message", exception);
     }
@@ -84,22 +84,31 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             return;
         }
 
-        backlog.add(toXContent);
-        if (hasLatestTemplate.get()) {
-
-        }
-
         ActionListener<Boolean> putTemplateListener = ActionListener.wrap(
             r -> {
-                this.hasLatestTemplate.set(true);
-//                writeBacklog();
+                synchronized (this) {
+                    this.hasLatestTemplate.set(true);
+                }
+                logger.info("Auditor template [{}] successfully installed", templateName);
+                writeBacklog();
             },
             e -> {
                 logger.warn("Error putting latest template [{}]", templateName);
             }
         );
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, templateName, putTemplateListener);
+        synchronized (this) {
+            if (hasLatestTemplate.get() == false) {
+                // synchronized so that hasLatestTemplate does not change value
+                // between the read and adding to the backlog
+                backlog.add(toXContent);
+                MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateName,
+                    putTemplateListener);
+                return;
+            }
+        }
+
+        indexDoc(toXContent);
      }
 
     private void indexDoc(ToXContent toXContent) {
@@ -131,7 +140,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         }
 
         client.bulk(bulkRequest, ActionListener.wrap(
-            this::onBulkResponse,
+            bulkItemResponses -> {
+                backlog = null;
+                logger.trace("Successfully wrote audit message backlog after upgrading template");
+            },
             this::onIndexFailure
         ));
     }

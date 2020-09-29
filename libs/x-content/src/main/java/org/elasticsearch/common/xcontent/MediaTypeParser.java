@@ -53,7 +53,6 @@ public class MediaTypeParser<T extends MediaType> {
      *
      * @param headerValue a header value from Accept or Content-Type
      * @return a parsed media-type
-     * //todo pg write a benchmark and consider using a regex
      */
     public ParsedMediaType parseMediaType(String headerValue) {
         if (headerValue != null) {

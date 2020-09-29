@@ -34,6 +34,7 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType(mediaType), equalTo(expectedXContentType));
         assertThat(XContentType.fromMediaType(mediaType + ";"), equalTo(expectedXContentType));
         assertThat(XContentType.fromMediaType(mediaType + "; charset=UTF-8"), equalTo(expectedXContentType));
+        assertThat(XContentType.fromMediaType(mediaType + "; charset=utf-8"), equalTo(expectedXContentType));
     }
 
     public void testFromNdJson() throws Exception {

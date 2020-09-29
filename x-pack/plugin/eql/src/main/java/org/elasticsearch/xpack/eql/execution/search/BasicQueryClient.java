@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
@@ -74,7 +75,7 @@ public class BasicQueryClient implements QueryClient {
         int innerListSize = 0;
         Set<String> indices = new HashSet<>();
 
-        // associate each reference with its own
+        // associate each reference with its own hit
         final Map<HitReference, List<Integer>> referenceToPosition = new HashMap<>();
         int counter = 0;
 
@@ -94,7 +95,10 @@ public class BasicQueryClient implements QueryClient {
             .fetchSource(FetchSourceContext.FETCH_SOURCE)
             .trackTotalHits(false)
             .trackScores(false)
-            .query(idsQuery);
+            .query(idsQuery)
+            // the default size is 10 so be sure to change it
+            // this is different from mget
+            .size(referenceToPosition.size() + 1);
 
         final int listSize = innerListSize;
         final int topListSize = counter / listSize;
@@ -109,9 +113,20 @@ public class BasicQueryClient implements QueryClient {
         SearchRequest search = prepareRequest(client, builder, false, indices.toArray(new String[0]));
 
         search(search, ActionListeners.map(listener, r -> {
-            for (SearchHit hit : RuntimeUtils.searchHits(r)) {
-                List<Integer> positions = referenceToPosition.get(new HitReference(hit));
-                positions.forEach(pos -> seq.get(pos / listSize).set(pos % listSize, hit));
+            List<SearchHit> docs = RuntimeUtils.searchHits(r);
+            if (docs.size() < referenceToPosition.size()) {
+                throw new EqlIllegalArgumentException("Expected [{}] documents but got only [{}]", referenceToPosition.size(), docs.size());
+            }
+            for (SearchHit doc : docs) {
+                HitReference docRef = new HitReference(doc);
+                List<Integer> positions = referenceToPosition.get(docRef);
+                positions.forEach(pos -> {
+                    SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc);
+                    if (previous != null) {
+                        throw new EqlIllegalArgumentException("Overriding sequence match [{}] with [{}]",
+                            new HitReference(previous), docRef);
+                    }
+                });
             }
             return seq;
         }));

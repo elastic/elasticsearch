@@ -8,10 +8,6 @@ from that node.
 
 You can use the following settings to control disk-based allocation:
 
-`cluster.routing.allocation.disk.threshold_enabled`::
-    (<<dynamic-cluster-setting,Dynamic>>)
-    Defaults to `true`.  Set to `false` to disable the disk allocation decider.
-
 [[cluster-routing-disk-threshold]]
 // tag::cluster-routing-disk-threshold-tag[]
 `cluster.routing.allocation.disk.threshold_enabled` {ess-icon}::

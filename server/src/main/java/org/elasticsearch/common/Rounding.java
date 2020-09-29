@@ -1172,7 +1172,6 @@ public abstract class Rounding implements Writeable {
                 );
                 logger.debug(
                     "Expected to find the rounding in 100 iterations but didn't for {} using {}",
-                    iterations,
                     utcMillis,
                     TimeIntervalRounding.this.toString()
                 );

@@ -206,15 +206,15 @@ aggregations in your {transforms}.
 
 [discrete]
 [[transform-painless-imitation]]
-== Scripts in {transforms} 
+== Using scripts in {transforms}
 
 {transforms-cap} support scripting in every case when aggregations support them. 
 However, there are certain factors you might want to consider when using scripts 
 in {transforms}:
 
-* {transforms-cap} deduce index mappings for output fields except if the fields 
-  are created by a script. In this case, you might want to create the mappings 
-  of the destination index yourself.
+* {transforms-cap} cannot deduce index mappings for output fields when the 
+  fields are created by a script. In this case, you might want to create the 
+  mappings of the destination index yourself prior to creating the transform.
 
 * Using a script in a `group_by` may increase the runtime of the {transform} 
   compared to using a non-scripted `group_by`.
